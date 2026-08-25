@@ -29,12 +29,13 @@ test("server-renders the apartment maintenance app shell", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>Шпалерная, 34Б<\/title>/i);
-  assert.match(html, /R-07 · Розетка у входа/);
-  assert.match(html, /История узла/);
+  assert.match(html, /Дашборд квартиры/);
+  assert.match(html, /Всего узлов/);
+  assert.match(html, /Что не так сейчас/);
   assert.match(html, /Требует внимания/);
-  assert.match(html, /Быстрый комментарий/);
+  assert.match(html, /Нужен мастер/);
   assert.match(html, /Доступ мастеру/);
   assert.match(html, /data-slot="card"/);
-  assert.match(html, /data-slot="select-trigger"/);
+  assert.match(html, /data-slot="badge"/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site/);
 });

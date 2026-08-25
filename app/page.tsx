@@ -905,7 +905,7 @@ export default function Home() {
     return defaultState;
   });
   const [storageReady, setStorageReady] = useState(false);
-  const [view, setView] = useState<View>("asset");
+  const [view, setView] = useState<View>("dashboard");
   const [selectedAssetId, setSelectedAssetId] = useState("r07");
   const [selectedInspectionId, setSelectedInspectionId] = useState(
     defaultState.inspections[0]?.id ?? "",
