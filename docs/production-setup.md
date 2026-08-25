@@ -8,11 +8,19 @@
 
 ## Supabase
 
-1. Create a Supabase project.
-2. Open SQL Editor and run `supabase/schema.sql`.
-3. Run `supabase/seed.sql` to create the Shpalernaya apartment catalog.
-4. In Authentication, create the owner user for `morochkovsky@gmail.com`.
-5. In Storage, confirm that the `asset-media` bucket exists.
+Current project:
+
+- Supabase project: `Chat Brief`
+- Project ref: `awjedoupwxxlfpebxdfb`
+
+The project is linked locally and the migrations in `supabase/migrations` are applied.
+
+For a fresh environment:
+
+1. Link the Supabase project with `supabase link --project-ref awjedoupwxxlfpebxdfb`.
+2. Run `supabase db push` to apply schema and seed migrations.
+3. In Authentication, confirm that the owner user exists for `morochkovsky@gmail.com`.
+4. In Storage, confirm that the `asset-media` bucket exists.
 
 ## Environment variables
 
