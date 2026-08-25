@@ -56,13 +56,11 @@ import {
 import {
   Check,
   CircleAlert,
-  ClipboardCheck,
   History,
   LayoutDashboard,
   List,
   Map,
   Menu,
-  Play,
   ArrowLeft,
   RotateCcw,
   Settings,
@@ -1240,16 +1238,6 @@ export default function Home() {
             <h1>{viewTitle(view, selectedAsset)}</h1>
             <p>{viewSubtitle(view)}</p>
           </div>
-          <div className="topbar-actions">
-            <Button variant="secondary" onClick={() => navigate("contractor")} type="button">
-              <UserRoundCheck size={16} />
-              Доступ мастеру
-            </Button>
-            <Button onClick={() => navigate("inspection")} type="button">
-              <Play size={16} />
-              Начать обход
-            </Button>
-          </div>
         </header>
 
         {view === "dashboard" && (
@@ -1297,7 +1285,6 @@ export default function Home() {
             setAssetStatus={setAssetStatus}
             returnLabel={assetReturnLabel(assetReturnView)}
             goBack={() => navigate(assetReturnView)}
-            goContractor={() => setView("contractor")}
           />
         )}
 
@@ -1373,7 +1360,7 @@ function viewTitle(view: View, asset: Asset) {
     log: "Журнал квартиры",
     inspection: "Обход квартиры",
     inspections: "Обходы и отчеты",
-    contractor: "Доступ мастеру",
+    contractor: "Выдать доступ мастеру",
     report: "Отчет мастера",
     settings: "Настройки",
   };
@@ -1388,8 +1375,8 @@ function viewSubtitle(view: View) {
     asset: "История, фото, паспорт узла и быстрые действия.",
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
-    inspections: "Все созданные обходы, результаты мастеров и сводки по узлам.",
-    contractor: "Гостевая ссылка на выбранные узлы и чек-лист мастера.",
+    inspections: "Выдача ссылок мастерам, все созданные обходы и сводки по узлам.",
+    contractor: "Создание гостевой ссылки на выбранные узлы и чек-лист мастера.",
     report: "Сводка, которая вернулась после проверки по ссылке.",
     settings: "Название сервиса, объект и базовые параметры интерфейса.",
   };
@@ -1403,9 +1390,9 @@ function assetReturnLabel(view: View) {
     assets: "К списку",
     log: "К журналу",
     inspection: "К обходу",
-    inspections: "К отчетам",
+    inspections: "К обходам",
     report: "К отчету",
-    contractor: "К доступу",
+    contractor: "К обходам",
   };
   return labels[view] ?? "Назад";
 }
@@ -1431,21 +1418,16 @@ function AppNavigation({
         <List size={16} />
         Узлы
       </NavButton>
-      <NavButton active={activeView === "inspection"} onClick={() => navigate("inspection")}>
-        <ClipboardCheck size={16} />
-        Обход
-      </NavButton>
-      <NavButton active={activeView === "inspections"} onClick={() => navigate("inspections")}>
+      <NavButton
+        active={["inspections", "contractor", "report", "inspection"].includes(activeView)}
+        onClick={() => navigate("inspections")}
+      >
         <History size={16} />
-        Отчеты
+        Обходы и отчеты
       </NavButton>
       <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
         <History size={16} />
         Журнал
-      </NavButton>
-      <NavButton active={activeView === "contractor"} onClick={() => navigate("contractor")}>
-        <UserRoundCheck size={16} />
-        Доступ мастеру
       </NavButton>
       <NavButton active={activeView === "settings"} onClick={() => navigate("settings")}>
         <Settings size={16} />
@@ -1916,7 +1898,7 @@ function SettingsView({
           <CardDescription>В бургер-меню доступны основные рабочие разделы.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 text-muted-foreground text-sm">
-          {["Дашборд", "План", "Узлы", "Обход", "Отчеты", "Журнал", "Доступ мастеру"].map((item) => (
+          {["Дашборд", "План", "Узлы", "Обходы и отчеты", "Журнал", "Настройки"].map((item) => (
             <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
           ))}
         </CardContent>
@@ -1934,7 +1916,6 @@ function AssetDetail({
   setAssetStatus,
   returnLabel,
   goBack,
-  goContractor,
 }: {
   asset: Asset;
   events: AssetEvent[];
@@ -1944,7 +1925,6 @@ function AssetDetail({
   setAssetStatus: (assetId: string, status: Status, body?: string) => void;
   returnLabel: string;
   goBack: () => void;
-  goContractor: () => void;
 }) {
   const mediaEvents = events.filter((event) => event.photo);
   const currentStatusVariant = asset.status === "attention" ? "destructive" : "secondary";
@@ -2089,16 +2069,10 @@ function AssetDetail({
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={goBack} type="button">
-              <ArrowLeft size={16} />
-              {returnLabel}
-            </Button>
-            <Button variant="outline" onClick={() => void goContractor()} type="button">
-              <UserRoundCheck size={16} />
-              Доступ мастеру
-            </Button>
-          </div>
+          <Button variant="secondary" onClick={goBack} type="button">
+            <ArrowLeft size={16} />
+            {returnLabel}
+          </Button>
         </CardHeader>
       </Card>
 
@@ -2323,7 +2297,7 @@ function InspectionsView({
             </div>
             <Button onClick={openContractor} type="button">
               <UserRoundCheck size={16} />
-              Создать обход
+              Выдать доступ мастеру
             </Button>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -2693,7 +2667,7 @@ function ContractorReport({
               </Badge>
             )}
             <Button onClick={openInspections} type="button" variant="secondary">
-              Все отчеты
+              Все обходы
             </Button>
           </div>
         </CardHeader>

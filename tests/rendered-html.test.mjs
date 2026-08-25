@@ -34,7 +34,8 @@ test("server-renders the apartment maintenance app shell", async () => {
   assert.match(html, /Что не так сейчас/);
   assert.match(html, /Требует внимания/);
   assert.match(html, /Нужен мастер/);
-  assert.match(html, /Доступ мастеру/);
+  assert.match(html, /Обходы и отчеты/);
+  assert.doesNotMatch(html, /Начать обход/);
   assert.match(html, /data-slot="card"/);
   assert.match(html, /data-slot="badge"/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site/);
