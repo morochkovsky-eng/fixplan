@@ -1688,6 +1688,112 @@ function AssetDetail({
 }) {
   const mediaEvents = events.filter((event) => event.photo);
   const currentStatusVariant = asset.status === "attention" ? "destructive" : "secondary";
+  const historyContent = (
+    <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto max-[980px]:pr-0">
+      <div className="space-y-5">
+        {events.map((event) => (
+          <Task key={event.id} defaultOpen>
+            <TaskTrigger title={`${event.date} · ${event.title}`}>
+              <button className="group flex w-full items-start gap-3 text-left" type="button">
+                <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
+                <span className="grid min-w-0 flex-1 gap-1">
+                  <span className="text-muted-foreground text-sm">
+                    {event.date} · {eventLabels[event.type]}
+                  </span>
+                  <span className="font-medium text-base leading-snug">
+                    {event.title}
+                  </span>
+                </span>
+              </button>
+            </TaskTrigger>
+            <TaskContent>
+              <TaskItem>{event.body}</TaskItem>
+              {(event.cost || event.master || event.statusAfter) && (
+                <div className="flex flex-wrap gap-2">
+                  {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
+                  {event.cost && (
+                    <TaskItemFile>
+                      Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
+                    </TaskItemFile>
+                  )}
+                  {event.statusAfter && (
+                    <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>
+                  )}
+                </div>
+              )}
+              {event.photo && (
+                <Attachments variant="list" className="mt-2 w-full">
+                  <Attachment data={eventPhotoData(event)}>
+                    <AttachmentPreview />
+                    <AttachmentInfo />
+                  </Attachment>
+                </Attachments>
+              )}
+            </TaskContent>
+          </Task>
+        ))}
+      </div>
+    </ScrollArea>
+  );
+  const passportContent = (
+    <dl className="grid grid-cols-[128px_1fr] gap-x-3 gap-y-2 text-sm">
+      <dt className="text-muted-foreground">ID</dt><dd className="font-medium">{asset.code}</dd>
+      <dt className="text-muted-foreground">Комната</dt><dd className="font-medium">{roomName(asset.roomId)}</dd>
+      <dt className="text-muted-foreground">Категория</dt><dd className="font-medium">{categoryLabels[asset.category]}</dd>
+      <dt className="text-muted-foreground">Последняя проверка</dt><dd className="font-medium">{asset.lastChecked}</dd>
+      <dt className="text-muted-foreground">Гарантия</dt><dd className="font-medium">{asset.warrantyUntil ?? "не указана"}</dd>
+      <dt className="text-muted-foreground">Мастер</dt><dd className="font-medium">{asset.master ?? "не назначен"}</dd>
+    </dl>
+  );
+  const mediaContent = mediaEvents.length ? (
+    <Attachments variant="grid">
+      {mediaEvents.map((event) => (
+        <Attachment key={event.id} data={eventPhotoData(event)}>
+          <AttachmentPreview />
+        </Attachment>
+      ))}
+    </Attachments>
+  ) : (
+    <p className="text-muted-foreground text-sm">
+      Фотографии появятся после события с вложением.
+    </p>
+  );
+  const commentContent = (
+    <PromptInput
+      className="w-full"
+      onSubmit={(message: PromptInputMessage) => {
+        const text = message.text.trim() || newEventText.trim();
+        if (!text && message.files.length === 0) return;
+        addEvent(asset.id, {
+          type: message.files.length ? "photo" : "comment",
+          title: message.files.length ? "Фотофиксация" : "Комментарий",
+          body: text || "Добавлены фотографии без комментария.",
+          photo: message.files.length
+            ? { label: "фото", note: message.files[0]?.filename ?? "Вложение" }
+            : undefined,
+        });
+      }}
+    >
+      <PromptInputBody>
+        <PromptInputTextarea
+          placeholder="Комментарий по узлу"
+          value={newEventText}
+          onChange={(event) => setNewEventText(event.currentTarget.value)}
+        />
+      </PromptInputBody>
+      <PromptInputFooter>
+        <PromptInputTools>
+          <PromptInputActionMenu>
+            <PromptInputActionMenuTrigger />
+            <PromptInputActionMenuContent>
+              <PromptInputActionAddAttachments label="Прикрепить фото" />
+            </PromptInputActionMenuContent>
+          </PromptInputActionMenu>
+        </PromptInputTools>
+        <PromptInputSubmit aria-label="Отправить комментарий" />
+      </PromptInputFooter>
+    </PromptInput>
+  );
 
   return (
     <div className="grid grid-cols-[minmax(560px,1fr)_384px] gap-6 max-[980px]:grid-cols-1">
@@ -1730,7 +1836,7 @@ function AssetDetail({
         </CardHeader>
       </Card>
 
-      <Card>
+      <Card className="max-[980px]:hidden">
         <CardHeader>
           <CardTitle>История узла</CardTitle>
           <CardDescription>
@@ -1738,55 +1844,11 @@ function AssetDetail({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto">
-            <div className="space-y-5">
-              {events.map((event) => (
-                <Task key={event.id} defaultOpen>
-                  <TaskTrigger title={`${event.date} · ${event.title}`}>
-                    <button className="group flex w-full items-start gap-3 text-left" type="button">
-                      <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
-                      <span className="grid min-w-0 flex-1 gap-1">
-                        <span className="text-muted-foreground text-sm">
-                          {event.date} · {eventLabels[event.type]}
-                        </span>
-                        <span className="font-medium text-base leading-snug">
-                          {event.title}
-                        </span>
-                      </span>
-                    </button>
-                  </TaskTrigger>
-                  <TaskContent>
-                    <TaskItem>{event.body}</TaskItem>
-                    {(event.cost || event.master || event.statusAfter) && (
-                      <div className="flex flex-wrap gap-2">
-                        {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
-                        {event.cost && (
-                          <TaskItemFile>
-                            Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
-                          </TaskItemFile>
-                        )}
-                        {event.statusAfter && (
-                          <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>
-                        )}
-                      </div>
-                    )}
-                    {event.photo && (
-                      <Attachments variant="list" className="mt-2 w-full">
-                        <Attachment data={eventPhotoData(event)}>
-                          <AttachmentPreview />
-                          <AttachmentInfo />
-                        </Attachment>
-                      </Attachments>
-                    )}
-                  </TaskContent>
-                </Task>
-              ))}
-            </div>
-          </ScrollArea>
+          {historyContent}
         </CardContent>
       </Card>
 
-      <aside className="grid content-start gap-4">
+      <aside className="grid content-start gap-4 max-[980px]:hidden">
         <Tabs defaultValue="passport">
           <Card>
             <CardHeader>
@@ -1801,29 +1863,10 @@ function AssetDetail({
             </CardHeader>
             <CardContent>
               <TabsContent value="passport" className="mt-0">
-                <dl className="grid grid-cols-[128px_1fr] gap-x-3 gap-y-2 text-sm">
-                  <dt className="text-muted-foreground">ID</dt><dd className="font-medium">{asset.code}</dd>
-                  <dt className="text-muted-foreground">Комната</dt><dd className="font-medium">{roomName(asset.roomId)}</dd>
-                  <dt className="text-muted-foreground">Категория</dt><dd className="font-medium">{categoryLabels[asset.category]}</dd>
-                  <dt className="text-muted-foreground">Последняя проверка</dt><dd className="font-medium">{asset.lastChecked}</dd>
-                  <dt className="text-muted-foreground">Гарантия</dt><dd className="font-medium">{asset.warrantyUntil ?? "не указана"}</dd>
-                  <dt className="text-muted-foreground">Мастер</dt><dd className="font-medium">{asset.master ?? "не назначен"}</dd>
-                </dl>
+                {passportContent}
               </TabsContent>
               <TabsContent value="media" className="mt-0">
-                {mediaEvents.length ? (
-                  <Attachments variant="grid">
-                    {mediaEvents.map((event) => (
-                      <Attachment key={event.id} data={eventPhotoData(event)}>
-                        <AttachmentPreview />
-                      </Attachment>
-                    ))}
-                  </Attachments>
-                ) : (
-                  <p className="text-muted-foreground text-sm">
-                    Фотографии появятся после события с вложением.
-                  </p>
-                )}
+                {mediaContent}
               </TabsContent>
             </CardContent>
           </Card>
@@ -1837,43 +1880,37 @@ function AssetDetail({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <PromptInput
-              className="w-full"
-              onSubmit={(message: PromptInputMessage) => {
-                const text = message.text.trim() || newEventText.trim();
-                if (!text && message.files.length === 0) return;
-                addEvent(asset.id, {
-                  type: message.files.length ? "photo" : "comment",
-                  title: message.files.length ? "Фотофиксация" : "Комментарий",
-                  body: text || "Добавлены фотографии без комментария.",
-                  photo: message.files.length
-                    ? { label: "фото", note: message.files[0]?.filename ?? "Вложение" }
-                    : undefined,
-                });
-              }}
-            >
-              <PromptInputBody>
-                <PromptInputTextarea
-                  placeholder="Комментарий по узлу"
-                  value={newEventText}
-                  onChange={(event) => setNewEventText(event.currentTarget.value)}
-                />
-              </PromptInputBody>
-              <PromptInputFooter>
-                <PromptInputTools>
-                  <PromptInputActionMenu>
-                    <PromptInputActionMenuTrigger />
-                    <PromptInputActionMenuContent>
-                      <PromptInputActionAddAttachments label="Прикрепить фото" />
-                    </PromptInputActionMenuContent>
-                  </PromptInputActionMenu>
-                </PromptInputTools>
-                <PromptInputSubmit aria-label="Отправить комментарий" />
-              </PromptInputFooter>
-            </PromptInput>
+            {commentContent}
           </CardContent>
         </Card>
       </aside>
+
+      <Card className="hidden max-[980px]:block">
+        <Tabs defaultValue="history">
+          <CardHeader className="gap-3">
+            <TabsList aria-label="Разделы карточки узла" className="grid w-full grid-cols-4">
+              <TabsTrigger value="history">История</TabsTrigger>
+              <TabsTrigger value="passport">Паспорт</TabsTrigger>
+              <TabsTrigger value="media">Медиа</TabsTrigger>
+              <TabsTrigger value="comment">Комментарий</TabsTrigger>
+            </TabsList>
+          </CardHeader>
+          <CardContent>
+            <TabsContent value="history" className="mt-0">
+              {historyContent}
+            </TabsContent>
+            <TabsContent value="passport" className="mt-0">
+              {passportContent}
+            </TabsContent>
+            <TabsContent value="media" className="mt-0">
+              {mediaContent}
+            </TabsContent>
+            <TabsContent value="comment" className="mt-0">
+              {commentContent}
+            </TabsContent>
+          </CardContent>
+        </Tabs>
+      </Card>
     </div>
   );
 }

@@ -1501,6 +1501,19 @@ select:focus-visible {
   .rx-details {
     grid-template-columns: 112px 1fr;
   }
+
+  [aria-label="Разделы карточки узла"] {
+    display: flex;
+    justify-content: flex-start;
+    overflow-x: auto;
+    max-width: 100%;
+    padding-bottom: 2px;
+  }
+
+  [aria-label="Разделы карточки узла"] button {
+    flex: 0 0 auto;
+    min-width: 92px;
+  }
 }
 
 @theme inline {
