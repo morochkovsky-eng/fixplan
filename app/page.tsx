@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -60,9 +61,12 @@ import {
   LayoutDashboard,
   List,
   Map,
+  Menu,
   Play,
   RotateCcw,
+  Settings,
   UserRoundCheck,
+  X,
 } from "lucide-react";
 
 type Category =
@@ -108,6 +112,11 @@ type AssetFilter =
   | AssetKind;
 
 type AssetSort = "status" | "room" | "code" | "checked";
+
+type AppConfig = {
+  serviceName: string;
+  objectName: string;
+};
 
 type EventType =
   | "inspection"
@@ -218,6 +227,7 @@ type Inspection = {
 };
 
 type AppState = {
+  config: AppConfig;
   assets: Asset[];
   events: AssetEvent[];
   contractorAccess: ContractorAccess;
@@ -234,7 +244,8 @@ type View =
   | "inspection"
   | "inspections"
   | "contractor"
-  | "report";
+  | "report"
+  | "settings";
 
 const rooms: Room[] = [
   { id: "living", name: "Гостиная", x: 0, y: 0, width: 270, height: 210 },
@@ -504,6 +515,10 @@ const planHotspots: Record<PlanModeId, PlanHotspot[]> = {
 };
 
 const initialState: AppState = {
+  config: {
+    serviceName: "FixPlan",
+    objectName: "Шпалерная, 34Б",
+  },
   assets: [
     {
       id: "r07",
@@ -844,6 +859,7 @@ function withCatalogAssets(state: AppState): AppState {
   const knownIds = new Set(state.assets.map((asset) => asset.id));
   return {
     ...state,
+    config: state.config ?? initialState.config,
     assets: [
       ...state.assets,
       ...catalogAssets.filter((asset) => !knownIds.has(asset.id)),
@@ -870,6 +886,7 @@ export default function Home() {
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [contractorMode, setContractorMode] = useState<"setup" | "master">(
     "setup",
   );
@@ -932,6 +949,12 @@ export default function Home() {
   function openAsset(id: string) {
     setSelectedAssetId(id);
     setView("asset");
+    setMobileMenuOpen(false);
+  }
+
+  function navigate(viewName: View) {
+    setView(viewName);
+    setMobileMenuOpen(false);
   }
 
   function addEvent(assetId: string, patch?: Partial<AssetEvent>) {
@@ -1090,40 +1113,48 @@ export default function Home() {
   return (
     <TooltipProvider>
       <main className="app-shell">
+      <header className="mobile-header">
+        <div className="mobile-brand">
+          <strong>{state.config.serviceName}</strong>
+          <span>{state.config.objectName}</span>
+        </div>
+        <Button
+          aria-expanded={mobileMenuOpen}
+          aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
+          onClick={() => setMobileMenuOpen((value) => !value)}
+          size="icon"
+          type="button"
+          variant="secondary"
+        >
+          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+        </Button>
+      </header>
+      {mobileMenuOpen && (
+        <div className="mobile-menu">
+          <nav className="nav-list" aria-label="Мобильная навигация">
+            <AppNavigation activeView={view} navigate={navigate} />
+          </nav>
+          <Button
+            className="w-full justify-start"
+            variant="secondary"
+            onClick={() => {
+              setState(defaultState);
+              setMobileMenuOpen(false);
+            }}
+            type="button"
+          >
+            <RotateCcw size={16} />
+            Сбросить демо
+          </Button>
+        </div>
+      )}
       <aside className="sidebar">
         <div className="brand">
-          <strong>Шпалерная, 34Б</strong>
-          <span>квартира / обслуживание</span>
+          <strong>{state.config.serviceName}</strong>
+          <span>{state.config.objectName}</span>
         </div>
         <nav className="nav-list" aria-label="Главная навигация">
-          <NavButton active={view === "dashboard"} onClick={() => setView("dashboard")}>
-            <LayoutDashboard size={16} />
-            Дашборд
-          </NavButton>
-          <NavButton active={view === "plan"} onClick={() => setView("plan")}>
-            <Map size={16} />
-            План
-          </NavButton>
-          <NavButton active={view === "assets"} onClick={() => setView("assets")}>
-            <List size={16} />
-            Узлы
-          </NavButton>
-          <NavButton active={view === "log"} onClick={() => setView("log")}>
-            <History size={16} />
-            Журнал
-          </NavButton>
-          <NavButton active={view === "inspection"} onClick={() => setView("inspection")}>
-            <ClipboardCheck size={16} />
-            Обход
-          </NavButton>
-          <NavButton active={view === "inspections"} onClick={() => setView("inspections")}>
-            <History size={16} />
-            Отчеты
-          </NavButton>
-          <NavButton active={view === "contractor"} onClick={() => setView("contractor")}>
-            <UserRoundCheck size={16} />
-            Доступ мастеру
-          </NavButton>
+          <AppNavigation activeView={view} navigate={navigate} />
         </nav>
         <Button
           className="w-full justify-start"
@@ -1143,11 +1174,11 @@ export default function Home() {
             <p>{viewSubtitle(view)}</p>
           </div>
           <div className="topbar-actions">
-            <Button variant="secondary" onClick={() => setView("contractor")} type="button">
+            <Button variant="secondary" onClick={() => navigate("contractor")} type="button">
               <UserRoundCheck size={16} />
               Доступ мастеру
             </Button>
-            <Button onClick={() => setView("inspection")} type="button">
+            <Button onClick={() => navigate("inspection")} type="button">
               <Play size={16} />
               Начать обход
             </Button>
@@ -1242,6 +1273,18 @@ export default function Home() {
             openAsset={openAsset}
           />
         )}
+
+        {view === "settings" && (
+          <SettingsView
+            config={state.config}
+            setConfig={(config) =>
+              setState((current) => ({
+                ...current,
+                config: { ...current.config, ...config },
+              }))
+            }
+          />
+        )}
       </section>
       </main>
     </TooltipProvider>
@@ -1259,6 +1302,7 @@ function viewTitle(view: View, asset: Asset) {
     inspections: "Обходы и отчеты",
     contractor: "Доступ мастеру",
     report: "Отчет мастера",
+    settings: "Настройки",
   };
   return titles[view];
 }
@@ -1274,8 +1318,54 @@ function viewSubtitle(view: View) {
     inspections: "Все созданные обходы, результаты мастеров и сводки по узлам.",
     contractor: "Гостевая ссылка на выбранные узлы и чек-лист мастера.",
     report: "Сводка, которая вернулась после проверки по ссылке.",
+    settings: "Название сервиса, объект и базовые параметры интерфейса.",
   };
   return subtitles[view];
+}
+
+function AppNavigation({
+  activeView,
+  navigate,
+}: {
+  activeView: View;
+  navigate: (view: View) => void;
+}) {
+  return (
+    <>
+      <NavButton active={activeView === "dashboard"} onClick={() => navigate("dashboard")}>
+        <LayoutDashboard size={16} />
+        Дашборд
+      </NavButton>
+      <NavButton active={activeView === "plan"} onClick={() => navigate("plan")}>
+        <Map size={16} />
+        План
+      </NavButton>
+      <NavButton active={activeView === "assets"} onClick={() => navigate("assets")}>
+        <List size={16} />
+        Узлы
+      </NavButton>
+      <NavButton active={activeView === "inspection"} onClick={() => navigate("inspection")}>
+        <ClipboardCheck size={16} />
+        Обход
+      </NavButton>
+      <NavButton active={activeView === "inspections"} onClick={() => navigate("inspections")}>
+        <History size={16} />
+        Отчеты
+      </NavButton>
+      <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
+        <History size={16} />
+        Журнал
+      </NavButton>
+      <NavButton active={activeView === "contractor"} onClick={() => navigate("contractor")}>
+        <UserRoundCheck size={16} />
+        Доступ мастеру
+      </NavButton>
+      <NavButton active={activeView === "settings"} onClick={() => navigate("settings")}>
+        <Settings size={16} />
+        Настройки
+      </NavButton>
+    </>
+  );
 }
 
 function NavButton({
@@ -1666,6 +1756,59 @@ function AssetsView({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function SettingsView({
+  config,
+  setConfig,
+}: {
+  config: AppConfig;
+  setConfig: (config: Partial<AppConfig>) => void;
+}) {
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <Card>
+        <CardHeader>
+          <CardTitle>Основные настройки</CardTitle>
+          <CardDescription>
+            Эти названия используются в мобильной шапке, меню и дальнейшем интерфейсе объекта.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <label className="grid gap-2" htmlFor="service-name">
+            <span className="text-sm font-medium">Название сервиса</span>
+            <Input
+              id="service-name"
+              value={config.serviceName}
+              onChange={(event) => setConfig({ serviceName: event.currentTarget.value })}
+              placeholder="Например, FixPlan"
+            />
+          </label>
+          <label className="grid gap-2" htmlFor="object-name">
+            <span className="text-sm font-medium">Название объекта</span>
+            <Input
+              id="object-name"
+              value={config.objectName}
+              onChange={(event) => setConfig({ objectName: event.currentTarget.value })}
+              placeholder="Например, Шпалерная, 34Б"
+            />
+          </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Мобильное меню</CardTitle>
+          <CardDescription>В бургер-меню доступны основные рабочие разделы.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2 text-muted-foreground text-sm">
+          {["Дашборд", "План", "Узлы", "Обход", "Отчеты", "Журнал", "Доступ мастеру"].map((item) => (
+            <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

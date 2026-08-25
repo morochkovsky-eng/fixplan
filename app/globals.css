@@ -89,6 +89,11 @@ button {
   min-height: 100vh;
 }
 
+.mobile-header,
+.mobile-menu {
+  display: none;
+}
+
 .sidebar {
   position: sticky;
   top: 0;
@@ -1353,12 +1358,62 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .sidebar {
-    position: static;
-    height: auto;
-    padding: 12px 16px;
-    border-right: 0;
+  .mobile-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     border-bottom: 1px solid var(--border);
+    background: color-mix(in oklab, var(--content) 94%, transparent);
+    padding: 10px 12px;
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-brand {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .mobile-brand strong {
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-brand span {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-menu {
+    position: sticky;
+    top: 57px;
+    z-index: 25;
+    display: grid;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--content);
+    padding: 12px;
+    box-shadow: 0 18px 30px rgba(29, 32, 35, 0.08);
+  }
+
+  .mobile-menu .nav-list {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: none;
   }
 
   .brand {
