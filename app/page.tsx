@@ -894,6 +894,9 @@ export default function Home() {
   const [storageReady, setStorageReady] = useState(false);
   const [view, setView] = useState<View>("asset");
   const [selectedAssetId, setSelectedAssetId] = useState("r07");
+  const [selectedInspectionId, setSelectedInspectionId] = useState(
+    defaultState.inspections[0]?.id ?? "",
+  );
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [newEventText, setNewEventText] = useState("");
@@ -926,6 +929,9 @@ export default function Home() {
   const selectedAsset =
     state.assets.find((asset) => asset.id === selectedAssetId) ??
     state.assets[0];
+  const selectedInspection =
+    state.inspections.find((inspection) => inspection.id === selectedInspectionId) ??
+    state.inspections[0];
 
   const selectedEvents = useMemo(
     () =>
@@ -961,6 +967,12 @@ export default function Home() {
   function openAsset(id: string) {
     setSelectedAssetId(id);
     setView("asset");
+    setMobileMenuOpen(false);
+  }
+
+  function openReport(id: string) {
+    setSelectedInspectionId(id);
+    setView("report");
     setMobileMenuOpen(false);
   }
 
@@ -1048,6 +1060,7 @@ export default function Home() {
         allowedAssetIds: allowed,
       },
     }));
+    setSelectedInspectionId(id);
     setContractorMode("master");
   }
 
@@ -1119,6 +1132,7 @@ export default function Home() {
       ],
       events: [...resultEvents, ...current.events],
     }));
+    setSelectedInspectionId(activeInspection.id);
     setView("report");
   }
 
@@ -1260,6 +1274,7 @@ export default function Home() {
             inspections={state.inspections}
             results={state.inspectionResults}
             openAsset={openAsset}
+            openReport={openReport}
             openContractor={() => setView("contractor")}
           />
         )}
@@ -1276,13 +1291,12 @@ export default function Home() {
 
         {view === "report" && (
           <ContractorReport
-            assets={state.assets.filter((asset) =>
-              state.contractorAccess.allowedAssetIds.includes(asset.id),
-            )}
+            assets={state.assets}
             events={state.events}
-            inspections={state.inspections}
+            inspection={selectedInspection}
             results={state.inspectionResults}
             openAsset={openAsset}
+            openInspections={() => setView("inspections")}
           />
         )}
 
@@ -2178,12 +2192,14 @@ function InspectionsView({
   inspections,
   results,
   openAsset,
+  openReport,
   openContractor,
 }: {
   assets: Asset[];
   inspections: Inspection[];
   results: InspectionResult[];
   openAsset: (id: string) => void;
+  openReport: (id: string) => void;
   openContractor: () => void;
 }) {
   const latestInspection = inspections[0];
@@ -2241,6 +2257,15 @@ function InspectionsView({
                     </Badge>
                     <Badge variant="outline">{cost.toLocaleString("ru-RU")} руб.</Badge>
                   </div>
+                  <Button
+                    className="w-fit"
+                    onClick={() => openReport(inspection.id)}
+                    size="sm"
+                    type="button"
+                    variant={inspection.status === "completed" ? "default" : "secondary"}
+                  >
+                    Открыть отчет
+                  </Button>
                   <div className="grid gap-2">
                     {inspectionResults.slice(0, 4).map((result) => {
                       const asset = assets.find((item) => item.id === result.assetId);
@@ -2257,6 +2282,11 @@ function InspectionsView({
                         </button>
                       );
                     })}
+                    {!inspectionResults.length && (
+                      <div className="rounded-md bg-muted p-2 text-muted-foreground text-sm">
+                        Результатов пока нет. Откройте отчет, чтобы увидеть состав задания.
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -2500,72 +2530,154 @@ function ContractorAccessView({
 function ContractorReport({
   assets,
   events,
-  inspections,
+  inspection,
   results,
   openAsset,
+  openInspections,
 }: {
   assets: Asset[];
   events: AssetEvent[];
-  inspections: Inspection[];
+  inspection?: Inspection;
   results: InspectionResult[];
   openAsset: (id: string) => void;
+  openInspections: () => void;
 }) {
-  const latestInspection = inspections[0];
   const reportEvents = events.filter((event) =>
-    latestInspection ? event.inspectionId === latestInspection.id : event.type === "report",
+    inspection ? event.inspectionId === inspection.id : event.type === "report",
   );
-  const reportResults = latestInspection
-    ? results.filter((result) => result.inspectionId === latestInspection.id)
+  const reportResults = inspection
+    ? results.filter((result) => result.inspectionId === inspection.id)
     : results;
+  const reportAssets = inspection
+    ? assets.filter((asset) => inspection.allowedAssetIds.includes(asset.id))
+    : assets;
   const issueResults = reportResults.filter((result) => result.statusAfter !== "ok");
   const totalCost = reportResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
   const photoCount = reportResults.reduce((sum, result) => sum + result.photoCount, 0);
+  const isCompleted = inspection?.status === "completed";
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Проверено" value={`${reportResults.length || assets.length} узла`} />
-      <StatCard label="Замечания" value={`${issueResults.length}`} tone="negative" />
-      <StatCard label="Стоимость" value={`${totalCost.toLocaleString("ru-RU")} руб.`} />
-      <StatCard label="Фото" value={`${photoCount} файлов`} />
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>{latestInspection?.number ?? "Отчет мастера"}</CardTitle>
-          <CardDescription>
-            {latestInspection?.summary ?? "Сводка результатов последнего обхода."}
-          </CardDescription>
+    <div className="grid gap-4">
+      <Card size="sm">
+        <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
+          <div>
+            <CardTitle>{inspection?.number ?? "Отчет мастера"}</CardTitle>
+            <CardDescription>
+              {inspection
+                ? `${inspection.title} · ${inspection.contractor} · создан ${inspection.createdAt}`
+                : "Сводка результатов последнего обхода."}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {inspection && (
+              <Badge variant={isCompleted ? "secondary" : "default"}>
+                {inspectionStatusLabels[inspection.status]}
+              </Badge>
+            )}
+            <Button onClick={openInspections} type="button" variant="secondary">
+              Все отчеты
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="grid gap-2">
-          {reportResults.map((result) => {
-            const asset = assets.find((item) => item.id === result.assetId);
-            if (!asset) return null;
-            return (
-              <div className="grid gap-2 rounded-lg border p-3" key={result.id}>
-                <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
-                <p className="m-0 text-muted-foreground text-sm">{result.comment}</p>
-                <div className="flex flex-wrap gap-2">
-                  <StatusBadge status={result.statusAfter} />
-                  <Badge variant="outline">{result.photoCount} фото</Badge>
-                  {result.cost && (
-                    <Badge variant="outline">{result.cost.toLocaleString("ru-RU")} руб.</Badge>
-                  )}
+        <CardContent>
+          <p className="m-0 text-muted-foreground text-sm">
+            {inspection?.summary ?? "Выберите обход в списке отчетов, чтобы увидеть подробности."}
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="В задании" value={`${reportAssets.length} узла`} />
+        <StatCard label="Проверено" value={`${reportResults.length} узла`} />
+        <StatCard label="Замечания" value={`${issueResults.length}`} tone="negative" />
+        <StatCard label="Стоимость" value={`${totalCost.toLocaleString("ru-RU")} руб.`} />
+        <StatCard label="Фото" value={`${photoCount} файлов`} />
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
+        <Card>
+          <CardHeader>
+            <CardTitle>{isCompleted ? "Результаты по узлам" : "Узлы в задании"}</CardTitle>
+            <CardDescription>
+              {isCompleted
+                ? "Все, что мастер написал по каждому узлу в рамках этого обхода."
+                : "Состав отправленного задания. Результаты появятся после отправки мастером."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {isCompleted &&
+              reportResults.map((result) => {
+                const asset = assets.find((item) => item.id === result.assetId);
+                if (!asset) return null;
+                return (
+                  <div className="grid gap-2 rounded-lg border p-3" key={result.id}>
+                    <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
+                    <p className="m-0 text-muted-foreground text-sm">{result.comment}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge status={result.statusAfter} />
+                      <Badge variant="outline">{result.photoCount} фото</Badge>
+                      {result.cost && (
+                        <Badge variant="outline">{result.cost.toLocaleString("ru-RU")} руб.</Badge>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            {!isCompleted &&
+              reportAssets.map((asset) => (
+                <div className="grid gap-2 rounded-lg border p-3" key={asset.id}>
+                  <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
+                  <p className="m-0 text-muted-foreground text-sm">
+                    Ожидаем результат мастера по этому узлу.
+                  </p>
                 </div>
+              ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Сводка отчета</CardTitle>
+            <CardDescription>
+              Короткий разбор, чтобы не проваливаться в каждый узел вручную.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <div className="rounded-lg bg-muted p-3 text-sm">
+              {isCompleted
+                ? `Проверено ${reportResults.length} из ${reportAssets.length}. Замечаний: ${issueResults.length}.`
+                : `Отправлено ${reportAssets.length} узлов. Мастер еще не прислал результаты.`}
+            </div>
+            {issueResults.length > 0 && (
+              <div className="grid gap-2">
+                <strong className="text-sm">Требуют внимания</strong>
+                {issueResults.map((result) => {
+                  const asset = assets.find((item) => item.id === result.assetId);
+                  if (!asset) return null;
+                  return (
+                    <button
+                      className="rounded-lg border bg-background p-3 text-left"
+                      key={result.id}
+                      onClick={() => openAsset(asset.id)}
+                      type="button"
+                    >
+                      <span className="block font-medium">{asset.code} · {asset.name}</span>
+                      <span className="block text-muted-foreground text-sm">{result.comment}</span>
+                    </button>
+                  );
+                })}
               </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-      <Card className="md:col-span-2">
-        <CardHeader>
-          <CardTitle>Что попало в журнал</CardTitle>
-          <CardDescription>События из отчета мастера.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {reportEvents.slice(0, 4).map((event) => {
-            const asset = assets.find((item) => item.id === event.assetId);
-            return <EventTask asset={asset} event={event} key={event.id} />;
-          })}
-        </CardContent>
-      </Card>
+            )}
+            {reportEvents.length > 0 && (
+              <div className="space-y-5">
+                {reportEvents.slice(0, 3).map((event) => {
+                  const asset = assets.find((item) => item.id === event.assetId);
+                  return <EventTask asset={asset} event={event} key={event.id} />;
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
