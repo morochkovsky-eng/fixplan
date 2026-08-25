@@ -46,7 +46,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  createClient as createSupabaseBrowserClient,
+  createClientFromConfig as createSupabaseClientFromConfig,
+} from "@/lib/supabase/browser";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -945,25 +948,51 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const supabase = createSupabaseBrowserClient();
-    if (!supabase) {
-      window.setTimeout(() => setAuthStatus("ready"), 0);
-      return;
-    }
-
     let mounted = true;
-    supabase.auth.getUser().then(({ data }) => {
+    let unsubscribeAuth: (() => void) | undefined;
+
+    async function syncAuth() {
+      let supabase = createSupabaseBrowserClient();
+
+      if (!supabase) {
+        try {
+          const response = await fetch("/api/public-config", { cache: "no-store" });
+          const config = await response.json() as {
+            supabaseUrl?: string;
+            supabaseAnonKey?: string;
+          };
+
+          if (config.supabaseUrl && config.supabaseAnonKey) {
+            supabase = createSupabaseClientFromConfig(
+              config.supabaseUrl,
+              config.supabaseAnonKey,
+            );
+          }
+        } catch {
+          supabase = null;
+        }
+      }
+
+      if (!supabase) {
+        if (mounted) setAuthStatus("ready");
+        return;
+      }
+
+      const { data } = await supabase.auth.getUser();
       if (!mounted) return;
       setAuthStatus(data.user ? "ready" : "signed_out");
-    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthStatus(session?.user ? "ready" : "signed_out");
-    });
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setAuthStatus(session?.user ? "ready" : "signed_out");
+      });
+      unsubscribeAuth = () => listener.subscription.unsubscribe();
+    }
+
+    void syncAuth();
 
     return () => {
       mounted = false;
-      listener.subscription.unsubscribe();
+      unsubscribeAuth?.();
     };
   }, []);
 

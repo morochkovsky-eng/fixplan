@@ -10,3 +10,7 @@ export function createClient() {
 
   return createBrowserClient(url, anonKey);
 }
+
+export function createClientFromConfig(url: string, anonKey: string) {
+  return createBrowserClient(url, anonKey);
+}
