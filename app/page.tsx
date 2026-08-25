@@ -821,16 +821,8 @@ function statusWeight(status: Status) {
   return order[status];
 }
 
-function inspectionId() {
-  return `insp-${Date.now()}-${Math.round(Math.random() * 1000)}`;
-}
-
 function resultId() {
   return `res-${Date.now()}-${Math.round(Math.random() * 1000)}`;
-}
-
-function accessLinkFor(scope: ContractorAccess["scope"]) {
-  return `shpalernaya.app/access/${scope}-${Math.random().toString(16).slice(2, 6)}`;
 }
 
 function roomIdFromPlanRoom(room: string) {
@@ -943,9 +935,6 @@ export default function Home() {
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [contractorMode, setContractorMode] = useState<"setup" | "master">(
-    "setup",
-  );
 
   useEffect(() => {
     let mounted = true;
@@ -1015,6 +1004,48 @@ export default function Home() {
     if (!storageReady) return;
     window.localStorage.setItem(storageKey, JSON.stringify(state));
   }, [state, storageReady]);
+
+  useEffect(() => {
+    if (authStatus !== "ready") return;
+
+    let cancelled = false;
+
+    async function loadRemoteData() {
+      try {
+        const response = await fetch("/api/app-data", { cache: "no-store" });
+        const remoteState = (await response.json()) as Partial<AppState> & { error?: string };
+
+        if (!response.ok || cancelled || remoteState.error) return;
+
+        setState((current) =>
+          withCatalogAssets({
+            ...current,
+            assets: remoteState.assets ?? current.assets,
+            events: remoteState.events ?? current.events,
+            inspections: remoteState.inspections ?? current.inspections,
+            inspectionResults: remoteState.inspectionResults ?? current.inspectionResults,
+            contractorAccess: {
+              ...current.contractorAccess,
+              inspectionId:
+                remoteState.inspections?.[0]?.id ??
+                current.contractorAccess.inspectionId,
+            },
+          }),
+        );
+        if (remoteState.inspections?.[0]?.id) {
+          setSelectedInspectionId(remoteState.inspections[0].id);
+        }
+      } catch {
+        // Local demo state remains usable if the production database is unreachable.
+      }
+    }
+
+    void loadRemoteData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authStatus]);
 
   const selectedAsset =
     state.assets.find((asset) => asset.id === selectedAssetId) ??
@@ -1128,39 +1159,43 @@ export default function Home() {
     setInspectionIndex((current) => (current + 1) % state.assets.length);
   }
 
-  function createContractorInspection() {
-    const id = inspectionId();
+  async function createContractorInspection() {
     const scope = state.contractorAccess.scope;
     const allowed = state.contractorAccess.allowedAssetIds.length
       ? state.contractorAccess.allowedAssetIds
       : state.assets.slice(0, 5).map((asset) => asset.id);
-    const inspection: Inspection = {
-      id,
-      number: `Обход #${state.inspections.length + 1}`,
-      title: `Обход мастера · ${scope === "all" ? "вся квартира" : scope === "electric" ? "электрика" : scope === "plumbing" ? "сантехника" : "выбранные узлы"}`,
-      createdAt: todayLabel(),
-      createdBy: "Владелец",
-      contractor: scope === "electric" ? "Электрик" : scope === "plumbing" ? "Сантехник" : "Мастер",
-      scope,
-      status: "sent",
-      allowedAssetIds: allowed,
-      summary: "Ссылка создана. Ожидаем отчет мастера по выбранным узлам.",
-      conclusion: "",
-      link: accessLinkFor(scope),
-      resultIds: [],
+
+    const response = await fetch("/api/inspections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scope,
+        allowedAssetIds: allowed,
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      inspection?: Inspection;
+      error?: string;
     };
+
+    if (!response.ok || !payload.inspection) {
+      window.alert(payload.error ?? "Не удалось создать ссылку мастеру.");
+      return;
+    }
+
+    const inspection = payload.inspection;
 
     setState((current) => ({
       ...current,
       inspections: [inspection, ...current.inspections],
       contractorAccess: {
         ...current.contractorAccess,
-        inspectionId: id,
-        allowedAssetIds: allowed,
+        inspectionId: inspection.id,
+        allowedAssetIds: inspection.allowedAssetIds,
       },
     }));
-    setSelectedInspectionId(id);
-    setContractorMode("master");
+    setSelectedInspectionId(inspection.id);
+    setView("inspections");
   }
 
   function submitContractorReport(conclusion?: string) {
@@ -1377,7 +1412,7 @@ export default function Home() {
           <ContractorAccessView
             state={state}
             setState={setState}
-            mode={contractorMode}
+            mode="setup"
             createContractorInspection={createContractorInspection}
             submitContractorReport={submitContractorReport}
           />
@@ -2432,15 +2467,24 @@ function InspectionsView({
                     </Badge>
                     <Badge variant="outline">{cost.toLocaleString("ru-RU")} руб.</Badge>
                   </div>
-                  <Button
-                    className="w-fit"
-                    onClick={() => openReport(inspection.id)}
-                    size="sm"
-                    type="button"
-                    variant={inspection.status === "completed" ? "default" : "secondary"}
-                  >
-                    Открыть отчет
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      className="w-fit"
+                      onClick={() => openReport(inspection.id)}
+                      size="sm"
+                      type="button"
+                      variant={inspection.status === "completed" ? "default" : "secondary"}
+                    >
+                      Открыть отчет
+                    </Button>
+                    {inspection.status !== "completed" && (
+                      <Button asChild className="w-fit" size="sm" type="button" variant="secondary">
+                        <a href={inspection.link} rel="noreferrer" target="_blank">
+                          Открыть ссылку мастера
+                        </a>
+                      </Button>
+                    )}
+                  </div>
                   <div className="grid gap-2">
                     {inspectionResults.slice(0, 4).map((result) => {
                       const asset = assets.find((item) => item.id === result.assetId);
@@ -2702,7 +2746,7 @@ function ContractorAccessView({
           {activeInspection?.link ?? "Ссылка появится после создания обхода"}
         </div>
         <Button onClick={createContractorInspection} type="button">
-          Создать обход и открыть как мастер
+          Создать обход и ссылку мастеру
         </Button>
         </CardContent>
       </Card>
