@@ -108,6 +108,7 @@ type AssetKind =
 type AssetFilter =
   | "all"
   | "issues"
+  | Status
   | Category
   | AssetKind;
 
@@ -283,7 +284,10 @@ const assetKindLabels: Record<AssetKind, string> = {
 
 const assetFilterOptions: Array<{ id: AssetFilter; label: string }> = [
   { id: "all", label: "Все" },
-  { id: "issues", label: "Требуют внимания" },
+  { id: "attention", label: "Требует внимания" },
+  { id: "in_progress", label: "В работе" },
+  { id: "needs_master", label: "Нужен мастер" },
+  { id: "issues", label: "Все проблемы" },
   { id: "electric", label: "Электрика" },
   { id: "socket", label: "Розетки" },
   { id: "switch", label: "Выключатели" },
@@ -768,6 +772,9 @@ function isKindFilter(filter: AssetFilter): filter is AssetKind {
 function matchesAssetFilter(asset: Asset, filter: AssetFilter) {
   if (filter === "all") return true;
   if (filter === "issues") return asset.status !== "ok";
+  if (filter === "ok" || filter === "attention" || filter === "in_progress" || filter === "needs_master") {
+    return asset.status === filter;
+  }
   if (isCategoryFilter(filter)) return asset.category === filter;
   if (isKindFilter(filter)) return assetKind(asset) === filter;
   return true;
@@ -897,6 +904,7 @@ export default function Home() {
   const [selectedInspectionId, setSelectedInspectionId] = useState(
     defaultState.inspections[0]?.id ?? "",
   );
+  const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [newEventText, setNewEventText] = useState("");
@@ -956,6 +964,7 @@ export default function Home() {
   );
 
   const issueAssets = state.assets.filter((asset) => asset.status !== "ok");
+  const attentionAssets = state.assets.filter((asset) => asset.status === "attention");
   const inProgressAssets = state.assets.filter(
     (asset) => asset.status === "in_progress",
   );
@@ -973,6 +982,12 @@ export default function Home() {
   function openReport(id: string) {
     setSelectedInspectionId(id);
     setView("report");
+    setMobileMenuOpen(false);
+  }
+
+  function openAssets(filter: AssetFilter) {
+    setAssetFilter(filter);
+    setView("assets");
     setMobileMenuOpen(false);
   }
 
@@ -1214,10 +1229,12 @@ export default function Home() {
         {view === "dashboard" && (
           <Dashboard
             assets={state.assets}
+            attentionAssets={attentionAssets}
             issueAssets={issueAssets}
             inProgressAssets={inProgressAssets}
             needsMasterAssets={needsMasterAssets}
             openAsset={openAsset}
+            openAssets={openAssets}
             goPlan={() => setView("plan")}
           />
         )}
@@ -1237,7 +1254,9 @@ export default function Home() {
         {view === "assets" && (
           <AssetsView
             assets={state.assets}
+            filter={assetFilter}
             openAsset={openAsset}
+            setFilter={setAssetFilter}
             setAssetStatus={setAssetStatus}
           />
         )}
@@ -1446,25 +1465,48 @@ function StatusSelect({
 
 function Dashboard({
   assets,
+  attentionAssets,
   issueAssets,
   inProgressAssets,
   needsMasterAssets,
   openAsset,
+  openAssets,
   goPlan,
 }: {
   assets: Asset[];
+  attentionAssets: Asset[];
   issueAssets: Asset[];
   inProgressAssets: Asset[];
   needsMasterAssets: Asset[];
   openAsset: (id: string) => void;
+  openAssets: (filter: AssetFilter) => void;
   goPlan: () => void;
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Всего узлов" value={assets.length.toString()} />
-      <StatCard label="Требуют внимания" value={issueAssets.length.toString()} tone="negative" />
-      <StatCard label="В работе" value={inProgressAssets.length.toString()} tone="warning" />
-      <StatCard label="Нужен мастер" value={needsMasterAssets.length.toString()} tone="violet" />
+      <StatCard
+        label="Всего узлов"
+        onClick={() => openAssets("all")}
+        value={assets.length.toString()}
+      />
+      <StatCard
+        label="Требует внимания"
+        onClick={() => openAssets("attention")}
+        tone="negative"
+        value={attentionAssets.length.toString()}
+      />
+      <StatCard
+        label="В работе"
+        onClick={() => openAssets("in_progress")}
+        tone="warning"
+        value={inProgressAssets.length.toString()}
+      />
+      <StatCard
+        label="Нужен мастер"
+        onClick={() => openAssets("needs_master")}
+        tone="violet"
+        value={needsMasterAssets.length.toString()}
+      />
 
       <Card className="md:col-span-2">
         <CardHeader className="grid-cols-[1fr_auto] gap-3">
@@ -1665,14 +1707,17 @@ function ApartmentPlan({
 
 function AssetsView({
   assets,
+  filter,
   openAsset,
+  setFilter,
   setAssetStatus,
 }: {
   assets: Asset[];
+  filter: AssetFilter;
   openAsset: (id: string) => void;
+  setFilter: (filter: AssetFilter) => void;
   setAssetStatus: (id: string, status: Status) => void;
 }) {
-  const [filter, setFilter] = useState<AssetFilter>("all");
   const [sort, setSort] = useState<AssetSort>("status");
 
   const filteredAssets = useMemo(() => {
@@ -2684,10 +2729,12 @@ function ContractorReport({
 
 function StatCard({
   label,
+  onClick,
   value,
   tone,
 }: {
   label: string;
+  onClick?: () => void;
   value: string;
   tone?: "negative" | "positive" | "warning" | "violet";
 }) {
@@ -2700,7 +2747,7 @@ function StatCard({
           ? "text-violet-600"
           : "";
 
-  return (
+  const content = (
     <Card size="sm">
       <CardContent className="grid gap-1">
         <span className="text-muted-foreground text-sm">{label}</span>
@@ -2708,6 +2755,20 @@ function StatCard({
       </CardContent>
     </Card>
   );
+
+  if (onClick) {
+    return (
+      <button
+        className="stat-card-button"
+        onClick={onClick}
+        type="button"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }
 
 function AssetRow({

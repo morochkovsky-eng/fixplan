@@ -83,6 +83,34 @@ button {
   cursor: pointer;
 }
 
+.stat-card-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.stat-card-button > * {
+  height: 100%;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.stat-card-button:hover > *,
+.stat-card-button:focus-visible > * {
+  border-color: var(--ring);
+  box-shadow: 0 8px 24px rgba(29, 32, 35, 0.08);
+  transform: translateY(-1px);
+}
+
+.stat-card-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 280px 1fr;
