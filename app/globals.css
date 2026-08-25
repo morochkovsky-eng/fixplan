@@ -1559,10 +1559,18 @@ select:focus-visible {
 
   [aria-label="Разделы карточки узла"] {
     display: flex;
+    align-items: center;
     justify-content: flex-start;
     overflow-x: auto;
+    overflow-y: hidden;
     max-width: 100%;
     padding-bottom: 2px;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  [aria-label="Разделы карточки узла"]::-webkit-scrollbar {
+    display: none;
   }
 
   [aria-label="Разделы карточки узла"] button {

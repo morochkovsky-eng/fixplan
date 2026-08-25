@@ -1991,6 +1991,18 @@ function AssetDetail({
         </CardHeader>
       </Card>
 
+      <Card className="hidden max-[980px]:block">
+        <CardHeader>
+          <CardTitle>Быстрый комментарий</CardTitle>
+          <CardDescription>
+            Комментарий и фото сразу попадут в историю этого узла.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {commentContent}
+        </CardContent>
+      </Card>
+
       <Card className="max-[980px]:hidden">
         <CardHeader>
           <CardTitle>История узла</CardTitle>
@@ -2043,11 +2055,10 @@ function AssetDetail({
       <Card className="hidden max-[980px]:block">
         <Tabs defaultValue="history">
           <CardHeader className="gap-3">
-            <TabsList aria-label="Разделы карточки узла" className="grid w-full grid-cols-4">
+            <TabsList aria-label="Разделы карточки узла" className="grid w-full grid-cols-3">
               <TabsTrigger value="history">История</TabsTrigger>
               <TabsTrigger value="passport">Паспорт</TabsTrigger>
               <TabsTrigger value="media">Медиа</TabsTrigger>
-              <TabsTrigger value="comment">Комментарий</TabsTrigger>
             </TabsList>
           </CardHeader>
           <CardContent>
@@ -2059,9 +2070,6 @@ function AssetDetail({
             </TabsContent>
             <TabsContent value="media" className="mt-0">
               {mediaContent}
-            </TabsContent>
-            <TabsContent value="comment" className="mt-0">
-              {commentContent}
             </TabsContent>
           </CardContent>
         </Tabs>
