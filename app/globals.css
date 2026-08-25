@@ -138,6 +138,21 @@ button {
   display: grid;
   gap: 4px;
   padding: 4px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.brand:hover {
+  background: var(--muted);
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 .brand strong {
@@ -1404,6 +1419,21 @@ select:focus-visible {
     display: grid;
     min-width: 0;
     gap: 4px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    transition: background-color 140ms ease, box-shadow 140ms ease;
+  }
+
+  .mobile-brand:hover {
+    background: var(--muted);
+  }
+
+  .mobile-brand:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
   }
 
   .mobile-brand strong {

@@ -1161,10 +1161,15 @@ export default function Home() {
     <TooltipProvider>
       <main className="app-shell">
       <header className="mobile-header">
-        <div className="mobile-brand">
+        <button
+          aria-label="Открыть дашборд"
+          className="mobile-brand"
+          onClick={() => navigate("dashboard")}
+          type="button"
+        >
           <strong>{state.config.serviceName}</strong>
           <span>{state.config.objectName}</span>
-        </div>
+        </button>
         <Button
           aria-expanded={mobileMenuOpen}
           aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
@@ -1196,10 +1201,15 @@ export default function Home() {
         </div>
       )}
       <aside className="sidebar">
-        <div className="brand">
+        <button
+          aria-label="Открыть дашборд"
+          className="brand"
+          onClick={() => navigate("dashboard")}
+          type="button"
+        >
           <strong>{state.config.serviceName}</strong>
           <span>{state.config.objectName}</span>
-        </div>
+        </button>
         <nav className="nav-list" aria-label="Главная навигация">
           <AppNavigation activeView={view} navigate={navigate} />
         </nav>
