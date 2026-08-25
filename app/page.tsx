@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { createClient as createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
@@ -925,6 +926,7 @@ export default function Home() {
   const [state, setState] = useState<AppState>(() => {
     return defaultState;
   });
+  const [authStatus, setAuthStatus] = useState<"checking" | "ready" | "signed_out">("checking");
   const [storageReady, setStorageReady] = useState(false);
   const [view, setView] = useState<View>("dashboard");
   const [selectedAssetId, setSelectedAssetId] = useState("r07");
@@ -941,6 +943,29 @@ export default function Home() {
   const [contractorMode, setContractorMode] = useState<"setup" | "master">(
     "setup",
   );
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) {
+      window.setTimeout(() => setAuthStatus("ready"), 0);
+      return;
+    }
+
+    let mounted = true;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
+      setAuthStatus(data.user ? "ready" : "signed_out");
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthStatus(session?.user ? "ready" : "signed_out");
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -1184,6 +1209,14 @@ export default function Home() {
     setView("report");
   }
 
+  if (authStatus === "checking") {
+    return <AppLoading />;
+  }
+
+  if (authStatus === "signed_out") {
+    return <LockedApp />;
+  }
+
   return (
     <TooltipProvider>
       <main className="app-shell">
@@ -1346,6 +1379,43 @@ export default function Home() {
       </section>
       </main>
     </TooltipProvider>
+  );
+}
+
+function AppLoading() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-muted px-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>FixPlan</CardTitle>
+          <CardDescription>Проверяем доступ к квартире.</CardDescription>
+        </CardHeader>
+      </Card>
+    </main>
+  );
+}
+
+function LockedApp() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-muted px-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle>Нужен вход</CardTitle>
+          <CardDescription>Квартира Шпалерная, 34Б доступна только владельцу.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            className="w-full"
+            onClick={() => {
+              window.location.href = "/login";
+            }}
+            type="button"
+          >
+            Войти
+          </Button>
+        </CardContent>
+      </Card>
+    </main>
   );
 }
 
@@ -2249,7 +2319,14 @@ function InspectionView({
       </Card>
       <Card>
         <CardContent className="pt-0">
-        <ApartmentPlan assets={[asset]} openAsset={openAsset} />
+          <ApartmentPlan
+            activeMode={planModes[0]}
+            assets={[asset]}
+            hotspots={planHotspots[planModes[0].id].filter(
+              (hotspot) => (hotspot.assetId ?? hotspot.id) === asset.id,
+            )}
+            openAsset={openAsset}
+          />
         </CardContent>
       </Card>
     </div>
