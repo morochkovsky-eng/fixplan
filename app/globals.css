@@ -62,12 +62,14 @@
 
 html {
   background: var(--background);
+  overflow-x: clip;
 }
 
 body {
   margin: 0;
   color: var(--text);
   font-family: var(--font-geist-sans), Inter, Arial, Helvetica, sans-serif;
+  overflow-x: clip;
 }
 
 button,
@@ -156,6 +158,7 @@ button {
 .workspace {
   min-width: 0;
   padding: 24px 32px 48px;
+  overflow-x: clip;
 }
 
 .topbar {
@@ -509,13 +512,16 @@ textarea {
   border-radius: 8px;
   background: #fbfcfd;
   padding: 16px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .plan-stage {
   position: relative;
   width: 100%;
+  max-width: 100%;
   aspect-ratio: 1150 / 1205;
-  overflow: auto;
+  overflow: hidden;
   border-radius: 6px;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px rgba(29, 32, 35, 0.06);
@@ -1284,14 +1290,16 @@ select:focus-visible {
   }
 
   .nav-list {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    overflow: visible;
+    padding-bottom: 0;
   }
 
-  .nav-button {
-    flex: 0 0 auto;
+  .nav-list button {
+    min-width: 0;
+    justify-content: flex-start;
   }
 
   .sidebar .button {
@@ -1299,16 +1307,27 @@ select:focus-visible {
   }
 
   .workspace {
-    padding: 16px;
+    padding: 12px;
   }
 
   .topbar {
     display: grid;
+    gap: 12px;
   }
 
   .topbar-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .topbar h1 {
+    font-size: 20px;
+    line-height: 26px;
+  }
+
+  .topbar p {
+    font-size: 13px;
+    line-height: 18px;
   }
 
   .dashboard-grid,
@@ -1349,22 +1368,14 @@ select:focus-visible {
     display: grid;
   }
 
-  .filter-row {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .chip {
-    flex: 0 0 auto;
-  }
-
   .apartment-plan {
-    padding: 12px;
+    margin-top: 12px;
+    padding: 8px;
   }
 
   .plan-stage {
-    min-width: 680px;
+    min-width: 0;
+    width: 100%;
   }
 
   .table-row {

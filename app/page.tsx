@@ -836,12 +836,13 @@ function PlanView({
           <CardDescription>Включайте слои и открывайте узлы прямо с плана.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex flex-wrap gap-2 pb-2">
           {(Object.keys(categoryLabels) as Category[]).map((category) => (
             <Button
               variant={activeCategories.includes(category) ? "default" : "secondary"}
               key={category}
               onClick={() => toggleCategory(category)}
+              size="sm"
               type="button"
             >
               {categoryLabels[category]}
@@ -850,6 +851,7 @@ function PlanView({
           <Button
             variant={onlyIssues ? "destructive" : "secondary"}
             onClick={toggleIssues}
+            size="sm"
             type="button"
           >
             Только проблемы
@@ -1336,7 +1338,7 @@ function ContractorAccessView({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-        <div className="flex gap-2 overflow-x-auto pb-2">
+        <div className="flex flex-wrap gap-2 pb-2">
           {[
             ["plumbing", "Сантехника"],
             ["electric", "Электрика"],
@@ -1346,6 +1348,7 @@ function ContractorAccessView({
               variant={state.contractorAccess.scope === scope ? "default" : "secondary"}
               key={scope}
               onClick={() => chooseContractorScope(setState, scope as ContractorAccess["scope"])}
+              size="sm"
               type="button"
             >
               {label}
