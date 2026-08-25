@@ -901,44 +901,53 @@ function AssetDetail({
           <dt>Мастер</dt><dd>{asset.master ?? "не назначен"}</dd>
         </dl>
 
-        <label className="field-label" htmlFor="event-comment">
-          Комментарий
-        </label>
-        <textarea
-          id="event-comment"
-          value={newEventText}
-          onChange={(event) => setNewEventText(event.target.value)}
-          placeholder="Что произошло, кого вызвали, что проверить позже"
-        />
-        <div className="button-grid">
-          <button
-            className="button secondary"
-            onClick={() => setAssetStatus(asset.id, "attention")}
-            type="button"
-          >
-            Требует внимания
-          </button>
-          <button
-            className="button secondary"
-            onClick={() => setAssetStatus(asset.id, "in_progress")}
-            type="button"
-          >
-            В работу
-          </button>
-          <button
-            className="button primary"
-            onClick={() => setAssetStatus(asset.id, "ok")}
-            type="button"
-          >
-            Исправно
-          </button>
-          <button
-            className="button secondary"
-            onClick={() => addEvent(asset.id, { type: "comment" })}
-            type="button"
-          >
-            Сохранить комментарий
-          </button>
+        <div className="asset-control-section">
+          <span className="field-label">Статус</span>
+          <div className="status-actions" role="group" aria-label="Изменить статус узла">
+            <button
+              className="button outline negative-action"
+              onClick={() => setAssetStatus(asset.id, "attention")}
+              type="button"
+            >
+              Требует внимания
+            </button>
+            <button
+              className="button secondary"
+              onClick={() => setAssetStatus(asset.id, "in_progress")}
+              type="button"
+            >
+              В работу
+            </button>
+            <button
+              className="button primary positive-action"
+              onClick={() => setAssetStatus(asset.id, "ok")}
+              type="button"
+            >
+              Исправно
+            </button>
+          </div>
+        </div>
+
+        <div className="asset-control-section">
+          <label className="field-label" htmlFor="event-comment">
+            Комментарий
+          </label>
+          <div className="comment-composer">
+            <textarea
+              id="event-comment"
+              value={newEventText}
+              onChange={(event) => setNewEventText(event.target.value)}
+              placeholder="Что произошло, кого вызвали, что проверить позже"
+            />
+            <button
+              aria-label="Сохранить комментарий"
+              className="icon-button primary"
+              onClick={() => addEvent(asset.id, { type: "comment" })}
+              type="button"
+            >
+              ✓
+            </button>
+          </div>
         </div>
       </aside>
     </div>
