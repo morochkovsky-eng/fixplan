@@ -207,6 +207,7 @@ const rooms: Room[] = [
   { id: "bedroom", name: "Спальня", x: 0, y: 210, width: 240, height: 210 },
   { id: "hall", name: "Прихожая", x: 240, y: 150, width: 210, height: 270 },
   { id: "office", name: "Кабинет", x: 450, y: 150, width: 170, height: 270 },
+  { id: "laundry", name: "Постирочная", x: 450, y: 360, width: 90, height: 60 },
 ];
 
 const categoryLabels: Record<Category, string> = {
@@ -246,6 +247,9 @@ const assetFilterOptions: Array<{ id: AssetFilter; label: string }> = [
   { id: "window", label: "Окна" },
   { id: "furniture", label: "Мебель" },
   { id: "hvac", label: "Климат" },
+  { id: "radiator", label: "Радиаторы" },
+  { id: "warm_floor", label: "Теплые полы" },
+  { id: "ventilation", label: "Вентиляция" },
 ];
 
 const assetSortLabels: Record<AssetSort, string> = {
@@ -288,7 +292,7 @@ const planModes: PlanMode[] = [
   },
   {
     id: "switchLinks",
-    label: "Привязка света",
+    label: "Выключатели с привязкой",
     src: "/plan/switches-light-links.png",
     categories: ["electric"],
     summary: "Связи выключателей с конкретными световыми приборами.",
@@ -356,21 +360,47 @@ const planHotspots: Record<PlanModeId, PlanHotspot[]> = {
     { id: "s-boiler", code: "B-01", title: "Бойлер", room: "Санузел", note: "Питание бойлера h=1650.", x: 90, y: 89, tone: "violet" },
   ],
   lighting: [
+    { id: "l-plant-left", code: "L-00.1", title: "Декоративная подсветка растения", room: "Гостиная", note: "Зеленая декоративная точка на плане света.", x: 18, y: 15, tone: "positive" },
     { id: "l-living-main", code: "L-06", title: "Люстра гостиной", room: "Гостиная", note: "Основной декоративный свет, группа 6.", x: 30, y: 29, tone: "positive" },
-    { id: "l-living-line", code: "L-05", title: "Линейный свет", room: "Гостиная", note: "Три точки линейного светильника у кухни.", x: 32, y: 64, tone: "positive" },
-    { id: "l-bedroom-main", code: "L-08", title: "Светильник спальни", room: "Спальня", note: "Основной свет, группа 8.", x: 70, y: 32, tone: "positive" },
+    { id: "l-living-wall", code: "L-07", title: "Настенный свет гостиной", room: "Гостиная", note: "Вертикальный декоративный светильник, группа 7.", x: 27, y: 50, tone: "positive" },
+    { id: "l-living-line-1", code: "L-05.1", title: "Линейный свет 1", room: "Кухня / гостиная", note: "Левый модуль линейного светильника, группа 5.", x: 20, y: 64, tone: "positive" },
+    { id: "l-living-line-2", code: "L-05.2", title: "Линейный свет 2", room: "Кухня / гостиная", note: "Центральный модуль линейного светильника, группа 5.", x: 30, y: 64, tone: "positive" },
+    { id: "l-living-line-3", code: "L-05.3", title: "Линейный свет 3", room: "Кухня / гостиная", note: "Правый модуль линейного светильника, группа 5.", x: 40, y: 64, tone: "positive" },
+    { id: "l-transformer", code: "TR-L05", title: "Трансформатор подсветки", room: "Кухня", note: "Трансформатор в верхнем шкафу.", x: 14, y: 72, tone: "warning" },
+    { id: "l-bath-left-1", code: "L-02.1", title: "Линейный свет ванной левый верхний", room: "Ванная", note: "Левый вертикальный светильник, группа 2.", x: 18, y: 79, tone: "positive" },
+    { id: "l-bath-left-2", code: "L-02.2", title: "Линейный свет ванной левый средний", room: "Ванная", note: "Левый вертикальный светильник, группа 2.", x: 18, y: 83, tone: "positive" },
+    { id: "l-bath-left-3", code: "L-02.3", title: "Линейный свет ванной левый нижний", room: "Ванная", note: "Левый вертикальный светильник, группа 2.", x: 18, y: 87, tone: "positive" },
+    { id: "l-bath-main", code: "L-03", title: "Потолочный свет ванной", room: "Ванная", note: "Декоративный потолочный светильник, группа 3.", x: 30, y: 82, tone: "positive" },
+    { id: "l-bath-right-1", code: "L-02.4", title: "Линейный свет ванной правый верхний", room: "Ванная", note: "Правый вертикальный светильник, группа 2.", x: 42, y: 79, tone: "positive" },
+    { id: "l-bath-right-2", code: "L-02.5", title: "Линейный свет ванной правый средний", room: "Ванная", note: "Правый вертикальный светильник, группа 2.", x: 42, y: 83, tone: "positive" },
+    { id: "l-bath-right-3", code: "L-02.6", title: "Линейный свет ванной правый нижний", room: "Ванная", note: "Правый вертикальный светильник, группа 2.", x: 42, y: 87, tone: "positive" },
+    { id: "l-bedroom-green", code: "L-08.1", title: "Светильник спальни у окна", room: "Спальня", note: "Зеленый декоративный светильник на торшере.", x: 83, y: 18, tone: "positive" },
+    { id: "l-bedroom-main", code: "L-08.2", title: "Основной свет спальни", room: "Спальня", note: "Круговой декоративный светильник, группа 8.", x: 70, y: 33, tone: "positive" },
+    { id: "l-bedroom-wall", code: "L-08.3", title: "Настенный свет спальни", room: "Спальня", note: "Выключатель на светильнике / локальная точка.", x: 76, y: 70, tone: "positive" },
+    { id: "l-office-main", code: "L-09", title: "Свет кабинета", room: "Кабинет", note: "Декоративный светильник, группа 9.", x: 75, y: 62, tone: "positive" },
+    { id: "l-office-round", code: "L-09.1", title: "Дополнительный свет кабинета", room: "Кабинет", note: "Круглая световая точка у стены.", x: 85, y: 66, tone: "positive" },
     { id: "l-hall", code: "L-01", title: "Свет прихожей", room: "Прихожая", note: "Малый потолочный светильник у входа.", x: 62, y: 82, tone: "warning" },
-    { id: "l-bath", code: "L-03", title: "Свет ванной", room: "Ванная", note: "Потолочный свет и локальные выключатели.", x: 30, y: 82, tone: "positive" },
-    { id: "l-office", code: "L-09", title: "Свет кабинета", room: "Кабинет", note: "Декоративный светильник, группа 9.", x: 75, y: 62, tone: "positive" },
-    { id: "l-wc", code: "L-04", title: "Свет санузла", room: "Санузел", note: "Потолочный светильник и выключатель.", x: 86, y: 80, tone: "positive" },
+    { id: "l-wc", code: "L-04", title: "Свет санузла", room: "Санузел", note: "Потолочный светильник санузла.", x: 86, y: 80, tone: "positive" },
+    { id: "l-wc-wall", code: "L-04.1", title: "Локальный свет санузла", room: "Санузел", note: "Дополнительная световая точка у стены.", x: 82, y: 86, tone: "positive" },
   ],
   switchLinks: [
-    { id: "sl-living-main", code: "S-06", title: "Связь выключателя с люстрой", room: "Гостиная", note: "Проверить соответствие клавиши группе 6.", x: 30, y: 29, tone: "positive" },
-    { id: "sl-living-wall", code: "S-07", title: "Бра / декоративный свет", room: "Гостиная", note: "Управление настенным светом у зоны отдыха.", x: 28, y: 50, tone: "warning" },
-    { id: "sl-bedroom-main", code: "S-08", title: "Связь света спальни", room: "Спальня", note: "Основной свет, привязка к выключателю у двери.", x: 70, y: 33, tone: "positive" },
-    { id: "sl-kitchen", code: "S-05", title: "Кухонная подсветка", room: "Кухня", note: "Линейные светильники и трансформатор в верхнем шкафу.", x: 32, y: 64, tone: "warning" },
-    { id: "sl-bath", code: "S-03", title: "Свет ванной", room: "Ванная", note: "Проверить клавиши у входа.", x: 31, y: 82, tone: "positive" },
-    { id: "sl-wc", code: "S-04", title: "Свет санузла", room: "Санузел", note: "Привязка выключателя к потолочному светильнику.", x: 86, y: 80, tone: "positive" },
+    { id: "sl-tor-left", code: "S-TOR-01", title: "Выключатель на торшере", room: "Гостиная", note: "Локальный выключатель декоративного светильника.", x: 24, y: 16, tone: "warning" },
+    { id: "sl-living-6", code: "S-06", title: "Группа 6", room: "Гостиная", note: "Связь выключателя с люстрой гостиной.", x: 30, y: 30, tone: "positive" },
+    { id: "sl-living-7", code: "S-07", title: "Группа 7", room: "Гостиная", note: "Связь выключателя с настенным светом.", x: 27, y: 50, tone: "positive" },
+    { id: "sl-living-5-1", code: "S-05.1", title: "Линейный свет 1", room: "Кухня / гостиная", note: "Выключатель управляет левым модулем группы 5.", x: 20, y: 64, tone: "positive" },
+    { id: "sl-living-5-2", code: "S-05.2", title: "Линейный свет 2", room: "Кухня / гостиная", note: "Выключатель управляет центральным модулем группы 5.", x: 30, y: 64, tone: "positive" },
+    { id: "sl-living-5-3", code: "S-05.3", title: "Линейный свет 3", room: "Кухня / гостиная", note: "Выключатель управляет правым модулем группы 5.", x: 40, y: 64, tone: "positive" },
+    { id: "sl-panel-567", code: "S-05/06/07", title: "Блок выключателей", room: "Гостиная / спальня", note: "Блок клавиш 5, 6 и 7 у перегородки.", x: 51, y: 54, tone: "warning" },
+    { id: "sl-bedroom-8", code: "S-08", title: "Группа 8", room: "Спальня", note: "Связь выключателя с основным светом спальни.", x: 70, y: 34, tone: "positive" },
+    { id: "sl-bedroom-tor", code: "S-TOR-02", title: "Выключатель на торшере", room: "Спальня", note: "Локальное управление зеленым светильником.", x: 83, y: 20, tone: "warning" },
+    { id: "sl-office-9", code: "S-09", title: "Группа 9", room: "Кабинет", note: "Связь выключателя со светильником кабинета.", x: 75, y: 63, tone: "positive" },
+    { id: "sl-office-tor", code: "S-TOR-03", title: "Выключатель на торшере", room: "Кабинет", note: "Локальное управление круглым светильником.", x: 86, y: 68, tone: "warning" },
+    { id: "sl-hall-1", code: "S-01", title: "Группа 1", room: "Прихожая", note: "Связь выключателя со светом прихожей.", x: 62, y: 83, tone: "positive" },
+    { id: "sl-bath-2", code: "S-02", title: "Группа 2", room: "Ванная", note: "Связь с линейными светильниками ванной.", x: 42, y: 76, tone: "positive" },
+    { id: "sl-bath-3", code: "S-03", title: "Группа 3", room: "Ванная", note: "Связь с потолочным светом ванной.", x: 46, y: 76, tone: "positive" },
+    { id: "sl-wc-4", code: "S-04", title: "Группа 4", room: "Санузел", note: "Привязка выключателя к потолочному светильнику санузла.", x: 86, y: 80, tone: "positive" },
+    { id: "sl-wc-lamp", code: "S-LAMP-04", title: "Выключатель на светильнике", room: "Санузел", note: "Локальный выключатель на светильнике.", x: 80, y: 73, tone: "warning" },
+    { id: "sl-b-point", code: "S-B", title: "Вывод B", room: "Санузел", note: "Дополнительная точка управления / вывод B.", x: 82, y: 86, tone: "violet" },
   ],
   plumbing: [
     { id: "p-w04", code: "W-04", title: "Смеситель", room: "Ванная", note: "Проверить соединения, протечки и напор.", x: 35, y: 76, tone: "positive", assetId: "w04" },
@@ -639,9 +669,94 @@ function statusWeight(status: Status) {
   return order[status];
 }
 
+function roomIdFromPlanRoom(room: string) {
+  const value = room.toLowerCase();
+  if (value.includes("ванн") || value.includes("сануз")) return "bath";
+  if (value.includes("спаль")) return "bedroom";
+  if (value.includes("кабин")) return "office";
+  if (value.includes("кух")) return "kitchen";
+  if (value.includes("постир")) return "laundry";
+  if (value.includes("прих") || value.includes("корид")) return "hall";
+  return "living";
+}
+
+function assetKindFromPlan(modeId: PlanModeId, hotspot: PlanHotspot): AssetKind {
+  if (modeId === "lighting") return "light";
+  if (modeId === "switchLinks") return "switch";
+  if (modeId === "plumbing") {
+    if (hotspot.title.toLowerCase().includes("слив") || hotspot.title.toLowerCase().includes("трап")) {
+      return "drain";
+    }
+    return "plumbing_fixture";
+  }
+  if (modeId === "ventilation") return "ventilation";
+  if (modeId === "furniture") return "furniture";
+  if (modeId === "windows") return "window";
+  if (modeId === "radiators") return "radiator";
+  if (modeId === "warmFloor") return "warm_floor";
+  if (hotspot.code.startsWith("R-")) return "socket";
+  if (hotspot.code.startsWith("S-")) return "switch";
+  if (hotspot.code.startsWith("L-")) return "light";
+  if (hotspot.code.startsWith("WM") || hotspot.code.startsWith("B-")) return "appliance";
+  return "socket";
+}
+
+function categoryFromPlan(mode: PlanMode, kind: AssetKind): Category {
+  if (kind === "socket" || kind === "switch" || kind === "light" || kind === "warm_floor") {
+    return "electric";
+  }
+  if (kind === "plumbing_fixture" || kind === "drain") return "plumbing";
+  if (kind === "window") return "window";
+  if (kind === "furniture") return "furniture";
+  if (kind === "radiator" || kind === "ventilation" || kind === "hvac") return "hvac";
+  if (kind === "appliance") return "appliance";
+  return mode.categories[0] ?? "electric";
+}
+
+function catalogAssetFromHotspot(mode: PlanMode, hotspot: PlanHotspot): Asset {
+  const kind = assetKindFromPlan(mode.id, hotspot);
+  return {
+    id: hotspot.assetId ?? hotspot.id,
+    code: hotspot.code,
+    name: hotspot.title,
+    roomId: roomIdFromPlanRoom(hotspot.room),
+    category: categoryFromPlan(mode, kind),
+    kind,
+    status: hotspot.tone === "negative" ? "attention" : hotspot.tone === "violet" ? "needs_master" : "ok",
+    x: hotspot.x,
+    y: hotspot.y,
+    lastChecked: "не проверялось",
+    master: undefined,
+    photoNote: hotspot.note,
+  };
+}
+
+function buildCatalogAssets(existingAssets: Asset[]) {
+  const seen = new Set(existingAssets.map((asset) => asset.id));
+  return planModes.flatMap((mode) =>
+    planHotspots[mode.id]
+      .filter((hotspot) => !hotspot.assetId || !seen.has(hotspot.assetId))
+      .map((hotspot) => catalogAssetFromHotspot(mode, hotspot)),
+  );
+}
+
+function withCatalogAssets(state: AppState): AppState {
+  const catalogAssets = buildCatalogAssets(state.assets);
+  const knownIds = new Set(state.assets.map((asset) => asset.id));
+  return {
+    ...state,
+    assets: [
+      ...state.assets,
+      ...catalogAssets.filter((asset) => !knownIds.has(asset.id)),
+    ],
+  };
+}
+
+const defaultState = withCatalogAssets(initialState);
+
 export default function Home() {
   const [state, setState] = useState<AppState>(() => {
-    return initialState;
+    return defaultState;
   });
   const [storageReady, setStorageReady] = useState(false);
   const [view, setView] = useState<View>("asset");
@@ -659,9 +774,9 @@ export default function Home() {
       const saved = window.localStorage.getItem(storageKey);
       if (saved) {
         try {
-          setState(JSON.parse(saved) as AppState);
+          setState(withCatalogAssets(JSON.parse(saved) as AppState));
         } catch {
-          setState(initialState);
+          setState(defaultState);
         }
       }
       setStorageReady(true);
@@ -827,7 +942,7 @@ function submitContractorReport() {
         <Button
           className="w-full justify-start"
           variant="secondary"
-          onClick={() => setState(initialState)}
+          onClick={() => setState(defaultState)}
           type="button"
         >
           <RotateCcw size={16} />
@@ -1194,8 +1309,9 @@ function ApartmentPlan({
       <div className="plan-stage" role="img">
         <img alt={activeMode.label} className="plan-image base" src={activeMode.src} />
         {hotspots.map((hotspot) => {
-          const isLinkedAsset = hotspot.assetId && visibleAssetIds.has(hotspot.assetId);
-          const isHiddenByIssueFilter = hotspot.assetId && !visibleAssetIds.has(hotspot.assetId);
+          const markerAssetId = hotspot.assetId ?? hotspot.id;
+          const isLinkedAsset = visibleAssetIds.has(markerAssetId);
+          const isHiddenByIssueFilter = !visibleAssetIds.has(markerAssetId);
           if (isHiddenByIssueFilter) return null;
 
           return (
@@ -1204,9 +1320,7 @@ function ApartmentPlan({
                 <button
                   aria-label={`${hotspot.code}, ${hotspot.title}, ${hotspot.room}`}
                   className={`plan-hotspot ${hotspot.tone ?? "positive"}${isLinkedAsset ? " linked" : ""}`}
-                  onClick={() => {
-                    if (hotspot.assetId) openAsset(hotspot.assetId);
-                  }}
+                  onClick={() => openAsset(markerAssetId)}
                   style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%` }}
                   type="button"
                 >
