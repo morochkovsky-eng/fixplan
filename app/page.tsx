@@ -1,6 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import * as Select from "@radix-ui/react-select";
+import * as ScrollArea from "@radix-ui/react-scroll-area";
+import * as Tabs from "@radix-ui/react-tabs";
+import {
+  Camera,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  ImageIcon,
+  Send,
+  UserRoundCheck,
+} from "lucide-react";
 
 type Category =
   | "electric"
@@ -39,6 +51,10 @@ type AssetEvent = {
   cost?: number;
   master?: string;
   statusAfter?: Status;
+  photo?: {
+    label: string;
+    note: string;
+  };
 };
 
 type Asset = {
@@ -230,6 +246,10 @@ const initialState: AppState = {
       cost: 1500,
       master: "Роман",
       statusAfter: "ok",
+      photo: {
+        label: "после",
+        note: "Розетка закреплена",
+      },
     },
     {
       id: "e3",
@@ -297,7 +317,7 @@ export default function Home() {
       return initialState;
     }
   });
-  const [view, setView] = useState<View>("dashboard");
+  const [view, setView] = useState<View>("asset");
   const [selectedAssetId, setSelectedAssetId] = useState("r07");
   const [activeCategories, setActiveCategories] = useState<Category[]>([
     "electric",
@@ -323,7 +343,7 @@ export default function Home() {
     () =>
       state.events
         .filter((event) => event.assetId === selectedAsset.id)
-        .sort((a, b) => b.id.localeCompare(a.id)),
+        .slice(),
     [selectedAsset.id, state.events],
   );
 
@@ -617,6 +637,55 @@ function NavButton({
   );
 }
 
+function Button({
+  children,
+  onClick,
+  variant = "primary",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  variant?: "primary" | "secondary" | "outline";
+}) {
+  return (
+    <button className={`rx-button ${variant}`} onClick={onClick} type="button">
+      {children}
+    </button>
+  );
+}
+
+function RadixStatusSelect({
+  value,
+  onValueChange,
+}: {
+  value: Status;
+  onValueChange: (value: Status) => void;
+}) {
+  return (
+    <Select.Root value={value} onValueChange={(next) => onValueChange(next as Status)}>
+      <Select.Trigger className={`rx-select-trigger ${statusTone[value]}`} aria-label="Текущий статус">
+        <Select.Value>{statusLabels[value]}</Select.Value>
+        <Select.Icon className="rx-select-icon">
+          <ChevronDown size={16} />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content className="rx-select-content" position="popper" sideOffset={6}>
+          <Select.Viewport className="rx-select-viewport">
+            {(Object.keys(statusLabels) as Status[]).map((status) => (
+              <Select.Item className="rx-select-item" key={status} value={status}>
+                <Select.ItemText>{statusLabels[status]}</Select.ItemText>
+                <Select.ItemIndicator className="rx-select-indicator">
+                  <Check size={14} />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
+  );
+}
+
 function Dashboard({
   assets,
   issueAssets,
@@ -850,105 +919,144 @@ function AssetDetail({
   setAssetStatus: (assetId: string, status: Status, body?: string) => void;
   goContractor: () => void;
 }) {
+  const mediaEvents = events.filter((event) => event.photo);
+
   return (
-    <div className="asset-detail">
-      <section className="panel asset-hero">
-        <div>
-          <h2>{asset.code} · {asset.name}</h2>
-          <p>{roomName(asset.roomId)} · {categoryLabels[asset.category]} · координаты: {asset.x}% / {asset.y}%</p>
-          <StatusBadge status={asset.status} />
-        </div>
-        <div className="button-row">
-          <button className="button primary" onClick={() => addEvent(asset.id)} type="button">
-            Добавить событие
-          </button>
-          <button className="button secondary" onClick={goContractor} type="button">
-            Доступ мастеру
-          </button>
-        </div>
-      </section>
-
-      <section className="panel timeline-panel">
-        <PanelHeader title="История узла" />
-        <div className="timeline">
-          {events.map((event) => (
-            <article className="timeline-item" key={event.id}>
-              <span className={`timeline-dot ${statusTone[event.statusAfter ?? asset.status]}`} />
-              <small>{event.date} · {eventLabels[event.type]}</small>
-              <h3>{event.title}</h3>
-              <p>{event.body}</p>
-              {(event.cost || event.master) && (
-                <p className="muted">
-                  {event.master ? `Мастер: ${event.master}` : ""}
-                  {event.master && event.cost ? " · " : ""}
-                  {event.cost ? `Стоимость: ${event.cost.toLocaleString("ru-RU")} руб.` : ""}
-                </p>
-              )}
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <aside className="panel asset-side">
-        <div className="photo-box">{asset.photoNote}</div>
-        <PanelHeader title="Паспорт узла" />
-        <dl className="detail-list">
-          <dt>ID</dt><dd>{asset.code}</dd>
-          <dt>Комната</dt><dd>{roomName(asset.roomId)}</dd>
-          <dt>Категория</dt><dd>{categoryLabels[asset.category]}</dd>
-          <dt>Последняя проверка</dt><dd>{asset.lastChecked}</dd>
-          <dt>Гарантия</dt><dd>{asset.warrantyUntil ?? "не указана"}</dd>
-          <dt>Мастер</dt><dd>{asset.master ?? "не назначен"}</dd>
-        </dl>
-
-        <div className="asset-control-section">
-          <span className="field-label">Статус</span>
-          <div className="status-actions" role="group" aria-label="Изменить статус узла">
-            <button
-              className="button outline negative-action"
-              onClick={() => setAssetStatus(asset.id, "attention")}
-              type="button"
-            >
-              Требует внимания
-            </button>
-            <button
-              className="button secondary"
-              onClick={() => setAssetStatus(asset.id, "in_progress")}
-              type="button"
-            >
-              В работу
-            </button>
-            <button
-              className="button primary positive-action"
-              onClick={() => setAssetStatus(asset.id, "ok")}
-              type="button"
-            >
-              Исправно
-            </button>
+    <div className="radix-asset-page">
+      <section className="rx-card rx-asset-hero">
+        <div className="rx-hero-main">
+          <div className={`rx-status-icon ${statusTone[asset.status]}`}>
+            {asset.status === "ok" ? <Check size={18} /> : <CircleAlert size={18} />}
+          </div>
+          <div>
+            <h2>{asset.code} · {asset.name}</h2>
+            <p>
+              {roomName(asset.roomId)} · {categoryLabels[asset.category]} · 220 В · координаты:
+              {" "}
+              {asset.x}% / {asset.y}%
+            </p>
+            <RadixStatusSelect
+              value={asset.status}
+              onValueChange={(status) =>
+                setAssetStatus(
+                  asset.id,
+                  status,
+                  `Текущий статус изменен на «${statusLabels[status]}».`,
+                )
+              }
+            />
           </div>
         </div>
+        <Button variant="outline" onClick={() => void goContractor()}>
+          <UserRoundCheck size={16} />
+          Доступ мастеру
+        </Button>
+      </section>
 
-        <div className="asset-control-section">
-          <label className="field-label" htmlFor="event-comment">
-            Комментарий
-          </label>
-          <div className="comment-composer">
+      <section className="rx-card rx-history">
+        <div className="rx-section-header">
+          <div>
+            <h2>История узла</h2>
+            <p>Комментарии, смены статуса, работы мастеров и фотографии собраны в одной ленте.</p>
+          </div>
+        </div>
+        <ScrollArea.Root className="rx-scroll">
+          <ScrollArea.Viewport className="rx-scroll-viewport">
+            <div className="rx-timeline">
+              {events.map((event) => (
+                <article className="rx-event" key={event.id}>
+                  <span className={`rx-event-dot ${statusTone[event.statusAfter ?? asset.status]}`} />
+                  <div className="rx-event-content">
+                    <small>{event.date} · {eventLabels[event.type]}</small>
+                    <h3>{event.title}</h3>
+                    <p>{event.body}</p>
+                    {(event.cost || event.master) && (
+                      <p className="rx-event-meta">
+                        {event.master ? `Мастер: ${event.master}` : ""}
+                        {event.master && event.cost ? " · " : ""}
+                        {event.cost ? `Стоимость: ${event.cost.toLocaleString("ru-RU")} руб.` : ""}
+                      </p>
+                    )}
+                  </div>
+                  {event.photo && (
+                    <button className="rx-photo-thumb" type="button">
+                      <ImageIcon size={16} />
+                      <span>{event.photo.label}</span>
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
+          </ScrollArea.Viewport>
+          <ScrollArea.Scrollbar className="rx-scrollbar" orientation="vertical">
+            <ScrollArea.Thumb className="rx-scroll-thumb" />
+          </ScrollArea.Scrollbar>
+        </ScrollArea.Root>
+      </section>
+
+      <aside className="rx-side">
+        <Tabs.Root className="rx-card rx-tabs" defaultValue="passport">
+          <Tabs.List className="rx-tabs-list" aria-label="Данные узла">
+            <Tabs.Trigger className="rx-tabs-trigger" value="passport">
+              Паспорт
+            </Tabs.Trigger>
+            <Tabs.Trigger className="rx-tabs-trigger" value="media">
+              Медиа
+            </Tabs.Trigger>
+          </Tabs.List>
+          <Tabs.Content className="rx-tabs-content" value="passport">
+            <dl className="rx-details">
+              <dt>ID</dt><dd>{asset.code}</dd>
+              <dt>Комната</dt><dd>{roomName(asset.roomId)}</dd>
+              <dt>Категория</dt><dd>{categoryLabels[asset.category]}</dd>
+              <dt>Последняя проверка</dt><dd>{asset.lastChecked}</dd>
+              <dt>Гарантия</dt><dd>{asset.warrantyUntil ?? "не указана"}</dd>
+              <dt>Мастер</dt><dd>{asset.master ?? "не назначен"}</dd>
+            </dl>
+          </Tabs.Content>
+          <Tabs.Content className="rx-tabs-content" value="media">
+            <div className="rx-media-grid">
+              {mediaEvents.map((event) => (
+                <button className="rx-media-card" key={event.id} type="button">
+                  <ImageIcon size={18} />
+                  <strong>{event.date.split(" ").slice(0, 2).join(" ")}</strong>
+                  <span>{event.photo?.note}</span>
+                </button>
+              ))}
+              {!mediaEvents.length && <p className="rx-empty">Фотографии появятся после события с вложением.</p>}
+            </div>
+          </Tabs.Content>
+        </Tabs.Root>
+
+        <section className="rx-card rx-comment-card">
+          <div className="rx-section-header compact">
+            <div>
+              <h2>Быстрый комментарий</h2>
+              <p>Фото, документы и текст попадут в новое событие истории.</p>
+            </div>
+          </div>
+          <div className="rx-composer">
             <textarea
               id="event-comment"
               value={newEventText}
               onChange={(event) => setNewEventText(event.target.value)}
-              placeholder="Что произошло, кого вызвали, что проверить позже"
+              placeholder="Комментарий по узлу"
             />
-            <button
-              aria-label="Сохранить комментарий"
-              className="icon-button primary"
-              onClick={() => addEvent(asset.id, { type: "comment" })}
-              type="button"
-            >
-              ✓
-            </button>
+            <div className="rx-composer-actions">
+              <button aria-label="Прикрепить фото" className="rx-icon-button ghost" type="button">
+                <Camera size={18} />
+              </button>
+              <button
+                aria-label="Отправить комментарий"
+                className="rx-icon-button primary"
+                onClick={() => addEvent(asset.id, { type: "comment" })}
+                type="button"
+              >
+                <Send size={18} />
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
       </aside>
     </div>
   );
