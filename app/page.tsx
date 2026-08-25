@@ -115,7 +115,10 @@ type EventType =
   | "repair"
   | "status"
   | "photo"
-  | "master";
+  | "master"
+  | "report";
+
+type InspectionStatus = "draft" | "sent" | "in_progress" | "completed" | "accepted";
 
 type Room = {
   id: string;
@@ -136,6 +139,7 @@ type AssetEvent = {
   cost?: number;
   master?: string;
   statusAfter?: Status;
+  inspectionId?: string;
   photo?: {
     label: string;
     note: string;
@@ -182,12 +186,43 @@ type ContractorAccess = {
   scope: "plumbing" | "electric" | "all" | "custom";
   expires: string;
   allowedAssetIds: string[];
+  inspectionId?: string;
+};
+
+type InspectionResult = {
+  id: string;
+  inspectionId: string;
+  assetId: string;
+  statusAfter: Status;
+  comment: string;
+  date: string;
+  author: string;
+  cost?: number;
+  photoCount: number;
+};
+
+type Inspection = {
+  id: string;
+  number: string;
+  title: string;
+  createdAt: string;
+  completedAt?: string;
+  createdBy: string;
+  contractor: string;
+  scope: ContractorAccess["scope"];
+  status: InspectionStatus;
+  allowedAssetIds: string[];
+  summary: string;
+  link: string;
+  resultIds: string[];
 };
 
 type AppState = {
   assets: Asset[];
   events: AssetEvent[];
   contractorAccess: ContractorAccess;
+  inspections: Inspection[];
+  inspectionResults: InspectionResult[];
 };
 
 type View =
@@ -197,6 +232,7 @@ type View =
   | "asset"
   | "log"
   | "inspection"
+  | "inspections"
   | "contractor"
   | "report";
 
@@ -273,6 +309,15 @@ const eventLabels: Record<EventType, string> = {
   status: "Статус",
   photo: "Фото",
   master: "Мастер",
+  report: "Отчет",
+};
+
+const inspectionStatusLabels: Record<InspectionStatus, string> = {
+  draft: "Черновик",
+  sent: "Отправлен",
+  in_progress: "В процессе",
+  completed: "Завершен",
+  accepted: "Принят",
 };
 
 const planModes: PlanMode[] = [
@@ -590,6 +635,7 @@ const initialState: AppState = {
       body: "Слив работает медленно, нужна чистка сифона.",
       cost: 2000,
       statusAfter: "needs_master",
+      inspectionId: "insp-001",
     },
     {
       id: "e5",
@@ -606,7 +652,48 @@ const initialState: AppState = {
     scope: "plumbing",
     expires: "3 дня",
     allowedAssetIds: ["w04", "w08"],
+    inspectionId: "insp-001",
   },
+  inspections: [
+    {
+      id: "insp-001",
+      number: "Обход #1",
+      title: "Сантехника перед приездом мастера",
+      createdAt: "23 августа 2026",
+      completedAt: "23 августа 2026",
+      createdBy: "Владелец",
+      contractor: "Роман, сантехник",
+      scope: "plumbing",
+      status: "completed",
+      allowedAssetIds: ["w04", "w08"],
+      summary: "Проверены смеситель и слив. По сливу нужна чистка сифона, ориентир 2 000 руб.",
+      link: "shpalernaya.app/access/plumbing-3d8f",
+      resultIds: ["res-001", "res-002"],
+    },
+  ],
+  inspectionResults: [
+    {
+      id: "res-001",
+      inspectionId: "insp-001",
+      assetId: "w04",
+      statusAfter: "ok",
+      comment: "Смеситель работает нормально, протечек нет.",
+      date: "23 августа 2026",
+      author: "Роман",
+      photoCount: 2,
+    },
+    {
+      id: "res-002",
+      inspectionId: "insp-001",
+      assetId: "w08",
+      statusAfter: "needs_master",
+      comment: "Слив работает медленно, нужна чистка сифона.",
+      date: "23 августа 2026",
+      author: "Роман",
+      cost: 2000,
+      photoCount: 3,
+    },
+  ],
 };
 
 const storageKey = "shpalernaya-maintenance-mvp";
@@ -667,6 +754,18 @@ function statusWeight(status: Status) {
     ok: 3,
   };
   return order[status];
+}
+
+function inspectionId() {
+  return `insp-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
+function resultId() {
+  return `res-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
+function accessLinkFor(scope: ContractorAccess["scope"]) {
+  return `shpalernaya.app/access/${scope}-${Math.random().toString(16).slice(2, 6)}`;
 }
 
 function roomIdFromPlanRoom(room: string) {
@@ -749,6 +848,12 @@ function withCatalogAssets(state: AppState): AppState {
       ...state.assets,
       ...catalogAssets.filter((asset) => !knownIds.has(asset.id)),
     ],
+    inspections: state.inspections ?? initialState.inspections,
+    inspectionResults: state.inspectionResults ?? initialState.inspectionResults,
+    contractorAccess: {
+      ...state.contractorAccess,
+      inspectionId: state.contractorAccess.inspectionId ?? initialState.contractorAccess.inspectionId,
+    },
   };
 }
 
@@ -878,29 +983,106 @@ export default function Home() {
     setInspectionIndex((current) => (current + 1) % state.assets.length);
   }
 
-function submitContractorReport() {
-    const allowed = state.contractorAccess.allowedAssetIds;
+  function createContractorInspection() {
+    const id = inspectionId();
+    const scope = state.contractorAccess.scope;
+    const allowed = state.contractorAccess.allowedAssetIds.length
+      ? state.contractorAccess.allowedAssetIds
+      : state.assets.slice(0, 5).map((asset) => asset.id);
+    const inspection: Inspection = {
+      id,
+      number: `Обход #${state.inspections.length + 1}`,
+      title: `Обход мастера · ${scope === "all" ? "вся квартира" : scope === "electric" ? "электрика" : scope === "plumbing" ? "сантехника" : "выбранные узлы"}`,
+      createdAt: todayLabel(),
+      createdBy: "Владелец",
+      contractor: scope === "electric" ? "Электрик" : scope === "plumbing" ? "Сантехник" : "Мастер",
+      scope,
+      status: "sent",
+      allowedAssetIds: allowed,
+      summary: "Ссылка создана. Ожидаем отчет мастера по выбранным узлам.",
+      link: accessLinkFor(scope),
+      resultIds: [],
+    };
+
     setState((current) => ({
       ...current,
-      assets: current.assets.map((asset) =>
-        allowed.includes(asset.id) && asset.status === "ok"
-          ? { ...asset, status: "attention", lastChecked: todayLabel() }
-          : asset,
+      inspections: [inspection, ...current.inspections],
+      contractorAccess: {
+        ...current.contractorAccess,
+        inspectionId: id,
+        allowedAssetIds: allowed,
+      },
+    }));
+    setContractorMode("master");
+  }
+
+  function submitContractorReport() {
+    const activeInspection =
+      state.inspections.find((inspection) => inspection.id === state.contractorAccess.inspectionId) ??
+      state.inspections[0];
+    if (!activeInspection) return;
+
+    const allowed = activeInspection.allowedAssetIds;
+    const results: InspectionResult[] = allowed.map((assetId, index) => {
+      const asset = state.assets.find((item) => item.id === assetId);
+      const needsRepair = assetId === "w08" || index === 0;
+      return {
+        id: resultId(),
+        inspectionId: activeInspection.id,
+        assetId,
+        statusAfter: needsRepair ? "needs_master" : "ok",
+        comment: needsRepair
+          ? `${asset?.name ?? "Узел"} требует внимания. Мастер оставил комментарий и фото.`
+          : `${asset?.name ?? "Узел"} проверен, замечаний нет.`,
+        date: todayLabel(),
+        author: activeInspection.contractor,
+        cost: needsRepair ? 2000 : undefined,
+        photoCount: needsRepair ? 3 : 1,
+      };
+    });
+
+    const resultEvents: AssetEvent[] = results.map((result) => ({
+      id: eventId(),
+      assetId: result.assetId,
+      type: "report",
+      date: result.date,
+      title: `${activeInspection.number} · результат мастера`,
+      body: result.comment,
+      cost: result.cost,
+      master: result.author,
+      statusAfter: result.statusAfter,
+      inspectionId: result.inspectionId,
+      photo: result.photoCount
+        ? { label: "фото", note: `${result.photoCount} фото из обхода` }
+        : undefined,
+    }));
+
+    setState((current) => ({
+      ...current,
+      assets: current.assets.map((asset) => {
+        const result = results.find((item) => item.assetId === asset.id);
+        return result
+          ? { ...asset, status: result.statusAfter, lastChecked: todayLabel(), master: activeInspection.contractor }
+          : asset;
+      }),
+      inspections: current.inspections.map((inspection) =>
+        inspection.id === activeInspection.id
+          ? {
+              ...inspection,
+              status: "completed",
+              completedAt: todayLabel(),
+              summary: `Мастер проверил ${results.length} узлов. Замечаний: ${
+                results.filter((result) => result.statusAfter !== "ok").length
+              }.`,
+              resultIds: results.map((result) => result.id),
+            }
+          : inspection,
       ),
-      events: [
-        ...allowed.map((assetId) => ({
-          id: eventId(),
-          assetId,
-          type: "inspection" as const,
-          date: todayLabel(),
-          title: "Отчет мастера",
-          body: "Мастер проверил узел по гостевой ссылке. Добавлены комментарии, фото и стоимость.",
-          cost: assetId === "w08" ? 2000 : undefined,
-          master: "Роман",
-          statusAfter: (assetId === "w08" ? "needs_master" : "attention") as Status,
-        })),
-        ...current.events,
+      inspectionResults: [
+        ...results,
+        ...current.inspectionResults.filter((result) => result.inspectionId !== activeInspection.id),
       ],
+      events: [...resultEvents, ...current.events],
     }));
     setView("report");
   }
@@ -933,6 +1115,10 @@ function submitContractorReport() {
           <NavButton active={view === "inspection"} onClick={() => setView("inspection")}>
             <ClipboardCheck size={16} />
             Обход
+          </NavButton>
+          <NavButton active={view === "inspections"} onClick={() => setView("inspections")}>
+            <History size={16} />
+            Отчеты
           </NavButton>
           <NavButton active={view === "contractor"} onClick={() => setView("contractor")}>
             <UserRoundCheck size={16} />
@@ -1025,12 +1211,22 @@ function submitContractorReport() {
           />
         )}
 
+        {view === "inspections" && (
+          <InspectionsView
+            assets={state.assets}
+            inspections={state.inspections}
+            results={state.inspectionResults}
+            openAsset={openAsset}
+            openContractor={() => setView("contractor")}
+          />
+        )}
+
         {view === "contractor" && (
           <ContractorAccessView
             state={state}
             setState={setState}
             mode={contractorMode}
-            setMode={setContractorMode}
+            createContractorInspection={createContractorInspection}
             submitContractorReport={submitContractorReport}
           />
         )}
@@ -1041,6 +1237,8 @@ function submitContractorReport() {
               state.contractorAccess.allowedAssetIds.includes(asset.id),
             )}
             events={state.events}
+            inspections={state.inspections}
+            results={state.inspectionResults}
             openAsset={openAsset}
           />
         )}
@@ -1058,6 +1256,7 @@ function viewTitle(view: View, asset: Asset) {
     asset: `${asset.code} · ${asset.name}`,
     log: "Журнал квартиры",
     inspection: "Обход квартиры",
+    inspections: "Обходы и отчеты",
     contractor: "Доступ мастеру",
     report: "Отчет мастера",
   };
@@ -1072,6 +1271,7 @@ function viewSubtitle(view: View) {
     asset: "История, фото, паспорт узла и быстрые действия.",
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
+    inspections: "Все созданные обходы, результаты мастеров и сводки по узлам.",
     contractor: "Гостевая ссылка на выбранные узлы и чек-лист мастера.",
     report: "Сводка, которая вернулась после проверки по ссылке.",
   };
@@ -1773,31 +1973,147 @@ function InspectionView({
   );
 }
 
+function InspectionsView({
+  assets,
+  inspections,
+  results,
+  openAsset,
+  openContractor,
+}: {
+  assets: Asset[];
+  inspections: Inspection[];
+  results: InspectionResult[];
+  openAsset: (id: string) => void;
+  openContractor: () => void;
+}) {
+  const latestInspection = inspections[0];
+  const completedCount = inspections.filter((inspection) => inspection.status === "completed").length;
+  const issueResultCount = results.filter((result) => result.statusAfter !== "ok").length;
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Всего обходов" value={`${inspections.length}`} />
+        <StatCard label="Завершено" value={`${completedCount}`} tone="positive" />
+        <StatCard label="Замечаний из отчетов" value={`${issueResultCount}`} tone="negative" />
+        <StatCard label="Последний" value={latestInspection?.completedAt ?? latestInspection?.createdAt ?? "нет"} />
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
+        <Card>
+          <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
+            <div>
+              <CardTitle>Все обходы</CardTitle>
+              <CardDescription>
+                Каждый обход хранит область доступа, мастера, результаты и ссылку на события узлов.
+              </CardDescription>
+            </div>
+            <Button onClick={openContractor} type="button">
+              <UserRoundCheck size={16} />
+              Создать обход
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {inspections.map((inspection) => {
+              const inspectionResults = results.filter((result) => result.inspectionId === inspection.id);
+              const issues = inspectionResults.filter((result) => result.statusAfter !== "ok");
+              const cost = inspectionResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
+
+              return (
+                <div className="grid gap-3 rounded-lg border bg-background p-4" key={inspection.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="grid gap-1">
+                      <strong className="font-medium">{inspection.number} · {inspection.title}</strong>
+                      <span className="text-muted-foreground text-sm">
+                        {inspection.contractor} · {inspection.createdAt}
+                        {inspection.completedAt ? ` · завершен ${inspection.completedAt}` : ""}
+                      </span>
+                    </div>
+                    <Badge variant={inspection.status === "completed" ? "secondary" : "default"}>
+                      {inspectionStatusLabels[inspection.status]}
+                    </Badge>
+                  </div>
+                  <p className="m-0 text-muted-foreground text-sm">{inspection.summary}</p>
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    <Badge variant="outline">{inspection.allowedAssetIds.length} узлов</Badge>
+                    <Badge variant={issues.length ? "destructive" : "secondary"}>
+                      {issues.length} замечаний
+                    </Badge>
+                    <Badge variant="outline">{cost.toLocaleString("ru-RU")} руб.</Badge>
+                  </div>
+                  <div className="grid gap-2">
+                    {inspectionResults.slice(0, 4).map((result) => {
+                      const asset = assets.find((item) => item.id === result.assetId);
+                      if (!asset) return null;
+                      return (
+                        <button
+                          className="flex items-center justify-between gap-3 rounded-md bg-muted p-2 text-left text-sm"
+                          key={result.id}
+                          onClick={() => openAsset(asset.id)}
+                          type="button"
+                        >
+                          <span className="truncate">{asset.code} · {asset.name}</span>
+                          <StatusBadge status={result.statusAfter} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Как теперь копится отчет</CardTitle>
+            <CardDescription>Структура данных зафиксирована в интерфейсе.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm">
+            {[
+              "Создаем обход и выбираем область доступа.",
+              "Мастер открывает ссылку и проходит выбранные узлы.",
+              "По каждому узлу сохраняется результат: статус, комментарий, фото, стоимость.",
+              "Итог попадает в список обходов и одновременно в историю каждого узла.",
+            ].map((item) => (
+              <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 function ContractorAccessView({
   state,
   setState,
   mode,
-  setMode,
+  createContractorInspection,
   submitContractorReport,
 }: {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   mode: "setup" | "master";
-  setMode: (mode: "setup" | "master") => void;
+  createContractorInspection: () => void;
   submitContractorReport: () => void;
 }) {
   const allowedAssets = state.assets.filter((asset) =>
     state.contractorAccess.allowedAssetIds.includes(asset.id),
   );
+  const activeInspection =
+    state.inspections.find((inspection) => inspection.id === state.contractorAccess.inspectionId) ??
+    state.inspections[0];
 
   if (mode === "master") {
     return (
       <div className="grid grid-cols-[minmax(320px,420px)_1fr] gap-6 max-[980px]:grid-cols-1">
         <Card>
           <CardHeader>
-            <CardTitle>Задание мастеру</CardTitle>
+            <CardTitle>{activeInspection?.number ?? "Задание мастеру"}</CardTitle>
             <CardDescription>
-              Шпалерная, 34Б · сантехника · доступ: {state.contractorAccess.expires}
+              Шпалерная, 34Б · {activeInspection?.contractor ?? "мастер"} · доступ:{" "}
+              {state.contractorAccess.expires}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
@@ -1809,18 +2125,20 @@ function ContractorAccessView({
         <Card>
           <CardHeader>
             <CardTitle>Чек-лист узла</CardTitle>
-            <CardDescription>W-08 · слив · слив работает медленно, нужна чистка сифона.</CardDescription>
+            <CardDescription>
+              Отчет сохранится в обход и в историю каждого выбранного узла.
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-          <div className="grid gap-2 sm:grid-cols-3">
-            <Button variant="secondary" type="button">Исправно</Button>
-            <Button variant="secondary" type="button">Есть замечание</Button>
-            <Button type="button">Нужен ремонт</Button>
-          </div>
-          <InspectionComposer placeholder="Комментарий мастера, фото, стоимость, материалы" />
-          <Button className="w-full" onClick={submitContractorReport} type="button">
-            Отправить отчет владельцу
-          </Button>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Button variant="secondary" type="button">Исправно</Button>
+              <Button variant="secondary" type="button">Есть замечание</Button>
+              <Button type="button">Нужен ремонт</Button>
+            </div>
+            <InspectionComposer placeholder="Комментарий мастера, фото, стоимость, материалы" />
+            <Button className="w-full" onClick={submitContractorReport} type="button">
+              Отправить отчет владельцу
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -1867,17 +2185,19 @@ function ContractorAccessView({
           ))}
         </div>
         <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
-          shpalernaya.app/access/plumbing-3d8f
+          {activeInspection?.link ?? "Ссылка появится после создания обхода"}
         </div>
-        <Button onClick={() => setMode("master")} type="button">
-          Открыть как мастер
+        <Button onClick={createContractorInspection} type="button">
+          Создать обход и открыть как мастер
         </Button>
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <CardTitle>Узлы в задании</CardTitle>
-          <CardDescription>{allowedAssets.length} выбранных узла.</CardDescription>
+          <CardDescription>
+            {allowedAssets.length} выбранных узлов. После создания это станет отдельным обходом.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
           {allowedAssets.map((asset) => (
@@ -1892,30 +2212,58 @@ function ContractorAccessView({
 function ContractorReport({
   assets,
   events,
+  inspections,
+  results,
   openAsset,
 }: {
   assets: Asset[];
   events: AssetEvent[];
+  inspections: Inspection[];
+  results: InspectionResult[];
   openAsset: (id: string) => void;
 }) {
-  const reportEvents = events.filter(
-    (event) => event.type === "inspection" || event.title === "Отчет мастера",
+  const latestInspection = inspections[0];
+  const reportEvents = events.filter((event) =>
+    latestInspection ? event.inspectionId === latestInspection.id : event.type === "report",
   );
+  const reportResults = latestInspection
+    ? results.filter((result) => result.inspectionId === latestInspection.id)
+    : results;
+  const issueResults = reportResults.filter((result) => result.statusAfter !== "ok");
+  const totalCost = reportResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
+  const photoCount = reportResults.reduce((sum, result) => sum + result.photoCount, 0);
+
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <StatCard label="Проверено" value={`${assets.length} узла`} />
-      <StatCard label="Замечания" value="2" tone="negative" />
-      <StatCard label="Стоимость" value="2 000 руб." />
-      <StatCard label="Фото" value="8 файлов" />
+      <StatCard label="Проверено" value={`${reportResults.length || assets.length} узла`} />
+      <StatCard label="Замечания" value={`${issueResults.length}`} tone="negative" />
+      <StatCard label="Стоимость" value={`${totalCost.toLocaleString("ru-RU")} руб.`} />
+      <StatCard label="Фото" value={`${photoCount} файлов`} />
       <Card className="md:col-span-2">
         <CardHeader>
-          <CardTitle>Решения по отчету</CardTitle>
-          <CardDescription>Узлы, по которым нужно принять решение владельцу.</CardDescription>
+          <CardTitle>{latestInspection?.number ?? "Отчет мастера"}</CardTitle>
+          <CardDescription>
+            {latestInspection?.summary ?? "Сводка результатов последнего обхода."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
-          {assets.map((asset) => (
-            <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
-          ))}
+          {reportResults.map((result) => {
+            const asset = assets.find((item) => item.id === result.assetId);
+            if (!asset) return null;
+            return (
+              <div className="grid gap-2 rounded-lg border p-3" key={result.id}>
+                <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
+                <p className="m-0 text-muted-foreground text-sm">{result.comment}</p>
+                <div className="flex flex-wrap gap-2">
+                  <StatusBadge status={result.statusAfter} />
+                  <Badge variant="outline">{result.photoCount} фото</Badge>
+                  {result.cost && (
+                    <Badge variant="outline">{result.cost.toLocaleString("ru-RU")} руб.</Badge>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
       <Card className="md:col-span-2">
