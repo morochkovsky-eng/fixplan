@@ -63,6 +63,7 @@ import {
   Map,
   Menu,
   Play,
+  ArrowLeft,
   RotateCcw,
   Settings,
   UserRoundCheck,
@@ -910,6 +911,7 @@ export default function Home() {
   const [selectedInspectionId, setSelectedInspectionId] = useState(
     defaultState.inspections[0]?.id ?? "",
   );
+  const [assetReturnView, setAssetReturnView] = useState<View>("dashboard");
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
   const [onlyIssues, setOnlyIssues] = useState(false);
@@ -981,6 +983,7 @@ export default function Home() {
 
   function openAsset(id: string) {
     setSelectedAssetId(id);
+    setAssetReturnView(view === "asset" ? assetReturnView : view);
     setView("asset");
     setMobileMenuOpen(false);
   }
@@ -1285,6 +1288,8 @@ export default function Home() {
             setNewEventText={setNewEventText}
             addEvent={addEvent}
             setAssetStatus={setAssetStatus}
+            returnLabel={assetReturnLabel(assetReturnView)}
+            goBack={() => navigate(assetReturnView)}
             goContractor={() => setView("contractor")}
           />
         )}
@@ -1382,6 +1387,20 @@ function viewSubtitle(view: View) {
     settings: "Название сервиса, объект и базовые параметры интерфейса.",
   };
   return subtitles[view];
+}
+
+function assetReturnLabel(view: View) {
+  const labels: Partial<Record<View, string>> = {
+    dashboard: "К дашборду",
+    plan: "К схеме",
+    assets: "К списку",
+    log: "К журналу",
+    inspection: "К обходу",
+    inspections: "К отчетам",
+    report: "К отчету",
+    contractor: "К доступу",
+  };
+  return labels[view] ?? "Назад";
 }
 
 function AppNavigation({
@@ -1906,6 +1925,8 @@ function AssetDetail({
   setNewEventText,
   addEvent,
   setAssetStatus,
+  returnLabel,
+  goBack,
   goContractor,
 }: {
   asset: Asset;
@@ -1914,6 +1935,8 @@ function AssetDetail({
   setNewEventText: (value: string) => void;
   addEvent: (assetId: string, patch?: Partial<AssetEvent>) => void;
   setAssetStatus: (assetId: string, status: Status, body?: string) => void;
+  returnLabel: string;
+  goBack: () => void;
   goContractor: () => void;
 }) {
   const mediaEvents = events.filter((event) => event.photo);
@@ -2059,10 +2082,16 @@ function AssetDetail({
               </div>
             </div>
           </div>
-          <Button variant="outline" onClick={() => void goContractor()} type="button">
-            <UserRoundCheck size={16} />
-            Доступ мастеру
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={goBack} type="button">
+              <ArrowLeft size={16} />
+              {returnLabel}
+            </Button>
+            <Button variant="outline" onClick={() => void goContractor()} type="button">
+              <UserRoundCheck size={16} />
+              Доступ мастеру
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 
