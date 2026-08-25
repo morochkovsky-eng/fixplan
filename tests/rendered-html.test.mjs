@@ -31,6 +31,7 @@ test("server-renders the apartment maintenance app shell", async () => {
   assert.match(html, /<title>Шпалерная, 34Б<\/title>/i);
   assert.match(html, /Дашборд квартиры/);
   assert.match(html, /Всего узлов/);
+  assert.match(html, /123/);
   assert.match(html, /Что не так сейчас/);
   assert.match(html, /Требует внимания/);
   assert.match(html, /Нужен мастер/);
