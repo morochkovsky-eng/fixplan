@@ -80,7 +80,6 @@ type Category =
 type PlanModeId =
   | "sockets"
   | "lighting"
-  | "switchLinks"
   | "plumbing"
   | "ventilation"
   | "furniture"
@@ -351,13 +350,6 @@ const planModes: PlanMode[] = [
     summary: "Светильники, группы света и точки управления.",
   },
   {
-    id: "switchLinks",
-    label: "Выключатели с привязкой",
-    src: "/plan/switches-light-links.png",
-    categories: ["electric"],
-    summary: "Связи выключателей с конкретными световыми приборами.",
-  },
-  {
     id: "plumbing",
     label: "Сантехника",
     src: "/plan/plumbing-real.png",
@@ -418,6 +410,30 @@ const planHotspots: Record<PlanModeId, PlanHotspot[]> = {
     { id: "s-bath", code: "B-EL", title: "Полотенцесушитель", room: "Ванная", note: "Электрический полотенцесушитель, вывод h=750.", x: 38, y: 78, tone: "warning" },
     { id: "s-washer", code: "WM-EL", title: "Стиральная машина", room: "Постирочная", note: "Питание стиральной и сушильной машины в пенале.", x: 91, y: 78, tone: "positive" },
     { id: "s-boiler", code: "B-01", title: "Бойлер", room: "Санузел", note: "Питание бойлера h=1650.", x: 90, y: 89, tone: "violet" },
+    { id: "s-living-window-1", code: "R-01", title: "Розетка у окна гостиной 1", room: "Гостиная", note: "Розетка h=500 у оконного простенка.", x: 12, y: 19, tone: "positive" },
+    { id: "s-living-window-2", code: "R-02", title: "Розетка у окна гостиной 2", room: "Гостиная", note: "Розетка h=300 у оконного простенка.", x: 10, y: 26, tone: "positive" },
+    { id: "s-living-window-3", code: "R-03", title: "Розетка у окна гостиной 3", room: "Гостиная", note: "Розетка h=300 у оконного простенка.", x: 10, y: 44, tone: "positive" },
+    { id: "s-living-media-1", code: "R-04", title: "Медиа-блок гостиной", room: "Гостиная", note: "Группа для ТВ: питание, слаботочные точки, высота h=500.", x: 24, y: 12, tone: "positive" },
+    { id: "s-living-ceiling", code: "E-PR-02", title: "Потолочный вывод", room: "Гостиная", note: "Вывод для проектора в потолке.", x: 35, y: 34, tone: "warning" },
+    { id: "s-living-switch-wall", code: "S-05/06/07", title: "Блок выключателей гостиной", room: "Гостиная / спальня", note: "Блок управления группами света 5, 6 и 7.", x: 50, y: 18, tone: "warning" },
+    { id: "s-bedroom-door", code: "R-08", title: "Розетка у входа в спальню", room: "Спальня", note: "Розетка у дверного проема, h=300.", x: 53, y: 31, tone: "positive" },
+    { id: "s-bedroom-bed-left", code: "R-09", title: "Розетки у кровати слева", room: "Спальня", note: "Прикроватная группа, h=650.", x: 88, y: 23, tone: "positive" },
+    { id: "s-bedroom-bed-right", code: "R-10", title: "Розетки у кровати справа", room: "Спальня", note: "Прикроватная группа, h=650.", x: 88, y: 42, tone: "positive" },
+    { id: "s-bedroom-low", code: "R-11", title: "Нижняя розетка спальни", room: "Спальня", note: "Розетка h=300 у стены спальни.", x: 74, y: 54, tone: "positive" },
+    { id: "s-kitchen-hood", code: "K-01", title: "Вывод для вытяжки", room: "Кухня", note: "Питание вытяжки h=1880, см. развертки.", x: 14, y: 80, tone: "warning" },
+    { id: "s-kitchen-light", code: "K-02", title: "Подключение подсветки", room: "Кухня", note: "Вывод для подключения подсветки кухни.", x: 22, y: 82, tone: "warning" },
+    { id: "s-kitchen-dishwasher", code: "K-03", title: "Посудомойка", room: "Кухня", note: "Розетка посудомойки h=500.", x: 27, y: 75, tone: "positive" },
+    { id: "s-kitchen-fridge", code: "K-04", title: "Холодильник", room: "Кухня", note: "Розетка холодильника h=300.", x: 39, y: 73, tone: "positive" },
+    { id: "s-kitchen-counter-1", code: "K-05", title: "Розетка столешницы 1", room: "Кухня", note: "Рабочая зона кухни, h=1200.", x: 30, y: 78, tone: "positive" },
+    { id: "s-kitchen-counter-2", code: "K-06", title: "Розетка столешницы 2", room: "Кухня", note: "Рабочая зона кухни, h=1200.", x: 36, y: 78, tone: "positive" },
+    { id: "s-kitchen-counter-3", code: "K-07", title: "Розетка столешницы 3", room: "Кухня", note: "Рабочая зона кухни, h=1200.", x: 43, y: 78, tone: "positive" },
+    { id: "s-bath-mirror", code: "B-02", title: "Зона зеркала ванной", room: "Ванная", note: "Питание зеркала / подсветки у раковины.", x: 29, y: 86, tone: "positive" },
+    { id: "s-bath-vent", code: "B-03", title: "Вентилятор ванной", room: "Ванная", note: "Электрический вывод под принудительную вентиляцию.", x: 19, y: 91, tone: "warning" },
+    { id: "s-hall-intercom", code: "D-EL", title: "Домофон", room: "Прихожая", note: "Вывод для домофона h=1500.", x: 65, y: 88, tone: "violet" },
+    { id: "s-hall-switch", code: "S-01", title: "Выключатель прихожей", room: "Прихожая", note: "Точка управления светом прихожей.", x: 62, y: 80, tone: "positive" },
+    { id: "s-wc-switch", code: "S-04", title: "Выключатель санузла", room: "Санузел", note: "Точка управления светом санузла.", x: 82, y: 78, tone: "positive" },
+    { id: "s-wc-vent", code: "WC-VENT", title: "Вентилятор санузла", room: "Санузел", note: "Вывод под принудительную вентиляцию в санузле.", x: 88, y: 86, tone: "warning" },
+    { id: "s-wc-boiler-control", code: "B-02", title: "Бойлер / коммуникации", room: "Санузел", note: "Питание и доступ к коммуникациям бойлера.", x: 91, y: 93, tone: "violet" },
   ],
   lighting: [
     { id: "l-plant-left", code: "L-00.1", title: "Декоративная подсветка растения", room: "Гостиная", note: "Зеленая декоративная точка на плане света.", x: 18, y: 15, tone: "positive" },
@@ -442,25 +458,6 @@ const planHotspots: Record<PlanModeId, PlanHotspot[]> = {
     { id: "l-hall", code: "L-01", title: "Свет прихожей", room: "Прихожая", note: "Малый потолочный светильник у входа.", x: 62, y: 82, tone: "warning" },
     { id: "l-wc", code: "L-04", title: "Свет санузла", room: "Санузел", note: "Потолочный светильник санузла.", x: 86, y: 80, tone: "positive" },
     { id: "l-wc-wall", code: "L-04.1", title: "Локальный свет санузла", room: "Санузел", note: "Дополнительная световая точка у стены.", x: 82, y: 86, tone: "positive" },
-  ],
-  switchLinks: [
-    { id: "sl-tor-left", code: "S-TOR-01", title: "Выключатель на торшере", room: "Гостиная", note: "Локальный выключатель декоративного светильника.", x: 24, y: 16, tone: "warning" },
-    { id: "sl-living-6", code: "S-06", title: "Группа 6", room: "Гостиная", note: "Связь выключателя с люстрой гостиной.", x: 30, y: 30, tone: "positive" },
-    { id: "sl-living-7", code: "S-07", title: "Группа 7", room: "Гостиная", note: "Связь выключателя с настенным светом.", x: 27, y: 50, tone: "positive" },
-    { id: "sl-living-5-1", code: "S-05.1", title: "Линейный свет 1", room: "Кухня / гостиная", note: "Выключатель управляет левым модулем группы 5.", x: 20, y: 64, tone: "positive" },
-    { id: "sl-living-5-2", code: "S-05.2", title: "Линейный свет 2", room: "Кухня / гостиная", note: "Выключатель управляет центральным модулем группы 5.", x: 30, y: 64, tone: "positive" },
-    { id: "sl-living-5-3", code: "S-05.3", title: "Линейный свет 3", room: "Кухня / гостиная", note: "Выключатель управляет правым модулем группы 5.", x: 40, y: 64, tone: "positive" },
-    { id: "sl-panel-567", code: "S-05/06/07", title: "Блок выключателей", room: "Гостиная / спальня", note: "Блок клавиш 5, 6 и 7 у перегородки.", x: 51, y: 54, tone: "warning" },
-    { id: "sl-bedroom-8", code: "S-08", title: "Группа 8", room: "Спальня", note: "Связь выключателя с основным светом спальни.", x: 70, y: 34, tone: "positive" },
-    { id: "sl-bedroom-tor", code: "S-TOR-02", title: "Выключатель на торшере", room: "Спальня", note: "Локальное управление зеленым светильником.", x: 83, y: 20, tone: "warning" },
-    { id: "sl-office-9", code: "S-09", title: "Группа 9", room: "Кабинет", note: "Связь выключателя со светильником кабинета.", x: 75, y: 63, tone: "positive" },
-    { id: "sl-office-tor", code: "S-TOR-03", title: "Выключатель на торшере", room: "Кабинет", note: "Локальное управление круглым светильником.", x: 86, y: 68, tone: "warning" },
-    { id: "sl-hall-1", code: "S-01", title: "Группа 1", room: "Прихожая", note: "Связь выключателя со светом прихожей.", x: 62, y: 83, tone: "positive" },
-    { id: "sl-bath-2", code: "S-02", title: "Группа 2", room: "Ванная", note: "Связь с линейными светильниками ванной.", x: 42, y: 76, tone: "positive" },
-    { id: "sl-bath-3", code: "S-03", title: "Группа 3", room: "Ванная", note: "Связь с потолочным светом ванной.", x: 46, y: 76, tone: "positive" },
-    { id: "sl-wc-4", code: "S-04", title: "Группа 4", room: "Санузел", note: "Привязка выключателя к потолочному светильнику санузла.", x: 86, y: 80, tone: "positive" },
-    { id: "sl-wc-lamp", code: "S-LAMP-04", title: "Выключатель на светильнике", room: "Санузел", note: "Локальный выключатель на светильнике.", x: 80, y: 73, tone: "warning" },
-    { id: "sl-b-point", code: "S-B", title: "Вывод B", room: "Санузел", note: "Дополнительная точка управления / вывод B.", x: 82, y: 86, tone: "violet" },
   ],
   plumbing: [
     { id: "p-w04", code: "W-04", title: "Смеситель", room: "Ванная", note: "Проверить соединения, протечки и напор.", x: 35, y: 76, tone: "positive", assetId: "w04" },
@@ -489,12 +486,21 @@ const planHotspots: Record<PlanModeId, PlanHotspot[]> = {
     { id: "f-hooks", code: "F-07", title: "Крючки и скамья", room: "Прихожая", note: "Зона верхней одежды.", x: 47, y: 93, tone: "positive" },
   ],
   windows: [
-    { id: "win-l1", code: "WIN-01", title: "Окно гостиной 1", room: "Гостиная", note: "Проверить фурнитуру и уплотнитель.", x: 9, y: 79, tone: "positive" },
-    { id: "win-l2", code: "WIN-02", title: "Окно гостиной 2", room: "Гостиная", note: "Проверить открывание и откосы.", x: 9, y: 62, tone: "positive" },
-    { id: "win03-map", code: "WIN-03", title: "Окно кабинета", room: "Кабинет", note: "Фото фурнитуры, контроль створок.", x: 76, y: 9, tone: "positive", assetId: "win03" },
-    { id: "win-b1", code: "WIN-04", title: "Окно спальни левое", room: "Спальня", note: "Ширина проема 1068.", x: 58, y: 8, tone: "positive" },
-    { id: "win-b2", code: "WIN-05", title: "Окно спальни правое", room: "Спальня", note: "Ширина проема 1068.", x: 84, y: 8, tone: "positive" },
-    { id: "door-p1", code: "D-01", title: "Входная дверь", room: "Прихожая", note: "Проверить петли, замок, доводчик.", x: 66, y: 92, tone: "warning" },
+    { id: "win-l1", code: "WIN-01", title: "Окно гостиной нижнее", room: "Гостиная", note: "Проверить фурнитуру, уплотнитель и откосы нижнего окна.", x: 9, y: 79, tone: "positive" },
+    { id: "win-l2", code: "WIN-02", title: "Окно гостиной среднее нижнее", room: "Гостиная", note: "Проверить открывание, прижим и состояние подоконника.", x: 9, y: 65, tone: "positive" },
+    { id: "win-l3", code: "WIN-03", title: "Окно гостиной среднее", room: "Гостиная", note: "Проверить створки и отсутствие продувания.", x: 9, y: 50, tone: "positive" },
+    { id: "win-l4", code: "WIN-04", title: "Окно гостиной верхнее", room: "Гостиная", note: "Проверить фурнитуру, ручку и уплотнитель.", x: 9, y: 34, tone: "positive" },
+    { id: "win-l5", code: "WIN-05", title: "Окно гостиной у медиа-зоны", room: "Гостиная", note: "Проверить геометрию проема и состояние откосов.", x: 9, y: 21, tone: "positive" },
+    { id: "win-kitchen", code: "WIN-06", title: "Окно кухни", room: "Кухня", note: "Проверить створку возле кухонного фронта.", x: 9, y: 91, tone: "positive" },
+    { id: "win-bedroom-left", code: "WIN-07", title: "Окно спальни левое", room: "Спальня", note: "Ширина проема 1068, проверить фурнитуру и прижим.", x: 58, y: 8, tone: "positive" },
+    { id: "win-bedroom-center", code: "WIN-08", title: "Окно спальни центральное", room: "Спальня", note: "Центральный оконный простенок / проем спальни.", x: 72, y: 8, tone: "positive" },
+    { id: "win-bedroom-right", code: "WIN-09", title: "Окно спальни правое", room: "Спальня", note: "Ширина проема 1068, проверить ручку и уплотнитель.", x: 84, y: 8, tone: "positive" },
+    { id: "win03-map", code: "WIN-10", title: "Окно кабинета", room: "Кабинет", note: "Фото фурнитуры, контроль створок.", x: 76, y: 9, tone: "positive", assetId: "win03" },
+    { id: "door-bedroom", code: "D-01", title: "Дверь спальни", room: "Спальня", note: "Проверить полотно, петли и зазор по коробке.", x: 51, y: 24, tone: "warning" },
+    { id: "door-bath", code: "D-02", title: "Дверь ванной", room: "Ванная", note: "Проверить петли, замок и примыкание к плитке.", x: 50, y: 75, tone: "warning" },
+    { id: "door-office", code: "D-03", title: "Дверь кабинета", room: "Кабинет", note: "Проверить открывание и зазор возле пола.", x: 70, y: 73, tone: "warning" },
+    { id: "door-wc", code: "D-04", title: "Дверь санузла", room: "Санузел", note: "Проверить замок, петли и вентиляционный зазор.", x: 83, y: 88, tone: "warning" },
+    { id: "door-entry", code: "D-05", title: "Входная дверь", room: "Прихожая", note: "Проверить петли, замок, доводчик и уплотнитель.", x: 66, y: 92, tone: "warning" },
   ],
   flooring: [
     { id: "fl-living", code: "FL-01", title: "Паркет", room: "Гостиная / спальня / кабинет", note: "Единое поле паркета 61,44 м².", x: 38, y: 43, tone: "positive" },
@@ -815,7 +821,7 @@ function roomIdFromPlanRoom(room: string) {
 
 function assetKindFromPlan(modeId: PlanModeId, hotspot: PlanHotspot): AssetKind {
   if (modeId === "lighting") return "light";
-  if (modeId === "switchLinks") return "switch";
+  if (modeId === "sockets" && hotspot.code.startsWith("S-")) return "switch";
   if (modeId === "plumbing") {
     if (hotspot.title.toLowerCase().includes("слив") || hotspot.title.toLowerCase().includes("трап")) {
       return "drain";
