@@ -1396,21 +1396,21 @@ select:focus-visible {
     gap: 12px;
     border-bottom: 1px solid var(--border);
     background: color-mix(in oklab, var(--content) 94%, transparent);
-    padding: 10px 12px;
+    padding: 18px 20px;
     backdrop-filter: blur(16px);
   }
 
   .mobile-brand {
     display: grid;
     min-width: 0;
-    gap: 1px;
+    gap: 4px;
   }
 
   .mobile-brand strong {
     overflow: hidden;
-    font-size: 15px;
-    line-height: 20px;
-    font-weight: 600;
+    font-size: 34px;
+    line-height: 36px;
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -1418,15 +1418,19 @@ select:focus-visible {
   .mobile-brand span {
     overflow: hidden;
     color: var(--text-muted);
-    font-size: 12px;
-    line-height: 16px;
+    font-size: 17px;
+    line-height: 22px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  .mobile-header button {
+    flex: 0 0 auto;
+  }
+
   .mobile-menu {
     position: sticky;
-    top: 57px;
+    top: 96px;
     z-index: 25;
     display: grid;
     gap: 10px;
