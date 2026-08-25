@@ -50,6 +50,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   Check,
   CircleAlert,
+  ClipboardCheck,
+  History,
+  LayoutDashboard,
+  List,
+  Map,
+  Play,
+  RotateCcw,
   UserRoundCheck,
 } from "lucide-react";
 
@@ -515,31 +522,39 @@ function submitContractorReport() {
         </div>
         <nav className="nav-list" aria-label="Главная навигация">
           <NavButton active={view === "dashboard"} onClick={() => setView("dashboard")}>
+            <LayoutDashboard size={16} />
             Дашборд
           </NavButton>
           <NavButton active={view === "plan"} onClick={() => setView("plan")}>
+            <Map size={16} />
             План
           </NavButton>
           <NavButton active={view === "assets"} onClick={() => setView("assets")}>
+            <List size={16} />
             Узлы
           </NavButton>
           <NavButton active={view === "log"} onClick={() => setView("log")}>
+            <History size={16} />
             Журнал
           </NavButton>
           <NavButton active={view === "inspection"} onClick={() => setView("inspection")}>
+            <ClipboardCheck size={16} />
             Обход
           </NavButton>
           <NavButton active={view === "contractor"} onClick={() => setView("contractor")}>
+            <UserRoundCheck size={16} />
             Доступ мастеру
           </NavButton>
         </nav>
-        <button
-          className="button secondary full"
+        <Button
+          className="w-full justify-start"
+          variant="secondary"
           onClick={() => setState(initialState)}
           type="button"
         >
+          <RotateCcw size={16} />
           Сбросить демо
-        </button>
+        </Button>
       </aside>
 
       <section className="workspace">
@@ -549,12 +564,14 @@ function submitContractorReport() {
             <p>{viewSubtitle(view)}</p>
           </div>
           <div className="topbar-actions">
-            <button className="button secondary" onClick={() => setView("contractor")} type="button">
+            <Button variant="secondary" onClick={() => setView("contractor")} type="button">
+              <UserRoundCheck size={16} />
               Доступ мастеру
-            </button>
-            <button className="button primary" onClick={() => setView("inspection")} type="button">
+            </Button>
+            <Button onClick={() => setView("inspection")} type="button">
+              <Play size={16} />
               Начать обход
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -678,28 +695,31 @@ function NavButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      className={`nav-button ${active ? "active" : ""}`}
+    <Button
+      className="w-full justify-start"
+      variant={active ? "secondary" : "ghost"}
       onClick={onClick}
       type="button"
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
 function StatusSelect({
   value,
   onValueChange,
+  className,
 }: {
   value: Status;
   onValueChange: (value: Status) => void;
+  className?: string;
 }) {
   return (
     <Select value={value} onValueChange={(next) => onValueChange(next as Status)}>
       <SelectTrigger
         aria-label="Текущий статус"
-        className="w-[240px]"
+        className={className ?? "w-[240px]"}
         size="default"
       >
         <SelectValue />
@@ -731,57 +751,62 @@ function Dashboard({
   goPlan: () => void;
 }) {
   return (
-    <div className="dashboard-grid">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <StatCard label="Всего узлов" value={assets.length.toString()} />
       <StatCard label="Требуют внимания" value={issueAssets.length.toString()} tone="negative" />
       <StatCard label="В работе" value={inProgressAssets.length.toString()} tone="warning" />
       <StatCard label="Нужен мастер" value={needsMasterAssets.length.toString()} tone="violet" />
 
-      <section className="panel span-2">
-        <PanelHeader title="Что не так сейчас" action="Открыть план" onAction={goPlan} />
-        <div className="asset-list compact">
+      <Card className="md:col-span-2">
+        <CardHeader className="grid-cols-[1fr_auto] gap-3">
+          <div>
+            <CardTitle>Что не так сейчас</CardTitle>
+            <CardDescription>Узлы, которые требуют решения или мастера.</CardDescription>
+          </div>
+          <Button variant="ghost" onClick={goPlan} type="button">
+            Открыть план
+          </Button>
+        </CardHeader>
+        <CardContent className="grid gap-2">
           {issueAssets.map((asset) => (
             <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
           ))}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="panel">
-        <PanelHeader title="Работы и мастера" />
-        <div className="stack">
+      <Card>
+        <CardHeader>
+          <CardTitle>Работы и мастера</CardTitle>
+          <CardDescription>Что уже в процессе.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2">
           {inProgressAssets.concat(needsMasterAssets).map((asset) => (
-            <button className="work-item" key={asset.id} onClick={() => openAsset(asset.id)} type="button">
-              <span>
-                <strong>{asset.code}</strong>
-                <small>{asset.master ?? "Мастер не назначен"}</small>
-              </span>
-              <StatusBadge status={asset.status} />
-            </button>
+            <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
           ))}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <section className="panel span-3">
-        <PanelHeader title="Здоровье квартиры" />
-        <div className="health-grid">
-          <div>
-            <strong>82%</strong>
-            <span>проверено за месяц</span>
-          </div>
-          <div>
-            <strong>3</strong>
-            <span>гарантии в календаре</span>
-          </div>
-          <div>
-            <strong>3 500 руб.</strong>
-            <span>расходы за август</span>
-          </div>
-          <div>
-            <strong>1</strong>
-            <span>отчет мастера ожидает решения</span>
-          </div>
-        </div>
-      </section>
+      <Card className="md:col-span-2 xl:col-span-3">
+        <CardHeader>
+          <CardTitle>Здоровье квартиры</CardTitle>
+          <CardDescription>Контрольные показатели по обслуживанию.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Metric value="82%" label="проверено за месяц" />
+          <Metric value="3" label="гарантии в календаре" />
+          <Metric value="3 500 руб." label="расходы за август" />
+          <Metric value="1" label="отчет мастера ожидает решения" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function Metric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="grid gap-1 rounded-lg bg-muted p-3">
+      <strong className="text-base font-medium leading-snug">{value}</strong>
+      <span className="text-muted-foreground text-sm">{label}</span>
     </div>
   );
 }
@@ -804,46 +829,56 @@ function PlanView({
   openAsset: (id: string) => void;
 }) {
   return (
-    <div className="plan-layout">
-      <section className="panel plan-panel">
-        <div className="filter-row">
+    <div className="grid grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 max-[980px]:grid-cols-1">
+      <Card>
+        <CardHeader>
+          <CardTitle>Схема квартиры</CardTitle>
+          <CardDescription>Включайте слои и открывайте узлы прямо с плана.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 overflow-x-auto pb-2">
           {(Object.keys(categoryLabels) as Category[]).map((category) => (
-            <button
-              className={`chip ${activeCategories.includes(category) ? "active" : ""}`}
+            <Button
+              variant={activeCategories.includes(category) ? "default" : "secondary"}
               key={category}
               onClick={() => toggleCategory(category)}
               type="button"
             >
               {categoryLabels[category]}
-            </button>
+            </Button>
           ))}
-          <button
-            className={`chip ${onlyIssues ? "danger" : ""}`}
+          <Button
+            variant={onlyIssues ? "destructive" : "secondary"}
             onClick={toggleIssues}
             type="button"
           >
             Только проблемы
-          </button>
-        </div>
-        <ApartmentPlan
-          activeCategories={activeCategories}
-          assets={assets}
-          openAsset={openAsset}
-        />
-      </section>
+          </Button>
+          </div>
+          <ApartmentPlan
+            activeCategories={activeCategories}
+            assets={assets}
+            openAsset={openAsset}
+          />
+        </CardContent>
+      </Card>
 
-      <section className="panel">
-        <PanelHeader title="Видимые узлы" />
-        <div className="asset-list compact">
+      <Card>
+        <CardHeader>
+          <CardTitle>Видимые узлы</CardTitle>
+          <CardDescription>
+            На схеме показано {assets.length} из {allAssets.length} узлов.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2">
           {assets.map((asset) => (
             <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
           ))}
-          {!assets.length && <p className="muted">По выбранным фильтрам узлов нет.</p>}
-        </div>
-        <div className="summary-note">
-          На схеме показано {assets.length} из {allAssets.length} узлов.
-        </div>
-      </section>
+          {!assets.length && (
+            <p className="text-muted-foreground text-sm">По выбранным фильтрам узлов нет.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -903,31 +938,33 @@ function AssetsView({
   setAssetStatus: (id: string, status: Status) => void;
 }) {
   return (
-    <section className="panel">
-      <PanelHeader title="Все узлы" />
-      <div className="table-list">
+    <Card>
+      <CardHeader>
+        <CardTitle>Все узлы</CardTitle>
+        <CardDescription>Инвентарный список с быстрым изменением статуса.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-2">
         {assets.map((asset) => (
-          <div className="table-row" key={asset.id}>
-            <button onClick={() => openAsset(asset.id)} type="button">
-              <strong>{asset.code} · {asset.name}</strong>
-              <span>{roomName(asset.roomId)} · {categoryLabels[asset.category]}</span>
+          <div
+            className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"
+            key={asset.id}
+          >
+            <button className="grid gap-1 text-left" onClick={() => openAsset(asset.id)} type="button">
+              <strong className="font-medium">{asset.code} · {asset.name}</strong>
+              <span className="text-muted-foreground text-sm">
+                {roomName(asset.roomId)} · {categoryLabels[asset.category]}
+              </span>
             </button>
             <StatusBadge status={asset.status} />
-            <select
-              aria-label={`Изменить статус ${asset.code}`}
+            <StatusSelect
+              className="w-full sm:w-[220px]"
               value={asset.status}
-              onChange={(event) => setAssetStatus(asset.id, event.target.value as Status)}
-            >
-              {Object.entries(statusLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              onValueChange={(status) => setAssetStatus(asset.id, status)}
+            />
           </div>
         ))}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1161,24 +1198,29 @@ function ActivityLog({
 }) {
   const sortedEvents = [...events].sort((a, b) => b.id.localeCompare(a.id));
   return (
-    <section className="panel">
-      <PanelHeader title="Лента событий" />
-      <div className="timeline wide">
+    <Card>
+      <CardHeader>
+        <CardTitle>Лента событий</CardTitle>
+        <CardDescription>Все изменения по квартире в одном журнале.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ScrollArea className="h-[640px] pr-4 max-[980px]:h-auto">
+          <div className="space-y-5">
         {sortedEvents.map((event) => {
           const asset = assets.find((item) => item.id === event.assetId);
           return (
-            <article className="timeline-item" key={event.id}>
-              <span className={`timeline-dot ${statusTone[event.statusAfter ?? asset?.status ?? "ok"]}`} />
-              <small>{event.date} · {asset?.code} · {asset ? roomName(asset.roomId) : ""}</small>
-              <button className="link-heading" onClick={() => openAsset(event.assetId)} type="button">
-                {event.title}
-              </button>
-              <p>{event.body}</p>
-            </article>
+            <EventTask
+              asset={asset}
+              event={event}
+              key={event.id}
+              onOpen={() => openAsset(event.assetId)}
+            />
           );
         })}
-      </div>
-    </section>
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1196,30 +1238,36 @@ function InspectionView({
   openAsset: (id: string) => void;
 }) {
   return (
-    <div className="inspection-layout">
-      <section className="panel inspection-card">
-        <small>{index + 1} из {total}</small>
-        <h2>{asset.code} · {asset.name}</h2>
-        <p>{roomName(asset.roomId)} · {categoryLabels[asset.category]}</p>
-        <button className="button secondary" onClick={() => openAsset(asset.id)} type="button">
-          Открыть карточку
-        </button>
-        <div className="inspection-actions">
-          <button className="button secondary" onClick={() => completeInspection("ok")} type="button">
+    <div className="grid grid-cols-[minmax(320px,420px)_1fr] gap-6 max-[980px]:grid-cols-1">
+      <Card>
+        <CardHeader>
+          <CardDescription>{index + 1} из {total}</CardDescription>
+          <CardTitle>{asset.code} · {asset.name}</CardTitle>
+          <CardDescription>{roomName(asset.roomId)} · {categoryLabels[asset.category]}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <Button variant="secondary" onClick={() => openAsset(asset.id)} type="button">
+            Открыть карточку
+          </Button>
+          <div className="grid gap-2 sm:grid-cols-3">
+          <Button variant="secondary" onClick={() => completeInspection("ok")} type="button">
             Исправно
-          </button>
-          <button className="button secondary" onClick={() => completeInspection("attention")} type="button">
+          </Button>
+          <Button variant="secondary" onClick={() => completeInspection("attention")} type="button">
             Есть замечание
-          </button>
-          <button className="button primary" onClick={() => completeInspection("needs_master")} type="button">
+          </Button>
+          <Button onClick={() => completeInspection("needs_master")} type="button">
             Нужен мастер
-          </button>
-        </div>
-        <textarea placeholder="Комментарий обхода, фото, стоимость, материалы" />
-      </section>
-      <section className="panel">
+          </Button>
+          </div>
+          <InspectionComposer placeholder="Комментарий обхода, фото, стоимость, материалы" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-0">
         <ApartmentPlan assets={[asset]} openAsset={openAsset} />
-      </section>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -1243,88 +1291,98 @@ function ContractorAccessView({
 
   if (mode === "master") {
     return (
-      <div className="contractor-grid">
-        <section className="panel">
-          <PanelHeader title="Задание мастеру" />
-          <p className="muted">Шпалерная, 34Б · сантехника · доступ: {state.contractorAccess.expires}</p>
-          <div className="asset-list">
+      <div className="grid grid-cols-[minmax(320px,420px)_1fr] gap-6 max-[980px]:grid-cols-1">
+        <Card>
+          <CardHeader>
+            <CardTitle>Задание мастеру</CardTitle>
+            <CardDescription>
+              Шпалерная, 34Б · сантехника · доступ: {state.contractorAccess.expires}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
             {allowedAssets.map((asset) => (
               <AssetRow key={asset.id} asset={asset} />
             ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Чек-лист узла</CardTitle>
+            <CardDescription>W-08 · слив · слив работает медленно, нужна чистка сифона.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Button variant="secondary" type="button">Исправно</Button>
+            <Button variant="secondary" type="button">Есть замечание</Button>
+            <Button type="button">Нужен ремонт</Button>
           </div>
-        </section>
-        <section className="panel">
-          <PanelHeader title="Чек-лист узла" />
-          <h2>W-08 · слив</h2>
-          <p className="muted">Слив работает медленно, нужна чистка сифона.</p>
-          <div className="button-grid">
-            <button className="button secondary" type="button">Исправно</button>
-            <button className="button secondary" type="button">Есть замечание</button>
-            <button className="button primary" type="button">Нужен ремонт</button>
-          </div>
-          <textarea defaultValue="Слив работает медленно, нужна чистка сифона. Работа: 2 000 руб." />
-          <button className="button primary full" onClick={submitContractorReport} type="button">
+          <InspectionComposer placeholder="Комментарий мастера, фото, стоимость, материалы" />
+          <Button className="w-full" onClick={submitContractorReport} type="button">
             Отправить отчет владельцу
-          </button>
-        </section>
+          </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="contractor-grid">
-      <section className="panel">
-        <PanelHeader title="Создать доступ" />
-        <p className="muted">Мастер получит ссылку только на выбранные узлы и сможет отправить отчет.</p>
-        <div className="filter-row">
+    <div className="grid grid-cols-[minmax(320px,1fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
+      <Card>
+        <CardHeader>
+          <CardTitle>Создать доступ</CardTitle>
+          <CardDescription>
+            Мастер получит ссылку только на выбранные узлы и сможет отправить отчет.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+        <div className="flex gap-2 overflow-x-auto pb-2">
           {[
             ["plumbing", "Сантехника"],
             ["electric", "Электрика"],
             ["all", "Вся квартира"],
           ].map(([scope, label]) => (
-            <button
-              className={`chip ${state.contractorAccess.scope === scope ? "active" : ""}`}
+            <Button
+              variant={state.contractorAccess.scope === scope ? "default" : "secondary"}
               key={scope}
-              onClick={() =>
-                setState((current) => ({
-                  ...current,
-                  contractorAccess: {
-                    ...current.contractorAccess,
-                    scope: scope as ContractorAccess["scope"],
-                    allowedAssetIds:
-                      scope === "all"
-                        ? current.assets.map((asset) => asset.id)
-                        : current.assets
-                            .filter((asset) => asset.category === scope)
-                            .map((asset) => asset.id),
-                  },
-                }))
-              }
+              onClick={() => chooseContractorScope(setState, scope as ContractorAccess["scope"])}
               type="button"
             >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
-        <div className="permissions">
-          <span>Смотреть историю выбранных узлов</span>
-          <span>Добавлять комментарии и фото</span>
-          <span>Указывать стоимость и материалы</span>
-          <span>Менять статус на «сделано»</span>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[
+            "Смотреть историю выбранных узлов",
+            "Добавлять комментарии и фото",
+            "Указывать стоимость и материалы",
+            "Менять статус на «сделано»",
+          ].map((permission) => (
+            <div className="rounded-lg bg-muted p-3 text-sm" key={permission}>
+              {permission}
+            </div>
+          ))}
         </div>
-        <div className="link-box">shpalernaya.app/access/plumbing-3d8f</div>
-        <button className="button primary" onClick={() => setMode("master")} type="button">
+        <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
+          shpalernaya.app/access/plumbing-3d8f
+        </div>
+        <Button onClick={() => setMode("master")} type="button">
           Открыть как мастер
-        </button>
-      </section>
-      <section className="panel">
-        <PanelHeader title="Узлы в задании" />
-        <div className="asset-list">
+        </Button>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Узлы в задании</CardTitle>
+          <CardDescription>{allowedAssets.length} выбранных узла.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2">
           {allowedAssets.map((asset) => (
             <AssetRow key={asset.id} asset={asset} />
           ))}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -1342,32 +1400,34 @@ function ContractorReport({
     (event) => event.type === "inspection" || event.title === "Отчет мастера",
   );
   return (
-    <div className="dashboard-grid">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <StatCard label="Проверено" value={`${assets.length} узла`} />
       <StatCard label="Замечания" value="2" tone="negative" />
       <StatCard label="Стоимость" value="2 000 руб." />
       <StatCard label="Фото" value="8 файлов" />
-      <section className="panel span-2">
-        <PanelHeader title="Решения по отчету" />
-        <div className="asset-list">
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle>Решения по отчету</CardTitle>
+          <CardDescription>Узлы, по которым нужно принять решение владельцу.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2">
           {assets.map((asset) => (
             <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
           ))}
-        </div>
-      </section>
-      <section className="panel">
-        <PanelHeader title="Что попало в журнал" />
-        <div className="timeline compact">
-          {reportEvents.slice(0, 4).map((event) => (
-            <article className="timeline-item" key={event.id}>
-              <span className="timeline-dot violet" />
-              <small>{event.date}</small>
-              <h3>{event.title}</h3>
-              <p>{event.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle>Что попало в журнал</CardTitle>
+          <CardDescription>События из отчета мастера.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {reportEvents.slice(0, 4).map((event) => {
+            const asset = assets.find((item) => item.id === event.assetId);
+            return <EventTask asset={asset} event={event} key={event.id} />;
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -1381,32 +1441,22 @@ function StatCard({
   value: string;
   tone?: "negative" | "positive" | "warning" | "violet";
 }) {
-  return (
-    <section className="stat-card">
-      <span>{label}</span>
-      <strong className={tone}>{value}</strong>
-    </section>
-  );
-}
+  const toneClass =
+    tone === "negative"
+      ? "text-destructive"
+      : tone === "warning"
+        ? "text-amber-600"
+        : tone === "violet"
+          ? "text-violet-600"
+          : "";
 
-function PanelHeader({
-  title,
-  action,
-  onAction,
-}: {
-  title: string;
-  action?: string;
-  onAction?: () => void;
-}) {
   return (
-    <div className="panel-header">
-      <h2>{title}</h2>
-      {action && (
-        <button className="text-button" onClick={onAction} type="button">
-          {action}
-        </button>
-      )}
-    </div>
+    <Card size="sm">
+      <CardContent className="grid gap-1">
+        <span className="text-muted-foreground text-sm">{label}</span>
+        <strong className={`text-2xl font-medium leading-tight ${toneClass}`}>{value}</strong>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1419,9 +1469,11 @@ function AssetRow({
 }) {
   const content = (
     <>
-      <span>
-        <strong>{asset.code} · {asset.name}</strong>
-        <small>{roomName(asset.roomId)} · {categoryLabels[asset.category]}</small>
+      <span className="grid min-w-0 gap-1 text-left">
+        <strong className="truncate font-medium">{asset.code} · {asset.name}</strong>
+        <small className="truncate text-muted-foreground text-sm">
+          {roomName(asset.roomId)} · {categoryLabels[asset.category]}
+        </small>
       </span>
       <StatusBadge status={asset.status} />
     </>
@@ -1429,15 +1481,113 @@ function AssetRow({
 
   if (onClick) {
     return (
-      <button className="asset-row" onClick={onClick} type="button">
+      <button
+        className="flex w-full items-center justify-between gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted"
+        onClick={onClick}
+        type="button"
+      >
         {content}
       </button>
     );
   }
 
-  return <div className="asset-row static">{content}</div>;
+  return (
+    <div className="flex w-full items-center justify-between gap-3 rounded-lg border bg-background p-3">
+      {content}
+    </div>
+  );
 }
 
 function StatusBadge({ status }: { status: Status }) {
-  return <span className={`status-badge ${statusTone[status]}`}>{statusLabels[status]}</span>;
+  return <Badge variant={statusBadgeVariant(status)}>{statusLabels[status]}</Badge>;
+}
+
+function statusBadgeVariant(status: Status): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "attention") return "destructive";
+  if (status === "ok") return "secondary";
+  if (status === "in_progress") return "outline";
+  return "default";
+}
+
+function EventTask({
+  asset,
+  event,
+  onOpen,
+}: {
+  asset?: Asset;
+  event: AssetEvent;
+  onOpen?: () => void;
+}) {
+  return (
+    <Task defaultOpen>
+      <TaskTrigger title={`${event.date} · ${event.title}`}>
+        <button className="group flex w-full items-start gap-3 text-left" type="button">
+          <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
+          <span className="grid min-w-0 flex-1 gap-1">
+            <span className="text-muted-foreground text-sm">
+              {event.date}
+              {asset ? ` · ${asset.code} · ${roomName(asset.roomId)}` : ` · ${eventLabels[event.type]}`}
+            </span>
+            <span className="font-medium text-base leading-snug">{event.title}</span>
+          </span>
+        </button>
+      </TaskTrigger>
+      <TaskContent>
+        <TaskItem>{event.body}</TaskItem>
+        <div className="flex flex-wrap gap-2">
+          {asset && <TaskItemFile>{asset.code}</TaskItemFile>}
+          {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
+          {event.cost && (
+            <TaskItemFile>{event.cost.toLocaleString("ru-RU")} руб.</TaskItemFile>
+          )}
+          {event.statusAfter && <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>}
+        </div>
+        {onOpen && (
+          <Button className="mt-1" variant="ghost" size="sm" onClick={onOpen} type="button">
+            Открыть узел
+          </Button>
+        )}
+      </TaskContent>
+    </Task>
+  );
+}
+
+function InspectionComposer({ placeholder }: { placeholder: string }) {
+  return (
+    <PromptInput className="w-full" onSubmit={() => undefined}>
+      <PromptInputBody>
+        <PromptInputTextarea placeholder={placeholder} />
+      </PromptInputBody>
+      <PromptInputFooter>
+        <PromptInputTools>
+          <PromptInputActionMenu>
+            <PromptInputActionMenuTrigger />
+            <PromptInputActionMenuContent>
+              <PromptInputActionAddAttachments label="Прикрепить фото" />
+            </PromptInputActionMenuContent>
+          </PromptInputActionMenu>
+        </PromptInputTools>
+        <PromptInputSubmit aria-label="Отправить" />
+      </PromptInputFooter>
+    </PromptInput>
+  );
+}
+
+function chooseContractorScope(
+  setState: React.Dispatch<React.SetStateAction<AppState>>,
+  scope: ContractorAccess["scope"],
+) {
+  setState((current) => ({
+    ...current,
+    contractorAccess: {
+      ...current.contractorAccess,
+      scope,
+      allowedAssetIds:
+        scope === "all"
+          ? current.assets.map((asset) => asset.id)
+          : current.assets
+              .filter((asset) => asset.category === scope)
+              .map((asset) => asset.id),
+    },
+  }));
 }
