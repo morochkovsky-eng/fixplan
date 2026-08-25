@@ -514,6 +514,18 @@ const planHotspots: Record<PlanModeId, PlanHotspot[]> = {
   ],
 };
 
+function hotspotAssetId(hotspot: PlanHotspot) {
+  return hotspot.assetId ?? hotspot.id;
+}
+
+function planModesForAssets(assets: Asset[]) {
+  const visibleAssetIds = new Set(assets.map((asset) => asset.id));
+
+  return planModes.filter((mode) =>
+    planHotspots[mode.id].some((hotspot) => visibleAssetIds.has(hotspotAssetId(hotspot))),
+  );
+}
+
 const initialState: AppState = {
   config: {
     serviceName: "FixPlan",
@@ -2281,14 +2293,28 @@ function ContractorAccessView({
   const allowedAssets = state.assets.filter((asset) =>
     state.contractorAccess.allowedAssetIds.includes(asset.id),
   );
+  const allowedPlanModes = planModesForAssets(allowedAssets);
+  const [selectedContractorAssetId, setSelectedContractorAssetId] = useState(
+    allowedAssets[0]?.id ?? "",
+  );
+  const [contractorPlanMode, setContractorPlanMode] = useState<PlanModeId>(
+    allowedPlanModes[0]?.id ?? "sockets",
+  );
   const activeInspection =
     state.inspections.find((inspection) => inspection.id === state.contractorAccess.inspectionId) ??
     state.inspections[0];
+  const selectedContractorAsset =
+    allowedAssets.find((asset) => asset.id === selectedContractorAssetId) ?? allowedAssets[0];
+  const activeContractorPlanMode =
+    allowedPlanModes.find((planMode) => planMode.id === contractorPlanMode) ??
+    allowedPlanModes[0] ??
+    planModes[0];
+  const visibleContractorHotspots = planHotspots[activeContractorPlanMode.id];
 
   if (mode === "master") {
     return (
-      <div className="grid grid-cols-[minmax(320px,420px)_1fr] gap-6 max-[980px]:grid-cols-1">
-        <Card>
+      <div className="grid gap-6">
+        <Card size="sm">
           <CardHeader>
             <CardTitle>{activeInspection?.number ?? "Задание мастеру"}</CardTitle>
             <CardDescription>
@@ -2296,31 +2322,105 @@ function ContractorAccessView({
               {state.contractorAccess.expires}
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2">
-            {allowedAssets.map((asset) => (
-              <AssetRow key={asset.id} asset={asset} />
-            ))}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Чек-лист узла</CardTitle>
-            <CardDescription>
-              Отчет сохранится в обход и в историю каждого выбранного узла.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Button variant="secondary" type="button">Исправно</Button>
-              <Button variant="secondary" type="button">Есть замечание</Button>
-              <Button type="button">Нужен ремонт</Button>
+          <CardContent className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-muted p-3">
+              <p className="m-0 text-muted-foreground text-sm">Узлов в задании</p>
+              <strong className="text-xl font-medium">{allowedAssets.length}</strong>
             </div>
-            <InspectionComposer placeholder="Комментарий мастера, фото, стоимость, материалы" />
-            <Button className="w-full" onClick={submitContractorReport} type="button">
-              Отправить отчет владельцу
-            </Button>
+            <div className="rounded-lg bg-muted p-3">
+              <p className="m-0 text-muted-foreground text-sm">Схем доступно</p>
+              <strong className="text-xl font-medium">{allowedPlanModes.length}</strong>
+            </div>
+            <div className="rounded-lg bg-muted p-3">
+              <p className="m-0 text-muted-foreground text-sm">Текущий узел</p>
+              <strong className="block truncate text-xl font-medium">
+                {selectedContractorAsset?.code ?? "Не выбран"}
+              </strong>
+            </div>
           </CardContent>
         </Card>
+
+        <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
+          <Card>
+            <CardHeader>
+              <CardTitle>План задания</CardTitle>
+              <CardDescription>
+                Переключайте доступные схемы и нажимайте на узел, чтобы заполнить проверку.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="plan-mode-toolbar" role="tablist" aria-label="Схемы задания">
+                {allowedPlanModes.map((planMode) => (
+                  <Button
+                    aria-selected={activeContractorPlanMode.id === planMode.id}
+                    className="justify-start"
+                    key={planMode.id}
+                    onClick={() => setContractorPlanMode(planMode.id)}
+                    role="tab"
+                    size="sm"
+                    type="button"
+                    variant={activeContractorPlanMode.id === planMode.id ? "default" : "secondary"}
+                  >
+                    {planMode.label}
+                  </Button>
+                ))}
+              </div>
+              <ApartmentPlan
+                activeMode={activeContractorPlanMode}
+                assets={allowedAssets}
+                hotspots={visibleContractorHotspots}
+                openAsset={setSelectedContractorAssetId}
+              />
+            </CardContent>
+          </Card>
+
+          <div className="grid content-start gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {selectedContractorAsset
+                    ? `${selectedContractorAsset.code} · ${selectedContractorAsset.name}`
+                    : "Чек-лист узла"}
+                </CardTitle>
+                <CardDescription>
+                  {selectedContractorAsset
+                    ? `${roomName(selectedContractorAsset.roomId)} · ${categoryLabels[selectedContractorAsset.category]}`
+                    : "Выберите узел на плане или в списке."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                {selectedContractorAsset && <StatusBadge status={selectedContractorAsset.status} />}
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Button variant="secondary" type="button">Исправно</Button>
+                  <Button variant="secondary" type="button">Есть замечание</Button>
+                  <Button type="button">Нужен ремонт</Button>
+                </div>
+                <InspectionComposer placeholder="Комментарий мастера, фото, стоимость, материалы" />
+                <Button className="w-full" onClick={submitContractorReport} type="button">
+                  Отправить отчет владельцу
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Узлы задания</CardTitle>
+                <CardDescription>
+                  Быстрый список на случай, если удобнее идти не по схеме.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {allowedAssets.map((asset) => (
+                  <AssetRow
+                    key={asset.id}
+                    asset={asset}
+                    onClick={() => setSelectedContractorAssetId(asset.id)}
+                  />
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }
