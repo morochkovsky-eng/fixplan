@@ -62,7 +62,6 @@ import {
   Map,
   Menu,
   ArrowLeft,
-  RotateCcw,
   Settings,
   UserRoundCheck,
   X,
@@ -1194,18 +1193,6 @@ export default function Home() {
           <nav className="nav-list" aria-label="Мобильная навигация">
             <AppNavigation activeView={view} navigate={navigate} />
           </nav>
-          <Button
-            className="w-full justify-start"
-            variant="secondary"
-            onClick={() => {
-              setState(defaultState);
-              setMobileMenuOpen(false);
-            }}
-            type="button"
-          >
-            <RotateCcw size={16} />
-            Сбросить демо
-          </Button>
         </div>
       )}
       <aside className="sidebar">
@@ -1221,15 +1208,6 @@ export default function Home() {
         <nav className="nav-list" aria-label="Главная навигация">
           <AppNavigation activeView={view} navigate={navigate} />
         </nav>
-        <Button
-          className="w-full justify-start"
-          variant="secondary"
-          onClick={() => setState(defaultState)}
-          type="button"
-        >
-          <RotateCcw size={16} />
-          Сбросить демо
-        </Button>
       </aside>
 
       <section className="workspace">
