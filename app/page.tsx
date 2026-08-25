@@ -87,6 +87,28 @@ type PlanModeId =
 
 type Status = "ok" | "attention" | "in_progress" | "needs_master";
 
+type AssetKind =
+  | "socket"
+  | "switch"
+  | "light"
+  | "plumbing_fixture"
+  | "drain"
+  | "appliance"
+  | "furniture"
+  | "window"
+  | "radiator"
+  | "warm_floor"
+  | "ventilation"
+  | "hvac";
+
+type AssetFilter =
+  | "all"
+  | "issues"
+  | Category
+  | AssetKind;
+
+type AssetSort = "status" | "room" | "code" | "checked";
+
 type EventType =
   | "inspection"
   | "comment"
@@ -126,6 +148,7 @@ type Asset = {
   name: string;
   roomId: string;
   category: Category;
+  kind?: AssetKind;
   status: Status;
   x: number;
   y: number;
@@ -193,6 +216,43 @@ const categoryLabels: Record<Category, string> = {
   furniture: "Мебель",
   window: "Окна",
   hvac: "Климат",
+};
+
+const assetKindLabels: Record<AssetKind, string> = {
+  socket: "Розетки",
+  switch: "Выключатели",
+  light: "Свет",
+  plumbing_fixture: "Смесители",
+  drain: "Сливы",
+  appliance: "Техника",
+  furniture: "Мебель",
+  window: "Окна",
+  radiator: "Радиаторы",
+  warm_floor: "Теплые полы",
+  ventilation: "Вентиляция",
+  hvac: "Климат",
+};
+
+const assetFilterOptions: Array<{ id: AssetFilter; label: string }> = [
+  { id: "all", label: "Все" },
+  { id: "issues", label: "Требуют внимания" },
+  { id: "electric", label: "Электрика" },
+  { id: "socket", label: "Розетки" },
+  { id: "switch", label: "Выключатели" },
+  { id: "light", label: "Свет" },
+  { id: "plumbing", label: "Сантехника" },
+  { id: "drain", label: "Сливы" },
+  { id: "appliance", label: "Техника" },
+  { id: "window", label: "Окна" },
+  { id: "furniture", label: "Мебель" },
+  { id: "hvac", label: "Климат" },
+];
+
+const assetSortLabels: Record<AssetSort, string> = {
+  status: "Сначала проблемные",
+  room: "По комнатам",
+  code: "По коду",
+  checked: "По последней проверке",
 };
 
 const statusLabels: Record<Status, string> = {
@@ -376,6 +436,7 @@ const initialState: AppState = {
       name: "Розетка у входа",
       roomId: "hall",
       category: "electric",
+      kind: "socket",
       status: "attention",
       x: 60,
       y: 83,
@@ -390,6 +451,7 @@ const initialState: AppState = {
       name: "Смеситель",
       roomId: "bath",
       category: "plumbing",
+      kind: "plumbing_fixture",
       status: "ok",
       x: 28,
       y: 78,
@@ -403,6 +465,7 @@ const initialState: AppState = {
       name: "Слив в санузле",
       roomId: "bath",
       category: "plumbing",
+      kind: "drain",
       status: "needs_master",
       x: 46,
       y: 72,
@@ -416,6 +479,7 @@ const initialState: AppState = {
       name: "Кондиционер",
       roomId: "hall",
       category: "hvac",
+      kind: "hvac",
       status: "in_progress",
       x: 82,
       y: 55,
@@ -430,6 +494,7 @@ const initialState: AppState = {
       name: "Шкаф",
       roomId: "bedroom",
       category: "furniture",
+      kind: "furniture",
       status: "attention",
       x: 78,
       y: 38,
@@ -443,6 +508,7 @@ const initialState: AppState = {
       name: "Окно в кабинете",
       roomId: "office",
       category: "window",
+      kind: "window",
       status: "ok",
       x: 76,
       y: 9,
@@ -529,6 +595,48 @@ function roomName(roomId: string) {
 
 function eventId() {
   return `event-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
+function assetKind(asset: Asset): AssetKind {
+  if (asset.kind) return asset.kind;
+  if (asset.code.startsWith("R-")) return "socket";
+  if (asset.code.startsWith("S-")) return "switch";
+  if (asset.code.startsWith("L-")) return "light";
+  if (asset.code.startsWith("WIN-")) return "window";
+  if (asset.code.startsWith("RAD-")) return "radiator";
+  if (asset.code.startsWith("TP-")) return "warm_floor";
+  if (asset.code.startsWith("V-")) return "ventilation";
+  if (asset.category === "plumbing") return "plumbing_fixture";
+  if (asset.category === "appliance") return "appliance";
+  if (asset.category === "furniture") return "furniture";
+  if (asset.category === "hvac") return "hvac";
+  return "socket";
+}
+
+function isCategoryFilter(filter: AssetFilter): filter is Category {
+  return Object.prototype.hasOwnProperty.call(categoryLabels, filter);
+}
+
+function isKindFilter(filter: AssetFilter): filter is AssetKind {
+  return Object.prototype.hasOwnProperty.call(assetKindLabels, filter);
+}
+
+function matchesAssetFilter(asset: Asset, filter: AssetFilter) {
+  if (filter === "all") return true;
+  if (filter === "issues") return asset.status !== "ok";
+  if (isCategoryFilter(filter)) return asset.category === filter;
+  if (isKindFilter(filter)) return assetKind(asset) === filter;
+  return true;
+}
+
+function statusWeight(status: Status) {
+  const order: Record<Status, number> = {
+    attention: 0,
+    needs_master: 1,
+    in_progress: 2,
+    ok: 3,
+  };
+  return order[status];
 }
 
 export default function Home() {
@@ -1134,14 +1242,89 @@ function AssetsView({
   openAsset: (id: string) => void;
   setAssetStatus: (id: string, status: Status) => void;
 }) {
+  const [filter, setFilter] = useState<AssetFilter>("all");
+  const [sort, setSort] = useState<AssetSort>("status");
+
+  const filteredAssets = useMemo(() => {
+    return assets
+      .filter((asset) => matchesAssetFilter(asset, filter))
+      .slice()
+      .sort((left, right) => {
+        if (sort === "status") {
+          return (
+            statusWeight(left.status) - statusWeight(right.status) ||
+            left.code.localeCompare(right.code, "ru")
+          );
+        }
+        if (sort === "room") {
+          return (
+            roomName(left.roomId).localeCompare(roomName(right.roomId), "ru") ||
+            left.code.localeCompare(right.code, "ru")
+          );
+        }
+        if (sort === "checked") {
+          return right.lastChecked.localeCompare(left.lastChecked, "ru");
+        }
+        return left.code.localeCompare(right.code, "ru");
+      });
+  }, [assets, filter, sort]);
+
+  const filterCounts = useMemo(() => {
+    return assetFilterOptions.reduce<Record<string, number>>((counts, option) => {
+      counts[option.id] = assets.filter((asset) => matchesAssetFilter(asset, option.id)).length;
+      return counts;
+    }, {});
+  }, [assets]);
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Все узлы</CardTitle>
-        <CardDescription>Инвентарный список с быстрым изменением статуса.</CardDescription>
+      <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
+        <div>
+          <CardTitle>Все узлы</CardTitle>
+          <CardDescription>
+            Инвентарный список с быстрыми фильтрами, сортировкой и сменой статуса.
+          </CardDescription>
+        </div>
+        <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
+          <SelectTrigger className="w-full sm:w-[240px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(assetSortLabels) as AssetSort[]).map((sortKey) => (
+              <SelectItem key={sortKey} value={sortKey}>
+                {assetSortLabels[sortKey]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </CardHeader>
-      <CardContent className="grid gap-2">
-        {assets.map((asset) => (
+      <CardContent className="grid gap-4">
+        <div className="flex flex-wrap gap-2">
+          {assetFilterOptions.map((option) => (
+            <Button
+              key={option.id}
+              onClick={() => setFilter(option.id)}
+              size="sm"
+              type="button"
+              variant={filter === option.id ? "default" : "secondary"}
+            >
+              {option.label}
+              <Badge variant="secondary">{filterCounts[option.id] ?? 0}</Badge>
+            </Button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted p-3 text-muted-foreground text-sm">
+          <span>
+            Показано {filteredAssets.length} из {assets.length}
+          </span>
+          <span>
+            Фильтр: {assetFilterOptions.find((option) => option.id === filter)?.label}
+          </span>
+        </div>
+
+        <div className="grid gap-2">
+        {filteredAssets.map((asset) => (
           <div
             className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"
             key={asset.id}
@@ -1149,7 +1332,8 @@ function AssetsView({
             <button className="grid gap-1 text-left" onClick={() => openAsset(asset.id)} type="button">
               <strong className="font-medium">{asset.code} · {asset.name}</strong>
               <span className="text-muted-foreground text-sm">
-                {roomName(asset.roomId)} · {categoryLabels[asset.category]}
+                {roomName(asset.roomId)} · {categoryLabels[asset.category]} ·{" "}
+                {assetKindLabels[assetKind(asset)]}
               </span>
             </button>
             <StatusBadge status={asset.status} />
@@ -1160,6 +1344,12 @@ function AssetsView({
             />
           </div>
         ))}
+        {!filteredAssets.length && (
+          <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+            В этой группе пока нет узлов. Когда добавим реальные точки с плана, они появятся здесь.
+          </div>
+        )}
+        </div>
       </CardContent>
     </Card>
   );
