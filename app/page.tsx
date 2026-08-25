@@ -1,16 +1,55 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import * as Select from "@radix-ui/react-select";
-import * as ScrollArea from "@radix-ui/react-scroll-area";
-import * as Tabs from "@radix-ui/react-tabs";
 import {
-  Camera,
+  Attachment,
+  AttachmentInfo,
+  AttachmentPreview,
+  Attachments,
+  type AttachmentData,
+} from "@/components/ai-elements/attachments";
+import {
+  PromptInput,
+  PromptInputActionAddAttachments,
+  PromptInputActionMenu,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuTrigger,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+  type PromptInputMessage,
+} from "@/components/ai-elements/prompt-input";
+import {
+  Task,
+  TaskContent,
+  TaskItem,
+  TaskItemFile,
+  TaskTrigger,
+} from "@/components/ai-elements/task";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import {
   Check,
-  ChevronDown,
   CircleAlert,
-  ImageIcon,
-  Send,
   UserRoundCheck,
 } from "lucide-react";
 
@@ -308,15 +347,9 @@ function eventId() {
 
 export default function Home() {
   const [state, setState] = useState<AppState>(() => {
-    if (typeof window === "undefined") return initialState;
-    const saved = window.localStorage.getItem(storageKey);
-    if (!saved) return initialState;
-    try {
-      return JSON.parse(saved) as AppState;
-    } catch {
-      return initialState;
-    }
+    return initialState;
   });
+  const [storageReady, setStorageReady] = useState(false);
   const [view, setView] = useState<View>("asset");
   const [selectedAssetId, setSelectedAssetId] = useState("r07");
   const [activeCategories, setActiveCategories] = useState<Category[]>([
@@ -332,8 +365,24 @@ export default function Home() {
   );
 
   useEffect(() => {
+    const id = window.setTimeout(() => {
+      const saved = window.localStorage.getItem(storageKey);
+      if (saved) {
+        try {
+          setState(JSON.parse(saved) as AppState);
+        } catch {
+          setState(initialState);
+        }
+      }
+      setStorageReady(true);
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
     window.localStorage.setItem(storageKey, JSON.stringify(state));
-  }, [state]);
+  }, [state, storageReady]);
 
   const selectedAsset =
     state.assets.find((asset) => asset.id === selectedAssetId) ??
@@ -429,7 +478,7 @@ export default function Home() {
     setInspectionIndex((current) => (current + 1) % state.assets.length);
   }
 
-  function submitContractorReport() {
+function submitContractorReport() {
     const allowed = state.contractorAccess.allowedAssetIds;
     setState((current) => ({
       ...current,
@@ -448,7 +497,7 @@ export default function Home() {
           body: "Мастер проверил узел по гостевой ссылке. Добавлены комментарии, фото и стоимость.",
           cost: assetId === "w08" ? 2000 : undefined,
           master: "Роман",
-          statusAfter: assetId === "w08" ? "needs_master" : "attention",
+          statusAfter: (assetId === "w08" ? "needs_master" : "attention") as Status,
         })),
         ...current.events,
       ],
@@ -457,7 +506,8 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
+    <TooltipProvider>
+      <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <strong>Шпалерная, 34Б</strong>
@@ -585,7 +635,8 @@ export default function Home() {
           />
         )}
       </section>
-    </main>
+      </main>
+    </TooltipProvider>
   );
 }
 
@@ -637,23 +688,7 @@ function NavButton({
   );
 }
 
-function Button({
-  children,
-  onClick,
-  variant = "primary",
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "secondary" | "outline";
-}) {
-  return (
-    <button className={`rx-button ${variant}`} onClick={onClick} type="button">
-      {children}
-    </button>
-  );
-}
-
-function RadixStatusSelect({
+function StatusSelect({
   value,
   onValueChange,
 }: {
@@ -661,28 +696,22 @@ function RadixStatusSelect({
   onValueChange: (value: Status) => void;
 }) {
   return (
-    <Select.Root value={value} onValueChange={(next) => onValueChange(next as Status)}>
-      <Select.Trigger className={`rx-select-trigger ${statusTone[value]}`} aria-label="Текущий статус">
-        <Select.Value>{statusLabels[value]}</Select.Value>
-        <Select.Icon className="rx-select-icon">
-          <ChevronDown size={16} />
-        </Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Content className="rx-select-content" position="popper" sideOffset={6}>
-          <Select.Viewport className="rx-select-viewport">
-            {(Object.keys(statusLabels) as Status[]).map((status) => (
-              <Select.Item className="rx-select-item" key={status} value={status}>
-                <Select.ItemText>{statusLabels[status]}</Select.ItemText>
-                <Select.ItemIndicator className="rx-select-indicator">
-                  <Check size={14} />
-                </Select.ItemIndicator>
-              </Select.Item>
-            ))}
-          </Select.Viewport>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
+    <Select value={value} onValueChange={(next) => onValueChange(next as Status)}>
+      <SelectTrigger
+        aria-label="Текущий статус"
+        className="w-[240px]"
+        size="default"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {(Object.keys(statusLabels) as Status[]).map((status) => (
+          <SelectItem key={status} value={status}>
+            {statusLabels[status]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -920,146 +949,205 @@ function AssetDetail({
   goContractor: () => void;
 }) {
   const mediaEvents = events.filter((event) => event.photo);
+  const currentStatusVariant = asset.status === "attention" ? "destructive" : "secondary";
 
   return (
-    <div className="radix-asset-page">
-      <section className="rx-card rx-asset-hero">
-        <div className="rx-hero-main">
-          <div className={`rx-status-icon ${statusTone[asset.status]}`}>
-            {asset.status === "ok" ? <Check size={18} /> : <CircleAlert size={18} />}
+    <div className="grid grid-cols-[minmax(560px,1fr)_384px] gap-6 max-[980px]:grid-cols-1">
+      <Card className="col-span-full">
+        <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+              {asset.status === "ok" ? <Check size={16} /> : <CircleAlert size={16} />}
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <CardTitle className="text-xl">{asset.code} · {asset.name}</CardTitle>
+                <CardDescription>
+                  {roomName(asset.roomId)} · {categoryLabels[asset.category]} · 220 В · координаты:
+                  {" "}
+                  {asset.x}% / {asset.y}%
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={currentStatusVariant}>
+                  Текущий статус: {statusLabels[asset.status]}
+                </Badge>
+                <StatusSelect
+                  value={asset.status}
+                  onValueChange={(status) =>
+                    setAssetStatus(
+                      asset.id,
+                      status,
+                      `Текущий статус изменен на «${statusLabels[status]}».`,
+                    )
+                  }
+                />
+              </div>
+            </div>
           </div>
-          <div>
-            <h2>{asset.code} · {asset.name}</h2>
-            <p>
-              {roomName(asset.roomId)} · {categoryLabels[asset.category]} · 220 В · координаты:
-              {" "}
-              {asset.x}% / {asset.y}%
-            </p>
-            <RadixStatusSelect
-              value={asset.status}
-              onValueChange={(status) =>
-                setAssetStatus(
-                  asset.id,
-                  status,
-                  `Текущий статус изменен на «${statusLabels[status]}».`,
-                )
-              }
-            />
-          </div>
-        </div>
-        <Button variant="outline" onClick={() => void goContractor()}>
-          <UserRoundCheck size={16} />
-          Доступ мастеру
-        </Button>
-      </section>
+          <Button variant="outline" onClick={() => void goContractor()} type="button">
+            <UserRoundCheck size={16} />
+            Доступ мастеру
+          </Button>
+        </CardHeader>
+      </Card>
 
-      <section className="rx-card rx-history">
-        <div className="rx-section-header">
-          <div>
-            <h2>История узла</h2>
-            <p>Комментарии, смены статуса, работы мастеров и фотографии собраны в одной ленте.</p>
-          </div>
-        </div>
-        <ScrollArea.Root className="rx-scroll">
-          <ScrollArea.Viewport className="rx-scroll-viewport">
-            <div className="rx-timeline">
+      <Card>
+        <CardHeader>
+          <CardTitle>История узла</CardTitle>
+          <CardDescription>
+            Комментарии, смены статуса, работы мастеров и фотографии собраны в одной ленте.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto">
+            <div className="space-y-5">
               {events.map((event) => (
-                <article className="rx-event" key={event.id}>
-                  <span className={`rx-event-dot ${statusTone[event.statusAfter ?? asset.status]}`} />
-                  <div className="rx-event-content">
-                    <small>{event.date} · {eventLabels[event.type]}</small>
-                    <h3>{event.title}</h3>
-                    <p>{event.body}</p>
-                    {(event.cost || event.master) && (
-                      <p className="rx-event-meta">
-                        {event.master ? `Мастер: ${event.master}` : ""}
-                        {event.master && event.cost ? " · " : ""}
-                        {event.cost ? `Стоимость: ${event.cost.toLocaleString("ru-RU")} руб.` : ""}
-                      </p>
-                    )}
-                  </div>
-                  {event.photo && (
-                    <button className="rx-photo-thumb" type="button">
-                      <ImageIcon size={16} />
-                      <span>{event.photo.label}</span>
+                <Task key={event.id} defaultOpen>
+                  <TaskTrigger title={`${event.date} · ${event.title}`}>
+                    <button className="group flex w-full items-start gap-3 text-left" type="button">
+                      <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
+                      <span className="grid min-w-0 flex-1 gap-1">
+                        <span className="text-muted-foreground text-sm">
+                          {event.date} · {eventLabels[event.type]}
+                        </span>
+                        <span className="font-medium text-base leading-snug">
+                          {event.title}
+                        </span>
+                      </span>
                     </button>
-                  )}
-                </article>
+                  </TaskTrigger>
+                  <TaskContent>
+                    <TaskItem>{event.body}</TaskItem>
+                    {(event.cost || event.master || event.statusAfter) && (
+                      <div className="flex flex-wrap gap-2">
+                        {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
+                        {event.cost && (
+                          <TaskItemFile>
+                            Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
+                          </TaskItemFile>
+                        )}
+                        {event.statusAfter && (
+                          <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>
+                        )}
+                      </div>
+                    )}
+                    {event.photo && (
+                      <Attachments variant="list" className="mt-2 w-full">
+                        <Attachment data={eventPhotoData(event)}>
+                          <AttachmentPreview />
+                          <AttachmentInfo />
+                        </Attachment>
+                      </Attachments>
+                    )}
+                  </TaskContent>
+                </Task>
               ))}
             </div>
-          </ScrollArea.Viewport>
-          <ScrollArea.Scrollbar className="rx-scrollbar" orientation="vertical">
-            <ScrollArea.Thumb className="rx-scroll-thumb" />
-          </ScrollArea.Scrollbar>
-        </ScrollArea.Root>
-      </section>
+          </ScrollArea>
+        </CardContent>
+      </Card>
 
-      <aside className="rx-side">
-        <Tabs.Root className="rx-card rx-tabs" defaultValue="passport">
-          <Tabs.List className="rx-tabs-list" aria-label="Данные узла">
-            <Tabs.Trigger className="rx-tabs-trigger" value="passport">
+      <aside className="grid content-start gap-4">
+        <Tabs defaultValue="passport">
+          <Card>
+            <CardHeader>
+              <TabsList aria-label="Данные узла" className="grid w-full grid-cols-2">
+                <TabsTrigger value="passport">
               Паспорт
-            </Tabs.Trigger>
-            <Tabs.Trigger className="rx-tabs-trigger" value="media">
+                </TabsTrigger>
+                <TabsTrigger value="media">
               Медиа
-            </Tabs.Trigger>
-          </Tabs.List>
-          <Tabs.Content className="rx-tabs-content" value="passport">
-            <dl className="rx-details">
-              <dt>ID</dt><dd>{asset.code}</dd>
-              <dt>Комната</dt><dd>{roomName(asset.roomId)}</dd>
-              <dt>Категория</dt><dd>{categoryLabels[asset.category]}</dd>
-              <dt>Последняя проверка</dt><dd>{asset.lastChecked}</dd>
-              <dt>Гарантия</dt><dd>{asset.warrantyUntil ?? "не указана"}</dd>
-              <dt>Мастер</dt><dd>{asset.master ?? "не назначен"}</dd>
-            </dl>
-          </Tabs.Content>
-          <Tabs.Content className="rx-tabs-content" value="media">
-            <div className="rx-media-grid">
-              {mediaEvents.map((event) => (
-                <button className="rx-media-card" key={event.id} type="button">
-                  <ImageIcon size={18} />
-                  <strong>{event.date.split(" ").slice(0, 2).join(" ")}</strong>
-                  <span>{event.photo?.note}</span>
-                </button>
-              ))}
-              {!mediaEvents.length && <p className="rx-empty">Фотографии появятся после события с вложением.</p>}
-            </div>
-          </Tabs.Content>
-        </Tabs.Root>
+                </TabsTrigger>
+              </TabsList>
+            </CardHeader>
+            <CardContent>
+              <TabsContent value="passport" className="mt-0">
+                <dl className="grid grid-cols-[128px_1fr] gap-x-3 gap-y-2 text-sm">
+                  <dt className="text-muted-foreground">ID</dt><dd className="font-medium">{asset.code}</dd>
+                  <dt className="text-muted-foreground">Комната</dt><dd className="font-medium">{roomName(asset.roomId)}</dd>
+                  <dt className="text-muted-foreground">Категория</dt><dd className="font-medium">{categoryLabels[asset.category]}</dd>
+                  <dt className="text-muted-foreground">Последняя проверка</dt><dd className="font-medium">{asset.lastChecked}</dd>
+                  <dt className="text-muted-foreground">Гарантия</dt><dd className="font-medium">{asset.warrantyUntil ?? "не указана"}</dd>
+                  <dt className="text-muted-foreground">Мастер</dt><dd className="font-medium">{asset.master ?? "не назначен"}</dd>
+                </dl>
+              </TabsContent>
+              <TabsContent value="media" className="mt-0">
+                {mediaEvents.length ? (
+                  <Attachments variant="grid">
+                    {mediaEvents.map((event) => (
+                      <Attachment key={event.id} data={eventPhotoData(event)}>
+                        <AttachmentPreview />
+                      </Attachment>
+                    ))}
+                  </Attachments>
+                ) : (
+                  <p className="text-muted-foreground text-sm">
+                    Фотографии появятся после события с вложением.
+                  </p>
+                )}
+              </TabsContent>
+            </CardContent>
+          </Card>
+        </Tabs>
 
-        <section className="rx-card rx-comment-card">
-          <div className="rx-section-header compact">
-            <div>
-              <h2>Быстрый комментарий</h2>
-              <p>Фото, документы и текст попадут в новое событие истории.</p>
-            </div>
-          </div>
-          <div className="rx-composer">
-            <textarea
-              id="event-comment"
-              value={newEventText}
-              onChange={(event) => setNewEventText(event.target.value)}
-              placeholder="Комментарий по узлу"
-            />
-            <div className="rx-composer-actions">
-              <button aria-label="Прикрепить фото" className="rx-icon-button ghost" type="button">
-                <Camera size={18} />
-              </button>
-              <button
-                aria-label="Отправить комментарий"
-                className="rx-icon-button primary"
-                onClick={() => addEvent(asset.id, { type: "comment" })}
-                type="button"
-              >
-                <Send size={18} />
-              </button>
-            </div>
-          </div>
-        </section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Быстрый комментарий</CardTitle>
+            <CardDescription>
+              Текст и вложения попадут в новое событие истории.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PromptInput
+              className="w-full"
+              onSubmit={(message: PromptInputMessage) => {
+                const text = message.text.trim() || newEventText.trim();
+                if (!text && message.files.length === 0) return;
+                addEvent(asset.id, {
+                  type: message.files.length ? "photo" : "comment",
+                  title: message.files.length ? "Фотофиксация" : "Комментарий",
+                  body: text || "Добавлены фотографии без комментария.",
+                  photo: message.files.length
+                    ? { label: "фото", note: message.files[0]?.filename ?? "Вложение" }
+                    : undefined,
+                });
+              }}
+            >
+              <PromptInputBody>
+                <PromptInputTextarea
+                  placeholder="Комментарий по узлу"
+                  value={newEventText}
+                  onChange={(event) => setNewEventText(event.currentTarget.value)}
+                />
+              </PromptInputBody>
+              <PromptInputFooter>
+                <PromptInputTools>
+                  <PromptInputActionMenu>
+                    <PromptInputActionMenuTrigger />
+                    <PromptInputActionMenuContent>
+                      <PromptInputActionAddAttachments label="Прикрепить фото" />
+                    </PromptInputActionMenuContent>
+                  </PromptInputActionMenu>
+                </PromptInputTools>
+                <PromptInputSubmit aria-label="Отправить комментарий" />
+              </PromptInputFooter>
+            </PromptInput>
+          </CardContent>
+        </Card>
       </aside>
     </div>
   );
+}
+
+function eventPhotoData(event: AssetEvent): AttachmentData {
+  return {
+    filename: `${event.date} · ${event.photo?.note ?? "Фото узла"}`,
+    id: event.id,
+    mediaType: "image/png",
+    type: "file",
+    url: "/plan/base.png",
+  };
 }
 
 function ActivityLog({

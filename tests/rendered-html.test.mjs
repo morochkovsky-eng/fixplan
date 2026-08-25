@@ -34,6 +34,7 @@ test("server-renders the apartment maintenance app shell", async () => {
   assert.match(html, /Требует внимания/);
   assert.match(html, /Быстрый комментарий/);
   assert.match(html, /Доступ мастеру/);
-  assert.match(html, /radix-asset-page/);
+  assert.match(html, /data-slot="card"/);
+  assert.match(html, /data-slot="select-trigger"/);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site/);
 });

@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "components/ai-elements/**",
+    "components/ui/input-group.tsx",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
