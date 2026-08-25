@@ -46,7 +46,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Check,
   CircleAlert,
@@ -67,6 +72,18 @@ type Category =
   | "furniture"
   | "window"
   | "hvac";
+
+type PlanModeId =
+  | "sockets"
+  | "lighting"
+  | "switchLinks"
+  | "plumbing"
+  | "ventilation"
+  | "furniture"
+  | "windows"
+  | "flooring"
+  | "radiators"
+  | "warmFloor";
 
 type Status = "ok" | "attention" | "in_progress" | "needs_master";
 
@@ -118,6 +135,26 @@ type Asset = {
   photoNote: string;
 };
 
+type PlanMode = {
+  id: PlanModeId;
+  label: string;
+  src: string;
+  categories: Category[];
+  summary: string;
+};
+
+type PlanHotspot = {
+  id: string;
+  code: string;
+  title: string;
+  room: string;
+  note: string;
+  x: number;
+  y: number;
+  tone?: "positive" | "negative" | "warning" | "violet";
+  assetId?: string;
+};
+
 type ContractorAccess = {
   scope: "plumbing" | "electric" | "all" | "custom";
   expires: string;
@@ -165,13 +202,6 @@ const statusLabels: Record<Status, string> = {
   needs_master: "Нужен мастер",
 };
 
-const statusTone: Record<Status, string> = {
-  ok: "positive",
-  attention: "negative",
-  in_progress: "warning",
-  needs_master: "violet",
-};
-
 const eventLabels: Record<EventType, string> = {
   inspection: "Проверка",
   comment: "Комментарий",
@@ -181,12 +211,161 @@ const eventLabels: Record<EventType, string> = {
   master: "Мастер",
 };
 
-const planLayerSrc: Partial<Record<Category, string[]>> = {
-  electric: ["/plan/lighting.png", "/plan/electric.png"],
-  plumbing: ["/plan/plumbing.png"],
-  appliance: ["/plan/furniture.png"],
-  furniture: ["/plan/furniture.png"],
-  hvac: ["/plan/ventilation.png"],
+const planModes: PlanMode[] = [
+  {
+    id: "sockets",
+    label: "Выключатели и розетки",
+    src: "/plan/sockets-switches.png",
+    categories: ["electric", "appliance"],
+    summary: "Все розетки, выключатели, выводы питания и слаботочные точки.",
+  },
+  {
+    id: "lighting",
+    label: "Световые приборы",
+    src: "/plan/lighting-fixtures.png",
+    categories: ["electric"],
+    summary: "Светильники, группы света и точки управления.",
+  },
+  {
+    id: "switchLinks",
+    label: "Привязка света",
+    src: "/plan/switches-light-links.png",
+    categories: ["electric"],
+    summary: "Связи выключателей с конкретными световыми приборами.",
+  },
+  {
+    id: "plumbing",
+    label: "Сантехника",
+    src: "/plan/plumbing-real.png",
+    categories: ["plumbing", "appliance"],
+    summary: "Вода, канализация, смесители, трапы, бойлер и подключения техники.",
+  },
+  {
+    id: "ventilation",
+    label: "Вентиляция",
+    src: "/plan/ventilation-real.png",
+    categories: ["hvac"],
+    summary: "Вытяжка, вентиляторы, решетки и технические отверстия.",
+  },
+  {
+    id: "furniture",
+    label: "Мебель",
+    src: "/plan/furniture-real.png",
+    categories: ["furniture", "appliance", "plumbing"],
+    summary: "Мебель, встроенные элементы, техника и постоянные предметы.",
+  },
+  {
+    id: "windows",
+    label: "Окна",
+    src: "/plan/windows.png",
+    categories: ["window"],
+    summary: "Окна, проемы, двери и привязки по помещениям.",
+  },
+  {
+    id: "flooring",
+    label: "Паркет и плитка",
+    src: "/plan/flooring.png",
+    categories: ["furniture"],
+    summary: "Покрытия, зоны плитки, паркет, пробковый компенсатор.",
+  },
+  {
+    id: "radiators",
+    label: "Радиаторы",
+    src: "/plan/radiators.png",
+    categories: ["hvac"],
+    summary: "Радиаторы отопления и их привязки к оконным зонам.",
+  },
+  {
+    id: "warmFloor",
+    label: "Теплые полы",
+    src: "/plan/warm-floor.png",
+    categories: ["hvac", "electric"],
+    summary: "Контуры теплого пола и места управления.",
+  },
+];
+
+const planHotspots: Record<PlanModeId, PlanHotspot[]> = {
+  sockets: [
+    { id: "s-r07", code: "R-07", title: "Розетка у входа", room: "Прихожая", note: "Контроль люфта корпуса и заземления.", x: 60, y: 83, tone: "negative", assetId: "r07" },
+    { id: "s-tv", code: "E-TV", title: "Блок розеток ТВ", room: "Гостиная", note: "Питание, ТВ и слаботочные выводы для медиа-зоны.", x: 18, y: 13, tone: "positive" },
+    { id: "s-projector", code: "E-PR", title: "Вывод под проектор", room: "Гостиная", note: "Проверить питание и высоту вывода в потолке.", x: 34, y: 36, tone: "warning" },
+    { id: "s-router", code: "NET-01", title: "Роутер", room: "Коридор", note: "Питание и интернет-точка h=2000.", x: 52, y: 50, tone: "positive" },
+    { id: "s-kitchen", code: "K-EL", title: "Кухонная группа", room: "Кухня", note: "Варочная панель, духовой шкаф, посудомойка, холодильник.", x: 22, y: 74, tone: "warning" },
+    { id: "s-bath", code: "B-EL", title: "Полотенцесушитель", room: "Ванная", note: "Электрический полотенцесушитель, вывод h=750.", x: 38, y: 78, tone: "warning" },
+    { id: "s-washer", code: "WM-EL", title: "Стиральная машина", room: "Постирочная", note: "Питание стиральной и сушильной машины в пенале.", x: 91, y: 78, tone: "positive" },
+    { id: "s-boiler", code: "B-01", title: "Бойлер", room: "Санузел", note: "Питание бойлера h=1650.", x: 90, y: 89, tone: "violet" },
+  ],
+  lighting: [
+    { id: "l-living-main", code: "L-06", title: "Люстра гостиной", room: "Гостиная", note: "Основной декоративный свет, группа 6.", x: 30, y: 29, tone: "positive" },
+    { id: "l-living-line", code: "L-05", title: "Линейный свет", room: "Гостиная", note: "Три точки линейного светильника у кухни.", x: 32, y: 64, tone: "positive" },
+    { id: "l-bedroom-main", code: "L-08", title: "Светильник спальни", room: "Спальня", note: "Основной свет, группа 8.", x: 70, y: 32, tone: "positive" },
+    { id: "l-hall", code: "L-01", title: "Свет прихожей", room: "Прихожая", note: "Малый потолочный светильник у входа.", x: 62, y: 82, tone: "warning" },
+    { id: "l-bath", code: "L-03", title: "Свет ванной", room: "Ванная", note: "Потолочный свет и локальные выключатели.", x: 30, y: 82, tone: "positive" },
+    { id: "l-office", code: "L-09", title: "Свет кабинета", room: "Кабинет", note: "Декоративный светильник, группа 9.", x: 75, y: 62, tone: "positive" },
+    { id: "l-wc", code: "L-04", title: "Свет санузла", room: "Санузел", note: "Потолочный светильник и выключатель.", x: 86, y: 80, tone: "positive" },
+  ],
+  switchLinks: [
+    { id: "sl-living-main", code: "S-06", title: "Связь выключателя с люстрой", room: "Гостиная", note: "Проверить соответствие клавиши группе 6.", x: 30, y: 29, tone: "positive" },
+    { id: "sl-living-wall", code: "S-07", title: "Бра / декоративный свет", room: "Гостиная", note: "Управление настенным светом у зоны отдыха.", x: 28, y: 50, tone: "warning" },
+    { id: "sl-bedroom-main", code: "S-08", title: "Связь света спальни", room: "Спальня", note: "Основной свет, привязка к выключателю у двери.", x: 70, y: 33, tone: "positive" },
+    { id: "sl-kitchen", code: "S-05", title: "Кухонная подсветка", room: "Кухня", note: "Линейные светильники и трансформатор в верхнем шкафу.", x: 32, y: 64, tone: "warning" },
+    { id: "sl-bath", code: "S-03", title: "Свет ванной", room: "Ванная", note: "Проверить клавиши у входа.", x: 31, y: 82, tone: "positive" },
+    { id: "sl-wc", code: "S-04", title: "Свет санузла", room: "Санузел", note: "Привязка выключателя к потолочному светильнику.", x: 86, y: 80, tone: "positive" },
+  ],
+  plumbing: [
+    { id: "p-w04", code: "W-04", title: "Смеситель", room: "Ванная", note: "Проверить соединения, протечки и напор.", x: 35, y: 76, tone: "positive", assetId: "w04" },
+    { id: "p-w08", code: "W-08", title: "Слив в санузле", room: "Санузел", note: "Слив работает медленно, нужна чистка сифона.", x: 81, y: 82, tone: "violet", assetId: "w08" },
+    { id: "p-shower", code: "W-02", title: "Душевой трап", room: "Ванная", note: "Трап в полу, проверить уклон и запах.", x: 27, y: 78, tone: "warning" },
+    { id: "p-bath", code: "W-03", title: "Ванна", room: "Ванная", note: "Отдельностоящая ванна, слив по центру.", x: 18, y: 86, tone: "positive" },
+    { id: "p-kitchen-sink", code: "W-05", title: "Раковина кухни", room: "Кухня", note: "Вывод воды и канализации под раковину.", x: 36, y: 73, tone: "positive" },
+    { id: "p-washer", code: "W-06", title: "Стиральная машина", room: "Постирочная", note: "Вода и канализация после выбора оборудования.", x: 90, y: 74, tone: "warning" },
+    { id: "p-boiler", code: "W-07", title: "Бойлер", room: "Санузел", note: "Проточный бойлер h=1800.", x: 91, y: 90, tone: "violet" },
+  ],
+  ventilation: [
+    { id: "v-kitchen", code: "V-01", title: "Вытяжка кухни", room: "Кухня", note: "Центр отверстия уточняется у производителя кухни.", x: 21, y: 70, tone: "warning" },
+    { id: "v-bath", code: "V-02", title: "Вентилятор ванной", room: "Ванная", note: "Электрический вентилятор, место уточнить на месте.", x: 22, y: 94, tone: "warning" },
+    { id: "v-wc", code: "V-03", title: "Вентилятор санузла", room: "Санузел", note: "Вывод под вентиляцию на фасаде.", x: 88, y: 83, tone: "warning" },
+    { id: "v-bedroom", code: "V-04", title: "Техническое отверстие", room: "Спальня", note: "Место расположения уточнить на месте.", x: 75, y: 45, tone: "violet" },
+    { id: "v-grille", code: "V-05", title: "Короб с решетками", room: "Кабинет", note: "Проверить решетки и доступность обслуживания.", x: 77, y: 63, tone: "positive" },
+  ],
+  furniture: [
+    { id: "f-sofa", code: "F-01", title: "Диван", room: "Гостиная", note: "Основная зона отдыха.", x: 27, y: 42, tone: "positive" },
+    { id: "f-tv", code: "F-02", title: "Напольный телевизор", room: "Гостиная", note: "Проверить привязку к розеткам ТВ.", x: 33, y: 21, tone: "positive" },
+    { id: "f-table", code: "F-03", title: "Обеденный стол", room: "Гостиная / кухня", note: "Контроль проходов вокруг стола.", x: 27, y: 56, tone: "positive" },
+    { id: "f-bed", code: "F-04", title: "Кровать", room: "Спальня", note: "Кровать 2150 x 1900, тумбы по бокам.", x: 76, y: 35, tone: "positive" },
+    { id: "f11-map", code: "F-11", title: "Шкаф", room: "Спальня", note: "Скол на фасаде, нужен мебельщик.", x: 53, y: 49, tone: "negative", assetId: "f11" },
+    { id: "f-bath", code: "F-05", title: "Ванная зона", room: "Ванная", note: "Ванна, душевая с трапом, шкаф-пенал.", x: 18, y: 82, tone: "positive" },
+    { id: "f-washer", code: "F-06", title: "Стиральная / сушильная", room: "Постирочная", note: "Техника в пенале, проверить доступ.", x: 91, y: 75, tone: "warning" },
+    { id: "f-hooks", code: "F-07", title: "Крючки и скамья", room: "Прихожая", note: "Зона верхней одежды.", x: 47, y: 93, tone: "positive" },
+  ],
+  windows: [
+    { id: "win-l1", code: "WIN-01", title: "Окно гостиной 1", room: "Гостиная", note: "Проверить фурнитуру и уплотнитель.", x: 9, y: 79, tone: "positive" },
+    { id: "win-l2", code: "WIN-02", title: "Окно гостиной 2", room: "Гостиная", note: "Проверить открывание и откосы.", x: 9, y: 62, tone: "positive" },
+    { id: "win03-map", code: "WIN-03", title: "Окно кабинета", room: "Кабинет", note: "Фото фурнитуры, контроль створок.", x: 76, y: 9, tone: "positive", assetId: "win03" },
+    { id: "win-b1", code: "WIN-04", title: "Окно спальни левое", room: "Спальня", note: "Ширина проема 1068.", x: 58, y: 8, tone: "positive" },
+    { id: "win-b2", code: "WIN-05", title: "Окно спальни правое", room: "Спальня", note: "Ширина проема 1068.", x: 84, y: 8, tone: "positive" },
+    { id: "door-p1", code: "D-01", title: "Входная дверь", room: "Прихожая", note: "Проверить петли, замок, доводчик.", x: 66, y: 92, tone: "warning" },
+  ],
+  flooring: [
+    { id: "fl-living", code: "FL-01", title: "Паркет", room: "Гостиная / спальня / кабинет", note: "Единое поле паркета 61,44 м².", x: 38, y: 43, tone: "positive" },
+    { id: "fl-bath", code: "FL-02", title: "Плитка ванной", room: "Ванная", note: "Зона плитки 6,57 м².", x: 27, y: 82, tone: "positive" },
+    { id: "fl-wc", code: "FL-03", title: "Плитка санузла", room: "Санузел", note: "Зона плитки 2,47 м².", x: 86, y: 82, tone: "positive" },
+    { id: "fl-hall", code: "FL-04", title: "Паркет прихожей", room: "Прихожая", note: "Контроль пробкового компенсатора.", x: 58, y: 82, tone: "warning" },
+    { id: "fl-comp", code: "FL-05", title: "Пробковый компенсатор", room: "Прихожая / влажные зоны", note: "Проверить стыки у плитки.", x: 64, y: 79, tone: "warning" },
+  ],
+  radiators: [
+    { id: "rad-l1", code: "RAD-01", title: "Радиатор гостиной 1", room: "Гостиная", note: "Проверить крепление, краны и отсутствие течи.", x: 12, y: 25, tone: "positive" },
+    { id: "rad-l2", code: "RAD-02", title: "Радиатор гостиной 2", room: "Гостиная", note: "Проверить прогрев и воздух.", x: 12, y: 43, tone: "positive" },
+    { id: "rad-b1", code: "RAD-03", title: "Радиатор спальни левый", room: "Спальня", note: "Радиатор под окном, длина 690.", x: 59, y: 12, tone: "positive" },
+    { id: "rad-b2", code: "RAD-04", title: "Радиатор спальни правый", room: "Спальня", note: "Радиатор под окном, длина 690.", x: 83, y: 12, tone: "positive" },
+    { id: "rad-a02", code: "A-02", title: "Климатический узел", room: "Коридор", note: "Связан с обслуживанием кондиционирования.", x: 82, y: 55, tone: "warning", assetId: "a02" },
+  ],
+  warmFloor: [
+    { id: "wf-bath", code: "TP-01", title: "Теплый пол ванной", room: "Ванная", note: "Контур 5,07 м², управление под выключателем.", x: 29, y: 78, tone: "warning" },
+    { id: "wf-wc", code: "TP-02", title: "Теплый пол санузла", room: "Санузел", note: "Контур 1,40 м², управление под выключателем.", x: 84, y: 78, tone: "warning" },
+    { id: "wf-control-bath", code: "TP-S1", title: "Регулятор ванной", room: "Ванная", note: "Терморегулятор под выключателем.", x: 44, y: 70, tone: "positive" },
+    { id: "wf-control-wc", code: "TP-S2", title: "Регулятор санузла", room: "Санузел", note: "Терморегулятор под выключателем.", x: 73, y: 81, tone: "positive" },
+  ],
 };
 
 const initialState: AppState = {
@@ -359,11 +538,7 @@ export default function Home() {
   const [storageReady, setStorageReady] = useState(false);
   const [view, setView] = useState<View>("asset");
   const [selectedAssetId, setSelectedAssetId] = useState("r07");
-  const [activeCategories, setActiveCategories] = useState<Category[]>([
-    "electric",
-    "plumbing",
-    "hvac",
-  ]);
+  const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
@@ -403,15 +578,18 @@ export default function Home() {
     [selectedAsset.id, state.events],
   );
 
+  const activePlan =
+    planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
+
   const visibleAssets = useMemo(
     () =>
       state.assets.filter((asset) => {
-        const categoryVisible = activeCategories.includes(asset.category);
+        const categoryVisible = activePlan.categories.includes(asset.category);
         const issueVisible =
           !onlyIssues || ["attention", "in_progress", "needs_master"].includes(asset.status);
         return categoryVisible && issueVisible;
       }),
-    [activeCategories, onlyIssues, state.assets],
+    [activePlan.categories, onlyIssues, state.assets],
   );
 
   const issueAssets = state.assets.filter((asset) => asset.status !== "ok");
@@ -466,14 +644,6 @@ export default function Home() {
         ...current.events,
       ],
     }));
-  }
-
-  function toggleCategory(category: Category) {
-    setActiveCategories((current) =>
-      current.includes(category)
-        ? current.filter((item) => item !== category)
-        : [...current, category],
-    );
   }
 
   function completeInspection(status: Status) {
@@ -590,9 +760,9 @@ function submitContractorReport() {
           <PlanView
             assets={visibleAssets}
             allAssets={state.assets}
-            activeCategories={activeCategories}
+            activePlanMode={activePlanMode}
             onlyIssues={onlyIssues}
-            toggleCategory={toggleCategory}
+            setActivePlanMode={setActivePlanMode}
             toggleIssues={() => setOnlyIssues((value) => !value)}
             openAsset={openAsset}
           />
@@ -814,51 +984,60 @@ function Metric({ value, label }: { value: string; label: string }) {
 function PlanView({
   assets,
   allAssets,
-  activeCategories,
+  activePlanMode,
   onlyIssues,
-  toggleCategory,
+  setActivePlanMode,
   toggleIssues,
   openAsset,
 }: {
   assets: Asset[];
   allAssets: Asset[];
-  activeCategories: Category[];
+  activePlanMode: PlanModeId;
   onlyIssues: boolean;
-  toggleCategory: (category: Category) => void;
+  setActivePlanMode: (mode: PlanModeId) => void;
   toggleIssues: () => void;
   openAsset: (id: string) => void;
 }) {
+  const activeMode = planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
+  const activeHotspots = planHotspots[activeMode.id];
+
   return (
     <div className="grid grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 max-[980px]:grid-cols-1">
       <Card>
         <CardHeader>
           <CardTitle>Схема квартиры</CardTitle>
-          <CardDescription>Включайте слои и открывайте узлы прямо с плана.</CardDescription>
+          <CardDescription>
+            Переключайте рабочий лист плана. Одновременно активен один режим.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2 pb-2">
-          {(Object.keys(categoryLabels) as Category[]).map((category) => (
+          <div className="plan-mode-toolbar" role="tablist" aria-label="Режимы плана">
+            {planModes.map((mode) => (
+              <Button
+                aria-selected={activePlanMode === mode.id}
+                className="justify-start"
+                key={mode.id}
+                onClick={() => setActivePlanMode(mode.id)}
+                role="tab"
+                size="sm"
+                type="button"
+                variant={activePlanMode === mode.id ? "default" : "secondary"}
+              >
+                {mode.label}
+              </Button>
+            ))}
             <Button
-              variant={activeCategories.includes(category) ? "default" : "secondary"}
-              key={category}
-              onClick={() => toggleCategory(category)}
+              variant={onlyIssues ? "destructive" : "secondary"}
+              onClick={toggleIssues}
               size="sm"
               type="button"
             >
-              {categoryLabels[category]}
+              Только проблемы
             </Button>
-          ))}
-          <Button
-            variant={onlyIssues ? "destructive" : "secondary"}
-            onClick={toggleIssues}
-            size="sm"
-            type="button"
-          >
-            Только проблемы
-          </Button>
           </div>
           <ApartmentPlan
-            activeCategories={activeCategories}
+            activeMode={activeMode}
+            hotspots={activeHotspots}
             assets={assets}
             openAsset={openAsset}
           />
@@ -869,10 +1048,14 @@ function PlanView({
         <CardHeader>
           <CardTitle>Видимые узлы</CardTitle>
           <CardDescription>
-            На схеме показано {assets.length} из {allAssets.length} узлов.
+            {activeMode.label}: {activeHotspots.length} контрольных точек, {assets.length} из{" "}
+            {allAssets.length} узлов системы.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
+          <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
+            {activeMode.summary}
+          </div>
           {assets.map((asset) => (
             <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
           ))}
@@ -886,45 +1069,57 @@ function PlanView({
 }
 
 function ApartmentPlan({
-  activeCategories = [],
+  activeMode,
+  hotspots,
   assets,
   openAsset,
 }: {
-  activeCategories?: Category[];
+  activeMode: PlanMode;
+  hotspots: PlanHotspot[];
   assets: Asset[];
   openAsset: (id: string) => void;
 }) {
-  const layerCategories = activeCategories.length
-    ? activeCategories
-    : assets.map((asset) => asset.category);
-  const visibleLayers = Array.from(
-    new Set(layerCategories.flatMap((category) => planLayerSrc[category] ?? [])),
-  );
+  const visibleAssetIds = new Set(assets.map((asset) => asset.id));
 
   return (
     <div className="apartment-plan" aria-label="Схема квартиры">
       <div className="plan-stage" role="img">
-        <img alt="План перепланировки квартиры" className="plan-image base" src="/plan/base.png" />
-        {visibleLayers.map((src) => (
-          <img alt="" aria-hidden="true" className="plan-image layer" key={src} src={src} />
-        ))}
-        {assets.map((asset) => (
-          <button
-            aria-label={`${asset.code}, ${asset.name}, ${statusLabels[asset.status]}`}
-            className={`asset-marker ${statusTone[asset.status]}`}
-            key={asset.id}
-            onClick={() => openAsset(asset.id)}
-            style={{ left: `${asset.x}%`, top: `${asset.y}%` }}
-            type="button"
-          >
-            <span className="asset-dot" />
-            <span className="asset-code">{asset.code}</span>
-          </button>
-        ))}
+        <img alt={activeMode.label} className="plan-image base" src={activeMode.src} />
+        {hotspots.map((hotspot) => {
+          const isLinkedAsset = hotspot.assetId && visibleAssetIds.has(hotspot.assetId);
+          const isHiddenByIssueFilter = hotspot.assetId && !visibleAssetIds.has(hotspot.assetId);
+          if (isHiddenByIssueFilter) return null;
+
+          return (
+            <Tooltip key={hotspot.id}>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={`${hotspot.code}, ${hotspot.title}, ${hotspot.room}`}
+                  className={`plan-hotspot ${hotspot.tone ?? "positive"}${isLinkedAsset ? " linked" : ""}`}
+                  onClick={() => {
+                    if (hotspot.assetId) openAsset(hotspot.assetId);
+                  }}
+                  style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%` }}
+                  type="button"
+                >
+                  <span className="plan-hotspot-dot" />
+                  <span className="plan-hotspot-code">{hotspot.code}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8}>
+                <span className="grid gap-1">
+                  <strong>{hotspot.code} · {hotspot.title}</strong>
+                  <span>{hotspot.room}</span>
+                  <span>{hotspot.note}</span>
+                </span>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
       <div className="plan-caption">
-        <span>Источник: дизайн-проект, листы 31-42</span>
-        <span>Координаты узлов заданы в процентах от общей подложки</span>
+        <span>Активный лист: {activeMode.label}</span>
+        <span>Точки открывают подсказку; связанные узлы открывают карточку объекта</span>
       </div>
     </div>
   );

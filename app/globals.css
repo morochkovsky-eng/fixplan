@@ -506,6 +506,13 @@ textarea {
   overflow: hidden;
 }
 
+.plan-mode-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
 .apartment-plan {
   margin-top: 20px;
   border: 1px solid var(--border);
@@ -520,7 +527,7 @@ textarea {
   position: relative;
   width: 100%;
   max-width: 100%;
-  aspect-ratio: 1150 / 1205;
+  aspect-ratio: 1390 / 1803;
   overflow: hidden;
   border-radius: 6px;
   background: #ffffff;
@@ -539,6 +546,75 @@ textarea {
   position: absolute;
   inset: 0;
   opacity: 0.92;
+}
+
+.plan-hotspot {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  max-width: 108px;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 8px 4px 5px;
+  background: color-mix(in oklab, var(--card) 92%, transparent);
+  color: var(--foreground);
+  box-shadow: 0 8px 22px rgba(29, 32, 35, 0.16);
+  transform: translate(-10px, -12px);
+  backdrop-filter: blur(10px);
+}
+
+.plan-hotspot:hover,
+.plan-hotspot:focus-visible {
+  z-index: 4;
+  box-shadow: 0 10px 28px rgba(29, 32, 35, 0.22);
+}
+
+.plan-hotspot:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.plan-hotspot-dot {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(29, 32, 35, 0.08);
+}
+
+.plan-hotspot-code {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plan-hotspot.linked {
+  background: #ffffff;
+}
+
+.plan-hotspot.positive .plan-hotspot-dot {
+  background: var(--positive);
+}
+
+.plan-hotspot.negative .plan-hotspot-dot {
+  background: var(--negative);
+}
+
+.plan-hotspot.warning .plan-hotspot-dot {
+  background: var(--warning);
+}
+
+.plan-hotspot.violet .plan-hotspot-dot {
+  background: var(--violet);
 }
 
 .plan-caption {
