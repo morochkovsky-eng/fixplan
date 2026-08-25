@@ -223,6 +223,7 @@ type Inspection = {
   status: InspectionStatus;
   allowedAssetIds: string[];
   summary: string;
+  conclusion?: string;
   link: string;
   resultIds: string[];
 };
@@ -705,6 +706,8 @@ const initialState: AppState = {
       status: "completed",
       allowedAssetIds: ["w04", "w08"],
       summary: "Проверены смеситель и слив. По сливу нужна чистка сифона, ориентир 2 000 руб.",
+      conclusion:
+        "По санузлу критичных протечек не обнаружено. Слив лучше профилактически чистить раз в 3 месяца.",
       link: "shpalernaya.app/access/plumbing-3d8f",
       resultIds: ["res-001", "res-002"],
     },
@@ -1071,6 +1074,7 @@ export default function Home() {
       status: "sent",
       allowedAssetIds: allowed,
       summary: "Ссылка создана. Ожидаем отчет мастера по выбранным узлам.",
+      conclusion: "",
       link: accessLinkFor(scope),
       resultIds: [],
     };
@@ -1088,7 +1092,7 @@ export default function Home() {
     setContractorMode("master");
   }
 
-  function submitContractorReport() {
+  function submitContractorReport(conclusion?: string) {
     const activeInspection =
       state.inspections.find((inspection) => inspection.id === state.contractorAccess.inspectionId) ??
       state.inspections[0];
@@ -1146,6 +1150,9 @@ export default function Home() {
               summary: `Мастер проверил ${results.length} узлов. Замечаний: ${
                 results.filter((result) => result.statusAfter !== "ok").length
               }.`,
+              conclusion: conclusion?.trim()
+                ? conclusion.trim()
+                : "Общих замечаний нет. Все комментарии привязаны к конкретным узлам.",
               resultIds: results.map((result) => result.id),
             }
           : inspection,
@@ -2416,7 +2423,7 @@ function ContractorAccessView({
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   mode: "setup" | "master";
   createContractorInspection: () => void;
-  submitContractorReport: () => void;
+  submitContractorReport: (conclusion?: string) => void;
 }) {
   const allowedAssets = state.assets.filter((asset) =>
     state.contractorAccess.allowedAssetIds.includes(asset.id),
@@ -2428,6 +2435,7 @@ function ContractorAccessView({
   const [contractorPlanMode, setContractorPlanMode] = useState<PlanModeId>(
     allowedPlanModes[0]?.id ?? "sockets",
   );
+  const [contractorConclusion, setContractorConclusion] = useState("");
   const activeInspection =
     state.inspections.find((inspection) => inspection.id === state.contractorAccess.inspectionId) ??
     state.inspections[0];
@@ -2524,7 +2532,27 @@ function ContractorAccessView({
                   <Button type="button">Нужен ремонт</Button>
                 </div>
                 <InspectionComposer placeholder="Комментарий мастера, фото, стоимость, материалы" />
-                <Button className="w-full" onClick={submitContractorReport} type="button">
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Общее заключение</CardTitle>
+                <CardDescription>
+                  Для замечаний по квартире в целом или того, что не привязано к конкретному узлу.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
+                <InspectionComposer
+                  onChange={setContractorConclusion}
+                  placeholder="Например: нужен доступ к стояку, нашли запах в санузле, есть рекомендация по профилактике"
+                  value={contractorConclusion}
+                />
+                <Button
+                  className="w-full"
+                  onClick={() => submitContractorReport(contractorConclusion)}
+                  type="button"
+                >
                   Отправить отчет владельцу
                 </Button>
               </CardContent>
@@ -2695,6 +2723,12 @@ function ContractorReport({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
+            {isCompleted && inspection?.conclusion && (
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <strong className="block text-sm">Общее заключение мастера</strong>
+                <p className="m-0 mt-2 text-muted-foreground text-sm">{inspection.conclusion}</p>
+              </div>
+            )}
             {isCompleted &&
               reportResults.map((result) => {
                 const asset = assets.find((item) => item.id === result.assetId);
@@ -2737,6 +2771,12 @@ function ContractorReport({
                 ? `Проверено ${reportResults.length} из ${reportAssets.length}. Замечаний: ${issueResults.length}.`
                 : `Отправлено ${reportAssets.length} узлов. Мастер еще не прислал результаты.`}
             </div>
+            {isCompleted && inspection?.conclusion && (
+              <div className="rounded-lg border p-3 text-sm">
+                <strong className="block">Комментарий мастера</strong>
+                <span className="mt-1 block text-muted-foreground">{inspection.conclusion}</span>
+              </div>
+            )}
             {issueResults.length > 0 && (
               <div className="grid gap-2">
                 <strong className="text-sm">Требуют внимания</strong>
@@ -2908,11 +2948,23 @@ function EventTask({
   );
 }
 
-function InspectionComposer({ placeholder }: { placeholder: string }) {
+function InspectionComposer({
+  onChange,
+  placeholder,
+  value,
+}: {
+  onChange?: (value: string) => void;
+  placeholder: string;
+  value?: string;
+}) {
   return (
     <PromptInput className="w-full" onSubmit={() => undefined}>
       <PromptInputBody>
-        <PromptInputTextarea placeholder={placeholder} />
+        <PromptInputTextarea
+          onChange={(event) => onChange?.(event.currentTarget.value)}
+          placeholder={placeholder}
+          value={value}
+        />
       </PromptInputBody>
       <PromptInputFooter>
         <PromptInputTools>
