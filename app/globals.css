@@ -1129,6 +1129,131 @@ select:focus-visible {
   gap: 24px;
 }
 
+.contractor-access-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  gap: 24px;
+  min-width: 0;
+}
+
+.contractor-scope-picker {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.contractor-field-caption {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.contractor-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.contractor-scope-button {
+  min-width: 0;
+  justify-content: space-between;
+}
+
+.contractor-asset-select {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.contractor-asset-search {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.contractor-asset-search svg {
+  position: absolute;
+  left: 12px;
+  z-index: 1;
+  color: var(--text-soft);
+}
+
+.contractor-asset-search input {
+  padding-left: 38px;
+}
+
+.contractor-asset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  max-height: 312px;
+  min-width: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.contractor-asset-option {
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--content);
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.contractor-asset-option:hover {
+  background: var(--content-alt);
+}
+
+.contractor-asset-option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.contractor-asset-option.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.contractor-asset-option span {
+  display: grid;
+  gap: 2px;
+}
+
+.contractor-asset-option strong,
+.contractor-asset-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contractor-asset-option strong {
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.contractor-asset-option small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.contractor-asset-option.active small {
+  color: color-mix(in oklab, var(--primary-foreground) 72%, transparent);
+}
+
 .rx-card {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1746,6 +1871,33 @@ select:focus-visible {
     grid-template-columns: 1fr 1fr;
   }
 
+  .contractor-setup-card,
+  .contractor-setup-card [data-slot="card-content"],
+  .contractor-scope-picker {
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .contractor-mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contractor-scope-button {
+    height: auto;
+    min-height: 42px;
+    padding-inline: 12px;
+  }
+
+  .contractor-asset-grid {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: 360px;
+    overflow-x: hidden;
+  }
+
+  .contractor-asset-option {
+    width: 100%;
+  }
+
   .asset-tools {
     grid-template-columns: 1fr;
   }
@@ -1795,9 +1947,10 @@ select:focus-visible {
   .plan-layout,
   .inspection-layout,
   .contractor-grid,
+  .contractor-access-grid,
   .asset-detail,
   .radix-asset-page {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .span-2,
@@ -1906,6 +2059,20 @@ select:focus-visible {
   [aria-label="Разделы карточки узла"] button {
     flex: 0 0 auto;
     min-width: 92px;
+  }
+}
+
+@media (max-width: 520px) {
+  .contractor-access-grid {
+    gap: 16px;
+  }
+
+  .contractor-mode-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .contractor-field-caption {
+    margin-bottom: 6px;
   }
 }
 

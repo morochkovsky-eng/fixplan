@@ -1193,16 +1193,23 @@ export default function Home() {
   }
 
   async function createContractorInspection() {
-    const scope = state.contractorAccess.scope;
-    const allowed = state.contractorAccess.allowedAssetIds.length
-      ? state.contractorAccess.allowedAssetIds
-      : state.assets.slice(0, 5).map((asset) => asset.id);
+    const allowed = state.contractorAccess.allowedAssetIds;
+
+    if (!state.contractorAccess.contractorName.trim()) {
+      window.alert("Укажите имя мастера.");
+      return;
+    }
+
+    if (!allowed.length) {
+      window.alert("Выберите хотя бы один узел или категорию плана.");
+      return;
+    }
 
     const response = await fetch("/api/inspections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        scope,
+        scope: contractorScopeFromIds(state.assets, allowed),
         allowedAssetIds: allowed,
         contractor: state.contractorAccess.contractorName,
         contractorPhone: state.contractorAccess.contractorPhone,
@@ -2635,11 +2642,6 @@ function InspectionsView({
   const completedCount = inspections.filter((inspection) => inspection.status === "completed").length;
   const issueResultCount = results.filter((result) => result.statusAfter !== "ok").length;
 
-  function idsForScope(scope: ContractorAccess["scope"]) {
-    if (scope === "all") return assets.map((asset) => asset.id);
-    return assets.filter((asset) => asset.category === scope).map((asset) => asset.id);
-  }
-
   function startEdit(inspection: Inspection) {
     setEditingInspectionId(inspection.id);
     setEditDraft({
@@ -2741,34 +2743,21 @@ function InspectionsView({
                           />
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          ["plumbing", "Сантехника"],
-                          ["electric", "Электрика"],
-                          ["all", "Вся квартира"],
-                        ].map(([scope, label]) => (
-                          <Button
-                            key={scope}
-                            onClick={() => {
-                              const nextScope = scope as ContractorAccess["scope"];
-                              setEditDraft((current) =>
-                                current
-                                  ? {
-                                      ...current,
-                                      scope: nextScope,
-                                      allowedAssetIds: idsForScope(nextScope),
-                                    }
-                                  : current,
-                              );
-                            }}
-                            size="sm"
-                            type="button"
-                            variant={editDraft.scope === scope ? "default" : "secondary"}
-                          >
-                            {label}
-                          </Button>
-                        ))}
-                      </div>
+                      <ContractorScopePicker
+                        assets={assets}
+                        onChange={(allowedAssetIds) =>
+                          setEditDraft((current) =>
+                            current
+                              ? {
+                                  ...current,
+                                  scope: contractorScopeFromIds(assets, allowedAssetIds),
+                                  allowedAssetIds,
+                                }
+                              : current,
+                          )
+                        }
+                        selectedAssetIds={editDraft.allowedAssetIds}
+                      />
                       <p className="m-0 text-muted-foreground text-sm">
                         В задании будет {editDraft.allowedAssetIds.length} узлов. Уже сохраненные
                         мастером результаты останутся в обходе, даже если сменить область доступа.
@@ -3065,98 +3054,100 @@ function ContractorAccessView({
     );
   }
 
+  const canCreateAccess = Boolean(
+    state.contractorAccess.contractorName.trim() &&
+      state.contractorAccess.allowedAssetIds.length > 0,
+  );
+
   return (
-    <div className="grid grid-cols-[minmax(320px,1fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
-      <Card>
+    <div className="contractor-access-grid">
+      <Card className="contractor-setup-card min-w-0">
         <CardHeader>
           <CardTitle>Создать доступ</CardTitle>
           <CardDescription>
             Мастер получит ссылку только на выбранные узлы и сможет отправить отчет.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid gap-1.5 text-sm font-medium">
-            <label htmlFor="contractor-name">Имя мастера</label>
-            <Input
-              id="contractor-name"
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                setState((current) => ({
-                  ...current,
-                  contractorAccess: {
-                    ...current.contractorAccess,
-                    contractorName: value,
-                  },
-                }));
-              }}
-              placeholder="Например, Роман"
-              value={state.contractorAccess.contractorName}
-            />
-          </div>
-          <div className="grid gap-1.5 text-sm font-medium">
-            <label htmlFor="contractor-phone">Телефон</label>
-            <Input
-              id="contractor-phone"
-              inputMode="tel"
-              onChange={(event) => {
-                const value = event.currentTarget.value;
-                setState((current) => ({
-                  ...current,
-                  contractorAccess: {
-                    ...current.contractorAccess,
-                    contractorPhone: value,
-                  },
-                }));
-              }}
-              placeholder="+7 ..."
-              value={state.contractorAccess.contractorPhone}
-            />
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 pb-2">
-          {[
-            ["plumbing", "Сантехника"],
-            ["electric", "Электрика"],
-            ["all", "Вся квартира"],
-          ].map(([scope, label]) => (
-            <Button
-              variant={state.contractorAccess.scope === scope ? "default" : "secondary"}
-              key={scope}
-              onClick={() => chooseContractorScope(setState, scope as ContractorAccess["scope"])}
-              size="sm"
-              type="button"
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {[
-            "Смотреть историю выбранных узлов",
-            "Добавлять комментарии и фото",
-            "Указывать стоимость и материалы",
-            "Менять статус на «сделано»",
-          ].map((permission) => (
-            <div className="rounded-lg bg-muted p-3 text-sm" key={permission}>
-              {permission}
+        <CardContent className="grid min-w-0 gap-4">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+            <div className="grid min-w-0 gap-1.5 text-sm font-medium">
+              <label htmlFor="contractor-name">Имя мастера</label>
+              <Input
+                id="contractor-name"
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setState((current) => ({
+                    ...current,
+                    contractorAccess: {
+                      ...current.contractorAccess,
+                      contractorName: value,
+                    },
+                  }));
+                }}
+                placeholder="Например, Роман"
+                value={state.contractorAccess.contractorName}
+              />
             </div>
-          ))}
-        </div>
-        <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-          {activeInspection?.link ?? "Ссылка появится после создания обхода"}
-        </div>
-        <Button
-          disabled={!state.contractorAccess.contractorName.trim()}
-          onClick={createContractorInspection}
-          size="lg"
-          type="button"
-        >
-          Создать обход и ссылку мастеру
-        </Button>
+            <div className="grid min-w-0 gap-1.5 text-sm font-medium">
+              <label htmlFor="contractor-phone">Телефон</label>
+              <Input
+                id="contractor-phone"
+                inputMode="tel"
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  setState((current) => ({
+                    ...current,
+                    contractorAccess: {
+                      ...current.contractorAccess,
+                      contractorPhone: value,
+                    },
+                  }));
+                }}
+                placeholder="+7 ..."
+                value={state.contractorAccess.contractorPhone}
+              />
+            </div>
+          </div>
+          <ContractorScopePicker
+            assets={state.assets}
+            onChange={(allowedAssetIds) =>
+              setState((current) => ({
+                ...current,
+                contractorAccess: {
+                  ...current.contractorAccess,
+                  scope: contractorScopeFromIds(current.assets, allowedAssetIds),
+                  allowedAssetIds,
+                },
+              }))
+            }
+            selectedAssetIds={state.contractorAccess.allowedAssetIds}
+          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              "Смотреть историю выбранных узлов",
+              "Добавлять комментарии и фото",
+              "Указывать стоимость и материалы",
+              "Менять статус на «сделано»",
+            ].map((permission) => (
+              <div className="rounded-lg bg-muted p-3 text-sm" key={permission}>
+                {permission}
+              </div>
+            ))}
+          </div>
+          <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+            {activeInspection?.link ?? "Ссылка появится после создания обхода"}
+          </div>
+          <Button
+            disabled={!canCreateAccess}
+            onClick={createContractorInspection}
+            size="lg"
+            type="button"
+          >
+            Создать обход и ссылку мастеру
+          </Button>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle>Узлы в задании</CardTitle>
           <CardDescription>
@@ -3514,21 +3505,170 @@ function InspectionComposer({
   );
 }
 
-function chooseContractorScope(
-  setState: React.Dispatch<React.SetStateAction<AppState>>,
-  scope: ContractorAccess["scope"],
-) {
-  setState((current) => ({
-    ...current,
-    contractorAccess: {
-      ...current.contractorAccess,
-      scope,
-      allowedAssetIds:
-        scope === "all"
-          ? current.assets.map((asset) => asset.id)
-          : current.assets
-              .filter((asset) => asset.category === scope)
-              .map((asset) => asset.id),
-    },
-  }));
+function ContractorScopePicker({
+  assets,
+  onChange,
+  selectedAssetIds,
+}: {
+  assets: Asset[];
+  onChange: (assetIds: string[]) => void;
+  selectedAssetIds: string[];
+}) {
+  const [query, setQuery] = useState("");
+  const selected = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
+  const allAssetIds = assets.map((asset) => asset.id);
+  const planScopes = planModes
+    .map((mode) => {
+      const assetIds = planHotspots[mode.id]
+        .map((hotspot) => hotspotAssetId(hotspot))
+        .filter((id) => assets.some((asset) => asset.id === id));
+
+      return {
+        id: mode.id,
+        label: mode.label,
+        assetIds: Array.from(new Set(assetIds)),
+      };
+    })
+    .filter((scope) => scope.assetIds.length > 0);
+  const filteredAssets = assets.filter((asset) => matchesAssetSearch(asset, query)).slice(0, 18);
+
+  function setSelected(ids: string[]) {
+    const known = new Set(allAssetIds);
+    onChange(Array.from(new Set(ids.filter((id) => known.has(id)))));
+  }
+
+  function toggleMany(ids: string[]) {
+    const allSelected = ids.every((id) => selected.has(id));
+    if (allSelected) {
+      setSelected(selectedAssetIds.filter((id) => !ids.includes(id)));
+      return;
+    }
+
+    setSelected([...selectedAssetIds, ...ids]);
+  }
+
+  function toggleOne(id: string) {
+    if (selected.has(id)) {
+      setSelected(selectedAssetIds.filter((assetId) => assetId !== id));
+      return;
+    }
+
+    setSelected([...selectedAssetIds, id]);
+  }
+
+  return (
+    <div className="contractor-scope-picker">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="grid gap-1">
+          <strong className="text-sm font-medium">Область задания</strong>
+          <span className="text-muted-foreground text-sm">
+            Выбрано {selectedAssetIds.length} из {assets.length} узлов.
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => setSelected(allAssetIds)}
+            size="sm"
+            type="button"
+            variant={selectedAssetIds.length === assets.length ? "default" : "secondary"}
+          >
+            Вся квартира
+          </Button>
+          <Button
+            disabled={!selectedAssetIds.length}
+            onClick={() => setSelected([])}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            Очистить
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <span className="contractor-field-caption">Категории плана</span>
+        <div className="contractor-mode-grid">
+          {planScopes.map((scope) => {
+            const isActive = scope.assetIds.every((id) => selected.has(id));
+            return (
+              <Button
+                aria-pressed={isActive}
+                className="contractor-scope-button"
+                key={scope.id}
+                onClick={() => toggleMany(scope.assetIds)}
+                size="sm"
+                type="button"
+                variant={isActive ? "default" : "secondary"}
+              >
+                <span className="min-w-0 truncate">{scope.label}</span>
+                <Badge variant={isActive ? "secondary" : "outline"}>{scope.assetIds.length}</Badge>
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="contractor-asset-select">
+        <div className="contractor-asset-search">
+          <Search size={16} />
+          <Input
+            aria-label="Найти узел для задания"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="Найти конкретный узел"
+            value={query}
+          />
+        </div>
+        <div className="contractor-asset-grid" aria-label="Конкретные узлы">
+          {filteredAssets.map((asset) => {
+            const isActive = selected.has(asset.id);
+            return (
+              <button
+                aria-pressed={isActive}
+                className={isActive ? "contractor-asset-option active" : "contractor-asset-option"}
+                key={asset.id}
+                onClick={() => toggleOne(asset.id)}
+                type="button"
+              >
+                <span className="min-w-0">
+                  <strong>{asset.code} · {asset.name}</strong>
+                  <small>
+                    {roomName(asset.roomId)} · {assetKindLabels[assetKind(asset)]}
+                  </small>
+                </span>
+                {isActive && <Check size={16} />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function contractorScopeFromIds(
+  assets: Asset[],
+  selectedAssetIds: string[],
+): ContractorAccess["scope"] {
+  const selected = new Set(selectedAssetIds);
+  if (selected.size === assets.length && assets.every((asset) => selected.has(asset.id))) {
+    return "all";
+  }
+
+  const selectedAssets = assets.filter((asset) => selected.has(asset.id));
+  if (
+    selectedAssets.length > 0 &&
+    selectedAssets.every((asset) => asset.category === "plumbing")
+  ) {
+    return "plumbing";
+  }
+
+  if (
+    selectedAssets.length > 0 &&
+    selectedAssets.every((asset) => asset.category === "electric")
+  ) {
+    return "electric";
+  }
+
+  return "custom";
 }
