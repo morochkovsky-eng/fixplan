@@ -1653,72 +1653,76 @@ function Dashboard({
   goPlan: () => void;
 }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <StatCard
-        label="Всего узлов"
-        onClick={() => openAssets("all")}
-        value={assets.length.toString()}
-      />
-      <StatCard
-        label="Требует внимания"
-        onClick={() => openAssets("attention")}
-        tone="negative"
-        value={attentionAssets.length.toString()}
-      />
-      <StatCard
-        label="В работе"
-        onClick={() => openAssets("in_progress")}
-        tone="warning"
-        value={inProgressAssets.length.toString()}
-      />
-      <StatCard
-        label="Нужен мастер"
-        onClick={() => openAssets("needs_master")}
-        tone="violet"
-        value={needsMasterAssets.length.toString()}
-      />
+    <div className="grid gap-4">
+      <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Всего узлов"
+          onClick={() => openAssets("all")}
+          value={assets.length.toString()}
+        />
+        <StatCard
+          label="Требует внимания"
+          onClick={() => openAssets("attention")}
+          tone="negative"
+          value={attentionAssets.length.toString()}
+        />
+        <StatCard
+          label="В работе"
+          onClick={() => openAssets("in_progress")}
+          tone="warning"
+          value={inProgressAssets.length.toString()}
+        />
+        <StatCard
+          label="Нужен мастер"
+          onClick={() => openAssets("needs_master")}
+          tone="violet"
+          value={needsMasterAssets.length.toString()}
+        />
+      </div>
 
-      <Card className="md:col-span-2">
-        <CardHeader className="grid-cols-[1fr_auto] gap-3">
-          <div>
-            <CardTitle>Что не так сейчас</CardTitle>
-            <CardDescription>Узлы, которые требуют решения или мастера.</CardDescription>
-          </div>
-          <Button variant="ghost" onClick={goPlan} type="button">
-            Открыть план
-          </Button>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {issueAssets.map((asset) => (
-            <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
-          ))}
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="md:col-span-2">
+          <CardHeader className="grid-cols-[1fr_auto] gap-3">
+            <div>
+              <CardTitle>Что не так сейчас</CardTitle>
+              <CardDescription>Узлы, которые требуют решения или мастера.</CardDescription>
+            </div>
+            <Button variant="ghost" onClick={goPlan} type="button">
+              Открыть план
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {issueAssets.map((asset) => (
+              <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
+            ))}
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Работы и мастера</CardTitle>
-          <CardDescription>Что уже в процессе.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {inProgressAssets.concat(needsMasterAssets).map((asset) => (
-            <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
-          ))}
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Работы и мастера</CardTitle>
+            <CardDescription>Что уже в процессе.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {inProgressAssets.concat(needsMasterAssets).map((asset) => (
+              <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
+            ))}
+          </CardContent>
+        </Card>
 
-      <Card className="md:col-span-2 xl:col-span-3">
-        <CardHeader>
-          <CardTitle>Здоровье квартиры</CardTitle>
-          <CardDescription>Контрольные показатели по обслуживанию.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric value="82%" label="проверено за месяц" />
-          <Metric value="3" label="гарантии в календаре" />
-          <Metric value="3 500 руб." label="расходы за август" />
-          <Metric value="1" label="отчет мастера ожидает решения" />
-        </CardContent>
-      </Card>
+        <Card className="md:col-span-2 xl:col-span-3">
+          <CardHeader>
+            <CardTitle>Здоровье квартиры</CardTitle>
+            <CardDescription>Контрольные показатели по обслуживанию.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Metric value="82%" label="проверено за месяц" />
+            <Metric value="3" label="гарантии в календаре" />
+            <Metric value="3 500 руб." label="расходы за август" />
+            <Metric value="1" label="отчет мастера ожидает решения" />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -2432,7 +2436,7 @@ function InspectionsView({
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Всего обходов" value={`${inspections.length}`} />
         <StatCard label="Завершено" value={`${completedCount}`} tone="positive" />
         <StatCard label="Замечаний из отчетов" value={`${issueResultCount}`} tone="negative" />
@@ -2460,7 +2464,7 @@ function InspectionsView({
               const cost = inspectionResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
 
               return (
-                <div className="grid gap-3 rounded-lg border bg-background p-4" key={inspection.id}>
+                <div className="grid gap-3 rounded-xl bg-muted p-4" key={inspection.id}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="grid gap-1">
                       <strong className="font-medium">{inspection.number} · {inspection.title}</strong>
@@ -2794,12 +2798,13 @@ function ContractorAccessView({
             </div>
           ))}
         </div>
-        <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
+        <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
           {activeInspection?.link ?? "Ссылка появится после создания обхода"}
         </div>
         <Button
           disabled={!state.contractorAccess.contractorName.trim()}
           onClick={createContractorInspection}
+          size="lg"
           type="button"
         >
           Создать обход и ссылку мастеру
@@ -2883,7 +2888,7 @@ function ContractorReport({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard label="В задании" value={`${reportAssets.length} узла`} />
         <StatCard label="Проверено" value={`${reportResults.length} узла`} />
         <StatCard label="Замечания" value={`${issueResults.length}`} tone="negative" />
@@ -2903,7 +2908,7 @@ function ContractorReport({
           </CardHeader>
           <CardContent className="grid gap-3">
             {isCompleted && inspection?.conclusion && (
-              <div className="rounded-lg border bg-muted/40 p-4">
+              <div className="rounded-xl bg-muted p-4">
                 <strong className="block text-sm">Общее заключение мастера</strong>
                 <p className="m-0 mt-2 text-muted-foreground text-sm">{inspection.conclusion}</p>
               </div>
@@ -2913,7 +2918,7 @@ function ContractorReport({
                 const asset = assets.find((item) => item.id === result.assetId);
                 if (!asset) return null;
                 return (
-                  <div className="grid gap-2 rounded-lg border p-3" key={result.id}>
+                  <div className="grid gap-2 rounded-xl bg-muted/60 p-3" key={result.id}>
                     <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
                     <p className="m-0 text-muted-foreground text-sm">{result.comment}</p>
                     <div className="flex flex-wrap gap-2">
@@ -2928,7 +2933,7 @@ function ContractorReport({
               })}
             {!isCompleted &&
               reportAssets.map((asset) => (
-                <div className="grid gap-2 rounded-lg border p-3" key={asset.id}>
+                <div className="grid gap-2 rounded-xl bg-muted/60 p-3" key={asset.id}>
                   <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
                   <p className="m-0 text-muted-foreground text-sm">
                     Ожидаем результат мастера по этому узлу.
@@ -2951,7 +2956,7 @@ function ContractorReport({
                 : `Отправлено ${reportAssets.length} узлов. Мастер еще не прислал результаты.`}
             </div>
             {isCompleted && inspection?.conclusion && (
-              <div className="rounded-lg border p-3 text-sm">
+              <div className="rounded-lg bg-muted p-3 text-sm">
                 <strong className="block">Комментарий мастера</strong>
                 <span className="mt-1 block text-muted-foreground">{inspection.conclusion}</span>
               </div>
@@ -2964,7 +2969,7 @@ function ContractorReport({
                   if (!asset) return null;
                   return (
                     <button
-                      className="rounded-lg border bg-background p-3 text-left"
+                      className="rounded-lg bg-muted p-3 text-left transition-colors hover:bg-secondary"
                       key={result.id}
                       onClick={() => openAsset(asset.id)}
                       type="button"
@@ -3057,7 +3062,7 @@ function AssetRow({
   if (onClick) {
     return (
       <button
-        className="flex w-full items-center justify-between gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted"
+        className="flex w-full items-center justify-between gap-3 rounded-lg bg-muted p-3 text-left transition-colors hover:bg-secondary"
         onClick={onClick}
         type="button"
       >
@@ -3067,7 +3072,7 @@ function AssetRow({
   }
 
   return (
-    <div className="flex w-full items-center justify-between gap-3 rounded-lg border bg-background p-3">
+    <div className="flex w-full items-center justify-between gap-3 rounded-lg bg-muted p-3">
       {content}
     </div>
   );

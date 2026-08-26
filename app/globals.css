@@ -61,12 +61,13 @@
 }
 
 html {
-  background: var(--background);
+  background: var(--content-alt);
   overflow-x: clip;
 }
 
 body {
   margin: 0;
+  background: var(--content-alt);
   color: var(--text);
   font-family: var(--font-geist-sans), Inter, Arial, Helvetica, sans-serif;
   overflow-x: clip;
@@ -88,7 +89,7 @@ button {
   width: 100%;
   padding: 0;
   border: 0;
-  border-radius: var(--radius);
+  border-radius: 12px;
   background: transparent;
   color: inherit;
   text-align: left;
@@ -109,6 +110,10 @@ button {
 .stat-card-button:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
+}
+
+.mobile-metric-grid {
+  display: grid;
 }
 
 .app-shell {
@@ -1501,6 +1506,62 @@ select:focus-visible {
 
   .workspace {
     padding: 12px;
+  }
+
+  [data-slot="card"] {
+    border-radius: 16px;
+  }
+
+  [data-slot="card-content"] {
+    padding-inline: 14px;
+  }
+
+  [data-slot="button"][data-size="default"] {
+    height: 42px;
+    padding-inline: 16px;
+    font-size: 15px;
+  }
+
+  [data-slot="button"][data-size="lg"] {
+    height: 48px;
+    padding-inline: 18px;
+    font-size: 16px;
+  }
+
+  [data-slot="input"] {
+    height: 44px;
+    padding-inline: 14px;
+    font-size: 16px;
+  }
+
+  [data-slot="textarea"] {
+    padding: 12px 14px;
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .mobile-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .mobile-metric-grid [data-slot="card"] {
+    height: 100%;
+  }
+
+  .mobile-metric-grid [data-slot="card-content"] {
+    min-height: 92px;
+    padding: 14px;
+  }
+
+  .mobile-metric-grid [data-slot="card-content"] span {
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .mobile-metric-grid [data-slot="card-content"] strong {
+    font-size: 26px;
+    line-height: 30px;
   }
 
   .topbar {

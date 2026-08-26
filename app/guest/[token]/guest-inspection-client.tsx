@@ -371,12 +371,12 @@ export function GuestInspectionClient({ token }: { token: string }) {
                   <strong className="block text-base font-medium">{payload.inspection.createdAt}</strong>
                 </div>
               </div>
-              <div className="rounded-lg border bg-background p-3">
+              <div className="rounded-lg bg-muted p-3">
                 <span className="text-muted-foreground text-sm">Доступ выдан</span>
                 <strong className="block text-base font-medium">{contractorLine}</strong>
               </div>
               {completedCount > 0 && (
-                <div className="rounded-lg border bg-background p-3">
+                <div className="rounded-lg bg-muted p-3">
                   <span className="text-muted-foreground text-sm">Прогресс</span>
                   <strong className="block text-base font-medium">
                     {completedCount} из {assets.length} узлов уже сохранено
@@ -416,10 +416,10 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 {saving ? "Сохраняем..." : `${completedCount} сохранено`}
               </Badge>
             </div>
-            <div className="relative overflow-hidden rounded-xl border bg-background">
+            <div className="relative overflow-hidden rounded-xl bg-muted p-2">
               <img
                 alt="Схема расположения узла"
-                className="block max-h-[38vh] w-full object-contain"
+                className="block max-h-[34vh] w-full object-contain"
                 src={planForAsset(asset)}
               />
               <div
@@ -443,6 +443,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 <Button
                   key={status}
                   onClick={() => patchResult(asset.id, { statusAfter: status })}
+                  size="lg"
                   type="button"
                   variant={currentResult.statusAfter === status ? "default" : "secondary"}
                 >
@@ -452,7 +453,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
             </div>
 
             <Textarea
-              className="min-h-28"
+              className="min-h-24"
               onChange={(event) => patchResult(asset.id, { comment: event.currentTarget.value })}
               placeholder="Что проверили, что нашли, что нужно сделать"
               value={currentResult.comment}
@@ -468,6 +469,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
               <Button
                 disabled={uploadingAssetId === asset.id}
                 onClick={() => fileInputRef.current?.click()}
+                size="lg"
                 type="button"
                 variant="secondary"
               >
@@ -500,6 +502,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
               <Button
                 disabled={index === 0 || submitting}
                 onClick={() => void moveStep(-1)}
+                size="lg"
                 type="button"
                 variant="secondary"
               >
@@ -507,7 +510,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 Назад
               </Button>
               {isLast ? (
-                <Button disabled={submitting} onClick={submitReport} type="button">
+                <Button disabled={submitting} onClick={submitReport} size="lg" type="button">
                   {submitting ? <Loader2 className="size-4 animate-spin" /> : <Check size={16} />}
                   Отправить
                 </Button>
@@ -515,6 +518,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 <Button
                   disabled={submitting}
                   onClick={() => void moveStep(1)}
+                  size="lg"
                   type="button"
                 >
                   Далее
