@@ -1181,7 +1181,11 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
-  function addEvent(assetId: string, patch?: Partial<AssetEvent>) {
+  async function addEvent(
+    assetId: string,
+    patch?: Partial<AssetEvent>,
+    files: PromptInputMessage["files"] = [],
+  ) {
     const event: AssetEvent = {
       id: eventId(),
       assetId,
@@ -1192,7 +1196,52 @@ export default function Home() {
       cost: patch?.cost,
       master: patch?.master,
       statusAfter: patch?.statusAfter,
+      photo: patch?.photo,
     };
+
+    if (files.length) {
+      try {
+        const formData = new FormData();
+        formData.append("eventId", event.id);
+        formData.append("type", event.type);
+        formData.append("title", event.title);
+        formData.append("body", event.body);
+
+        for (const file of files) {
+          if (!file.url) continue;
+          const response = await fetch(file.url);
+          const blob = await response.blob();
+          formData.append(
+            "files",
+            new File([blob], file.filename ?? "photo.jpg", {
+              type: file.mediaType ?? blob.type ?? "image/jpeg",
+            }),
+          );
+        }
+
+        const response = await fetch(`/api/assets/${assetId}/events`, {
+          method: "POST",
+          body: formData,
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          event?: AssetEvent;
+          media?: AssetMedia[];
+        };
+
+        if (response.ok && payload.event) {
+          setState((current) => ({
+            ...current,
+            events: [payload.event!, ...current.events],
+            media: [...(payload.media ?? []), ...current.media],
+          }));
+          setNewEventText("");
+          return;
+        }
+      } catch {
+        // Keep a local event if upload is unavailable, so the note is not lost from the current screen.
+      }
+    }
+
     setState((current) => ({
       ...current,
       events: [event, ...current.events],
@@ -2342,7 +2391,11 @@ function AssetDetail({
   media: AssetMedia[];
   newEventText: string;
   setNewEventText: (value: string) => void;
-  addEvent: (assetId: string, patch?: Partial<AssetEvent>) => void;
+  addEvent: (
+    assetId: string,
+    patch?: Partial<AssetEvent>,
+    files?: PromptInputMessage["files"],
+  ) => void;
   setAssetStatus: (assetId: string, status: Status, body?: string) => void;
   returnLabel: string;
   goBack: () => void;
@@ -2421,14 +2474,14 @@ function AssetDetail({
       onSubmit={(message: PromptInputMessage) => {
         const text = message.text.trim() || newEventText.trim();
         if (!text && message.files.length === 0) return;
-        addEvent(asset.id, {
+        void addEvent(asset.id, {
           type: message.files.length ? "photo" : "comment",
           title: message.files.length ? "Фотофиксация" : "Комментарий",
           body: text || "Добавлены фотографии без комментария.",
           photo: message.files.length
             ? { label: "фото", note: message.files[0]?.filename ?? "Вложение" }
             : undefined,
-        });
+        }, message.files);
       }}
     >
       <PromptInputBody>
