@@ -129,7 +129,12 @@ async function saveGuestResult({
       status_after: result.statusAfter,
       photo:
         (result.photoCount ?? 0) > 0
-          ? { label: "фото", note: `${result.photoCount} фото из обхода` }
+          ? {
+              label: "фото",
+              note: `${result.photoCount} фото из ${
+                inspection.workflow === "work_order" ? "задания" : "обхода"
+              }`,
+            }
           : null,
     },
     { onConflict: "apartment_id,id" },
@@ -137,6 +142,19 @@ async function saveGuestResult({
 
   if (eventError) {
     return { error: eventError.message, resultId };
+  }
+
+  if ((result.photoCount ?? 0) > 0) {
+    const { error: mediaError } = await admin
+      .from("asset_media")
+      .update({ event_id: eventId })
+      .eq("apartment_id", inspection.apartment_id)
+      .eq("inspection_id", inspection.id)
+      .eq("asset_id", result.assetId);
+
+    if (mediaError) {
+      return { error: mediaError.message, resultId };
+    }
   }
 
   const { error: assetError } = await admin

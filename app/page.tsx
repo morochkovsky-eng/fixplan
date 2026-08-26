@@ -163,6 +163,19 @@ type AssetEvent = {
   };
 };
 
+type AssetMedia = {
+  id: string;
+  assetId: string;
+  eventId?: string;
+  inspectionId?: string;
+  url: string;
+  filename: string;
+  mediaType: string;
+  caption?: string;
+  createdBy?: string;
+  createdAt?: string;
+};
+
 type Asset = {
   id: string;
   code: string;
@@ -245,6 +258,7 @@ type AppState = {
   config: AppConfig;
   assets: Asset[];
   events: AssetEvent[];
+  media: AssetMedia[];
   contractorAccess: ContractorAccess;
   inspections: Inspection[];
   inspectionResults: InspectionResult[];
@@ -721,6 +735,7 @@ const initialState: AppState = {
       statusAfter: "in_progress",
     },
   ],
+  media: [],
   contractorAccess: {
     scope: "plumbing",
     expires: "3 дня",
@@ -944,6 +959,7 @@ function withCatalogAssets(state: AppState): AppState {
       ...state.assets,
       ...catalogAssets.filter((asset) => !knownIds.has(asset.id)),
     ],
+    media: state.media ?? initialState.media,
     inspections: state.inspections ?? initialState.inspections,
     inspectionResults: state.inspectionResults ?? initialState.inspectionResults,
     contractorAccess: {
@@ -1070,6 +1086,7 @@ export default function Home() {
             ...current,
             assets: remoteState.assets ?? current.assets,
             events: remoteState.events ?? current.events,
+            media: remoteState.media ?? current.media,
             inspections: remoteState.inspections ?? current.inspections,
             inspectionResults: remoteState.inspectionResults ?? current.inspectionResults,
             contractorAccess: {
@@ -1532,6 +1549,7 @@ export default function Home() {
           <AssetDetail
             asset={selectedAsset}
             events={selectedEvents}
+            media={state.media}
             newEventText={newEventText}
             setNewEventText={setNewEventText}
             addEvent={addEvent}
@@ -1542,7 +1560,7 @@ export default function Home() {
         )}
 
         {view === "log" && (
-          <ActivityLog assets={state.assets} events={state.events} openAsset={openAsset} />
+          <ActivityLog assets={state.assets} events={state.events} media={state.media} openAsset={openAsset} />
         )}
 
         {view === "inspection" && (
@@ -1605,6 +1623,7 @@ export default function Home() {
             assets={state.assets}
             events={state.events}
             inspection={selectedInspection}
+            media={state.media}
             results={state.inspectionResults}
             openAsset={openAsset}
             openInspections={() => setView("inspections")}
@@ -2310,6 +2329,7 @@ function SettingsView({
 function AssetDetail({
   asset,
   events,
+  media,
   newEventText,
   setNewEventText,
   addEvent,
@@ -2319,6 +2339,7 @@ function AssetDetail({
 }: {
   asset: Asset;
   events: AssetEvent[];
+  media: AssetMedia[];
   newEventText: string;
   setNewEventText: (value: string) => void;
   addEvent: (assetId: string, patch?: Partial<AssetEvent>) => void;
@@ -2326,52 +2347,50 @@ function AssetDetail({
   returnLabel: string;
   goBack: () => void;
 }) {
-  const mediaEvents = events.filter((event) => event.photo);
+  const assetMedia = media.filter((item) => item.assetId === asset.id);
+  const mediaEvents = events.filter((event) => event.photo || assetMedia.some((item) => item.eventId === event.id));
   const currentStatusVariant = asset.status === "attention" ? "destructive" : "secondary";
   const historyContent = (
     <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto max-[980px]:pr-0">
       <div className="space-y-5">
-        {events.map((event) => (
-          <Task key={event.id} defaultOpen>
-            <TaskTrigger title={`${event.date} · ${event.title}`}>
-              <button className="group flex w-full items-start gap-3 text-left" type="button">
-                <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
-                <span className="grid min-w-0 flex-1 gap-1">
-                  <span className="text-muted-foreground text-sm">
-                    {event.date} · {eventLabels[event.type]}
+        {events.map((event) => {
+          const eventMedia = mediaForEvent(event, assetMedia);
+
+          return (
+            <Task key={event.id} defaultOpen>
+              <TaskTrigger title={`${event.date} · ${event.title}`}>
+                <button className="group flex w-full items-start gap-3 text-left" type="button">
+                  <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
+                  <span className="grid min-w-0 flex-1 gap-1">
+                    <span className="text-muted-foreground text-sm">
+                      {event.date} · {eventLabels[event.type]}
+                    </span>
+                    <span className="font-medium text-base leading-snug">
+                      {event.title}
+                    </span>
                   </span>
-                  <span className="font-medium text-base leading-snug">
-                    {event.title}
-                  </span>
-                </span>
-              </button>
-            </TaskTrigger>
-            <TaskContent>
-              <TaskItem>{event.body}</TaskItem>
-              {(event.cost || event.master || event.statusAfter) && (
-                <div className="flex flex-wrap gap-2">
-                  {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
-                  {event.cost && (
-                    <TaskItemFile>
-                      Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
-                    </TaskItemFile>
-                  )}
-                  {event.statusAfter && (
-                    <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>
-                  )}
-                </div>
-              )}
-              {event.photo && (
-                <Attachments variant="list" className="mt-2 w-full">
-                  <Attachment data={eventPhotoData(event)}>
-                    <AttachmentPreview />
-                    <AttachmentInfo />
-                  </Attachment>
-                </Attachments>
-              )}
-            </TaskContent>
-          </Task>
-        ))}
+                </button>
+              </TaskTrigger>
+              <TaskContent>
+                <TaskItem>{event.body}</TaskItem>
+                {(event.cost || event.master || event.statusAfter) && (
+                  <div className="flex flex-wrap gap-2">
+                    {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
+                    {event.cost && (
+                      <TaskItemFile>
+                        Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
+                      </TaskItemFile>
+                    )}
+                    {event.statusAfter && (
+                      <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>
+                    )}
+                  </div>
+                )}
+                <MediaGallery fallbackEvent={event.photo ? event : undefined} items={eventMedia} variant="list" />
+              </TaskContent>
+            </Task>
+          );
+        })}
       </div>
     </ScrollArea>
   );
@@ -2385,14 +2404,12 @@ function AssetDetail({
       <dt className="text-muted-foreground">Мастер</dt><dd className="font-medium">{asset.master ?? "не назначен"}</dd>
     </dl>
   );
-  const mediaContent = mediaEvents.length ? (
-    <Attachments variant="grid">
-      {mediaEvents.map((event) => (
-        <Attachment key={event.id} data={eventPhotoData(event)}>
-          <AttachmentPreview />
-        </Attachment>
-      ))}
-    </Attachments>
+  const mediaContent = assetMedia.length || mediaEvents.length ? (
+    <MediaGallery
+      fallbackEvents={mediaEvents.filter((event) => event.photo)}
+      items={assetMedia}
+      variant="grid"
+    />
   ) : (
     <p className="text-muted-foreground text-sm">
       Фотографии появятся после события с вложением.
@@ -2563,6 +2580,27 @@ function AssetDetail({
   );
 }
 
+function mediaForEvent(event: AssetEvent, media: AssetMedia[]) {
+  const directMedia = media.filter((item) => item.eventId === event.id);
+  if (directMedia.length) return directMedia;
+
+  if (event.inspectionId) {
+    return media.filter((item) => item.inspectionId === event.inspectionId);
+  }
+
+  return [];
+}
+
+function mediaPhotoData(media: AssetMedia): AttachmentData {
+  return {
+    filename: media.caption ?? media.filename,
+    id: media.id,
+    mediaType: media.mediaType,
+    type: "file",
+    url: media.url,
+  };
+}
+
 function eventPhotoData(event: AssetEvent): AttachmentData {
   return {
     filename: `${event.date} · ${event.photo?.note ?? "Фото узла"}`,
@@ -2573,13 +2611,51 @@ function eventPhotoData(event: AssetEvent): AttachmentData {
   };
 }
 
+function MediaGallery({
+  fallbackEvent,
+  fallbackEvents = [],
+  items,
+  variant = "grid",
+}: {
+  fallbackEvent?: AssetEvent;
+  fallbackEvents?: AssetEvent[];
+  items: AssetMedia[];
+  variant?: "grid" | "list";
+}) {
+  const fallback = fallbackEvent ? [fallbackEvent] : fallbackEvents;
+
+  if (!items.length && !fallback.length) {
+    return null;
+  }
+
+  return (
+    <Attachments className={variant === "list" ? "mt-2 w-full" : "ml-0 w-full"} variant={variant}>
+      {items.map((item) => (
+        <Attachment key={item.id} data={mediaPhotoData(item)}>
+          <AttachmentPreview />
+          {variant === "list" && <AttachmentInfo />}
+        </Attachment>
+      ))}
+      {!items.length &&
+        fallback.map((event) => (
+          <Attachment key={event.id} data={eventPhotoData(event)}>
+            <AttachmentPreview />
+            {variant === "list" && <AttachmentInfo />}
+          </Attachment>
+        ))}
+    </Attachments>
+  );
+}
+
 function ActivityLog({
   assets,
   events,
+  media,
   openAsset,
 }: {
   assets: Asset[];
   events: AssetEvent[];
+  media: AssetMedia[];
   openAsset: (id: string) => void;
 }) {
   const sortedEvents = [...events].sort((a, b) => b.id.localeCompare(a.id));
@@ -2599,6 +2675,7 @@ function ActivityLog({
               asset={asset}
               event={event}
               key={event.id}
+              media={mediaForEvent(event, media.filter((item) => item.assetId === event.assetId))}
               onOpen={() => openAsset(event.assetId)}
             />
           );
@@ -3346,6 +3423,7 @@ function ContractorReport({
   assets,
   events,
   inspection,
+  media,
   results,
   openAsset,
   openInspections,
@@ -3353,6 +3431,7 @@ function ContractorReport({
   assets: Asset[];
   events: AssetEvent[];
   inspection?: Inspection;
+  media: AssetMedia[];
   results: InspectionResult[];
   openAsset: (id: string) => void;
   openInspections: () => void;
@@ -3431,10 +3510,14 @@ function ContractorReport({
               reportResults.map((result) => {
                 const asset = assets.find((item) => item.id === result.assetId);
                 if (!asset) return null;
+                const resultMedia = media.filter(
+                  (item) => item.assetId === result.assetId && item.inspectionId === result.inspectionId,
+                );
                 return (
                   <div className="grid gap-2 rounded-xl bg-muted/60 p-3" key={result.id}>
                     <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
                     <p className="m-0 text-muted-foreground text-sm">{result.comment}</p>
+                    <MediaGallery items={resultMedia} variant="grid" />
                     <div className="flex flex-wrap gap-2">
                       <StatusBadge status={result.statusAfter} />
                       <Badge variant="outline">{result.photoCount} фото</Badge>
@@ -3499,7 +3582,14 @@ function ContractorReport({
               <div className="space-y-5">
                 {reportEvents.slice(0, 3).map((event) => {
                   const asset = assets.find((item) => item.id === event.assetId);
-                  return <EventTask asset={asset} event={event} key={event.id} />;
+                  return (
+                    <EventTask
+                      asset={asset}
+                      event={event}
+                      key={event.id}
+                      media={mediaForEvent(event, media.filter((item) => item.assetId === event.assetId))}
+                    />
+                  );
                 })}
               </div>
             )}
@@ -3610,10 +3700,12 @@ function statusBadgeVariant(status: Status): "default" | "secondary" | "destruct
 function EventTask({
   asset,
   event,
+  media = [],
   onOpen,
 }: {
   asset?: Asset;
   event: AssetEvent;
+  media?: AssetMedia[];
   onOpen?: () => void;
 }) {
   return (
@@ -3640,6 +3732,7 @@ function EventTask({
           )}
           {event.statusAfter && <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>}
         </div>
+        <MediaGallery fallbackEvent={event.photo ? event : undefined} items={media} variant="list" />
         {onOpen && (
           <Button className="mt-1" variant="ghost" size="sm" onClick={onOpen} type="button">
             Открыть узел

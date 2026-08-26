@@ -31,21 +31,47 @@ export async function GET() {
     return NextResponse.json({ error: "Apartment access denied" }, { status: 403 });
   }
 
-  const [assetsResult, eventsResult, inspectionsResult, resultsResult] = await Promise.all([
+  const [assetsResult, eventsResult, inspectionsResult, resultsResult, mediaResult] = await Promise.all([
     admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).order("code"),
     admin.from("events").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("inspections").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("inspection_results").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
+    admin.from("asset_media").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
   ]);
 
   const error =
-    assetsResult.error ?? eventsResult.error ?? inspectionsResult.error ?? resultsResult.error;
+    assetsResult.error ??
+    eventsResult.error ??
+    inspectionsResult.error ??
+    resultsResult.error ??
+    mediaResult.error;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const mediaRows = mediaResult.data ?? [];
+  const signedMedia = await Promise.all(
+    mediaRows.map(async (item) => {
+      const { data } = await admin.storage
+        .from("asset-media")
+        .createSignedUrl(item.storage_path, 60 * 60);
+      const pathParts = String(item.storage_path).split("/");
+      return {
+        id: item.id,
+        assetId: item.asset_id,
+        eventId: item.event_id,
+        inspectionId: item.inspection_id ?? pathParts[2],
+        url: data?.signedUrl ?? "",
+        filename: pathParts.at(-1) ?? "Фото узла",
+        mediaType: item.media_type ?? "image/jpeg",
+        caption: item.caption,
+        createdBy: item.created_by,
+        createdAt: item.created_at,
+      };
+    }),
+  );
 
   return NextResponse.json({
     assets: (assetsResult.data ?? []).map((asset) => ({
@@ -76,6 +102,7 @@ export async function GET() {
       statusAfter: event.status_after,
       photo: event.photo,
     })),
+    media: signedMedia.filter((item) => item.url),
     inspections: (inspectionsResult.data ?? []).map((inspection) => ({
       id: inspection.id,
       number: inspection.number,

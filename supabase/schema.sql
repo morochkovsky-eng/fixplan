@@ -137,11 +137,14 @@ create table public.asset_media (
   id uuid primary key default gen_random_uuid(),
   asset_id text not null,
   event_id text,
+  inspection_id text,
   storage_path text not null,
+  media_type text not null default 'image/jpeg',
   caption text,
   created_by text,
   created_at timestamptz not null default now(),
   foreign key (apartment_id, asset_id) references public.assets(apartment_id, id),
+  foreign key (apartment_id, inspection_id) references public.inspections(apartment_id, id) on delete set null,
   foreign key (apartment_id, event_id) references public.events(apartment_id, id)
 );
 

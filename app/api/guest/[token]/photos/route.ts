@@ -55,7 +55,9 @@ export async function POST(
     apartment_id: inspection.apartment_id,
     asset_id: assetId,
     event_id: null,
+    inspection_id: inspection.id,
     storage_path: storagePath,
+    media_type: file.type || "image/jpeg",
     caption: file.name,
     created_by: inspection.contractor,
   });
