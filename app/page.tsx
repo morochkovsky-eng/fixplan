@@ -68,6 +68,7 @@ import {
   ArrowLeft,
   Pencil,
   Save,
+  Search,
   Settings,
   Trash2,
   UserRoundCheck,
@@ -820,6 +821,23 @@ function matchesAssetFilter(asset: Asset, filter: AssetFilter) {
   return true;
 }
 
+function matchesAssetSearch(asset: Asset, query: string) {
+  const value = query.trim().toLowerCase();
+  if (!value) return true;
+
+  return [
+    asset.code,
+    asset.name,
+    roomName(asset.roomId),
+    categoryLabels[asset.category],
+    assetKindLabels[assetKind(asset)],
+    statusLabels[asset.status],
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(value);
+}
+
 function statusWeight(status: Status) {
   const order: Record<Status, number> = {
     attention: 0,
@@ -1430,6 +1448,7 @@ export default function Home() {
           <strong>{state.config.serviceName}</strong>
           <span>{state.config.objectName}</span>
         </button>
+        <SidebarSearch assets={state.assets} openAsset={openAsset} />
         <nav className="nav-list" aria-label="Главная навигация">
           <AppNavigation activeView={view} navigate={navigate} />
         </nav>
@@ -1637,6 +1656,62 @@ function assetReturnLabel(view: View) {
     contractor: "К обходам",
   };
   return labels[view] ?? "Назад";
+}
+
+function SidebarSearch({
+  assets,
+  openAsset,
+}: {
+  assets: Asset[];
+  openAsset: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const results = useMemo(
+    () =>
+      query.trim()
+        ? assets
+            .filter((asset) => matchesAssetSearch(asset, query))
+            .slice(0, 5)
+        : [],
+    [assets, query],
+  );
+
+  return (
+    <div className="sidebar-search">
+      <div className="sidebar-search-field">
+        <Search size={16} />
+        <Input
+          aria-label="Поиск узла"
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && results[0]) {
+              openAsset(results[0].id);
+              setQuery("");
+            }
+          }}
+          placeholder="Найти узел"
+          value={query}
+        />
+      </div>
+      {results.length > 0 && (
+        <div className="sidebar-search-results">
+          {results.map((asset) => (
+            <button
+              key={asset.id}
+              onClick={() => {
+                openAsset(asset.id);
+                setQuery("");
+              }}
+              type="button"
+            >
+              <strong>{asset.code} · {asset.name}</strong>
+              <span>{roomName(asset.roomId)} · {categoryLabels[asset.category]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AppNavigation({
@@ -1989,10 +2064,12 @@ function AssetsView({
   setAssetStatus: (id: string, status: Status) => void;
 }) {
   const [sort, setSort] = useState<AssetSort>("status");
+  const [query, setQuery] = useState("");
 
   const filteredAssets = useMemo(() => {
     return assets
       .filter((asset) => matchesAssetFilter(asset, filter))
+      .filter((asset) => matchesAssetSearch(asset, query))
       .slice()
       .sort((left, right) => {
         if (sort === "status") {
@@ -2012,7 +2089,7 @@ function AssetsView({
         }
         return left.code.localeCompare(right.code, "ru");
       });
-  }, [assets, filter, sort]);
+  }, [assets, filter, query, sort]);
 
   const filterCounts = useMemo(() => {
     return assetFilterOptions.reduce<Record<string, number>>((counts, option) => {
@@ -2030,18 +2107,29 @@ function AssetsView({
             Инвентарный список с быстрыми фильтрами, сортировкой и сменой статуса.
           </CardDescription>
         </div>
-        <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
-          <SelectTrigger className="w-full sm:w-[240px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(assetSortLabels) as AssetSort[]).map((sortKey) => (
-              <SelectItem key={sortKey} value={sortKey}>
-                {assetSortLabels[sortKey]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="asset-tools">
+          <div className="asset-search">
+            <Search size={16} />
+            <Input
+              aria-label="Поиск по узлам"
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder="Код, комната, тип"
+              value={query}
+            />
+          </div>
+          <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
+            <SelectTrigger className="w-full sm:w-[240px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(assetSortLabels) as AssetSort[]).map((sortKey) => (
+                <SelectItem key={sortKey} value={sortKey}>
+                  {assetSortLabels[sortKey]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="flex flex-wrap gap-2">
@@ -2068,19 +2156,25 @@ function AssetsView({
           </span>
         </div>
 
-        <div className="grid gap-2">
+        <div className="asset-table">
+          <div className="asset-table-head">
+            <span>Узел</span>
+            <span>Комната</span>
+            <span>Тип</span>
+            <span>Статус</span>
+            <span>Изменить</span>
+          </div>
         {filteredAssets.map((asset) => (
           <div
-            className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center"
+            className="asset-table-row"
             key={asset.id}
           >
-            <button className="grid gap-1 text-left" onClick={() => openAsset(asset.id)} type="button">
-              <strong className="font-medium">{asset.code} · {asset.name}</strong>
-              <span className="text-muted-foreground text-sm">
-                {roomName(asset.roomId)} · {categoryLabels[asset.category]} ·{" "}
-                {assetKindLabels[assetKind(asset)]}
-              </span>
+            <button className="asset-table-title" onClick={() => openAsset(asset.id)} type="button">
+              <strong>{asset.code} · {asset.name}</strong>
+              <span>{asset.photoNote}</span>
             </button>
+            <span className="asset-table-muted">{roomName(asset.roomId)}</span>
+            <span className="asset-table-muted">{assetKindLabels[assetKind(asset)]}</span>
             <StatusBadge status={asset.status} />
             <StatusSelect
               className="w-full sm:w-[220px]"
@@ -3330,7 +3424,11 @@ function AssetRow({
 }
 
 function StatusBadge({ status }: { status: Status }) {
-  return <Badge variant={statusBadgeVariant(status)}>{statusLabels[status]}</Badge>;
+  return (
+    <Badge className={`status-pill ${status}`} variant={statusBadgeVariant(status)}>
+      {statusLabels[status]}
+    </Badge>
+  );
 }
 
 function statusBadgeVariant(status: Status): "default" | "secondary" | "destructive" | "outline" {
