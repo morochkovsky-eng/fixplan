@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 type Status = "ok" | "attention" | "in_progress" | "needs_master";
@@ -32,15 +39,17 @@ type GuestInspection = {
   completedAt?: string;
   contractor: string;
   contractorPhone?: string;
+  workflow?: "inspection" | "work_order";
   scope: string;
   status: "draft" | "sent" | "in_progress" | "completed" | "accepted";
   summary: string;
   conclusion?: string;
+  assetInstructions?: Record<string, string>;
 };
 
 type GuestResult = {
   assetId: string;
-  statusAfter: Status;
+  statusAfter: Status | "";
   comment: string;
   cost?: number | string | null;
   photoCount: number;
@@ -92,7 +101,7 @@ function planForAsset(asset: GuestAsset) {
 function defaultResult(asset: GuestAsset): GuestResult {
   return {
     assetId: asset.id,
-    statusAfter: asset.status === "ok" ? "ok" : asset.status,
+    statusAfter: "",
     comment: "",
     cost: "",
     photoCount: 0,
@@ -163,6 +172,12 @@ export function GuestInspectionClient({ token }: { token: string }) {
   const asset = assets[index];
   const currentResult = asset ? results[asset.id] ?? defaultResult(asset) : undefined;
   const completedCount = savedAssetIds.size;
+  const isWorkOrder = payload?.inspection.workflow === "work_order";
+  const currentInstruction =
+    asset && payload?.inspection.assetInstructions
+      ? payload.inspection.assetInstructions[asset.id]?.trim()
+      : "";
+  const [statusErrorAssetId, setStatusErrorAssetId] = useState("");
 
   useEffect(() => {
     const saveTimers = saveTimersRef.current;
@@ -173,6 +188,10 @@ export function GuestInspectionClient({ token }: { token: string }) {
   }, []);
 
   async function saveResult(result: GuestResult) {
+    if (!result.statusAfter) {
+      return;
+    }
+
     setSaving(true);
     setError("");
     try {
@@ -196,6 +215,10 @@ export function GuestInspectionClient({ token }: { token: string }) {
   }
 
   function queueAutosave(result: GuestResult) {
+    if (!result.statusAfter) {
+      return;
+    }
+
     clearTimeout(saveTimersRef.current[result.assetId]);
     saveTimersRef.current[result.assetId] = setTimeout(() => {
       void saveResult(result);
@@ -214,11 +237,19 @@ export function GuestInspectionClient({ token }: { token: string }) {
       ...current,
       [assetId]: nextResult,
     }));
+    if (patch.statusAfter) {
+      setStatusErrorAssetId("");
+    }
     queueAutosave(nextResult);
   }
 
   async function moveStep(direction: 1 | -1) {
     if (!currentResult) return;
+
+    if (!currentResult.statusAfter) {
+      setStatusErrorAssetId(currentResult.assetId);
+      return;
+    }
 
     clearTimeout(saveTimersRef.current[currentResult.assetId]);
     await saveResult(currentResult);
@@ -229,7 +260,6 @@ export function GuestInspectionClient({ token }: { token: string }) {
     if (!asset || !currentResult || !files?.length) return;
 
     clearTimeout(saveTimersRef.current[asset.id]);
-    await saveResult(currentResult);
     setUploadingAssetId(asset.id);
     setError("");
 
@@ -271,6 +301,17 @@ export function GuestInspectionClient({ token }: { token: string }) {
   async function submitReport() {
     if (!payload) return;
 
+    if (!currentResult?.statusAfter) {
+      setStatusErrorAssetId(currentResult?.assetId ?? "");
+      return;
+    }
+
+    const submittedResults = assets
+      .map((item) => results[item.id] ?? defaultResult(item))
+      .filter((result): result is GuestResult & { statusAfter: Status } =>
+        Boolean(result.statusAfter),
+      );
+
     setSubmitting(true);
     setError("");
     try {
@@ -279,7 +320,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           conclusion,
-          results: assets.map((item) => results[item.id] ?? defaultResult(item)),
+          results: submittedResults,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -333,7 +374,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
           <CardHeader>
             <CardTitle>Отчет отправлен</CardTitle>
             <CardDescription>
-              Спасибо. Владелец увидит сводку обхода и результаты по каждому узлу.
+              Спасибо. Владелец увидит {isWorkOrder ? "результат задания" : "сводку обхода"} и результаты по каждому узлу.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -387,7 +428,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 Нажмите «Начать». Дальше будет один узел за раз: схема, статус, комментарий и кнопки назад/далее.
               </p>
               <Button className="w-full" onClick={() => setStarted(true)} size="lg" type="button">
-                Начать обход
+                {isWorkOrder ? "Начать задание" : "Начать обход"}
                 <ArrowRight size={16} />
               </Button>
             </CardContent>
@@ -438,18 +479,38 @@ export function GuestInspectionClient({ token }: { token: string }) {
               <p className="m-0 text-muted-foreground text-xs">{contractorLine}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.keys(statusLabels) as Status[]).map((status) => (
-                <Button
-                  key={status}
-                  onClick={() => patchResult(asset.id, { statusAfter: status })}
-                  size="lg"
-                  type="button"
-                  variant={currentResult.statusAfter === status ? "default" : "secondary"}
+            {isWorkOrder && currentInstruction && (
+              <div className="rounded-lg bg-background p-3">
+                <span className="text-muted-foreground text-sm">Комментарий владельца</span>
+                <p className="m-0 mt-1 text-sm">{currentInstruction}</p>
+              </div>
+            )}
+
+            <div className="grid gap-1.5">
+              <label className="text-sm font-medium" htmlFor="guest-status">
+                Статус
+              </label>
+              <Select
+                onValueChange={(value) => patchResult(asset.id, { statusAfter: value as Status })}
+                value={currentResult.statusAfter || undefined}
+              >
+                <SelectTrigger
+                  className={statusErrorAssetId === asset.id ? "border-destructive ring-2 ring-destructive/20" : ""}
+                  id="guest-status"
                 >
-                  {statusLabels[status]}
-                </Button>
-              ))}
+                  <SelectValue placeholder="Выберите статус" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(statusLabels) as Status[]).map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {statusLabels[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {statusErrorAssetId === asset.id && (
+                <p className="m-0 text-destructive text-sm">Выберите статус, чтобы перейти дальше.</p>
+              )}
             </div>
 
             <Textarea
@@ -463,7 +524,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
               <Input
                 inputMode="numeric"
                 onChange={(event) => patchResult(asset.id, { cost: event.currentTarget.value })}
-                placeholder="Стоимость, руб."
+                placeholder="Стоимость ремонта, руб. (необязательно)"
                 value={currentResult.cost ?? ""}
               />
               <Button

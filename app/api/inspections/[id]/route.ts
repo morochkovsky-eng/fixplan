@@ -5,6 +5,7 @@ import { createClient as createServerSupabaseClient } from "@/lib/supabase/serve
 const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
 
 type ContractorScope = "plumbing" | "electric" | "all" | "custom";
+type Workflow = "inspection" | "work_order";
 
 type InspectionRow = {
   id: string;
@@ -15,9 +16,11 @@ type InspectionRow = {
   created_by: string;
   contractor: string;
   contractor_phone?: string | null;
+  workflow?: Workflow | null;
   scope: ContractorScope;
   status: "draft" | "sent" | "in_progress" | "completed" | "accepted";
   allowed_asset_ids: string[];
+  asset_instructions?: Record<string, string> | null;
   summary: string;
   conclusion?: string | null;
   guest_token: string;
@@ -95,9 +98,11 @@ function serializeInspection(inspection: InspectionRow, request: Request) {
     createdBy: inspection.created_by,
     contractor: inspection.contractor,
     contractorPhone: inspection.contractor_phone,
+    workflow: inspection.workflow ?? "inspection",
     scope: inspection.scope,
     status: inspection.status,
     allowedAssetIds: inspection.allowed_asset_ids,
+    assetInstructions: inspection.asset_instructions ?? {},
     summary: inspection.summary,
     conclusion: inspection.conclusion,
     link: `${appUrlFromRequest(request)}/guest/${inspection.guest_token}`,
@@ -121,6 +126,7 @@ export async function PATCH(
     contractorPhone?: string;
     scope?: ContractorScope;
     allowedAssetIds?: string[];
+    assetInstructions?: Record<string, string>;
   };
 
   const { data: currentInspection, error: inspectionError } = await admin
@@ -148,6 +154,7 @@ export async function PATCH(
       ? body.contractorPhone.trim() || null
       : currentInspection.contractor_phone;
   const scope = body.scope ?? currentInspection.scope;
+  const workflow: Workflow = currentInspection.workflow === "work_order" ? "work_order" : "inspection";
 
   if (!contractor) {
     return NextResponse.json({ error: "Contractor name is required" }, { status: 400 });
@@ -189,10 +196,15 @@ export async function PATCH(
     .update({
       contractor,
       contractor_phone: contractorPhone,
+      workflow,
       scope,
       title: contractorPhone ? `${contractor} · ${contractorPhone}` : contractor,
       allowed_asset_ids: allowedAssetIds,
-      summary: `Ссылка обновлена. В задании ${allowedAssetIds.length} узлов.`,
+      asset_instructions: body.assetInstructions ?? currentInspection.asset_instructions ?? {},
+      summary:
+        workflow === "work_order"
+          ? `Задание обновлено. В работе ${allowedAssetIds.length} узлов.`
+          : `Ссылка обновлена. В задании ${allowedAssetIds.length} узлов.`,
       updated_at: new Date().toISOString(),
     })
     .eq("apartment_id", APARTMENT_ID)

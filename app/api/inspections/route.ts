@@ -6,6 +6,7 @@ import { createClient as createServerSupabaseClient } from "@/lib/supabase/serve
 const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
 
 type ContractorScope = "plumbing" | "electric" | "all" | "custom";
+type Workflow = "inspection" | "work_order";
 
 function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", {
@@ -32,13 +33,16 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as {
+    workflow?: Workflow;
     scope?: ContractorScope;
     allowedAssetIds?: string[];
+    assetInstructions?: Record<string, string>;
     contractor?: string;
     contractorPhone?: string;
   };
 
   const scope: ContractorScope = body.scope ?? "plumbing";
+  const workflow: Workflow = body.workflow === "work_order" ? "work_order" : "inspection";
   const contractor = body.contractor?.trim() || "";
   const contractorPhone = body.contractorPhone?.trim() || null;
 
@@ -105,10 +109,15 @@ export async function POST(request: Request) {
       created_by: user.email,
       contractor,
       contractor_phone: contractorPhone,
+      workflow,
       scope,
       status: "sent",
       allowed_asset_ids: allowedAssetIds,
-      summary: "Ссылка создана. Ожидаем отчет мастера по выбранным узлам.",
+      asset_instructions: workflow === "work_order" ? body.assetInstructions ?? {} : {},
+      summary:
+        workflow === "work_order"
+          ? "Задание создано. Ожидаем результат работы мастера по выбранным узлам."
+          : "Ссылка создана. Ожидаем отчет мастера по выбранным узлам.",
       guest_token: token,
       result_ids: [],
     })
@@ -129,9 +138,11 @@ export async function POST(request: Request) {
       createdBy: inspection.created_by,
       contractor: inspection.contractor,
       contractorPhone: inspection.contractor_phone,
+      workflow: inspection.workflow ?? "inspection",
       scope: inspection.scope,
       status: inspection.status,
       allowedAssetIds: inspection.allowed_asset_ids,
+      assetInstructions: inspection.asset_instructions ?? {},
       summary: inspection.summary,
       conclusion: inspection.conclusion,
       link,

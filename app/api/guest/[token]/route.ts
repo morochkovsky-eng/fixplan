@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type Status = "ok" | "attention" | "in_progress" | "needs_master";
+type Workflow = "inspection" | "work_order";
 
 type GuestResultPayload = {
   assetId: string;
@@ -16,7 +17,9 @@ type InspectionRow = {
   id: string;
   contractor: string;
   contractor_phone?: string | null;
+  workflow?: Workflow | null;
   allowed_asset_ids?: string[];
+  asset_instructions?: Record<string, string> | null;
 };
 
 function todayLabel() {
@@ -119,7 +122,7 @@ async function saveGuestResult({
       inspection_id: inspection.id,
       type: "report",
       date_label: date,
-      title: `Отчет мастера: ${statusTitle(result.statusAfter)}`,
+      title: `${inspection.workflow === "work_order" ? "Задание мастера" : "Отчет мастера"}: ${statusTitle(result.statusAfter)}`,
       body: comment || "Мастер начал заполнять результат по узлу.",
       cost,
       master: inspection.contractor,
@@ -208,10 +211,12 @@ export async function GET(
       completedAt: inspection.completed_at_label,
       contractor: inspection.contractor,
       contractorPhone: inspection.contractor_phone,
+      workflow: inspection.workflow ?? "inspection",
       scope: inspection.scope,
       status: inspection.status,
       summary: inspection.summary,
       conclusion: inspection.conclusion,
+      assetInstructions: inspection.asset_instructions ?? {},
     },
     assets: (assets ?? []).map((asset) => ({
       id: asset.id,
@@ -281,7 +286,10 @@ export async function POST(
       status: "completed",
       completed_at_label: date,
       conclusion: body.conclusion?.trim() ?? "",
-      summary: `Мастер отправил отчет: проверено ${results.length} из ${allowed.size} узлов.`,
+      summary:
+        inspection.workflow === "work_order"
+          ? `Мастер завершил задание: выполнено ${results.length} из ${allowed.size} узлов.`
+          : `Мастер отправил отчет: проверено ${results.length} из ${allowed.size} узлов.`,
       result_ids: resultIds,
       updated_at: new Date().toISOString(),
     })
@@ -335,7 +343,10 @@ export async function PATCH(
     .from("inspections")
     .update({
       status: "in_progress",
-      summary: "Мастер начал заполнять отчет. Часть результатов уже сохранена.",
+      summary:
+        inspection.workflow === "work_order"
+          ? "Мастер начал выполнять задание. Часть результатов уже сохранена."
+          : "Мастер начал заполнять отчет. Часть результатов уже сохранена.",
       updated_at: new Date().toISOString(),
     })
     .eq("apartment_id", inspection.apartment_id)

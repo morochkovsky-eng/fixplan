@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   createClient as createSupabaseBrowserClient,
   createClientFromConfig as createSupabaseClientFromConfig,
@@ -134,6 +135,7 @@ type EventType =
   | "report";
 
 type InspectionStatus = "draft" | "sent" | "in_progress" | "completed" | "accepted";
+type Workflow = "inspection" | "work_order";
 
 type Room = {
   id: string;
@@ -201,6 +203,7 @@ type ContractorAccess = {
   scope: "plumbing" | "electric" | "all" | "custom";
   expires: string;
   allowedAssetIds: string[];
+  assetInstructions: Record<string, string>;
   inspectionId?: string;
   contractorName: string;
   contractorPhone: string;
@@ -227,9 +230,11 @@ type Inspection = {
   createdBy: string;
   contractor: string;
   contractorPhone?: string;
+  workflow?: Workflow;
   scope: ContractorAccess["scope"];
   status: InspectionStatus;
   allowedAssetIds: string[];
+  assetInstructions?: Record<string, string>;
   summary: string;
   conclusion?: string;
   link: string;
@@ -253,6 +258,7 @@ type View =
   | "log"
   | "inspection"
   | "inspections"
+  | "work_orders"
   | "contractor"
   | "report"
   | "settings";
@@ -719,6 +725,9 @@ const initialState: AppState = {
     scope: "plumbing",
     expires: "3 дня",
     allowedAssetIds: ["w04", "w08"],
+    assetInstructions: {
+      w08: "Проверить скорость ухода воды, почистить сифон, приложить фото до и после.",
+    },
     inspectionId: "insp-001",
     contractorName: "Роман",
     contractorPhone: "",
@@ -733,9 +742,11 @@ const initialState: AppState = {
       createdBy: "Владелец",
       contractor: "Роман, сантехник",
       contractorPhone: "",
+      workflow: "inspection",
       scope: "plumbing",
       status: "completed",
       allowedAssetIds: ["w04", "w08"],
+      assetInstructions: {},
       summary: "Проверены смеситель и слив. По сливу нужна чистка сифона, ориентир 2 000 руб.",
       conclusion:
         "По санузлу критичных протечек не обнаружено. Слив лучше профилактически чистить раз в 3 месяца.",
@@ -944,6 +955,9 @@ function withCatalogAssets(state: AppState): AppState {
       contractorPhone:
         state.contractorAccess.contractorPhone ??
         initialState.contractorAccess.contractorPhone,
+      assetInstructions:
+        state.contractorAccess.assetInstructions ??
+        initialState.contractorAccess.assetInstructions,
     },
   };
 }
@@ -964,6 +978,7 @@ export default function Home() {
   const [assetReturnView, setAssetReturnView] = useState<View>("dashboard");
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
+  const [contractorWorkflow, setContractorWorkflow] = useState<Workflow>("inspection");
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
@@ -1086,6 +1101,12 @@ export default function Home() {
   const selectedInspection =
     state.inspections.find((inspection) => inspection.id === selectedInspectionId) ??
     state.inspections[0];
+  const inspectionFlows = state.inspections.filter(
+    (inspection) => (inspection.workflow ?? "inspection") === "inspection",
+  );
+  const workOrderFlows = state.inspections.filter(
+    (inspection) => inspection.workflow === "work_order",
+  );
 
   const selectedEvents = useMemo(
     () =>
@@ -1192,7 +1213,7 @@ export default function Home() {
     setInspectionIndex((current) => (current + 1) % state.assets.length);
   }
 
-  async function createContractorInspection() {
+  async function createContractorInspection(workflow: Workflow = "inspection") {
     const allowed = state.contractorAccess.allowedAssetIds;
 
     if (!state.contractorAccess.contractorName.trim()) {
@@ -1209,8 +1230,10 @@ export default function Home() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        workflow,
         scope: contractorScopeFromIds(state.assets, allowed),
         allowedAssetIds: allowed,
+        assetInstructions: workflow === "work_order" ? state.contractorAccess.assetInstructions : {},
         contractor: state.contractorAccess.contractorName,
         contractorPhone: state.contractorAccess.contractorPhone,
       }),
@@ -1237,7 +1260,7 @@ export default function Home() {
       },
     }));
     setSelectedInspectionId(inspection.id);
-    setView("inspections");
+    setView(workflow === "work_order" ? "work_orders" : "inspections");
   }
 
   async function updateInspection(inspectionId: string, patch: Partial<Inspection>) {
@@ -1249,6 +1272,7 @@ export default function Home() {
         contractorPhone: patch.contractorPhone,
         scope: patch.scope,
         allowedAssetIds: patch.allowedAssetIds,
+        assetInstructions: patch.assetInstructions,
       }),
     });
     const payload = (await response.json().catch(() => ({}))) as {
@@ -1535,12 +1559,33 @@ export default function Home() {
           <InspectionsView
             assets={state.assets}
             deleteInspection={deleteInspection}
-            inspections={state.inspections}
+            inspections={inspectionFlows}
             results={state.inspectionResults}
             updateInspection={updateInspection}
             openAsset={openAsset}
             openReport={openReport}
-            openContractor={() => setView("contractor")}
+            openContractor={() => {
+              setContractorWorkflow("inspection");
+              setView("contractor");
+            }}
+            workflow="inspection"
+          />
+        )}
+
+        {view === "work_orders" && (
+          <InspectionsView
+            assets={state.assets}
+            deleteInspection={deleteInspection}
+            inspections={workOrderFlows}
+            results={state.inspectionResults}
+            updateInspection={updateInspection}
+            openAsset={openAsset}
+            openReport={openReport}
+            openContractor={() => {
+              setContractorWorkflow("work_order");
+              setView("contractor");
+            }}
+            workflow="work_order"
           />
         )}
 
@@ -1549,6 +1594,7 @@ export default function Home() {
             state={state}
             setState={setState}
             mode="setup"
+            workflow={contractorWorkflow}
             createContractorInspection={createContractorInspection}
             submitContractorReport={submitContractorReport}
           />
@@ -1628,6 +1674,7 @@ function viewTitle(view: View, asset: Asset) {
     log: "Журнал квартиры",
     inspection: "Обход квартиры",
     inspections: "Обходы и отчеты",
+    work_orders: "Задания",
     contractor: "Выдать доступ мастеру",
     report: "Отчет мастера",
     settings: "Настройки",
@@ -1644,6 +1691,7 @@ function viewSubtitle(view: View) {
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
     inspections: "Выдача ссылок мастерам, все созданные обходы и сводки по узлам.",
+    work_orders: "Работы по конкретным узлам: что сделать, кому отправлено и что вернулось.",
     contractor: "Создание гостевой ссылки на выбранные узлы и чек-лист мастера.",
     report: "Сводка, которая вернулась после проверки по ссылке.",
     settings: "Название сервиса, объект и базовые параметры интерфейса.",
@@ -1659,6 +1707,7 @@ function assetReturnLabel(view: View) {
     log: "К журналу",
     inspection: "К обходу",
     inspections: "К обходам",
+    work_orders: "К заданиям",
     report: "К отчету",
     contractor: "К обходам",
   };
@@ -1748,6 +1797,10 @@ function AppNavigation({
       >
         <History size={16} />
         Обходы и отчеты
+      </NavButton>
+      <NavButton active={activeView === "work_orders"} onClick={() => navigate("work_orders")}>
+        <Check size={16} />
+        Задания
       </NavButton>
       <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
         <History size={16} />
@@ -2621,6 +2674,7 @@ function InspectionsView({
   openAsset,
   openReport,
   openContractor,
+  workflow,
 }: {
   assets: Asset[];
   deleteInspection: (inspectionId: string) => Promise<void>;
@@ -2630,6 +2684,7 @@ function InspectionsView({
   openAsset: (id: string) => void;
   openReport: (id: string) => void;
   openContractor: () => void;
+  workflow: Workflow;
 }) {
   const [editingInspectionId, setEditingInspectionId] = useState("");
   const [editDraft, setEditDraft] = useState<{
@@ -2637,10 +2692,15 @@ function InspectionsView({
     contractorPhone: string;
     scope: ContractorAccess["scope"];
     allowedAssetIds: string[];
+    assetInstructions: Record<string, string>;
   } | null>(null);
+  const isWorkOrder = workflow === "work_order";
   const latestInspection = inspections[0];
   const completedCount = inspections.filter((inspection) => inspection.status === "completed").length;
-  const issueResultCount = results.filter((result) => result.statusAfter !== "ok").length;
+  const visibleInspectionIds = new Set(inspections.map((inspection) => inspection.id));
+  const issueResultCount = results.filter(
+    (result) => visibleInspectionIds.has(result.inspectionId) && result.statusAfter !== "ok",
+  ).length;
 
   function startEdit(inspection: Inspection) {
     setEditingInspectionId(inspection.id);
@@ -2649,6 +2709,7 @@ function InspectionsView({
       contractorPhone: inspection.contractorPhone ?? "",
       scope: inspection.scope,
       allowedAssetIds: inspection.allowedAssetIds,
+      assetInstructions: inspection.assetInstructions ?? {},
     });
   }
 
@@ -2668,9 +2729,9 @@ function InspectionsView({
   return (
     <div className="grid gap-4">
       <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Всего обходов" value={`${inspections.length}`} />
+        <StatCard label={isWorkOrder ? "Всего заданий" : "Всего обходов"} value={`${inspections.length}`} />
         <StatCard label="Завершено" value={`${completedCount}`} tone="positive" />
-        <StatCard label="Замечаний из отчетов" value={`${issueResultCount}`} tone="negative" />
+        <StatCard label={isWorkOrder ? "Замечаний из заданий" : "Замечаний из отчетов"} value={`${issueResultCount}`} tone="negative" />
         <StatCard label="Последний" value={latestInspection?.completedAt ?? latestInspection?.createdAt ?? "нет"} />
       </div>
 
@@ -2678,14 +2739,16 @@ function InspectionsView({
         <Card>
           <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
             <div>
-              <CardTitle>Все обходы</CardTitle>
+              <CardTitle>{isWorkOrder ? "Все задания" : "Все обходы"}</CardTitle>
               <CardDescription>
-                Каждый обход хранит область доступа, мастера, результаты и ссылку на события узлов.
+                {isWorkOrder
+                  ? "Каждое задание хранит мастера, выбранные узлы, инструкции владельца и результат работы."
+                  : "Каждый обход хранит область доступа, мастера, результаты и ссылку на события узлов."}
               </CardDescription>
             </div>
             <Button onClick={openContractor} type="button">
               <UserRoundCheck size={16} />
-              Выдать доступ мастеру
+              {isWorkOrder ? "Создать задание" : "Выдать доступ мастеру"}
             </Button>
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -2760,9 +2823,29 @@ function InspectionsView({
                         }
                         selectedAssetIds={editDraft.allowedAssetIds}
                       />
+                      {isWorkOrder && (
+                        <AssetInstructionsEditor
+                          assets={assets}
+                          instructions={editDraft.assetInstructions}
+                          onChange={(assetId, instruction) =>
+                            setEditDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    assetInstructions: {
+                                      ...current.assetInstructions,
+                                      [assetId]: instruction,
+                                    },
+                                  }
+                                : current,
+                            )
+                          }
+                          selectedAssetIds={editDraft.allowedAssetIds}
+                        />
+                      )}
                       <p className="m-0 text-muted-foreground text-sm">
-                        В задании будет {editDraft.allowedAssetIds.length} узлов. Уже сохраненные
-                        мастером результаты останутся в обходе, даже если сменить область доступа.
+                        {isWorkOrder ? "В задании" : "В обходе"} будет {editDraft.allowedAssetIds.length} узлов. Уже сохраненные
+                        мастером результаты останутся в истории узлов, даже если сменить область доступа.
                       </p>
                     </div>
                   )}
@@ -2856,7 +2939,9 @@ function InspectionsView({
                     })}
                     {!inspectionResults.length && (
                       <div className="rounded-md bg-muted p-2 text-muted-foreground text-sm">
-                        Результатов пока нет. Откройте отчет, чтобы увидеть состав задания.
+                        {isWorkOrder
+                          ? "Результатов пока нет. Мастер еще не начал работу по заданию."
+                          : "Результатов пока нет. Откройте отчет, чтобы увидеть состав задания."}
                       </div>
                     )}
                   </div>
@@ -2868,16 +2953,23 @@ function InspectionsView({
 
         <Card>
           <CardHeader>
-            <CardTitle>Как теперь копится отчет</CardTitle>
+            <CardTitle>{isWorkOrder ? "Как работает задание" : "Как теперь копится отчет"}</CardTitle>
             <CardDescription>Структура данных зафиксирована в интерфейсе.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 text-sm">
-            {[
-              "Создаем обход и выбираем область доступа.",
-              "Мастер открывает ссылку и проходит выбранные узлы.",
-              "По каждому узлу сохраняется результат: статус, комментарий, фото, стоимость.",
-              "Итог попадает в список обходов и одновременно в историю каждого узла.",
-            ].map((item) => (
+            {(isWorkOrder
+              ? [
+                  "Создаем задание и выбираем узлы или категории.",
+                  "По каждому узлу можно оставить инструкцию для мастера.",
+                  "Мастер открывает ссылку и проходит работу по шагам.",
+                  "Результат попадает в задание и в историю каждого узла.",
+                ]
+              : [
+                  "Создаем обход и выбираем область доступа.",
+                  "Мастер открывает ссылку и проходит выбранные узлы.",
+                  "По каждому узлу сохраняется результат: статус, комментарий, фото, стоимость.",
+                  "Итог попадает в список обходов и одновременно в историю каждого узла.",
+                ]).map((item) => (
               <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
             ))}
           </CardContent>
@@ -2887,17 +2979,71 @@ function InspectionsView({
   );
 }
 
+function AssetInstructionsEditor({
+  assets,
+  instructions,
+  onChange,
+  selectedAssetIds,
+}: {
+  assets: Asset[];
+  instructions: Record<string, string>;
+  onChange: (assetId: string, instruction: string) => void;
+  selectedAssetIds: string[];
+}) {
+  const selectedAssets = assets
+    .filter((asset) => selectedAssetIds.includes(asset.id))
+    .sort((first, second) => first.code.localeCompare(second.code, "ru"))
+    .slice(0, 12);
+
+  if (!selectedAssetIds.length) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-3 rounded-xl bg-background p-3">
+      <div className="grid gap-1">
+        <strong className="text-sm font-medium">Комментарий владельца по узлам</strong>
+        <span className="text-muted-foreground text-sm">
+          Мастер увидит только эти инструкции и текущее задание, без полной истории узла.
+        </span>
+      </div>
+      <div className="grid gap-3">
+        {selectedAssets.map((asset) => (
+          <div className="grid gap-1.5" key={asset.id}>
+            <label className="text-sm font-medium" htmlFor={`instruction-${asset.id}`}>
+              {asset.code} · {asset.name}
+            </label>
+            <Textarea
+              id={`instruction-${asset.id}`}
+              onChange={(event) => onChange(asset.id, event.currentTarget.value)}
+              placeholder="Что нужно сделать по этому узлу"
+              value={instructions[asset.id] ?? ""}
+            />
+          </div>
+        ))}
+      </div>
+      {selectedAssetIds.length > selectedAssets.length && (
+        <p className="m-0 text-muted-foreground text-sm">
+          Показаны первые {selectedAssets.length} узлов. Остальные можно оставить без отдельного комментария.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ContractorAccessView({
   state,
   setState,
   mode,
+  workflow,
   createContractorInspection,
   submitContractorReport,
 }: {
   state: AppState;
   setState: React.Dispatch<React.SetStateAction<AppState>>;
   mode: "setup" | "master";
-  createContractorInspection: () => void;
+  workflow: Workflow;
+  createContractorInspection: (workflow?: Workflow) => void;
   submitContractorReport: (conclusion?: string) => void;
 }) {
   const allowedAssets = state.assets.filter((asset) =>
@@ -2921,6 +3067,7 @@ function ContractorAccessView({
     allowedPlanModes[0] ??
     planModes[0];
   const visibleContractorHotspots = planHotspots[activeContractorPlanMode.id];
+  const isWorkOrder = workflow === "work_order";
 
   if (mode === "master") {
     return (
@@ -3065,9 +3212,11 @@ function ContractorAccessView({
     <div className="contractor-access-grid">
       <Card className="contractor-setup-card min-w-0">
         <CardHeader>
-          <CardTitle>Создать доступ</CardTitle>
+          <CardTitle>{isWorkOrder ? "Создать задание" : "Создать доступ"}</CardTitle>
           <CardDescription>
-            Мастер получит ссылку только на выбранные узлы и сможет отправить отчет.
+            {isWorkOrder
+              ? "Мастер получит ссылку на конкретную работу и пройдет выбранные узлы по шагам."
+              : "Мастер получит ссылку только на выбранные узлы и сможет отправить отчет."}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid min-w-0 gap-4">
@@ -3124,13 +3273,39 @@ function ContractorAccessView({
             }
             selectedAssetIds={state.contractorAccess.allowedAssetIds}
           />
+          {isWorkOrder && (
+            <AssetInstructionsEditor
+              assets={state.assets}
+              instructions={state.contractorAccess.assetInstructions}
+              onChange={(assetId, instruction) =>
+                setState((current) => ({
+                  ...current,
+                  contractorAccess: {
+                    ...current.contractorAccess,
+                    assetInstructions: {
+                      ...current.contractorAccess.assetInstructions,
+                      [assetId]: instruction,
+                    },
+                  },
+                }))
+              }
+              selectedAssetIds={state.contractorAccess.allowedAssetIds}
+            />
+          )}
           <div className="grid gap-2 sm:grid-cols-2">
-            {[
-              "Смотреть историю выбранных узлов",
-              "Добавлять комментарии и фото",
-              "Указывать стоимость и материалы",
-              "Менять статус на «сделано»",
-            ].map((permission) => (
+            {(isWorkOrder
+              ? [
+                  "Видеть только текущее задание",
+                  "Оставлять комментарии и фото",
+                  "Указывать стоимость ремонта",
+                  "Менять статус выполненной работы",
+                ]
+              : [
+                  "Смотреть историю выбранных узлов",
+                  "Добавлять комментарии и фото",
+                  "Указывать стоимость и материалы",
+                  "Менять статус на «сделано»",
+                ]).map((permission) => (
               <div className="rounded-lg bg-muted p-3 text-sm" key={permission}>
                 {permission}
               </div>
@@ -3141,11 +3316,11 @@ function ContractorAccessView({
           </div>
           <Button
             disabled={!canCreateAccess}
-            onClick={createContractorInspection}
+            onClick={() => createContractorInspection(workflow)}
             size="lg"
             type="button"
           >
-            Создать обход и ссылку мастеру
+            {isWorkOrder ? "Создать задание и ссылку мастеру" : "Создать обход и ссылку мастеру"}
           </Button>
         </CardContent>
       </Card>
@@ -3153,7 +3328,8 @@ function ContractorAccessView({
         <CardHeader>
           <CardTitle>Узлы в задании</CardTitle>
           <CardDescription>
-            {allowedAssets.length} выбранных узлов. После создания это станет отдельным обходом.
+            {allowedAssets.length} выбранных узлов. После создания это станет отдельным{" "}
+            {isWorkOrder ? "заданием" : "обходом"}.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">

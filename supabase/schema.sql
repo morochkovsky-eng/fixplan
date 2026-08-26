@@ -19,6 +19,7 @@ create type public.asset_kind as enum (
 create type public.event_type as enum ('inspection', 'comment', 'repair', 'status', 'photo', 'master', 'report');
 create type public.inspection_status as enum ('draft', 'sent', 'in_progress', 'completed', 'accepted');
 create type public.contractor_scope as enum ('plumbing', 'electric', 'all', 'custom');
+create type public.inspection_workflow as enum ('inspection', 'work_order');
 
 create table public.apartments (
   id uuid primary key default gen_random_uuid(),
@@ -80,9 +81,11 @@ create table public.inspections (
   created_by text not null,
   contractor text not null,
   contractor_phone text,
+  workflow public.inspection_workflow not null default 'inspection',
   scope public.contractor_scope not null,
   status public.inspection_status not null default 'draft',
   allowed_asset_ids text[] not null default '{}',
+  asset_instructions jsonb not null default '{}'::jsonb,
   summary text not null default '',
   conclusion text,
   guest_token text unique not null default encode(extensions.gen_random_bytes(24), 'hex'),
