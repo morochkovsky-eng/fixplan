@@ -24,13 +24,6 @@ type InspectionRow = {
   result_ids: string[];
 };
 
-function scopeTitle(scope: ContractorScope) {
-  if (scope === "plumbing") return "сантехника";
-  if (scope === "electric") return "электрика";
-  if (scope === "all") return "вся квартира";
-  return "выбранные узлы";
-}
-
 function appUrlFromRequest(request: Request) {
   return (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
 }
@@ -197,7 +190,7 @@ export async function PATCH(
       contractor,
       contractor_phone: contractorPhone,
       scope,
-      title: `Обход мастера · ${scopeTitle(scope)}`,
+      title: contractorPhone ? `${contractor} · ${contractorPhone}` : contractor,
       allowed_asset_ids: allowedAssetIds,
       summary: `Ссылка обновлена. В задании ${allowedAssetIds.length} узлов.`,
       updated_at: new Date().toISOString(),
@@ -227,7 +220,7 @@ export async function DELETE(
 
   const { error: unlinkError } = await admin
     .from("events")
-    .update({ inspection_id: null, updated_at: new Date().toISOString() })
+    .update({ inspection_id: null })
     .eq("apartment_id", APARTMENT_ID)
     .eq("inspection_id", id);
 

@@ -2700,10 +2700,12 @@ function InspectionsView({
                 <div className="grid gap-3 rounded-xl bg-muted p-4" key={inspection.id}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="grid gap-1">
-                      <strong className="font-medium">{inspection.number} · {inspection.title}</strong>
-                      <span className="text-muted-foreground text-sm">
-                        {inspection.contractor} · {inspection.createdAt}
+                      <strong className="font-medium">
+                        {inspection.contractor}
                         {inspection.contractorPhone ? ` · ${inspection.contractorPhone}` : ""}
+                      </strong>
+                      <span className="text-muted-foreground text-sm">
+                        {inspection.number} · {inspection.createdAt}
                         {inspection.completedAt ? ` · завершен ${inspection.completedAt}` : ""}
                       </span>
                     </div>

@@ -15,13 +15,6 @@ function todayLabel() {
   }).format(new Date());
 }
 
-function scopeTitle(scope: ContractorScope) {
-  if (scope === "plumbing") return "сантехника";
-  if (scope === "electric") return "электрика";
-  if (scope === "all") return "вся квартира";
-  return "выбранные узлы";
-}
-
 export async function POST(request: Request) {
   const supabase = await createServerSupabaseClient();
   const admin = createAdminClient();
@@ -107,7 +100,7 @@ export async function POST(request: Request) {
       apartment_id: APARTMENT_ID,
       id,
       number: `Обход #${(count ?? 0) + 1}`,
-      title: `Обход мастера · ${scopeTitle(scope)}`,
+      title: contractorPhone ? `${contractor} · ${contractorPhone}` : contractor,
       created_at_label: createdAt,
       created_by: user.email,
       contractor,
