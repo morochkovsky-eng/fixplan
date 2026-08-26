@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, Check, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ type GuestInspection = {
   createdAt: string;
   completedAt?: string;
   contractor: string;
+  contractorPhone?: string;
   scope: string;
   status: "draft" | "sent" | "in_progress" | "completed" | "accepted";
   summary: string;
@@ -106,8 +107,13 @@ export function GuestInspectionClient({ token }: { token: string }) {
   const [conclusion, setConclusion] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploadingAssetId, setUploadingAssetId] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [savedAssetIds, setSavedAssetIds] = useState<Set<string>>(() => new Set());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const saveTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +139,8 @@ export function GuestInspectionClient({ token }: { token: string }) {
 
         setPayload(data);
         setResults(initialResults);
+        setSavedAssetIds(new Set(data.results.map((result) => result.assetId)));
+        setIndex(Math.max(0, data.assets.findIndex((item) => !data.results.some((result) => result.assetId === item.id))));
         setConclusion(data.inspection.conclusion ?? "");
         setDone(data.inspection.status === "completed");
       } catch (loadError) {
@@ -154,19 +162,110 @@ export function GuestInspectionClient({ token }: { token: string }) {
   const assets = payload?.assets ?? [];
   const asset = assets[index];
   const currentResult = asset ? results[asset.id] ?? defaultResult(asset) : undefined;
-  const completedCount = useMemo(
-    () => Object.values(results).filter((result) => result.comment.trim() || result.statusAfter !== "ok" || result.photoCount > 0).length,
-    [results],
-  );
+  const completedCount = savedAssetIds.size;
+
+  useEffect(() => {
+    const saveTimers = saveTimersRef.current;
+
+    return () => {
+      Object.values(saveTimers).forEach((timer) => clearTimeout(timer));
+    };
+  }, []);
+
+  async function saveResult(result: GuestResult) {
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/guest/${token}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ result }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Не удалось сохранить результат.");
+      }
+
+      setSavedAssetIds((current) => new Set(current).add(result.assetId));
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Не удалось сохранить результат.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function queueAutosave(result: GuestResult) {
+    clearTimeout(saveTimersRef.current[result.assetId]);
+    saveTimersRef.current[result.assetId] = setTimeout(() => {
+      void saveResult(result);
+    }, 700);
+  }
 
   function patchResult(assetId: string, patch: Partial<GuestResult>) {
+    const targetAsset = assets.find((item) => item.id === assetId) ?? asset;
+    if (!targetAsset) return;
+    const nextResult = {
+      ...(results[assetId] ?? defaultResult(targetAsset)),
+      ...patch,
+    };
+
     setResults((current) => ({
       ...current,
-      [assetId]: {
-        ...(current[assetId] ?? defaultResult(assets.find((item) => item.id === assetId) ?? asset)),
-        ...patch,
-      },
+      [assetId]: nextResult,
     }));
+    queueAutosave(nextResult);
+  }
+
+  async function moveStep(direction: 1 | -1) {
+    if (!currentResult) return;
+
+    clearTimeout(saveTimersRef.current[currentResult.assetId]);
+    await saveResult(currentResult);
+    setIndex((current) => Math.min(assets.length - 1, Math.max(0, current + direction)));
+  }
+
+  async function uploadPhotos(files: FileList | null) {
+    if (!asset || !currentResult || !files?.length) return;
+
+    clearTimeout(saveTimersRef.current[asset.id]);
+    await saveResult(currentResult);
+    setUploadingAssetId(asset.id);
+    setError("");
+
+    try {
+      let nextPhotoCount = currentResult.photoCount;
+
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append("assetId", asset.id);
+        formData.append("file", file);
+
+        const response = await fetch(`/api/guest/${token}/photos`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string;
+          photoCount?: number;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Не удалось загрузить фото.");
+        }
+
+        nextPhotoCount = data.photoCount ?? nextPhotoCount + 1;
+      }
+
+      const nextResult = { ...currentResult, photoCount: nextPhotoCount };
+      setResults((current) => ({ ...current, [asset.id]: nextResult }));
+      await saveResult(nextResult);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Не удалось загрузить фото.");
+    } finally {
+      setUploadingAssetId("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   async function submitReport() {
@@ -246,6 +345,11 @@ export function GuestInspectionClient({ token }: { token: string }) {
   }
 
   if (!started) {
+    const contractorLine = [
+      payload.inspection.contractor,
+      payload.inspection.contractorPhone,
+    ].filter(Boolean).join(" · ");
+
     return (
       <main className="min-h-screen bg-muted px-4 py-6">
         <section className="mx-auto grid max-w-lg gap-4">
@@ -267,6 +371,18 @@ export function GuestInspectionClient({ token }: { token: string }) {
                   <strong className="block text-base font-medium">{payload.inspection.createdAt}</strong>
                 </div>
               </div>
+              <div className="rounded-lg border bg-background p-3">
+                <span className="text-muted-foreground text-sm">Доступ выдан</span>
+                <strong className="block text-base font-medium">{contractorLine}</strong>
+              </div>
+              {completedCount > 0 && (
+                <div className="rounded-lg border bg-background p-3">
+                  <span className="text-muted-foreground text-sm">Прогресс</span>
+                  <strong className="block text-base font-medium">
+                    {completedCount} из {assets.length} узлов уже сохранено
+                  </strong>
+                </div>
+              )}
               <p className="m-0 text-muted-foreground text-sm">
                 Нажмите «Начать». Дальше будет один узел за раз: схема, статус, комментарий и кнопки назад/далее.
               </p>
@@ -282,30 +398,28 @@ export function GuestInspectionClient({ token }: { token: string }) {
   }
 
   const isLast = index === assets.length - 1;
+  const contractorLine = [
+    payload.inspection.contractor,
+    payload.inspection.contractorPhone,
+  ].filter(Boolean).join(" · ");
 
   return (
     <main className="min-h-screen bg-muted px-3 py-3 sm:px-4 sm:py-5">
       <section className="mx-auto grid max-w-xl gap-3">
-        <Card>
-          <CardHeader className="gap-2">
+        <Card className="py-3">
+          <CardContent className="grid gap-3 px-3 sm:px-4">
             <div className="flex items-center justify-between gap-3">
               <Badge variant="outline">
                 {index + 1} из {assets.length}
               </Badge>
-              <Badge variant="secondary">{completedCount} заполнено</Badge>
+              <Badge variant="secondary">
+                {saving ? "Сохраняем..." : `${completedCount} сохранено`}
+              </Badge>
             </div>
-            <div>
-              <CardTitle>{asset.code} · {asset.name}</CardTitle>
-              <CardDescription>
-                {roomLabels[asset.roomId] ?? asset.roomId} · {categoryLabels[asset.category]}
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-4">
             <div className="relative overflow-hidden rounded-xl border bg-background">
               <img
                 alt="Схема расположения узла"
-                className="block aspect-[1390/1803] w-full object-contain"
+                className="block max-h-[38vh] w-full object-contain"
                 src={planForAsset(asset)}
               />
               <div
@@ -314,6 +428,14 @@ export function GuestInspectionClient({ token }: { token: string }) {
               >
                 <span className="text-xs font-medium">{asset.code.split("-")[0]}</span>
               </div>
+            </div>
+
+            <div className="grid gap-1">
+              <h1 className="m-0 text-xl font-medium leading-tight">{asset.code} · {asset.name}</h1>
+              <p className="m-0 text-muted-foreground text-sm">
+                {roomLabels[asset.roomId] ?? asset.roomId} · {categoryLabels[asset.category]}
+              </p>
+              <p className="m-0 text-muted-foreground text-xs">{contractorLine}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -344,13 +466,23 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 value={currentResult.cost ?? ""}
               />
               <Button
-                onClick={() => patchResult(asset.id, { photoCount: (currentResult.photoCount ?? 0) + 1 })}
+                disabled={uploadingAssetId === asset.id}
+                onClick={() => fileInputRef.current?.click()}
                 type="button"
                 variant="secondary"
               >
-                <Camera size={16} />
+                {uploadingAssetId === asset.id ? <Loader2 className="size-4 animate-spin" /> : <Camera size={16} />}
                 {currentResult.photoCount || ""}
               </Button>
+              <input
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                multiple
+                onChange={(event) => void uploadPhotos(event.currentTarget.files)}
+                ref={fileInputRef}
+                type="file"
+              />
             </div>
 
             {isLast && (
@@ -367,7 +499,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 disabled={index === 0 || submitting}
-                onClick={() => setIndex((current) => Math.max(0, current - 1))}
+                onClick={() => void moveStep(-1)}
                 type="button"
                 variant="secondary"
               >
@@ -382,7 +514,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
               ) : (
                 <Button
                   disabled={submitting}
-                  onClick={() => setIndex((current) => Math.min(assets.length - 1, current + 1))}
+                  onClick={() => void moveStep(1)}
                   type="button"
                 >
                   Далее

@@ -11,6 +11,14 @@ type GuestResultPayload = {
   photoCount?: number;
 };
 
+type InspectionRow = {
+  apartment_id: string;
+  id: string;
+  contractor: string;
+  contractor_phone?: string | null;
+  allowed_asset_ids?: string[];
+};
+
 function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -27,6 +35,15 @@ function statusTitle(status: Status) {
     needs_master: "Нужен мастер",
   };
   return labels[status];
+}
+
+function normalizeCost(cost: GuestResultPayload["cost"]) {
+  if (cost === "" || cost === null || typeof cost === "undefined") {
+    return null;
+  }
+
+  const value = Number(cost);
+  return Number.isFinite(value) ? value : null;
 }
 
 async function findInspection(token: string) {
@@ -52,6 +69,89 @@ async function findInspection(token: string) {
   }
 
   return { admin, inspection, error: null };
+}
+
+async function saveGuestResult({
+  admin,
+  inspection,
+  result,
+  date,
+  final = false,
+}: {
+  admin: NonNullable<ReturnType<typeof createAdminClient>>;
+  inspection: InspectionRow;
+  result: GuestResultPayload;
+  date: string;
+  final?: boolean;
+}) {
+  const resultId = `res-${inspection.id}-${result.assetId}`;
+  const eventId = `evt-${inspection.id}-${result.assetId}`;
+  const cost = normalizeCost(result.cost);
+  const comment = result.comment?.trim() || (final
+    ? "Мастер проверил узел без дополнительного комментария."
+    : "");
+
+  const { error: resultError } = await admin.from("inspection_results").upsert(
+    {
+      apartment_id: inspection.apartment_id,
+      id: resultId,
+      inspection_id: inspection.id,
+      asset_id: result.assetId,
+      status_after: result.statusAfter,
+      comment,
+      date_label: date,
+      author: inspection.contractor,
+      cost,
+      photo_count: result.photoCount ?? 0,
+    },
+    { onConflict: "apartment_id,id" },
+  );
+
+  if (resultError) {
+    return { error: resultError.message, resultId };
+  }
+
+  const { error: eventError } = await admin.from("events").upsert(
+    {
+      apartment_id: inspection.apartment_id,
+      id: eventId,
+      asset_id: result.assetId,
+      inspection_id: inspection.id,
+      type: "report",
+      date_label: date,
+      title: `Отчет мастера: ${statusTitle(result.statusAfter)}`,
+      body: comment || "Мастер начал заполнять результат по узлу.",
+      cost,
+      master: inspection.contractor,
+      status_after: result.statusAfter,
+      photo:
+        (result.photoCount ?? 0) > 0
+          ? { label: "фото", note: `${result.photoCount} фото из обхода` }
+          : null,
+    },
+    { onConflict: "apartment_id,id" },
+  );
+
+  if (eventError) {
+    return { error: eventError.message, resultId };
+  }
+
+  const { error: assetError } = await admin
+    .from("assets")
+    .update({
+      status: result.statusAfter,
+      master: inspection.contractor,
+      last_checked: date,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("apartment_id", inspection.apartment_id)
+    .eq("id", result.assetId);
+
+  if (assetError) {
+    return { error: assetError.message, resultId };
+  }
+
+  return { resultId };
 }
 
 export async function GET(
@@ -107,6 +207,7 @@ export async function GET(
       createdAt: inspection.created_at_label,
       completedAt: inspection.completed_at_label,
       contractor: inspection.contractor,
+      contractorPhone: inspection.contractor_phone,
       scope: inspection.scope,
       status: inspection.status,
       summary: inspection.summary,
@@ -166,74 +267,11 @@ export async function POST(
   const resultIds: string[] = [];
 
   for (const result of results) {
-    const resultId = `res-${inspection.id}-${result.assetId}`;
-    const eventId = `evt-${inspection.id}-${result.assetId}`;
-    const cost =
-      result.cost === "" || result.cost === null || typeof result.cost === "undefined"
-        ? null
-        : Number(result.cost);
-    const comment = result.comment?.trim() || "Мастер проверил узел без дополнительного комментария.";
+    const saved = await saveGuestResult({ admin, inspection, result, date, final: true });
+    resultIds.push(saved.resultId);
 
-    resultIds.push(resultId);
-
-    const { error: resultError } = await admin.from("inspection_results").upsert(
-      {
-        apartment_id: inspection.apartment_id,
-        id: resultId,
-        inspection_id: inspection.id,
-        asset_id: result.assetId,
-        status_after: result.statusAfter,
-        comment,
-        date_label: date,
-        author: inspection.contractor,
-        cost,
-        photo_count: result.photoCount ?? 0,
-      },
-      { onConflict: "apartment_id,id" },
-    );
-
-    if (resultError) {
-      return NextResponse.json({ error: resultError.message }, { status: 500 });
-    }
-
-    const { error: eventError } = await admin.from("events").upsert(
-      {
-        apartment_id: inspection.apartment_id,
-        id: eventId,
-        asset_id: result.assetId,
-        inspection_id: inspection.id,
-        type: "report",
-        date_label: date,
-        title: `Отчет мастера: ${statusTitle(result.statusAfter)}`,
-        body: comment,
-        cost,
-        master: inspection.contractor,
-        status_after: result.statusAfter,
-        photo:
-          (result.photoCount ?? 0) > 0
-            ? { label: "фото", note: `${result.photoCount} фото из обхода` }
-            : null,
-      },
-      { onConflict: "apartment_id,id" },
-    );
-
-    if (eventError) {
-      return NextResponse.json({ error: eventError.message }, { status: 500 });
-    }
-
-    const { error: assetError } = await admin
-      .from("assets")
-      .update({
-        status: result.statusAfter,
-        master: inspection.contractor,
-        last_checked: date,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("apartment_id", inspection.apartment_id)
-      .eq("id", result.assetId);
-
-    if (assetError) {
-      return NextResponse.json({ error: assetError.message }, { status: 500 });
+    if (saved.error) {
+      return NextResponse.json({ error: saved.error }, { status: 500 });
     }
   }
 
@@ -255,4 +293,53 @@ export async function POST(
   }
 
   return NextResponse.json({ ok: true, inspectionId: inspection.id });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ token: string }> },
+) {
+  const { token } = await params;
+  const { admin, inspection, error } = await findInspection(token);
+
+  if (!admin) {
+    return NextResponse.json({ error }, { status: 500 });
+  }
+
+  if (!inspection) {
+    return NextResponse.json({ error }, { status: 404 });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as {
+    result?: GuestResultPayload;
+  };
+  const result = body.result;
+  const allowed = new Set<string>(inspection.allowed_asset_ids ?? []);
+
+  if (!result?.assetId || !allowed.has(result.assetId)) {
+    return NextResponse.json({ error: "Asset is not included in this inspection" }, { status: 400 });
+  }
+
+  const saved = await saveGuestResult({
+    admin,
+    inspection,
+    result,
+    date: todayLabel(),
+  });
+
+  if (saved.error) {
+    return NextResponse.json({ error: saved.error }, { status: 500 });
+  }
+
+  await admin
+    .from("inspections")
+    .update({
+      status: "in_progress",
+      summary: "Мастер начал заполнять отчет. Часть результатов уже сохранена.",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("apartment_id", inspection.apartment_id)
+    .eq("id", inspection.id);
+
+  return NextResponse.json({ ok: true, resultId: saved.resultId });
 }

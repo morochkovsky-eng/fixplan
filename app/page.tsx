@@ -198,6 +198,8 @@ type ContractorAccess = {
   expires: string;
   allowedAssetIds: string[];
   inspectionId?: string;
+  contractorName: string;
+  contractorPhone: string;
 };
 
 type InspectionResult = {
@@ -220,6 +222,7 @@ type Inspection = {
   completedAt?: string;
   createdBy: string;
   contractor: string;
+  contractorPhone?: string;
   scope: ContractorAccess["scope"];
   status: InspectionStatus;
   allowedAssetIds: string[];
@@ -713,6 +716,8 @@ const initialState: AppState = {
     expires: "3 дня",
     allowedAssetIds: ["w04", "w08"],
     inspectionId: "insp-001",
+    contractorName: "Роман",
+    contractorPhone: "",
   },
   inspections: [
     {
@@ -723,6 +728,7 @@ const initialState: AppState = {
       completedAt: "23 августа 2026",
       createdBy: "Владелец",
       contractor: "Роман, сантехник",
+      contractorPhone: "",
       scope: "plumbing",
       status: "completed",
       allowedAssetIds: ["w04", "w08"],
@@ -911,6 +917,12 @@ function withCatalogAssets(state: AppState): AppState {
     contractorAccess: {
       ...state.contractorAccess,
       inspectionId: state.contractorAccess.inspectionId ?? initialState.contractorAccess.inspectionId,
+      contractorName:
+        state.contractorAccess.contractorName ??
+        initialState.contractorAccess.contractorName,
+      contractorPhone:
+        state.contractorAccess.contractorPhone ??
+        initialState.contractorAccess.contractorPhone,
     },
   };
 }
@@ -1171,6 +1183,8 @@ export default function Home() {
       body: JSON.stringify({
         scope,
         allowedAssetIds: allowed,
+        contractor: state.contractorAccess.contractorName,
+        contractorPhone: state.contractorAccess.contractorPhone,
       }),
     });
     const payload = (await response.json().catch(() => ({}))) as {
@@ -2452,6 +2466,7 @@ function InspectionsView({
                       <strong className="font-medium">{inspection.number} · {inspection.title}</strong>
                       <span className="text-muted-foreground text-sm">
                         {inspection.contractor} · {inspection.createdAt}
+                        {inspection.contractorPhone ? ` · ${inspection.contractorPhone}` : ""}
                         {inspection.completedAt ? ` · завершен ${inspection.completedAt}` : ""}
                       </span>
                     </div>
@@ -2713,6 +2728,43 @@ function ContractorAccessView({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="contractor-name">Имя мастера</label>
+            <Input
+              id="contractor-name"
+              onChange={(event) =>
+                setState((current) => ({
+                  ...current,
+                  contractorAccess: {
+                    ...current.contractorAccess,
+                    contractorName: event.currentTarget.value,
+                  },
+                }))
+              }
+              placeholder="Например, Роман"
+              value={state.contractorAccess.contractorName}
+            />
+          </div>
+          <div className="grid gap-1.5 text-sm font-medium">
+            <label htmlFor="contractor-phone">Телефон</label>
+            <Input
+              id="contractor-phone"
+              inputMode="tel"
+              onChange={(event) =>
+                setState((current) => ({
+                  ...current,
+                  contractorAccess: {
+                    ...current.contractorAccess,
+                    contractorPhone: event.currentTarget.value,
+                  },
+                }))
+              }
+              placeholder="+7 ..."
+              value={state.contractorAccess.contractorPhone}
+            />
+          </div>
+        </div>
         <div className="flex flex-wrap gap-2 pb-2">
           {[
             ["plumbing", "Сантехника"],
@@ -2745,7 +2797,11 @@ function ContractorAccessView({
         <div className="rounded-lg border bg-muted/50 p-3 text-sm text-muted-foreground">
           {activeInspection?.link ?? "Ссылка появится после создания обхода"}
         </div>
-        <Button onClick={createContractorInspection} type="button">
+        <Button
+          disabled={!state.contractorAccess.contractorName.trim()}
+          onClick={createContractorInspection}
+          type="button"
+        >
           Создать обход и ссылку мастеру
         </Button>
         </CardContent>
@@ -2805,6 +2861,7 @@ function ContractorReport({
             <CardDescription>
               {inspection
                 ? `${inspection.title} · ${inspection.contractor} · создан ${inspection.createdAt}`
+                + (inspection.contractorPhone ? ` · ${inspection.contractorPhone}` : "")
                 : "Сводка результатов последнего обхода."}
             </CardDescription>
           </div>

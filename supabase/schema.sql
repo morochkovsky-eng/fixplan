@@ -79,6 +79,7 @@ create table public.inspections (
   completed_at_label text,
   created_by text not null,
   contractor text not null,
+  contractor_phone text,
   scope public.contractor_scope not null,
   status public.inspection_status not null default 'draft',
   allowed_asset_ids text[] not null default '{}',

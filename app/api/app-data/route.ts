@@ -84,6 +84,7 @@ export async function GET() {
       completedAt: inspection.completed_at_label,
       createdBy: inspection.created_by,
       contractor: inspection.contractor,
+      contractorPhone: inspection.contractor_phone,
       scope: inspection.scope,
       status: inspection.status,
       allowedAssetIds: inspection.allowed_asset_ids,

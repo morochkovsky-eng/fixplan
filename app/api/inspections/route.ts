@@ -22,12 +22,6 @@ function scopeTitle(scope: ContractorScope) {
   return "выбранные узлы";
 }
 
-function contractorTitle(scope: ContractorScope) {
-  if (scope === "plumbing") return "Сантехник";
-  if (scope === "electric") return "Электрик";
-  return "Мастер";
-}
-
 export async function POST(request: Request) {
   const supabase = await createServerSupabaseClient();
   const admin = createAdminClient();
@@ -48,9 +42,16 @@ export async function POST(request: Request) {
     scope?: ContractorScope;
     allowedAssetIds?: string[];
     contractor?: string;
+    contractorPhone?: string;
   };
 
   const scope: ContractorScope = body.scope ?? "plumbing";
+  const contractor = body.contractor?.trim() || "";
+  const contractorPhone = body.contractorPhone?.trim() || null;
+
+  if (!contractor) {
+    return NextResponse.json({ error: "Contractor name is required" }, { status: 400 });
+  }
 
   const { data: membership, error: membershipError } = await admin
     .from("apartment_members")
@@ -98,7 +99,6 @@ export async function POST(request: Request) {
   const token = randomBytes(24).toString("hex");
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
   const link = `${appUrl.replace(/\/$/, "")}/guest/${token}`;
-  const contractor = body.contractor?.trim() || contractorTitle(scope);
   const createdAt = todayLabel();
 
   const { data: inspection, error } = await admin
@@ -111,6 +111,7 @@ export async function POST(request: Request) {
       created_at_label: createdAt,
       created_by: user.email,
       contractor,
+      contractor_phone: contractorPhone,
       scope,
       status: "sent",
       allowed_asset_ids: allowedAssetIds,
@@ -134,6 +135,7 @@ export async function POST(request: Request) {
       completedAt: inspection.completed_at_label,
       createdBy: inspection.created_by,
       contractor: inspection.contractor,
+      contractorPhone: inspection.contractor_phone,
       scope: inspection.scope,
       status: inspection.status,
       allowedAssetIds: inspection.allowed_asset_ids,
