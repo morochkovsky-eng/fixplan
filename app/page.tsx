@@ -66,7 +66,10 @@ import {
   Map,
   Menu,
   ArrowLeft,
+  Pencil,
+  Save,
   Settings,
+  Trash2,
   UserRoundCheck,
   X,
 } from "lucide-react";
@@ -1212,6 +1215,97 @@ export default function Home() {
     setView("inspections");
   }
 
+  async function updateInspection(inspectionId: string, patch: Partial<Inspection>) {
+    const response = await fetch(`/api/inspections/${inspectionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contractor: patch.contractor,
+        contractorPhone: patch.contractorPhone,
+        scope: patch.scope,
+        allowedAssetIds: patch.allowedAssetIds,
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      inspection?: Inspection;
+      error?: string;
+    };
+
+    if (!response.ok || !payload.inspection) {
+      window.alert(payload.error ?? "Не удалось обновить обход.");
+      return false;
+    }
+
+    const updatedInspection = payload.inspection;
+
+    setState((current) => ({
+      ...current,
+      inspections: current.inspections.map((inspection) =>
+        inspection.id === inspectionId ? updatedInspection : inspection,
+      ),
+      contractorAccess:
+        current.contractorAccess.inspectionId === inspectionId
+          ? {
+              ...current.contractorAccess,
+              contractorName: updatedInspection.contractor,
+              contractorPhone: updatedInspection.contractorPhone ?? "",
+              scope: updatedInspection.scope,
+              allowedAssetIds: updatedInspection.allowedAssetIds,
+            }
+          : current.contractorAccess,
+    }));
+    setSelectedInspectionId(inspectionId);
+    return true;
+  }
+
+  async function deleteInspection(inspectionId: string) {
+    const inspection = state.inspections.find((item) => item.id === inspectionId);
+    if (!inspection) return;
+
+    const confirmed = window.confirm(
+      `Удалить ${inspection.number}? Отчет исчезнет из списка, но уже созданные события в истории узлов останутся.`,
+    );
+    if (!confirmed) return;
+
+    const response = await fetch(`/api/inspections/${inspectionId}`, {
+      method: "DELETE",
+    });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+    if (!response.ok) {
+      window.alert(payload.error ?? "Не удалось удалить обход.");
+      return;
+    }
+
+    setState((current) => {
+      const nextInspections = current.inspections.filter((item) => item.id !== inspectionId);
+      return {
+        ...current,
+        inspections: nextInspections,
+        inspectionResults: current.inspectionResults.filter(
+          (result) => result.inspectionId !== inspectionId,
+        ),
+        events: current.events.map((event) =>
+          event.inspectionId === inspectionId
+            ? { ...event, inspectionId: undefined }
+            : event,
+        ),
+        contractorAccess:
+          current.contractorAccess.inspectionId === inspectionId
+            ? {
+                ...current.contractorAccess,
+                inspectionId: nextInspections[0]?.id ?? "",
+              }
+            : current.contractorAccess,
+      };
+    });
+
+    if (selectedInspectionId === inspectionId) {
+      setSelectedInspectionId(state.inspections.find((item) => item.id !== inspectionId)?.id ?? "");
+      setView("inspections");
+    }
+  }
+
   function submitContractorReport(conclusion?: string) {
     const activeInspection =
       state.inspections.find((inspection) => inspection.id === state.contractorAccess.inspectionId) ??
@@ -1414,8 +1508,10 @@ export default function Home() {
         {view === "inspections" && (
           <InspectionsView
             assets={state.assets}
+            deleteInspection={deleteInspection}
             inspections={state.inspections}
             results={state.inspectionResults}
+            updateInspection={updateInspection}
             openAsset={openAsset}
             openReport={openReport}
             openContractor={() => setView("contractor")}
@@ -2417,22 +2513,61 @@ function InspectionView({
 
 function InspectionsView({
   assets,
+  deleteInspection,
   inspections,
   results,
+  updateInspection,
   openAsset,
   openReport,
   openContractor,
 }: {
   assets: Asset[];
+  deleteInspection: (inspectionId: string) => Promise<void>;
   inspections: Inspection[];
   results: InspectionResult[];
+  updateInspection: (inspectionId: string, patch: Partial<Inspection>) => Promise<boolean>;
   openAsset: (id: string) => void;
   openReport: (id: string) => void;
   openContractor: () => void;
 }) {
+  const [editingInspectionId, setEditingInspectionId] = useState("");
+  const [editDraft, setEditDraft] = useState<{
+    contractor: string;
+    contractorPhone: string;
+    scope: ContractorAccess["scope"];
+    allowedAssetIds: string[];
+  } | null>(null);
   const latestInspection = inspections[0];
   const completedCount = inspections.filter((inspection) => inspection.status === "completed").length;
   const issueResultCount = results.filter((result) => result.statusAfter !== "ok").length;
+
+  function idsForScope(scope: ContractorAccess["scope"]) {
+    if (scope === "all") return assets.map((asset) => asset.id);
+    return assets.filter((asset) => asset.category === scope).map((asset) => asset.id);
+  }
+
+  function startEdit(inspection: Inspection) {
+    setEditingInspectionId(inspection.id);
+    setEditDraft({
+      contractor: inspection.contractor,
+      contractorPhone: inspection.contractorPhone ?? "",
+      scope: inspection.scope,
+      allowedAssetIds: inspection.allowedAssetIds,
+    });
+  }
+
+  async function saveEdit(inspectionId: string) {
+    if (!editDraft?.contractor.trim()) {
+      window.alert("Укажите имя мастера.");
+      return;
+    }
+
+    const saved = await updateInspection(inspectionId, editDraft);
+    if (saved) {
+      setEditingInspectionId("");
+      setEditDraft(null);
+    }
+  }
 
   return (
     <div className="grid gap-4">
@@ -2462,6 +2597,8 @@ function InspectionsView({
               const inspectionResults = results.filter((result) => result.inspectionId === inspection.id);
               const issues = inspectionResults.filter((result) => result.statusAfter !== "ok");
               const cost = inspectionResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
+              const canEdit = !["completed", "accepted"].includes(inspection.status);
+              const isEditing = editingInspectionId === inspection.id && editDraft;
 
               return (
                 <div className="grid gap-3 rounded-xl bg-muted p-4" key={inspection.id}>
@@ -2479,6 +2616,71 @@ function InspectionsView({
                     </Badge>
                   </div>
                   <p className="m-0 text-muted-foreground text-sm">{inspection.summary}</p>
+                  {isEditing && (
+                    <div className="grid gap-3 rounded-xl bg-background p-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-1.5 text-sm font-medium">
+                          <label htmlFor={`edit-contractor-${inspection.id}`}>Имя мастера</label>
+                          <Input
+                            id={`edit-contractor-${inspection.id}`}
+                            onChange={(event) => {
+                              const value = event.currentTarget.value;
+                              setEditDraft((current) =>
+                                current ? { ...current, contractor: value } : current,
+                              );
+                            }}
+                            value={editDraft.contractor}
+                          />
+                        </div>
+                        <div className="grid gap-1.5 text-sm font-medium">
+                          <label htmlFor={`edit-phone-${inspection.id}`}>Телефон</label>
+                          <Input
+                            id={`edit-phone-${inspection.id}`}
+                            inputMode="tel"
+                            onChange={(event) => {
+                              const value = event.currentTarget.value;
+                              setEditDraft((current) =>
+                                current ? { ...current, contractorPhone: value } : current,
+                              );
+                            }}
+                            value={editDraft.contractorPhone}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          ["plumbing", "Сантехника"],
+                          ["electric", "Электрика"],
+                          ["all", "Вся квартира"],
+                        ].map(([scope, label]) => (
+                          <Button
+                            key={scope}
+                            onClick={() => {
+                              const nextScope = scope as ContractorAccess["scope"];
+                              setEditDraft((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      scope: nextScope,
+                                      allowedAssetIds: idsForScope(nextScope),
+                                    }
+                                  : current,
+                              );
+                            }}
+                            size="sm"
+                            type="button"
+                            variant={editDraft.scope === scope ? "default" : "secondary"}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="m-0 text-muted-foreground text-sm">
+                        В задании будет {editDraft.allowedAssetIds.length} узлов. Уже сохраненные
+                        мастером результаты останутся в обходе, даже если сменить область доступа.
+                      </p>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2 text-sm">
                     <Badge variant="outline">{inspection.allowedAssetIds.length} узлов</Badge>
                     <Badge variant={issues.length ? "destructive" : "secondary"}>
@@ -2496,6 +2698,43 @@ function InspectionsView({
                     >
                       Открыть отчет
                     </Button>
+                    {canEdit && !isEditing && (
+                      <Button
+                        className="w-fit"
+                        onClick={() => startEdit(inspection)}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        <Pencil size={14} />
+                        Редактировать
+                      </Button>
+                    )}
+                    {isEditing && (
+                      <>
+                        <Button
+                          className="w-fit"
+                          onClick={() => void saveEdit(inspection.id)}
+                          size="sm"
+                          type="button"
+                        >
+                          <Save size={14} />
+                          Сохранить
+                        </Button>
+                        <Button
+                          className="w-fit"
+                          onClick={() => {
+                            setEditingInspectionId("");
+                            setEditDraft(null);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          Отмена
+                        </Button>
+                      </>
+                    )}
                     {inspection.status !== "completed" && (
                       <Button asChild className="w-fit" size="sm" type="button" variant="secondary">
                         <a href={inspection.link} rel="noreferrer" target="_blank">
@@ -2503,6 +2742,16 @@ function InspectionsView({
                         </a>
                       </Button>
                     )}
+                    <Button
+                      className="w-fit"
+                      onClick={() => void deleteInspection(inspection.id)}
+                      size="sm"
+                      type="button"
+                      variant="destructive"
+                    >
+                      <Trash2 size={14} />
+                      Удалить
+                    </Button>
                   </div>
                   <div className="grid gap-2">
                     {inspectionResults.slice(0, 4).map((result) => {
@@ -2737,15 +2986,16 @@ function ContractorAccessView({
             <label htmlFor="contractor-name">Имя мастера</label>
             <Input
               id="contractor-name"
-              onChange={(event) =>
+              onChange={(event) => {
+                const value = event.currentTarget.value;
                 setState((current) => ({
                   ...current,
                   contractorAccess: {
                     ...current.contractorAccess,
-                    contractorName: event.currentTarget.value,
+                    contractorName: value,
                   },
-                }))
-              }
+                }));
+              }}
               placeholder="Например, Роман"
               value={state.contractorAccess.contractorName}
             />
@@ -2755,15 +3005,16 @@ function ContractorAccessView({
             <Input
               id="contractor-phone"
               inputMode="tel"
-              onChange={(event) =>
+              onChange={(event) => {
+                const value = event.currentTarget.value;
                 setState((current) => ({
                   ...current,
                   contractorAccess: {
                     ...current.contractorAccess,
-                    contractorPhone: event.currentTarget.value,
+                    contractorPhone: value,
                   },
-                }))
-              }
+                }));
+              }}
               placeholder="+7 ..."
               value={state.contractorAccess.contractorPhone}
             />
