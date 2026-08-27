@@ -817,10 +817,38 @@ textarea {
   gap: 8px;
 }
 
+.assets-view {
+  display: grid;
+  gap: 12px;
+}
+
 .asset-tools {
   display: grid;
-  grid-template-columns: minmax(240px, 320px) 240px;
+  grid-template-columns: minmax(260px, 1fr) 260px;
   gap: 8px;
+  align-items: center;
+}
+
+.asset-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+}
+
+.asset-filter-chip {
+  max-width: 100%;
+}
+
+.asset-filter-chip [data-slot="badge"] {
+  min-width: 22px;
+  height: 20px;
+  border: 0;
+  background: var(--content);
+  color: inherit;
+  padding-inline: 6px;
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .asset-table {
@@ -833,16 +861,16 @@ textarea {
 .asset-table-head,
 .asset-table-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1.5fr) minmax(120px, 0.7fr) minmax(140px, 0.8fr) 132px 220px;
+  grid-template-columns: minmax(260px, 1.6fr) minmax(120px, 0.7fr) minmax(140px, 0.8fr) 132px 220px;
   align-items: center;
   gap: 12px;
 }
 
 .asset-table-head {
-  min-height: 38px;
+  min-height: 40px;
   border-bottom: 1px solid var(--border);
   background: var(--content-alt);
-  padding: 0 14px;
+  padding: 0 16px;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 16px;
@@ -850,9 +878,9 @@ textarea {
 }
 
 .asset-table-row {
-  min-height: 58px;
+  min-height: 62px;
   border-bottom: 1px solid var(--border);
-  padding: 8px 14px;
+  padding: 8px 16px;
 }
 
 .asset-table-row:last-child {
@@ -893,6 +921,13 @@ textarea {
   color: var(--text-muted);
   font-size: 13px;
   line-height: 18px;
+}
+
+.asset-table-empty {
+  padding: 22px 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .status-pill.ok {
@@ -1902,6 +1937,22 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .asset-filter-bar {
+    flex-wrap: nowrap;
+    margin-inline: -20px;
+    overflow-x: auto;
+    padding: 0 20px 2px;
+    scrollbar-width: none;
+  }
+
+  .asset-filter-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .asset-filter-chip {
+    flex: 0 0 auto;
+  }
+
   .asset-table {
     display: grid;
     gap: 8px;
@@ -1919,7 +1970,7 @@ select:focus-visible {
     gap: 10px;
     min-height: 0;
     border: 0;
-    border-radius: 14px;
+    border-radius: 12px;
     background: var(--content);
     padding: 14px;
     box-shadow: inset 0 0 0 1px var(--border);
@@ -1931,6 +1982,12 @@ select:focus-visible {
 
   .asset-table-muted {
     white-space: normal;
+  }
+
+  .asset-table-empty {
+    border-radius: 12px;
+    background: var(--content);
+    box-shadow: inset 0 0 0 1px var(--border);
   }
 
   .topbar h1 {

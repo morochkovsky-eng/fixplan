@@ -2227,76 +2227,58 @@ function AssetsView({
   }, [assets]);
 
   return (
-    <Card>
-      <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
-        <div>
-          <CardTitle>Все узлы</CardTitle>
-          <CardDescription>
-            Инвентарный список с быстрыми фильтрами, сортировкой и сменой статуса.
-          </CardDescription>
+    <div className="assets-view">
+      <div className="asset-tools">
+        <div className="asset-search">
+          <Search size={16} />
+          <Input
+            aria-label="Поиск по узлам"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="Код, комната, тип"
+            value={query}
+          />
         </div>
-        <div className="asset-tools">
-          <div className="asset-search">
-            <Search size={16} />
-            <Input
-              aria-label="Поиск по узлам"
-              onChange={(event) => setQuery(event.currentTarget.value)}
-              placeholder="Код, комната, тип"
-              value={query}
-            />
-          </div>
-          <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
-            <SelectTrigger className="w-full sm:w-[240px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(assetSortLabels) as AssetSort[]).map((sortKey) => (
-                <SelectItem key={sortKey} value={sortKey}>
-                  {assetSortLabels[sortKey]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <div className="flex flex-wrap gap-2">
-          {assetFilterOptions.map((option) => (
-            <Button
-              key={option.id}
-              onClick={() => setFilter(option.id)}
-              size="sm"
-              type="button"
-              variant={filter === option.id ? "default" : "secondary"}
-            >
-              {option.label}
-              <Badge variant="secondary">{filterCounts[option.id] ?? 0}</Badge>
-            </Button>
-          ))}
-        </div>
+        <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
+          <SelectTrigger className="w-full sm:w-[260px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(assetSortLabels) as AssetSort[]).map((sortKey) => (
+              <SelectItem key={sortKey} value={sortKey}>
+                {assetSortLabels[sortKey]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted p-3 text-muted-foreground text-sm">
-          <span>
-            Показано {filteredAssets.length} из {assets.length}
-          </span>
-          <span>
-            Фильтр: {assetFilterOptions.find((option) => option.id === filter)?.label}
-          </span>
-        </div>
-
-        <div className="asset-table">
-          <div className="asset-table-head">
-            <span>Узел</span>
-            <span>Комната</span>
-            <span>Тип</span>
-            <span>Статус</span>
-            <span>Изменить</span>
-          </div>
-        {filteredAssets.map((asset) => (
-          <div
-            className="asset-table-row"
-            key={asset.id}
+      <div className="asset-filter-bar" role="list" aria-label="Фильтры узлов">
+        {assetFilterOptions.map((option) => (
+          <Button
+            aria-pressed={filter === option.id}
+            className="asset-filter-chip"
+            key={option.id}
+            onClick={() => setFilter(option.id)}
+            size="sm"
+            type="button"
+            variant={filter === option.id ? "default" : "secondary"}
           >
+            {option.label}
+            <Badge variant="secondary">{filterCounts[option.id] ?? 0}</Badge>
+          </Button>
+        ))}
+      </div>
+
+      <div className="asset-table">
+        <div className="asset-table-head">
+          <span>Узел</span>
+          <span>Комната</span>
+          <span>Тип</span>
+          <span>Статус</span>
+          <span>Изменить</span>
+        </div>
+        {filteredAssets.map((asset) => (
+          <div className="asset-table-row" key={asset.id}>
             <button className="asset-table-title" onClick={() => openAsset(asset.id)} type="button">
               <strong>{asset.code} · {asset.name}</strong>
               <span>{asset.photoNote}</span>
@@ -2312,13 +2294,12 @@ function AssetsView({
           </div>
         ))}
         {!filteredAssets.length && (
-          <div className="rounded-lg border border-dashed p-6 text-muted-foreground text-sm">
+          <div className="asset-table-empty">
             В этой группе пока нет узлов. Когда добавим реальные точки с плана, они появятся здесь.
           </div>
         )}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
