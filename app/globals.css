@@ -885,7 +885,7 @@ textarea {
 .asset-table-head,
 .asset-table-row {
   display: grid;
-  grid-template-columns: minmax(260px, 1.6fr) minmax(120px, 0.7fr) minmax(140px, 0.8fr) 132px 220px;
+  grid-template-columns: minmax(280px, 1.8fr) minmax(120px, 0.7fr) minmax(140px, 0.8fr) 220px;
   align-items: center;
   gap: 12px;
 }
@@ -952,6 +952,59 @@ textarea {
   color: var(--text-muted);
   font-size: 14px;
   line-height: 20px;
+}
+
+.status-select-trigger {
+  gap: 8px;
+  background: var(--content);
+}
+
+.status-select-trigger [data-slot="select-value"] {
+  justify-content: flex-start;
+}
+
+.status-select-trigger.status-select-ok {
+  border-color: color-mix(in oklab, var(--positive) 35%, var(--border));
+  background: var(--positive-tint);
+}
+
+.status-select-trigger.status-select-attention {
+  border-color: color-mix(in oklab, var(--negative) 35%, var(--border));
+  background: var(--negative-tint);
+}
+
+.status-select-trigger.status-select-in_progress {
+  border-color: color-mix(in oklab, var(--warning) 35%, var(--border));
+  background: var(--warning-tint);
+}
+
+.status-select-trigger.status-select-needs_master {
+  border-color: color-mix(in oklab, var(--primary) 25%, var(--border));
+  background: var(--secondary);
+}
+
+.status-select-dot {
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 999px;
+}
+
+.status-select-dot-ok {
+  background: var(--positive);
+}
+
+.status-select-dot-attention {
+  background: var(--negative);
+}
+
+.status-select-dot-in_progress {
+  background: var(--warning);
+}
+
+.status-select-dot-needs_master {
+  background: var(--primary);
 }
 
 .status-pill.ok {

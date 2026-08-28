@@ -1912,18 +1912,26 @@ function StatusSelect({
   onValueChange: (value: Status) => void;
   className?: string;
 }) {
+  const triggerClassName = [
+    "status-select-trigger",
+    `status-select-${value}`,
+    className ?? "w-[240px]",
+  ].join(" ");
+
   return (
     <Select value={value} onValueChange={(next) => onValueChange(next as Status)}>
       <SelectTrigger
         aria-label="Текущий статус"
-        className={className ?? "w-[240px]"}
+        className={triggerClassName}
         size="default"
       >
+        <span aria-hidden="true" className={`status-select-dot status-select-dot-${value}`} />
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(statusLabels) as Status[]).map((status) => (
           <SelectItem key={status} value={status}>
+            <span aria-hidden="true" className={`status-select-dot status-select-dot-${status}`} />
             {statusLabels[status]}
           </SelectItem>
         ))}
@@ -2276,7 +2284,6 @@ function AssetsView({
           <span>Комната</span>
           <span>Тип</span>
           <span>Статус</span>
-          <span>Изменить</span>
         </div>
         {filteredAssets.map((asset) => (
           <div className="asset-table-row" key={asset.id}>
@@ -2286,9 +2293,8 @@ function AssetsView({
             </button>
             <span className="asset-table-muted">{roomName(asset.roomId)}</span>
             <span className="asset-table-muted">{assetKindLabels[assetKind(asset)]}</span>
-            <StatusBadge status={asset.status} />
             <StatusSelect
-              className="w-full sm:w-[220px]"
+              className="asset-status-select w-full sm:w-[220px]"
               value={asset.status}
               onValueChange={(status) => setAssetStatus(asset.id, status)}
             />
@@ -2384,7 +2390,6 @@ function AssetDetail({
 }) {
   const assetMedia = media.filter((item) => item.assetId === asset.id);
   const mediaEvents = events.filter((event) => event.photo || assetMedia.some((item) => item.eventId === event.id));
-  const currentStatusVariant = asset.status === "attention" ? "destructive" : "secondary";
   const historyContent = (
     <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto max-[980px]:pr-0">
       <div className="space-y-5">
@@ -2505,10 +2510,8 @@ function AssetDetail({
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={currentStatusVariant}>
-                  Текущий статус: {statusLabels[asset.status]}
-                </Badge>
                 <StatusSelect
+                  className="w-full sm:w-[260px]"
                   value={asset.status}
                   onValueChange={(status) =>
                     setAssetStatus(
