@@ -955,32 +955,18 @@ textarea {
 }
 
 .status-select-trigger {
+  height: 32px;
+  min-height: 32px;
   gap: 8px;
+  border-color: var(--border);
   background: var(--content);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .status-select-trigger [data-slot="select-value"] {
   justify-content: flex-start;
-}
-
-.status-select-trigger.status-select-ok {
-  border-color: color-mix(in oklab, var(--positive) 35%, var(--border));
-  background: var(--positive-tint);
-}
-
-.status-select-trigger.status-select-attention {
-  border-color: color-mix(in oklab, var(--negative) 35%, var(--border));
-  background: var(--negative-tint);
-}
-
-.status-select-trigger.status-select-in_progress {
-  border-color: color-mix(in oklab, var(--warning) 35%, var(--border));
-  background: var(--warning-tint);
-}
-
-.status-select-trigger.status-select-needs_master {
-  border-color: color-mix(in oklab, var(--primary) 25%, var(--border));
-  background: var(--secondary);
 }
 
 .status-select-dot {
