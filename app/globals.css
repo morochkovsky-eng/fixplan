@@ -825,8 +825,17 @@ textarea {
 .asset-tools {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 260px;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+}
+
+.asset-search-input,
+.asset-sort-trigger {
+  height: 40px;
+  border-radius: 10px;
+  background: var(--content);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .asset-filter-bar {
@@ -837,7 +846,12 @@ textarea {
 }
 
 .asset-filter-chip {
+  height: 32px;
   max-width: 100%;
+  border-radius: 9px;
+  padding-inline: 12px;
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .asset-filter-chip [data-slot="badge"] {
@@ -849,6 +863,16 @@ textarea {
   padding-inline: 6px;
   font-size: 12px;
   line-height: 16px;
+}
+
+.asset-filter-chip[aria-pressed="true"] [data-slot="badge"] {
+  background: var(--content);
+  color: var(--text);
+}
+
+.asset-filter-chip[aria-pressed="false"] [data-slot="badge"] {
+  background: color-mix(in oklab, var(--content) 75%, var(--muted));
+  color: var(--text);
 }
 
 .asset-table {

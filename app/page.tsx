@@ -2233,13 +2233,14 @@ function AssetsView({
           <Search size={16} />
           <Input
             aria-label="Поиск по узлам"
+            className="asset-search-input"
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="Код, комната, тип"
             value={query}
           />
         </div>
         <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
-          <SelectTrigger className="w-full sm:w-[260px]">
+          <SelectTrigger className="asset-sort-trigger w-full sm:w-[260px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
