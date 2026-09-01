@@ -1085,6 +1085,9 @@ export default function Home() {
     assetDraftFromAsset(defaultState.assets[0]),
   );
   const [assetSaving, setAssetSaving] = useState(false);
+  const [planEditSnapshot, setPlanEditSnapshot] = useState<AppState | null>(null);
+  const [dirtyPlanAssetIds, setDirtyPlanAssetIds] = useState<string[]>([]);
+  const [deletedPlanAssetIds, setDeletedPlanAssetIds] = useState<string[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -1267,7 +1270,34 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
+  function rememberDirtyAsset(assetId: string) {
+    setDirtyPlanAssetIds((current) =>
+      current.includes(assetId) ? current : [...current, assetId],
+    );
+  }
+
+  function enterPlanEditMode() {
+    if (!planEditMode) {
+      setPlanEditSnapshot(structuredClone(state));
+      setDirtyPlanAssetIds([]);
+      setDeletedPlanAssetIds([]);
+    }
+    setPlanEditMode(true);
+  }
+
+  function cancelPlanChanges() {
+    const restoredState = planEditSnapshot ?? state;
+    setState(restoredState);
+    setPlanEditMode(false);
+    setPlanEditSnapshot(null);
+    setDirtyPlanAssetIds([]);
+    setDeletedPlanAssetIds([]);
+    setEditingAssetId(null);
+    setAssetDraft(assetDraftFromAsset(restoredState.assets[0] ?? defaultState.assets[0]));
+  }
+
   function selectAssetForEditing(asset: Asset) {
+    enterPlanEditMode();
     setPlanEditMode(true);
     setEditingAssetId(asset.id);
     setAssetDraft(assetDraftFromAsset(asset));
@@ -1275,12 +1305,47 @@ export default function Home() {
 
   function startNewAsset() {
     const draft = newAssetDraft(activePlan);
-    setPlanEditMode(true);
+    enterPlanEditMode();
     setEditingAssetId(null);
     setAssetDraft(draft);
   }
 
+  function updateAssetDraft(
+    updater: AssetDraft | ((current: AssetDraft) => AssetDraft),
+  ) {
+    setAssetDraft((currentDraft) => {
+      const nextDraft =
+        typeof updater === "function" ? updater(currentDraft) : updater;
+
+      if (editingAssetId) {
+        rememberDirtyAsset(editingAssetId);
+        setState((current) => ({
+          ...current,
+          assets: current.assets.map((asset) =>
+            asset.id === editingAssetId
+              ? {
+                  ...asset,
+                  code: nextDraft.code,
+                  name: nextDraft.name,
+                  roomId: nextDraft.roomId,
+                  category: nextDraft.category,
+                  kind: nextDraft.kind,
+                  status: nextDraft.status,
+                  x: nextDraft.x,
+                  y: nextDraft.y,
+                  photoNote: nextDraft.photoNote,
+                }
+              : asset,
+          ),
+        }));
+      }
+
+      return nextDraft;
+    });
+  }
+
   function moveAssetOnPlan(assetId: string, x: number, y: number) {
+    rememberDirtyAsset(assetId);
     setState((current) => ({
       ...current,
       assets: current.assets.map((asset) =>
@@ -1302,6 +1367,16 @@ export default function Home() {
 
     if (!normalizedDraft.code || !normalizedDraft.name) {
       window.alert("Укажите код и название узла.");
+      return;
+    }
+
+    const duplicate = state.assets.find(
+      (asset) =>
+        asset.id !== editingAssetId &&
+        asset.code.trim().toLowerCase() === normalizedDraft.code.toLowerCase(),
+    );
+    if (duplicate) {
+      window.alert(`Код ${normalizedDraft.code} уже занят узлом ${duplicate.name}.`);
       return;
     }
 
@@ -1332,6 +1407,7 @@ export default function Home() {
           : current.assets.map((asset) => (asset.id === savedAsset.id ? savedAsset : asset)),
         deletedAssetIds: current.deletedAssetIds?.filter((id) => id !== savedAsset.id),
       }));
+      setDirtyPlanAssetIds((current) => current.filter((id) => id !== savedAsset.id));
       setEditingAssetId(savedAsset.id);
       setSelectedAssetId(savedAsset.id);
       setAssetDraft(assetDraftFromAsset(savedAsset));
@@ -1350,23 +1426,76 @@ export default function Home() {
     );
     if (!confirmed) return;
 
+    setDeletedPlanAssetIds((current) =>
+      current.includes(editingAssetId) ? current : [...current, editingAssetId],
+    );
+    setDirtyPlanAssetIds((current) => current.filter((id) => id !== editingAssetId));
+    setState((current) => ({
+      ...current,
+      assets: current.assets.filter((item) => item.id !== editingAssetId),
+      deletedAssetIds: Array.from(new Set([...(current.deletedAssetIds ?? []), editingAssetId])),
+    }));
+    setEditingAssetId(null);
+    setAssetDraft(newAssetDraft(activePlan));
+  }
+
+  async function savePlanChanges() {
+    const changedIds = Array.from(new Set(dirtyPlanAssetIds));
+    const deleteIds = Array.from(new Set(deletedPlanAssetIds));
+
+    if (!changedIds.length && !deleteIds.length) {
+      setPlanEditMode(false);
+      setPlanEditSnapshot(null);
+      setDirtyPlanAssetIds([]);
+      setDeletedPlanAssetIds([]);
+      return;
+    }
+
+    const duplicateCodes = new Set<string>();
+    const seenCodes = new Set<string>();
+    for (const asset of state.assets) {
+      const code = asset.code.trim().toLowerCase();
+      if (!code) continue;
+      if (seenCodes.has(code)) duplicateCodes.add(asset.code);
+      seenCodes.add(code);
+    }
+    if (duplicateCodes.size) {
+      window.alert(`Повторяется код узла: ${Array.from(duplicateCodes).join(", ")}.`);
+      return;
+    }
+
     setAssetSaving(true);
     try {
-      const response = await fetch(`/api/assets/${editingAssetId}`, { method: "DELETE" });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
-
-      if (!response.ok) {
-        window.alert(payload.error ?? "Не удалось удалить узел.");
-        return;
+      for (const assetId of deleteIds) {
+        const response = await fetch(`/api/assets/${assetId}`, { method: "DELETE" });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) {
+          window.alert(payload.error ?? "Не удалось удалить узел.");
+          return;
+        }
       }
 
-      setState((current) => ({
-        ...current,
-        assets: current.assets.filter((item) => item.id !== editingAssetId),
-        deletedAssetIds: Array.from(new Set([...(current.deletedAssetIds ?? []), editingAssetId])),
-      }));
-      setEditingAssetId(null);
-      setAssetDraft(newAssetDraft(activePlan));
+      for (const assetId of changedIds) {
+        if (deleteIds.includes(assetId)) continue;
+        const asset = state.assets.find((item) => item.id === assetId);
+        if (!asset) continue;
+
+        const response = await fetch(`/api/assets/${asset.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(assetDraftFromAsset(asset)),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        if (!response.ok) {
+          window.alert(payload.error ?? `Не удалось сохранить ${asset.code}.`);
+          return;
+        }
+      }
+
+      setPlanEditMode(false);
+      setPlanEditSnapshot(null);
+      setDirtyPlanAssetIds([]);
+      setDeletedPlanAssetIds([]);
     } finally {
       setAssetSaving(false);
     }
@@ -1770,16 +1899,19 @@ export default function Home() {
             activePlanMode={activePlanMode}
             assetDraft={assetDraft}
             assetSaving={assetSaving}
+            cancelPlanChanges={cancelPlanChanges}
             deleteEditingAsset={deleteEditingAsset}
+            dirtyPlanAssetCount={new Set([...dirtyPlanAssetIds, ...deletedPlanAssetIds]).size}
             editingAssetId={editingAssetId}
             editMode={planEditMode}
+            enterPlanEditMode={enterPlanEditMode}
             onlyIssues={onlyIssues}
             moveAssetOnPlan={moveAssetOnPlan}
             setActivePlanMode={setActivePlanMode}
-            setAssetDraft={setAssetDraft}
+            setAssetDraft={updateAssetDraft}
+            savePlanChanges={savePlanChanges}
             saveAssetDraft={saveAssetDraft}
             selectAssetForEditing={selectAssetForEditing}
-            setEditMode={setPlanEditMode}
             startNewAsset={startNewAsset}
             toggleIssues={() => setOnlyIssues((value) => !value)}
             openAsset={openAsset}
@@ -2251,16 +2383,19 @@ function PlanView({
   activePlanMode,
   assetDraft,
   assetSaving,
+  cancelPlanChanges,
   deleteEditingAsset,
+  dirtyPlanAssetCount,
   editingAssetId,
   editMode,
+  enterPlanEditMode,
   onlyIssues,
   moveAssetOnPlan,
   setActivePlanMode,
   setAssetDraft,
+  savePlanChanges,
   saveAssetDraft,
   selectAssetForEditing,
-  setEditMode,
   startNewAsset,
   toggleIssues,
   openAsset,
@@ -2270,16 +2405,19 @@ function PlanView({
   activePlanMode: PlanModeId;
   assetDraft: AssetDraft;
   assetSaving: boolean;
+  cancelPlanChanges: () => void;
   deleteEditingAsset: () => void;
+  dirtyPlanAssetCount: number;
   editingAssetId: string | null;
   editMode: boolean;
+  enterPlanEditMode: () => void;
   onlyIssues: boolean;
   moveAssetOnPlan: (assetId: string, x: number, y: number) => void;
   setActivePlanMode: (mode: PlanModeId) => void;
   setAssetDraft: (draft: AssetDraft | ((current: AssetDraft) => AssetDraft)) => void;
+  savePlanChanges: () => void;
   saveAssetDraft: () => void;
   selectAssetForEditing: (asset: Asset) => void;
-  setEditMode: (enabled: boolean) => void;
   startNewAsset: () => void;
   toggleIssues: () => void;
   openAsset: (id: string) => void;
@@ -2302,15 +2440,42 @@ function PlanView({
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => setEditMode(!editMode)}
-                size="sm"
-                type="button"
-                variant={editMode ? "default" : "secondary"}
-              >
-                <Pencil size={14} />
-                {editMode ? "Редактирование включено" : "Редактировать узлы"}
-              </Button>
+              {editMode ? (
+                <>
+                  <Button
+                    disabled={assetSaving}
+                    onClick={cancelPlanChanges}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    Отменить
+                  </Button>
+                  <Button
+                    disabled={assetSaving}
+                    onClick={savePlanChanges}
+                    size="sm"
+                    type="button"
+                  >
+                    <Save size={14} />
+                    {assetSaving
+                      ? "Сохраняю"
+                      : dirtyPlanAssetCount
+                        ? `Сохранить (${dirtyPlanAssetCount})`
+                        : "Сохранить"}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  onClick={enterPlanEditMode}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  <Pencil size={14} />
+                  Редактировать узлы
+                </Button>
+              )}
               <Button onClick={startNewAsset} size="sm" type="button" variant="secondary">
                 <Plus size={14} />
                 Новый узел
