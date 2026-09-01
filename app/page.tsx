@@ -1362,6 +1362,16 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
+  function editAssetFromCatalog(assetId: string) {
+    const asset = state.assets.find((item) => item.id === assetId);
+    if (!asset) return;
+
+    setActivePlanMode(planModeFromAssetFilter(asset.category));
+    selectAssetForEditing(asset);
+    setView("plan");
+    setMobileMenuOpen(false);
+  }
+
   function navigate(viewName: View) {
     setView(viewName);
     setMobileMenuOpen(false);
@@ -2254,6 +2264,7 @@ export default function Home() {
             assets={state.assets}
             filter={assetFilter}
             openAsset={openAsset}
+            editAsset={editAssetFromCatalog}
             categories={state.categories}
             createAsset={createAssetFromAssets}
             createCategory={createCategory}
@@ -2273,6 +2284,7 @@ export default function Home() {
             setNewEventText={setNewEventText}
             addEvent={addEvent}
             setAssetStatus={setAssetStatus}
+            editAsset={() => editAssetFromCatalog(selectedAsset.id)}
             returnLabel={assetReturnLabel(assetReturnView)}
             goBack={() => navigate(assetReturnView)}
           />
@@ -2918,8 +2930,8 @@ function PlanAssetEditor({
     <div className="plan-editor">
       <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
         {asset
-          ? `${asset.code} · ${asset.name}. Координаты можно поправить перетаскиванием точки на плане.`
-          : "Новый узел появится в активной схеме после сохранения."}
+          ? `${asset.code} · ${asset.name}. Положение меняется перетаскиванием точки на плане.`
+          : "Новый узел появится на активной схеме. Передвиньте точку и сохраните изменения."}
       </div>
 
       <div className="plan-editor-grid">
@@ -3001,32 +3013,6 @@ function PlanAssetEditor({
             className="w-full"
             value={draft.status}
             onValueChange={(status) => onChange((current) => ({ ...current, status }))}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <label className="plan-editor-label" htmlFor="plan-asset-x">X на плане</label>
-          <Input
-            id="plan-asset-x"
-            max={100}
-            min={0}
-            onChange={(event) =>
-              onChange((current) => ({ ...current, x: Number(event.currentTarget.value) }))
-            }
-            type="number"
-            value={Math.round(draft.x * 10) / 10}
-          />
-        </div>
-        <div className="grid gap-1.5">
-          <label className="plan-editor-label" htmlFor="plan-asset-y">Y на плане</label>
-          <Input
-            id="plan-asset-y"
-            max={100}
-            min={0}
-            onChange={(event) =>
-              onChange((current) => ({ ...current, y: Number(event.currentTarget.value) }))
-            }
-            type="number"
-            value={Math.round(draft.y * 10) / 10}
           />
         </div>
       </div>
@@ -3195,6 +3181,7 @@ function AssetsView({
   categories,
   filter,
   openAsset,
+  editAsset,
   createAsset,
   createCategory,
   deleteCategory,
@@ -3206,6 +3193,7 @@ function AssetsView({
   categories: AssetCategory[];
   filter: AssetFilter;
   openAsset: (id: string) => void;
+  editAsset: (id: string) => void;
   createAsset: () => void;
   createCategory: (label: string) => Promise<boolean>;
   deleteCategory: (categoryId: Category) => Promise<boolean>;
@@ -3312,6 +3300,7 @@ function AssetsView({
           <span>Комната</span>
           <span>Тип</span>
           <span>Статус</span>
+          <span>Действия</span>
         </div>
         {filteredAssets.map((asset) => (
           <div className="asset-table-row" key={asset.id}>
@@ -3326,6 +3315,17 @@ function AssetsView({
               value={asset.status}
               onValueChange={(status) => setAssetStatus(asset.id, status)}
             />
+            <div className="asset-table-actions">
+              <Button
+                aria-label={`Редактировать ${asset.code}`}
+                onClick={() => editAsset(asset.id)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <Pencil size={14} />
+              </Button>
+            </div>
           </div>
         ))}
         {!filteredAssets.length && (
@@ -3372,7 +3372,7 @@ function CategoryManager({
       <div className="category-manager-header">
         <div>
           <strong>Категории</strong>
-          <span>Создавайте группы, переносите между ними узлы и управляйте фильтрами.</span>
+          <span>Справочник групп: фильтр, цвет точки и схема по умолчанию.</span>
         </div>
         <div className="category-create-row">
           <Input
@@ -3394,42 +3394,51 @@ function CategoryManager({
         </div>
       </div>
 
-      <div className="category-list" role="list" aria-label="Категории узлов">
+      <div className="category-table" role="table" aria-label="Категории узлов">
+        <div className="category-table-head" role="row">
+          <span>Категория</span>
+          <span>Узлов</span>
+          <span>Префикс</span>
+          <span>Действия</span>
+        </div>
         {options.map((category) => {
           const count = assets.filter((asset) => asset.category === category.id).length;
           return (
-            <div className="category-item" key={category.id}>
-              <span
-                aria-hidden="true"
-                className="category-color"
-                style={{ backgroundColor: category.color }}
-              />
+            <div className="category-table-row" key={category.id} role="row">
               <button
-                className="category-name"
+                className="category-main"
                 onClick={() => setFilter(category.id)}
                 type="button"
               >
+                <span
+                  aria-hidden="true"
+                  className="category-color"
+                  style={{ backgroundColor: category.color }}
+                />
                 <strong>{category.label}</strong>
-                <span>{count} узлов · префикс {category.prefix}</span>
               </button>
-              <Button
-                aria-label={`Переименовать ${category.label}`}
-                onClick={() => void promptRename(category)}
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              >
-                <Pencil size={14} />
-              </Button>
-              <Button
-                aria-label={`Удалить ${category.label}`}
-                onClick={() => void deleteCategory(category.id)}
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              >
-                <Trash2 size={14} />
-              </Button>
+              <span className="category-count">{count}</span>
+              <span className="category-prefix">{category.prefix || "без префикса"}</span>
+              <div className="category-actions">
+                <Button
+                  aria-label={`Переименовать ${category.label}`}
+                  onClick={() => void promptRename(category)}
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Pencil size={14} />
+                </Button>
+                <Button
+                  aria-label={`Удалить ${category.label}`}
+                  onClick={() => void deleteCategory(category.id)}
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
             </div>
           );
         })}
@@ -3499,6 +3508,7 @@ function AssetDetail({
   setNewEventText,
   addEvent,
   setAssetStatus,
+  editAsset,
   returnLabel,
   goBack,
 }: {
@@ -3513,6 +3523,7 @@ function AssetDetail({
     files?: PromptInputMessage["files"],
   ) => void;
   setAssetStatus: (assetId: string, status: Status, body?: string) => void;
+  editAsset: () => void;
   returnLabel: string;
   goBack: () => void;
 }) {
@@ -3632,9 +3643,7 @@ function AssetDetail({
               <div>
                 <CardTitle className="text-xl">{asset.code} · {asset.name}</CardTitle>
                 <CardDescription>
-                  {roomName(asset.roomId)} · {categoryLabel(asset.category)} · 220 В · координаты:
-                  {" "}
-                  {asset.x}% / {asset.y}%
+                  {roomName(asset.roomId)} · {categoryLabel(asset.category)} · 220 В
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -3652,10 +3661,16 @@ function AssetDetail({
               </div>
             </div>
           </div>
-          <Button variant="secondary" onClick={goBack} type="button">
-            <ArrowLeft size={16} />
-            {returnLabel}
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2 max-[720px]:justify-start">
+            <Button variant="secondary" onClick={goBack} type="button">
+              <ArrowLeft size={16} />
+              {returnLabel}
+            </Button>
+            <Button variant="secondary" onClick={editAsset} type="button">
+              <Pencil size={16} />
+              Редактировать
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 
