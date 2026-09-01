@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type PointerEvent } from "react";
 import {
   Attachment,
   AttachmentInfo,
@@ -64,8 +64,9 @@ import {
   History,
   LayoutDashboard,
   List,
-  Map,
+  Map as MapIcon,
   Menu,
+  Plus,
   ArrowLeft,
   Pencil,
   Save,
@@ -192,6 +193,11 @@ type Asset = {
   photoNote: string;
 };
 
+type AssetDraft = Pick<
+  Asset,
+  "code" | "name" | "roomId" | "category" | "kind" | "status" | "x" | "y" | "photoNote"
+>;
+
 type PlanMode = {
   id: PlanModeId;
   label: string;
@@ -257,6 +263,7 @@ type Inspection = {
 type AppState = {
   config: AppConfig;
   assets: Asset[];
+  deletedAssetIds?: string[];
   events: AssetEvent[];
   media: AssetMedia[];
   contractorAccess: ContractorAccess;
@@ -864,6 +871,24 @@ function matchesAssetSearch(asset: Asset, query: string) {
     .includes(value);
 }
 
+function assetBelongsToPlanMode(asset: Asset, modeId: PlanModeId) {
+  const kind = assetKind(asset);
+  if (modeId === "sockets") {
+    return kind === "socket" || kind === "switch" || kind === "appliance";
+  }
+  if (modeId === "lighting") return kind === "light";
+  if (modeId === "plumbing") {
+    return kind === "plumbing_fixture" || kind === "drain" || asset.category === "plumbing";
+  }
+  if (modeId === "ventilation") return kind === "ventilation";
+  if (modeId === "furniture") return kind === "furniture" || asset.category === "furniture";
+  if (modeId === "windows") return kind === "window" || asset.category === "window";
+  if (modeId === "flooring") return asset.code.startsWith("FL-");
+  if (modeId === "radiators") return kind === "radiator";
+  if (modeId === "warmFloor") return kind === "warm_floor";
+  return false;
+}
+
 function statusWeight(status: Status) {
   const order: Record<Status, number> = {
     attention: 0,
@@ -872,6 +897,13 @@ function statusWeight(status: Status) {
     ok: 3,
   };
   return order[status];
+}
+
+function statusTone(status: Status): PlanHotspot["tone"] {
+  if (status === "attention") return "negative";
+  if (status === "in_progress") return "warning";
+  if (status === "needs_master") return "violet";
+  return "positive";
 }
 
 function resultId() {
@@ -940,6 +972,50 @@ function catalogAssetFromHotspot(mode: PlanMode, hotspot: PlanHotspot): Asset {
   };
 }
 
+function assetDraftFromAsset(asset: Asset): AssetDraft {
+  return {
+    code: asset.code,
+    name: asset.name,
+    roomId: asset.roomId,
+    category: asset.category,
+    kind: assetKind(asset),
+    status: asset.status,
+    x: asset.x,
+    y: asset.y,
+    photoNote: asset.photoNote,
+  };
+}
+
+function newAssetDraft(mode: PlanMode): AssetDraft {
+  const kind = mode.id === "plumbing"
+    ? "plumbing_fixture"
+    : mode.id === "lighting"
+      ? "light"
+      : mode.id === "windows"
+        ? "window"
+        : mode.id === "radiators"
+          ? "radiator"
+          : mode.id === "warmFloor"
+            ? "warm_floor"
+            : mode.id === "ventilation"
+              ? "ventilation"
+              : mode.id === "furniture"
+                ? "furniture"
+                : "socket";
+
+  return {
+    code: "NEW",
+    name: "Новый узел",
+    roomId: "living",
+    category: categoryFromPlan(mode, kind),
+    kind,
+    status: "ok",
+    x: 50,
+    y: 50,
+    photoNote: "",
+  };
+}
+
 function buildCatalogAssets(existingAssets: Asset[]) {
   const seen = new Set(existingAssets.map((asset) => asset.id));
   return planModes.flatMap((mode) =>
@@ -950,15 +1026,19 @@ function buildCatalogAssets(existingAssets: Asset[]) {
 }
 
 function withCatalogAssets(state: AppState): AppState {
-  const catalogAssets = buildCatalogAssets(state.assets);
-  const knownIds = new Set(state.assets.map((asset) => asset.id));
+  const deletedAssetIds = state.deletedAssetIds ?? [];
+  const deletedIds = new Set(deletedAssetIds);
+  const activeAssets = state.assets.filter((asset) => !deletedIds.has(asset.id));
+  const catalogAssets = buildCatalogAssets(activeAssets).filter((asset) => !deletedIds.has(asset.id));
+  const knownIds = new Set(activeAssets.map((asset) => asset.id));
   return {
     ...state,
     config: state.config ?? initialState.config,
     assets: [
-      ...state.assets,
+      ...activeAssets,
       ...catalogAssets.filter((asset) => !knownIds.has(asset.id)),
     ],
+    deletedAssetIds,
     media: state.media ?? initialState.media,
     inspections: state.inspections ?? initialState.inspections,
     inspectionResults: state.inspectionResults ?? initialState.inspectionResults,
@@ -999,6 +1079,12 @@ export default function Home() {
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [planEditMode, setPlanEditMode] = useState(false);
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
+  const [assetDraft, setAssetDraft] = useState<AssetDraft>(() =>
+    assetDraftFromAsset(defaultState.assets[0]),
+  );
+  const [assetSaving, setAssetSaving] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -1139,12 +1225,12 @@ export default function Home() {
   const visibleAssets = useMemo(
     () =>
       state.assets.filter((asset) => {
-        const categoryVisible = activePlan.categories.includes(asset.category);
+        const categoryVisible = assetBelongsToPlanMode(asset, activePlan.id);
         const issueVisible =
           !onlyIssues || ["attention", "in_progress", "needs_master"].includes(asset.status);
         return categoryVisible && issueVisible;
       }),
-    [activePlan.categories, onlyIssues, state.assets],
+    [activePlan.id, onlyIssues, state.assets],
   );
 
   const issueAssets = state.assets.filter((asset) => asset.status !== "ok");
@@ -1179,6 +1265,111 @@ export default function Home() {
   function navigate(viewName: View) {
     setView(viewName);
     setMobileMenuOpen(false);
+  }
+
+  function selectAssetForEditing(asset: Asset) {
+    setPlanEditMode(true);
+    setEditingAssetId(asset.id);
+    setAssetDraft(assetDraftFromAsset(asset));
+  }
+
+  function startNewAsset() {
+    const draft = newAssetDraft(activePlan);
+    setPlanEditMode(true);
+    setEditingAssetId(null);
+    setAssetDraft(draft);
+  }
+
+  function moveAssetOnPlan(assetId: string, x: number, y: number) {
+    setState((current) => ({
+      ...current,
+      assets: current.assets.map((asset) =>
+        asset.id === assetId ? { ...asset, x, y } : asset,
+      ),
+    }));
+    if (editingAssetId === assetId) {
+      setAssetDraft((current) => ({ ...current, x, y }));
+    }
+  }
+
+  async function saveAssetDraft() {
+    const normalizedDraft: AssetDraft = {
+      ...assetDraft,
+      code: assetDraft.code.trim(),
+      name: assetDraft.name.trim(),
+      photoNote: assetDraft.photoNote.trim(),
+    };
+
+    if (!normalizedDraft.code || !normalizedDraft.name) {
+      window.alert("Укажите код и название узла.");
+      return;
+    }
+
+    setAssetSaving(true);
+    const isNew = !editingAssetId;
+
+    try {
+      const response = await fetch(isNew ? "/api/assets" : `/api/assets/${editingAssetId}`, {
+        method: isNew ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(normalizedDraft),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        asset?: Asset;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.asset) {
+        window.alert(payload.error ?? "Не удалось сохранить узел.");
+        return;
+      }
+
+      const savedAsset = payload.asset;
+      setState((current) => ({
+        ...current,
+        assets: isNew
+          ? [...current.assets, savedAsset]
+          : current.assets.map((asset) => (asset.id === savedAsset.id ? savedAsset : asset)),
+        deletedAssetIds: current.deletedAssetIds?.filter((id) => id !== savedAsset.id),
+      }));
+      setEditingAssetId(savedAsset.id);
+      setSelectedAssetId(savedAsset.id);
+      setAssetDraft(assetDraftFromAsset(savedAsset));
+    } finally {
+      setAssetSaving(false);
+    }
+  }
+
+  async function deleteEditingAsset() {
+    if (!editingAssetId) return;
+    const asset = state.assets.find((item) => item.id === editingAssetId);
+    if (!asset) return;
+
+    const confirmed = window.confirm(
+      `Удалить ${asset.code} · ${asset.name} с плана? История и фото останутся в базе.`,
+    );
+    if (!confirmed) return;
+
+    setAssetSaving(true);
+    try {
+      const response = await fetch(`/api/assets/${editingAssetId}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        window.alert(payload.error ?? "Не удалось удалить узел.");
+        return;
+      }
+
+      setState((current) => ({
+        ...current,
+        assets: current.assets.filter((item) => item.id !== editingAssetId),
+        deletedAssetIds: Array.from(new Set([...(current.deletedAssetIds ?? []), editingAssetId])),
+      }));
+      setEditingAssetId(null);
+      setAssetDraft(newAssetDraft(activePlan));
+    } finally {
+      setAssetSaving(false);
+    }
   }
 
   async function addEvent(
@@ -1577,8 +1768,19 @@ export default function Home() {
             assets={visibleAssets}
             allAssets={state.assets}
             activePlanMode={activePlanMode}
+            assetDraft={assetDraft}
+            assetSaving={assetSaving}
+            deleteEditingAsset={deleteEditingAsset}
+            editingAssetId={editingAssetId}
+            editMode={planEditMode}
             onlyIssues={onlyIssues}
+            moveAssetOnPlan={moveAssetOnPlan}
             setActivePlanMode={setActivePlanMode}
+            setAssetDraft={setAssetDraft}
+            saveAssetDraft={saveAssetDraft}
+            selectAssetForEditing={selectAssetForEditing}
+            setEditMode={setPlanEditMode}
+            startNewAsset={startNewAsset}
             toggleIssues={() => setOnlyIssues((value) => !value)}
             openAsset={openAsset}
           />
@@ -1852,7 +2054,7 @@ function AppNavigation({
         Дашборд
       </NavButton>
       <NavButton active={activeView === "plan"} onClick={() => navigate("plan")}>
-        <Map size={16} />
+        <MapIcon size={16} />
         План
       </NavButton>
       <NavButton active={activeView === "assets"} onClick={() => navigate("assets")}>
@@ -2047,30 +2249,74 @@ function PlanView({
   assets,
   allAssets,
   activePlanMode,
+  assetDraft,
+  assetSaving,
+  deleteEditingAsset,
+  editingAssetId,
+  editMode,
   onlyIssues,
+  moveAssetOnPlan,
   setActivePlanMode,
+  setAssetDraft,
+  saveAssetDraft,
+  selectAssetForEditing,
+  setEditMode,
+  startNewAsset,
   toggleIssues,
   openAsset,
 }: {
   assets: Asset[];
   allAssets: Asset[];
   activePlanMode: PlanModeId;
+  assetDraft: AssetDraft;
+  assetSaving: boolean;
+  deleteEditingAsset: () => void;
+  editingAssetId: string | null;
+  editMode: boolean;
   onlyIssues: boolean;
+  moveAssetOnPlan: (assetId: string, x: number, y: number) => void;
   setActivePlanMode: (mode: PlanModeId) => void;
+  setAssetDraft: (draft: AssetDraft | ((current: AssetDraft) => AssetDraft)) => void;
+  saveAssetDraft: () => void;
+  selectAssetForEditing: (asset: Asset) => void;
+  setEditMode: (enabled: boolean) => void;
+  startNewAsset: () => void;
   toggleIssues: () => void;
   openAsset: (id: string) => void;
 }) {
   const activeMode = planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
   const activeHotspots = planHotspots[activeMode.id];
+  const editingAsset = editingAssetId
+    ? allAssets.find((asset) => asset.id === editingAssetId) ?? null
+    : null;
 
   return (
     <div className="grid grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 max-[980px]:grid-cols-1">
       <Card>
         <CardHeader>
-          <CardTitle>Схема квартиры</CardTitle>
-          <CardDescription>
-            Переключайте рабочий лист плана. Одновременно активен один режим.
-          </CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Схема квартиры</CardTitle>
+              <CardDescription>
+                Переключайте рабочий лист плана. Одновременно активен один режим.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => setEditMode(!editMode)}
+                size="sm"
+                type="button"
+                variant={editMode ? "default" : "secondary"}
+              >
+                <Pencil size={14} />
+                {editMode ? "Редактирование включено" : "Редактировать узлы"}
+              </Button>
+              <Button onClick={startNewAsset} size="sm" type="button" variant="secondary">
+                <Plus size={14} />
+                Новый узел
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="plan-mode-toolbar" role="tablist" aria-label="Режимы плана">
@@ -2101,31 +2347,207 @@ function PlanView({
             activeMode={activeMode}
             hotspots={activeHotspots}
             assets={assets}
+            editMode={editMode}
+            editingAssetId={editingAssetId}
+            moveAssetOnPlan={moveAssetOnPlan}
             openAsset={openAsset}
+            selectAssetForEditing={selectAssetForEditing}
           />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Видимые узлы</CardTitle>
+          <CardTitle>{editMode ? "Редактор узла" : "Видимые узлы"}</CardTitle>
           <CardDescription>
-            {activeMode.label}: {activeHotspots.length} контрольных точек, {assets.length} из{" "}
-            {allAssets.length} узлов системы.
+            {editMode
+              ? "Выберите точку на плане, перетащите ее и сохраните положение."
+              : `${activeMode.label}: ${activeHotspots.length} контрольных точек, ${assets.length} из ${allAssets.length} узлов системы.`}
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2">
-          <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
-            {activeMode.summary}
-          </div>
-          {assets.map((asset) => (
-            <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
-          ))}
-          {!assets.length && (
-            <p className="text-muted-foreground text-sm">По выбранным фильтрам узлов нет.</p>
+        <CardContent className="grid gap-3">
+          {editMode ? (
+            <PlanAssetEditor
+              asset={editingAsset}
+              draft={assetDraft}
+              isSaving={assetSaving}
+              onChange={setAssetDraft}
+              onDelete={deleteEditingAsset}
+              onSave={saveAssetDraft}
+            />
+          ) : (
+            <>
+              <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
+                {activeMode.summary}
+              </div>
+              {assets.map((asset) => (
+                <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
+              ))}
+              {!assets.length && (
+                <p className="text-muted-foreground text-sm">По выбранным фильтрам узлов нет.</p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function PlanAssetEditor({
+  asset,
+  draft,
+  isSaving,
+  onChange,
+  onDelete,
+  onSave,
+}: {
+  asset: Asset | null;
+  draft: AssetDraft;
+  isSaving: boolean;
+  onChange: (draft: AssetDraft | ((current: AssetDraft) => AssetDraft)) => void;
+  onDelete: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <div className="plan-editor">
+      <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
+        {asset
+          ? `${asset.code} · ${asset.name}. Координаты можно поправить перетаскиванием точки на плане.`
+          : "Новый узел появится в активной схеме после сохранения."}
+      </div>
+
+      <div className="plan-editor-grid">
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-code">Код</label>
+          <Input
+            id="plan-asset-code"
+            onChange={(event) => onChange((current) => ({ ...current, code: event.currentTarget.value }))}
+            value={draft.code}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-name">Название</label>
+          <Input
+            id="plan-asset-name"
+            onChange={(event) => onChange((current) => ({ ...current, name: event.currentTarget.value }))}
+            value={draft.name}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <span className="plan-editor-label">Комната</span>
+          <Select
+            value={draft.roomId}
+            onValueChange={(roomId) => onChange((current) => ({ ...current, roomId }))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {rooms.map((room) => (
+                <SelectItem key={room.id} value={room.id}>
+                  {room.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <span className="plan-editor-label">Категория</span>
+          <Select
+            value={draft.category}
+            onValueChange={(category) =>
+              onChange((current) => ({ ...current, category: category as Category }))
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(categoryLabels) as Category[]).map((category) => (
+                <SelectItem key={category} value={category}>
+                  {categoryLabels[category]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <span className="plan-editor-label">Тип</span>
+          <Select
+            value={draft.kind}
+            onValueChange={(kind) => onChange((current) => ({ ...current, kind: kind as AssetKind }))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(assetKindLabels) as AssetKind[]).map((kind) => (
+                <SelectItem key={kind} value={kind}>
+                  {assetKindLabels[kind]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-1.5">
+          <span className="plan-editor-label">Статус</span>
+          <StatusSelect
+            className="w-full"
+            value={draft.status}
+            onValueChange={(status) => onChange((current) => ({ ...current, status }))}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-x">X на плане</label>
+          <Input
+            id="plan-asset-x"
+            max={100}
+            min={0}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, x: Number(event.currentTarget.value) }))
+            }
+            type="number"
+            value={Math.round(draft.x * 10) / 10}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-y">Y на плане</label>
+          <Input
+            id="plan-asset-y"
+            max={100}
+            min={0}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, y: Number(event.currentTarget.value) }))
+            }
+            type="number"
+            value={Math.round(draft.y * 10) / 10}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-1.5">
+        <label className="plan-editor-label" htmlFor="plan-asset-note">Описание</label>
+        <Textarea
+          id="plan-asset-note"
+          onChange={(event) => onChange((current) => ({ ...current, photoNote: event.currentTarget.value }))}
+          placeholder="Что важно знать мастеру или владельцу"
+          value={draft.photoNote}
+        />
+      </div>
+
+      <div className="button-row">
+        <Button disabled={isSaving} onClick={onSave} type="button">
+          <Save size={14} />
+          {isSaving ? "Сохраняю" : "Сохранить узел"}
+        </Button>
+        {asset && (
+          <Button disabled={isSaving} onClick={onDelete} type="button" variant="destructive">
+            <Trash2 size={14} />
+            Удалить
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -2134,14 +2556,33 @@ function ApartmentPlan({
   activeMode,
   hotspots,
   assets,
+  editMode,
+  editingAssetId,
+  moveAssetOnPlan,
   openAsset,
+  selectAssetForEditing,
 }: {
   activeMode: PlanMode;
   hotspots: PlanHotspot[];
   assets: Asset[];
+  editMode: boolean;
+  editingAssetId: string | null;
+  moveAssetOnPlan: (assetId: string, x: number, y: number) => void;
   openAsset: (id: string) => void;
+  selectAssetForEditing: (asset: Asset) => void;
 }) {
   const visibleAssetIds = new Set(assets.map((asset) => asset.id));
+  const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+
+  function updateFromPointer(asset: Asset, event: PointerEvent<HTMLButtonElement>) {
+    const stage = event.currentTarget.closest(".plan-stage");
+    if (!(stage instanceof HTMLElement)) return;
+
+    const rect = stage.getBoundingClientRect();
+    const x = Math.min(100, Math.max(0, ((event.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((event.clientY - rect.top) / rect.height) * 100));
+    moveAssetOnPlan(asset.id, x, y);
+  }
 
   return (
     <div className="apartment-plan" aria-label="Схема квартиры">
@@ -2150,6 +2591,7 @@ function ApartmentPlan({
         {hotspots.map((hotspot) => {
           const markerAssetId = hotspot.assetId ?? hotspot.id;
           const isLinkedAsset = visibleAssetIds.has(markerAssetId);
+          const asset = assetById.get(markerAssetId);
           const isHiddenByIssueFilter = !visibleAssetIds.has(markerAssetId);
           if (isHiddenByIssueFilter) return null;
 
@@ -2158,29 +2600,86 @@ function ApartmentPlan({
               <TooltipTrigger asChild>
                 <button
                   aria-label={`${hotspot.code}, ${hotspot.title}, ${hotspot.room}`}
-                  className={`plan-hotspot ${hotspot.tone ?? "positive"}${isLinkedAsset ? " linked" : ""}`}
-                  onClick={() => openAsset(markerAssetId)}
-                  style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%` }}
+                  className={`plan-hotspot ${hotspot.tone ?? "positive"}${isLinkedAsset ? " linked" : ""}${editingAssetId === markerAssetId ? " editing" : ""}`}
+                  onClick={() => (editMode && asset ? selectAssetForEditing(asset) : openAsset(markerAssetId))}
+                  onPointerDown={(event) => {
+                    if (!editMode || !asset) return;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    selectAssetForEditing(asset);
+                  }}
+                  onPointerMove={(event) => {
+                    if (!editMode || !asset || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                    updateFromPointer(asset, event);
+                  }}
+                  onPointerUp={(event) => {
+                    if (!editMode || !asset) return;
+                    updateFromPointer(asset, event);
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                  }}
+                  style={{ left: `${asset?.x ?? hotspot.x}%`, top: `${asset?.y ?? hotspot.y}%` }}
                   type="button"
                 >
                   <span className="plan-hotspot-dot" />
-                  <span className="plan-hotspot-code">{hotspot.code}</span>
+                  <span className="plan-hotspot-code">{asset?.code ?? hotspot.code}</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent sideOffset={8}>
                 <span className="grid gap-1">
-                  <strong>{hotspot.code} · {hotspot.title}</strong>
-                  <span>{hotspot.room}</span>
-                  <span>{hotspot.note}</span>
+                  <strong>{asset?.code ?? hotspot.code} · {asset?.name ?? hotspot.title}</strong>
+                  <span>{asset ? roomName(asset.roomId) : hotspot.room}</span>
+                  <span>{asset?.photoNote || hotspot.note}</span>
                 </span>
               </TooltipContent>
             </Tooltip>
           );
         })}
+        {assets
+          .filter((asset) => !hotspots.some((hotspot) => hotspotAssetId(hotspot) === asset.id))
+          .map((asset) => (
+            <Tooltip key={asset.id}>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={`${asset.code}, ${asset.name}, ${roomName(asset.roomId)}`}
+                  className={`plan-hotspot ${statusTone(asset.status)} linked${editingAssetId === asset.id ? " editing" : ""}`}
+                  onClick={() => (editMode ? selectAssetForEditing(asset) : openAsset(asset.id))}
+                  onPointerDown={(event) => {
+                    if (!editMode) return;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    selectAssetForEditing(asset);
+                  }}
+                  onPointerMove={(event) => {
+                    if (!editMode || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                    updateFromPointer(asset, event);
+                  }}
+                  onPointerUp={(event) => {
+                    if (!editMode) return;
+                    updateFromPointer(asset, event);
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                  }}
+                  style={{ left: `${asset.x}%`, top: `${asset.y}%` }}
+                  type="button"
+                >
+                  <span className="plan-hotspot-dot" />
+                  <span className="plan-hotspot-code">{asset.code}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent sideOffset={8}>
+                <span className="grid gap-1">
+                  <strong>{asset.code} · {asset.name}</strong>
+                  <span>{roomName(asset.roomId)}</span>
+                  <span>{asset.photoNote || categoryLabels[asset.category]}</span>
+                </span>
+              </TooltipContent>
+            </Tooltip>
+          ))}
       </div>
       <div className="plan-caption">
         <span>Активный лист: {activeMode.label}</span>
-        <span>Точки открывают подсказку; связанные узлы открывают карточку объекта</span>
+        <span>
+          {editMode
+            ? "Редактирование: выберите и перетащите точку, затем сохраните узел"
+            : "Точки открывают подсказку; связанные узлы открывают карточку объекта"}
+        </span>
       </div>
     </div>
   );
@@ -2769,10 +3268,14 @@ function InspectionView({
           <ApartmentPlan
             activeMode={planModes[0]}
             assets={[asset]}
+            editMode={false}
+            editingAssetId={null}
             hotspots={planHotspots[planModes[0].id].filter(
               (hotspot) => (hotspot.assetId ?? hotspot.id) === asset.id,
             )}
+            moveAssetOnPlan={() => {}}
             openAsset={openAsset}
+            selectAssetForEditing={() => {}}
           />
         </CardContent>
       </Card>
@@ -3241,8 +3744,12 @@ function ContractorAccessView({
               <ApartmentPlan
                 activeMode={activeContractorPlanMode}
                 assets={allowedAssets}
+                editMode={false}
+                editingAssetId={null}
                 hotspots={visibleContractorHotspots}
+                moveAssetOnPlan={() => {}}
                 openAsset={setSelectedContractorAssetId}
+                selectAssetForEditing={() => {}}
               />
             </CardContent>
           </Card>

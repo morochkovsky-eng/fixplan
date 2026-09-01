@@ -31,8 +31,16 @@ export async function GET() {
     return NextResponse.json({ error: "Apartment access denied" }, { status: 403 });
   }
 
-  const [assetsResult, eventsResult, inspectionsResult, resultsResult, mediaResult] = await Promise.all([
-    admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).order("code"),
+  const [
+    assetsResult,
+    deletedAssetsResult,
+    eventsResult,
+    inspectionsResult,
+    resultsResult,
+    mediaResult,
+  ] = await Promise.all([
+    admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).is("deleted_at", null).order("code"),
+    admin.from("assets").select("id").eq("apartment_id", APARTMENT_ID).not("deleted_at", "is", null),
     admin.from("events").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("inspections").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("inspection_results").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
@@ -41,6 +49,7 @@ export async function GET() {
 
   const error =
     assetsResult.error ??
+    deletedAssetsResult.error ??
     eventsResult.error ??
     inspectionsResult.error ??
     resultsResult.error ??
@@ -74,6 +83,7 @@ export async function GET() {
   );
 
   return NextResponse.json({
+    deletedAssetIds: (deletedAssetsResult.data ?? []).map((asset) => asset.id),
     assets: (assetsResult.data ?? []).map((asset) => ({
       id: asset.id,
       code: asset.code,

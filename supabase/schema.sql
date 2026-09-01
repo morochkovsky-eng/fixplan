@@ -65,6 +65,7 @@ create table public.assets (
   warranty_until text,
   master text,
   photo_note text not null default '',
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (apartment_id, id),

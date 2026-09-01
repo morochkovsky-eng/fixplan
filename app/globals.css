@@ -699,6 +699,17 @@ textarea {
   box-shadow: 0 10px 28px rgba(29, 32, 35, 0.22);
 }
 
+.plan-hotspot.editing {
+  z-index: 5;
+  box-shadow:
+    0 0 0 2px var(--ring),
+    0 12px 32px rgba(29, 32, 35, 0.24);
+}
+
+.plan-hotspot.editing .plan-hotspot-code {
+  color: var(--foreground);
+}
+
 .plan-hotspot:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
@@ -752,6 +763,24 @@ textarea {
   color: var(--text-muted);
   font-size: 12px;
   line-height: 16px;
+}
+
+.plan-editor {
+  display: grid;
+  gap: 14px;
+}
+
+.plan-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.plan-editor-label {
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
 }
 
 .asset-marker {
@@ -2105,6 +2134,10 @@ select:focus-visible {
   .apartment-plan {
     margin-top: 12px;
     padding: 8px;
+  }
+
+  .plan-editor-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .plan-stage {
