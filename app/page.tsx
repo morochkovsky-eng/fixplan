@@ -1002,10 +1002,21 @@ function newAssetDraft(mode: PlanMode): AssetDraft {
               : mode.id === "furniture"
                 ? "furniture"
                 : "socket";
+  const prefixByMode: Record<PlanModeId, string> = {
+    sockets: "R-",
+    lighting: "L-",
+    plumbing: "W-",
+    ventilation: "V-",
+    furniture: "F-",
+    windows: "WIN-",
+    flooring: "FL-",
+    radiators: "RAD-",
+    warmFloor: "TP-",
+  };
 
   return {
-    code: "NEW",
-    name: "Новый узел",
+    code: prefixByMode[mode.id],
+    name: "",
     roomId: "living",
     category: categoryFromPlan(mode, kind),
     kind,
@@ -1244,6 +1255,9 @@ export default function Home() {
   const needsMasterAssets = state.assets.filter(
     (asset) => asset.status === "needs_master",
   );
+  const dirtyPlanAssetCount =
+    new Set([...dirtyPlanAssetIds, ...deletedPlanAssetIds]).size +
+    (!editingAssetId && assetDraft.code.trim() && assetDraft.name.trim() ? 1 : 0);
   const currentInspectionAsset = state.assets[inspectionIndex % state.assets.length];
 
   function openAsset(id: string) {
@@ -1442,8 +1456,15 @@ export default function Home() {
   async function savePlanChanges() {
     const changedIds = Array.from(new Set(dirtyPlanAssetIds));
     const deleteIds = Array.from(new Set(deletedPlanAssetIds));
+    const newDraft: AssetDraft = {
+      ...assetDraft,
+      code: assetDraft.code.trim(),
+      name: assetDraft.name.trim(),
+      photoNote: assetDraft.photoNote.trim(),
+    };
+    const shouldCreateDraft = !editingAssetId && Boolean(newDraft.code && newDraft.name);
 
-    if (!changedIds.length && !deleteIds.length) {
+    if (!changedIds.length && !deleteIds.length && !shouldCreateDraft) {
       setPlanEditMode(false);
       setPlanEditSnapshot(null);
       setDirtyPlanAssetIds([]);
@@ -1453,7 +1474,17 @@ export default function Home() {
 
     const duplicateCodes = new Set<string>();
     const seenCodes = new Set<string>();
-    for (const asset of state.assets) {
+    const assetsToValidate = shouldCreateDraft
+      ? [
+          ...state.assets,
+          {
+            ...defaultState.assets[0],
+            id: "__new_asset_draft__",
+            code: newDraft.code,
+          },
+        ]
+      : state.assets;
+    for (const asset of assetsToValidate) {
       const code = asset.code.trim().toLowerCase();
       if (!code) continue;
       if (seenCodes.has(code)) duplicateCodes.add(asset.code);
@@ -1466,6 +1497,24 @@ export default function Home() {
 
     setAssetSaving(true);
     try {
+      let createdAsset: Asset | null = null;
+      if (shouldCreateDraft) {
+        const response = await fetch("/api/assets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newDraft),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          asset?: Asset;
+          error?: string;
+        };
+        if (!response.ok || !payload.asset) {
+          window.alert(payload.error ?? "Не удалось сохранить новый узел.");
+          return;
+        }
+        createdAsset = payload.asset;
+      }
+
       for (const assetId of deleteIds) {
         const response = await fetch(`/api/assets/${assetId}`, { method: "DELETE" });
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -1492,6 +1541,15 @@ export default function Home() {
         }
       }
 
+      if (createdAsset) {
+        setState((current) => ({
+          ...current,
+          assets: [...current.assets, createdAsset],
+          deletedAssetIds: current.deletedAssetIds?.filter((id) => id !== createdAsset.id),
+        }));
+        setSelectedAssetId(createdAsset.id);
+        setAssetDraft(assetDraftFromAsset(createdAsset));
+      }
       setPlanEditMode(false);
       setPlanEditSnapshot(null);
       setDirtyPlanAssetIds([]);
@@ -1901,7 +1959,7 @@ export default function Home() {
             assetSaving={assetSaving}
             cancelPlanChanges={cancelPlanChanges}
             deleteEditingAsset={deleteEditingAsset}
-            dirtyPlanAssetCount={new Set([...dirtyPlanAssetIds, ...deletedPlanAssetIds]).size}
+            dirtyPlanAssetCount={dirtyPlanAssetCount}
             editingAssetId={editingAssetId}
             editMode={planEditMode}
             enterPlanEditMode={enterPlanEditMode}
