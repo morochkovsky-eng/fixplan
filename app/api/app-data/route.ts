@@ -33,6 +33,7 @@ export async function GET() {
 
   const [
     assetsResult,
+    categoriesResult,
     deletedAssetsResult,
     eventsResult,
     inspectionsResult,
@@ -40,6 +41,7 @@ export async function GET() {
     mediaResult,
   ] = await Promise.all([
     admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).is("deleted_at", null).order("code"),
+    admin.from("asset_categories").select("*").eq("apartment_id", APARTMENT_ID).order("sort_order"),
     admin.from("assets").select("id").eq("apartment_id", APARTMENT_ID).not("deleted_at", "is", null),
     admin.from("events").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("inspections").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
@@ -49,6 +51,7 @@ export async function GET() {
 
   const error =
     assetsResult.error ??
+    categoriesResult.error ??
     deletedAssetsResult.error ??
     eventsResult.error ??
     inspectionsResult.error ??
@@ -84,6 +87,14 @@ export async function GET() {
 
   return NextResponse.json({
     deletedAssetIds: (deletedAssetsResult.data ?? []).map((asset) => asset.id),
+    categories: (categoriesResult.data ?? []).map((category) => ({
+      id: category.id,
+      label: category.label,
+      color: category.color,
+      prefix: category.prefix,
+      planModeId: category.plan_mode_id,
+      builtin: category.builtin,
+    })),
     assets: (assetsResult.data ?? []).map((asset) => ({
       id: asset.id,
       code: asset.code,

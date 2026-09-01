@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { APARTMENT_ID, requireApartmentAccess } from "./access";
 
-const categories = new Set(["electric", "plumbing", "appliance", "furniture", "window", "hvac"]);
 const kinds = new Set([
   "socket",
   "switch",
@@ -37,7 +36,7 @@ function normalizeAssetPayload(body: Record<string, unknown>) {
     return { error: "Укажите код и название узла." };
   }
 
-  if (!categories.has(category) || !kinds.has(kind) || !statuses.has(status)) {
+  if (!/^[a-z0-9_-]+$/i.test(category) || !kinds.has(kind) || !statuses.has(status)) {
     return { error: "Некорректные параметры узла." };
   }
 
@@ -120,4 +119,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ asset: formatAsset(data) });
 }
-

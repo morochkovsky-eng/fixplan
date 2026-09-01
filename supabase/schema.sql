@@ -1,7 +1,6 @@
 create extension if not exists pgcrypto;
 
 create type public.asset_status as enum ('ok', 'attention', 'in_progress', 'needs_master');
-create type public.asset_category as enum ('electric', 'plumbing', 'appliance', 'furniture', 'window', 'hvac');
 create type public.asset_kind as enum (
   'socket',
   'switch',
@@ -50,13 +49,29 @@ create table public.rooms (
   primary key (apartment_id, id)
 );
 
+create table public.asset_categories (
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  id text not null,
+  label text not null,
+  color text not null default '#0070f3',
+  prefix text not null default '',
+  plan_mode_id text not null default 'sockets',
+  sort_order integer not null default 0,
+  builtin boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (apartment_id, id),
+  constraint asset_categories_id_format check (id ~ '^[A-Za-z0-9_-]+$'),
+  constraint asset_categories_label_not_blank check (length(trim(label)) > 0)
+);
+
 create table public.assets (
   apartment_id uuid not null references public.apartments(id) on delete cascade,
   id text not null,
   code text not null,
   name text not null,
   room_id text not null,
-  category public.asset_category not null,
+  category text not null,
   kind public.asset_kind,
   status public.asset_status not null default 'ok',
   x numeric not null,
@@ -69,6 +84,7 @@ create table public.assets (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (apartment_id, id),
+  constraint assets_category_not_blank check (length(trim(category)) > 0),
   foreign key (apartment_id, room_id) references public.rooms(apartment_id, id)
 );
 

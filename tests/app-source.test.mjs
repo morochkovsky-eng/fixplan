@@ -31,6 +31,7 @@ test("contains the production Supabase model", () => {
   for (const table of [
     "apartments",
     "rooms",
+    "asset_categories",
     "assets",
     "events",
     "inspections",
@@ -41,6 +42,31 @@ test("contains the production Supabase model", () => {
 
   assert.match(schemaSource, /submit_guest_report/);
   assert.match(schemaSource, /asset-media/);
+  assert.match(schemaSource, /category text not null/);
   assert.match(seedSource, /Шпалерная, 34Б/);
   assert.match(seedSource, /morochkovsky@gmail\.com/);
+});
+
+test("keeps new asset editing as a persisted temporary plan node", () => {
+  assert.match(pageSource, /function tempAssetId\(\)/);
+  assert.match(pageSource, /draft-asset-/);
+  assert.match(pageSource, /isTempAssetId\(editingAssetId\)/);
+  assert.match(pageSource, /method: "POST"/);
+  assert.match(pageSource, /current\.assets\.map\(\(asset\) => \(asset\.id === editingAssetId \? savedAsset : asset\)\)/);
+  assert.match(pageSource, /createAssetFromAssets/);
+  assert.match(pageSource, /Новый узел/);
+  assert.doesNotMatch(
+    pageSource,
+    /setAssetDraft\(\(currentDraft\) => \{[\s\S]*?setState\(\(current\) =>/m,
+  );
+});
+
+test("supports custom asset categories from the UI", () => {
+  assert.match(pageSource, /type Category = string/);
+  assert.match(pageSource, /function createCategory/);
+  assert.match(pageSource, /function renameCategory/);
+  assert.match(pageSource, /function deleteCategory/);
+  assert.match(pageSource, /CategoryManager/);
+  assert.match(pageSource, /categoryOptions\(categories\)\.map/);
+  assert.match(pageSource, /Нельзя удалить/);
 });

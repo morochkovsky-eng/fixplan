@@ -22,7 +22,7 @@ type GuestAsset = {
   code: string;
   name: string;
   roomId: string;
-  category: "electric" | "plumbing" | "appliance" | "furniture" | "window" | "hvac";
+  category: string;
   kind?: string;
   status: Status;
   x: number;
@@ -78,10 +78,11 @@ const roomLabels: Record<string, string> = {
   laundry: "Постирочная",
 };
 
-const categoryLabels: Record<GuestAsset["category"], string> = {
+const categoryLabels: Record<string, string> = {
   electric: "Электрика",
   plumbing: "Сантехника",
   appliance: "Техника",
+  household_appliance: "Бытовая техника",
   furniture: "Мебель",
   window: "Окна",
   hvac: "Климат",
@@ -474,7 +475,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
             <div className="grid gap-1">
               <h1 className="m-0 text-xl font-medium leading-tight">{asset.code} · {asset.name}</h1>
               <p className="m-0 text-muted-foreground text-sm">
-                {roomLabels[asset.roomId] ?? asset.roomId} · {categoryLabels[asset.category]}
+                {roomLabels[asset.roomId] ?? asset.roomId} · {categoryLabels[asset.category] ?? asset.category}
               </p>
               <p className="m-0 text-muted-foreground text-xs">{contractorLine}</p>
             </div>

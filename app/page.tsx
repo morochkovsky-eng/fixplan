@@ -77,13 +77,7 @@ import {
   X,
 } from "lucide-react";
 
-type Category =
-  | "electric"
-  | "plumbing"
-  | "appliance"
-  | "furniture"
-  | "window"
-  | "hvac";
+type Category = string;
 
 type PlanModeId =
   | "sockets"
@@ -206,6 +200,15 @@ type PlanMode = {
   summary: string;
 };
 
+type AssetCategory = {
+  id: Category;
+  label: string;
+  color: string;
+  prefix: string;
+  planModeId: PlanModeId;
+  builtin?: boolean;
+};
+
 type PlanHotspot = {
   id: string;
   code: string;
@@ -262,6 +265,7 @@ type Inspection = {
 
 type AppState = {
   config: AppConfig;
+  categories: AssetCategory[];
   assets: Asset[];
   deletedAssetIds?: string[];
   events: AssetEvent[];
@@ -294,14 +298,38 @@ const rooms: Room[] = [
   { id: "laundry", name: "Постирочная", x: 450, y: 360, width: 90, height: 60 },
 ];
 
-const categoryLabels: Record<Category, string> = {
+const categoryLabels: Record<string, string> = {
   electric: "Электрика",
   plumbing: "Сантехника",
   appliance: "Техника",
+  household_appliance: "Бытовая техника",
   furniture: "Мебель",
   window: "Окна",
   hvac: "Климат",
 };
+
+const defaultAssetCategories: AssetCategory[] = [
+  { id: "electric", label: "Электрика", color: "#0070f3", prefix: "R-", planModeId: "sockets", builtin: true },
+  { id: "plumbing", label: "Сантехника", color: "#0ea5e9", prefix: "W-", planModeId: "plumbing", builtin: true },
+  { id: "appliance", label: "Техника", color: "#8b5cf6", prefix: "A-", planModeId: "sockets", builtin: true },
+  { id: "household_appliance", label: "Бытовая техника", color: "#8b5cf6", prefix: "BT-", planModeId: "sockets", builtin: true },
+  { id: "furniture", label: "Мебель", color: "#a16207", prefix: "F-", planModeId: "furniture", builtin: true },
+  { id: "window", label: "Окна", color: "#10b981", prefix: "WIN-", planModeId: "windows", builtin: true },
+  { id: "hvac", label: "Климат", color: "#f59e0b", prefix: "A-", planModeId: "radiators", builtin: true },
+];
+
+function categoryLabel(category: Category, categories: AssetCategory[] = defaultAssetCategories) {
+  return categories.find((item) => item.id === category)?.label ?? categoryLabels[category] ?? category;
+}
+
+function categoryOptions(categories: AssetCategory[]) {
+  const known = new Set<string>();
+  return [...defaultAssetCategories, ...categories].filter((category) => {
+    if (known.has(category.id)) return false;
+    known.add(category.id);
+    return true;
+  });
+}
 
 const assetKindLabels: Record<AssetKind, string> = {
   socket: "Розетки",
@@ -330,6 +358,7 @@ const assetFilterOptions: Array<{ id: AssetFilter; label: string }> = [
   { id: "light", label: "Свет" },
   { id: "plumbing", label: "Сантехника" },
   { id: "drain", label: "Сливы" },
+  { id: "household_appliance", label: "Бытовая техника" },
   { id: "appliance", label: "Техника" },
   { id: "window", label: "Окна" },
   { id: "furniture", label: "Мебель" },
@@ -338,6 +367,15 @@ const assetFilterOptions: Array<{ id: AssetFilter; label: string }> = [
   { id: "warm_floor", label: "Теплые полы" },
   { id: "ventilation", label: "Вентиляция" },
 ];
+
+function assetFiltersForCategories(categories: AssetCategory[]) {
+  const baseIds = new Set(assetFilterOptions.map((option) => option.id));
+  const categoryFilters = categoryOptions(categories)
+    .filter((category) => !baseIds.has(category.id))
+    .map((category) => ({ id: category.id as AssetFilter, label: category.label }));
+
+  return [...assetFilterOptions, ...categoryFilters];
+}
 
 const assetSortLabels: Record<AssetSort, string> = {
   status: "Сначала проблемные",
@@ -598,6 +636,7 @@ const initialState: AppState = {
     serviceName: "FixPlan",
     objectName: "Шпалерная, 34Б",
   },
+  categories: defaultAssetCategories,
   assets: [
     {
       id: "r07",
@@ -829,14 +868,18 @@ function assetKind(asset: Asset): AssetKind {
   if (asset.code.startsWith("TP-")) return "warm_floor";
   if (asset.code.startsWith("V-")) return "ventilation";
   if (asset.category === "plumbing") return "plumbing_fixture";
-  if (asset.category === "appliance") return "appliance";
+  if (asset.category === "appliance" || asset.category === "household_appliance") return "appliance";
   if (asset.category === "furniture") return "furniture";
   if (asset.category === "hvac") return "hvac";
   return "socket";
 }
 
 function isCategoryFilter(filter: AssetFilter): filter is Category {
-  return Object.prototype.hasOwnProperty.call(categoryLabels, filter);
+  return (
+    Object.prototype.hasOwnProperty.call(categoryLabels, filter) ||
+    defaultAssetCategories.some((category) => category.id === filter) ||
+    filter.startsWith("category-")
+  );
 }
 
 function isKindFilter(filter: AssetFilter): filter is AssetKind {
@@ -851,7 +894,7 @@ function matchesAssetFilter(asset: Asset, filter: AssetFilter) {
   }
   if (isCategoryFilter(filter)) return asset.category === filter;
   if (isKindFilter(filter)) return assetKind(asset) === filter;
-  return true;
+  return asset.category === filter;
 }
 
 function matchesAssetSearch(asset: Asset, query: string) {
@@ -862,7 +905,7 @@ function matchesAssetSearch(asset: Asset, query: string) {
     asset.code,
     asset.name,
     roomName(asset.roomId),
-    categoryLabels[asset.category],
+    categoryLabel(asset.category),
     assetKindLabels[assetKind(asset)],
     statusLabels[asset.status],
   ]
@@ -874,7 +917,7 @@ function matchesAssetSearch(asset: Asset, query: string) {
 function assetBelongsToPlanMode(asset: Asset, modeId: PlanModeId) {
   const kind = assetKind(asset);
   if (modeId === "sockets") {
-    return kind === "socket" || kind === "switch" || kind === "appliance";
+    return kind === "socket" || kind === "switch" || kind === "appliance" || asset.category === "household_appliance";
   }
   if (modeId === "lighting") return kind === "light";
   if (modeId === "plumbing") {
@@ -887,6 +930,17 @@ function assetBelongsToPlanMode(asset: Asset, modeId: PlanModeId) {
   if (modeId === "radiators") return kind === "radiator";
   if (modeId === "warmFloor") return kind === "warm_floor";
   return false;
+}
+
+function planModeFromAssetFilter(filter: AssetFilter): PlanModeId {
+  if (filter === "light") return "lighting";
+  if (filter === "plumbing" || filter === "drain") return "plumbing";
+  if (filter === "furniture") return "furniture";
+  if (filter === "window") return "windows";
+  if (filter === "radiator" || filter === "hvac") return "radiators";
+  if (filter === "warm_floor") return "warmFloor";
+  if (filter === "ventilation") return "ventilation";
+  return "sockets";
 }
 
 function statusWeight(status: Status) {
@@ -908,6 +962,22 @@ function statusTone(status: Status): PlanHotspot["tone"] {
 
 function resultId() {
   return `res-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
+function tempAssetId() {
+  return `draft-asset-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
+function isTempAssetId(id: string | null | undefined) {
+  return Boolean(id?.startsWith("draft-asset-"));
+}
+
+function customCategoryId() {
+  return `category-${Date.now().toString(36)}-${Math.round(Math.random() * 1000)}`;
+}
+
+function defaultCategoryForNewAsset(categories: AssetCategory[], categoryId?: Category) {
+  return categoryOptions(categories).find((category) => category.id === categoryId);
 }
 
 function roomIdFromPlanRoom(room: string) {
@@ -950,7 +1020,7 @@ function categoryFromPlan(mode: PlanMode, kind: AssetKind): Category {
   if (kind === "window") return "window";
   if (kind === "furniture") return "furniture";
   if (kind === "radiator" || kind === "ventilation" || kind === "hvac") return "hvac";
-  if (kind === "appliance") return "appliance";
+  if (kind === "appliance") return "household_appliance";
   return mode.categories[0] ?? "electric";
 }
 
@@ -1038,6 +1108,7 @@ function buildCatalogAssets(existingAssets: Asset[]) {
 
 function withCatalogAssets(state: AppState): AppState {
   const deletedAssetIds = state.deletedAssetIds ?? [];
+  const categories = categoryOptions(state.categories ?? initialState.categories);
   const deletedIds = new Set(deletedAssetIds);
   const activeAssets = state.assets.filter((asset) => !deletedIds.has(asset.id));
   const catalogAssets = buildCatalogAssets(activeAssets).filter((asset) => !deletedIds.has(asset.id));
@@ -1045,6 +1116,7 @@ function withCatalogAssets(state: AppState): AppState {
   return {
     ...state,
     config: state.config ?? initialState.config,
+    categories,
     assets: [
       ...activeAssets,
       ...catalogAssets.filter((asset) => !knownIds.has(asset.id)),
@@ -1189,6 +1261,7 @@ export default function Home() {
             media: remoteState.media ?? current.media,
             inspections: remoteState.inspections ?? current.inspections,
             inspectionResults: remoteState.inspectionResults ?? current.inspectionResults,
+            categories: remoteState.categories ?? current.categories,
             contractorAccess: {
               ...current.contractorAccess,
               inspectionId:
@@ -1279,6 +1352,16 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
+  function createAssetFromAssets() {
+    const category = categoryOptions(state.categories).find((item) => item.id === assetFilter);
+    startNewAsset(
+      category?.planModeId ?? planModeFromAssetFilter(assetFilter),
+      category?.id,
+    );
+    setView("plan");
+    setMobileMenuOpen(false);
+  }
+
   function navigate(viewName: View) {
     setView(viewName);
     setMobileMenuOpen(false);
@@ -1317,45 +1400,74 @@ export default function Home() {
     setAssetDraft(assetDraftFromAsset(asset));
   }
 
-  function startNewAsset() {
-    const draft = newAssetDraft(activePlan);
+  function startNewAsset(modeId: PlanModeId = activePlanMode, categoryId?: Category) {
+    const mode = planModes.find((item) => item.id === modeId) ?? activePlan;
+    const category = defaultCategoryForNewAsset(state.categories, categoryId);
+    const draft = category
+      ? {
+          ...newAssetDraft(mode),
+          code: category.prefix,
+          category: category.id,
+        }
+      : newAssetDraft(mode);
+    const assetId = tempAssetId();
+    const draftAsset: Asset = {
+      id: assetId,
+      code: draft.code,
+      name: draft.name,
+      roomId: draft.roomId,
+      category: draft.category,
+      kind: draft.kind,
+      status: draft.status,
+      x: draft.x,
+      y: draft.y,
+      lastChecked: "не проверялось",
+      photoNote: draft.photoNote,
+    };
+    setActivePlanMode(mode.id);
     enterPlanEditMode();
-    setEditingAssetId(null);
+    setState((current) => ({
+      ...current,
+      assets: [...current.assets, draftAsset],
+    }));
+    setDirtyPlanAssetIds((current) =>
+      current.includes(assetId) ? current : [...current, assetId],
+    );
+    setEditingAssetId(assetId);
+    setSelectedAssetId(assetId);
     setAssetDraft(draft);
   }
 
   function updateAssetDraft(
     updater: AssetDraft | ((current: AssetDraft) => AssetDraft),
   ) {
-    setAssetDraft((currentDraft) => {
-      const nextDraft =
-        typeof updater === "function" ? updater(currentDraft) : updater;
+    const nextDraft =
+      typeof updater === "function" ? updater(assetDraft) : updater;
 
-      if (editingAssetId) {
-        rememberDirtyAsset(editingAssetId);
-        setState((current) => ({
-          ...current,
-          assets: current.assets.map((asset) =>
-            asset.id === editingAssetId
-              ? {
-                  ...asset,
-                  code: nextDraft.code,
-                  name: nextDraft.name,
-                  roomId: nextDraft.roomId,
-                  category: nextDraft.category,
-                  kind: nextDraft.kind,
-                  status: nextDraft.status,
-                  x: nextDraft.x,
-                  y: nextDraft.y,
-                  photoNote: nextDraft.photoNote,
-                }
-              : asset,
-          ),
-        }));
-      }
+    setAssetDraft(nextDraft);
 
-      return nextDraft;
-    });
+    if (!editingAssetId) return;
+
+    rememberDirtyAsset(editingAssetId);
+    setState((current) => ({
+      ...current,
+      assets: current.assets.map((asset) =>
+        asset.id === editingAssetId
+          ? {
+              ...asset,
+              code: nextDraft.code,
+              name: nextDraft.name,
+              roomId: nextDraft.roomId,
+              category: nextDraft.category,
+              kind: nextDraft.kind,
+              status: nextDraft.status,
+              x: nextDraft.x,
+              y: nextDraft.y,
+              photoNote: nextDraft.photoNote,
+            }
+          : asset,
+      ),
+    }));
   }
 
   function moveAssetOnPlan(assetId: string, x: number, y: number) {
@@ -1395,7 +1507,7 @@ export default function Home() {
     }
 
     setAssetSaving(true);
-    const isNew = !editingAssetId;
+    const isNew = !editingAssetId || isTempAssetId(editingAssetId);
 
     try {
       const response = await fetch(isNew ? "/api/assets" : `/api/assets/${editingAssetId}`, {
@@ -1417,11 +1529,13 @@ export default function Home() {
       setState((current) => ({
         ...current,
         assets: isNew
-          ? [...current.assets, savedAsset]
+          ? current.assets.map((asset) => (asset.id === editingAssetId ? savedAsset : asset))
           : current.assets.map((asset) => (asset.id === savedAsset.id ? savedAsset : asset)),
         deletedAssetIds: current.deletedAssetIds?.filter((id) => id !== savedAsset.id),
       }));
-      setDirtyPlanAssetIds((current) => current.filter((id) => id !== savedAsset.id));
+      setDirtyPlanAssetIds((current) =>
+        current.filter((id) => id !== savedAsset.id && id !== editingAssetId),
+      );
       setEditingAssetId(savedAsset.id);
       setSelectedAssetId(savedAsset.id);
       setAssetDraft(assetDraftFromAsset(savedAsset));
@@ -1440,6 +1554,18 @@ export default function Home() {
     );
     if (!confirmed) return;
 
+    if (isTempAssetId(editingAssetId)) {
+      setState((current) => ({
+        ...current,
+        assets: current.assets.filter((item) => item.id !== editingAssetId),
+      }));
+      setDirtyPlanAssetIds((current) => current.filter((id) => id !== editingAssetId));
+      setDeletedPlanAssetIds((current) => current.filter((id) => id !== editingAssetId));
+      setEditingAssetId(null);
+      setAssetDraft(newAssetDraft(activePlan));
+      return;
+    }
+
     setDeletedPlanAssetIds((current) =>
       current.includes(editingAssetId) ? current : [...current, editingAssetId],
     );
@@ -1455,7 +1581,7 @@ export default function Home() {
 
   async function savePlanChanges() {
     const changedIds = Array.from(new Set(dirtyPlanAssetIds));
-    const deleteIds = Array.from(new Set(deletedPlanAssetIds));
+    const deleteIds = Array.from(new Set(deletedPlanAssetIds)).filter((id) => !isTempAssetId(id));
     const newDraft: AssetDraft = {
       ...assetDraft,
       code: assetDraft.code.trim(),
@@ -1528,11 +1654,49 @@ export default function Home() {
         if (deleteIds.includes(assetId)) continue;
         const asset = state.assets.find((item) => item.id === assetId);
         if (!asset) continue;
+        const normalizedAssetDraft = assetDraftFromAsset({
+          ...asset,
+          code: asset.code.trim(),
+          name: asset.name.trim(),
+          photoNote: asset.photoNote.trim(),
+        });
+
+        if (!normalizedAssetDraft.code || !normalizedAssetDraft.name) {
+          window.alert("Укажите код и название узла.");
+          return;
+        }
+
+        if (isTempAssetId(asset.id)) {
+          const response = await fetch("/api/assets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(normalizedAssetDraft),
+          });
+          const payload = (await response.json().catch(() => ({}))) as {
+            asset?: Asset;
+            error?: string;
+          };
+          if (!response.ok || !payload.asset) {
+            window.alert(payload.error ?? `Не удалось создать ${asset.code}.`);
+            return;
+          }
+
+          createdAsset = payload.asset;
+          const savedAsset = payload.asset;
+          setState((current) => ({
+            ...current,
+            assets: current.assets.map((item) =>
+              item.id === asset.id ? savedAsset : item,
+            ),
+            deletedAssetIds: current.deletedAssetIds?.filter((id) => id !== savedAsset.id),
+          }));
+          continue;
+        }
 
         const response = await fetch(`/api/assets/${asset.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(assetDraftFromAsset(asset)),
+          body: JSON.stringify(normalizedAssetDraft),
         });
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
         if (!response.ok) {
@@ -1544,9 +1708,12 @@ export default function Home() {
       if (createdAsset) {
         setState((current) => ({
           ...current,
-          assets: [...current.assets, createdAsset],
+          assets: current.assets.some((asset) => asset.id === createdAsset.id)
+            ? current.assets
+            : [...current.assets, createdAsset],
           deletedAssetIds: current.deletedAssetIds?.filter((id) => id !== createdAsset.id),
         }));
+        setEditingAssetId(createdAsset.id);
         setSelectedAssetId(createdAsset.id);
         setAssetDraft(assetDraftFromAsset(createdAsset));
       }
@@ -1799,6 +1966,111 @@ export default function Home() {
     }
   }
 
+  async function createCategory(label: string) {
+    const normalizedLabel = label.trim();
+    if (!normalizedLabel) {
+      window.alert("Укажите название категории.");
+      return false;
+    }
+
+    const duplicate = categoryOptions(state.categories).find(
+      (category) => category.label.trim().toLowerCase() === normalizedLabel.toLowerCase(),
+    );
+    if (duplicate) {
+      window.alert(`Категория «${normalizedLabel}» уже есть.`);
+      return false;
+    }
+
+    const category: AssetCategory = {
+      id: customCategoryId(),
+      label: normalizedLabel,
+      color: "#0070f3",
+      prefix: `${normalizedLabel.slice(0, 2).toUpperCase()}-`,
+      planModeId: "sockets",
+    };
+
+    const response = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(category),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      category?: AssetCategory;
+      error?: string;
+    };
+
+    if (!response.ok || !payload.category) {
+      window.alert(payload.error ?? "Не удалось создать категорию.");
+      return false;
+    }
+
+    setState((current) => ({
+      ...current,
+      categories: categoryOptions([...current.categories, payload.category!]),
+    }));
+    return true;
+  }
+
+  async function renameCategory(categoryId: Category, label: string) {
+    const normalizedLabel = label.trim();
+    if (!normalizedLabel) {
+      window.alert("Название категории не может быть пустым.");
+      return false;
+    }
+
+    const response = await fetch(`/api/categories/${categoryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: normalizedLabel }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      category?: AssetCategory;
+      error?: string;
+    };
+
+    if (!response.ok || !payload.category) {
+      window.alert(payload.error ?? "Не удалось переименовать категорию.");
+      return false;
+    }
+
+    setState((current) => ({
+      ...current,
+      categories: categoryOptions(
+        current.categories.map((category) =>
+          category.id === categoryId ? payload.category! : category,
+        ),
+      ),
+    }));
+    return true;
+  }
+
+  async function deleteCategory(categoryId: Category) {
+    const category = categoryOptions(state.categories).find((item) => item.id === categoryId);
+    if (!category) return false;
+
+    const usedAssets = state.assets.filter((asset) => asset.category === categoryId);
+    if (usedAssets.length) {
+      window.alert(
+        `Нельзя удалить «${category.label}»: в категории ${usedAssets.length} узлов. Сначала перенесите их в другую категорию.`,
+      );
+      return false;
+    }
+
+    const response = await fetch(`/api/categories/${categoryId}`, { method: "DELETE" });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) {
+      window.alert(payload.error ?? "Не удалось удалить категорию.");
+      return false;
+    }
+
+    setState((current) => ({
+      ...current,
+      categories: categoryOptions(current.categories.filter((item) => item.id !== categoryId)),
+    }));
+    if (assetFilter === categoryId) setAssetFilter("all");
+    return true;
+  }
+
   function submitContractorReport(conclusion?: string) {
     const activeInspection =
       state.inspections.find((inspection) => inspection.id === state.contractorAccess.inspectionId) ??
@@ -1955,6 +2227,7 @@ export default function Home() {
             assets={visibleAssets}
             allAssets={state.assets}
             activePlanMode={activePlanMode}
+            categories={state.categories}
             assetDraft={assetDraft}
             assetSaving={assetSaving}
             cancelPlanChanges={cancelPlanChanges}
@@ -1981,6 +2254,11 @@ export default function Home() {
             assets={state.assets}
             filter={assetFilter}
             openAsset={openAsset}
+            categories={state.categories}
+            createAsset={createAssetFromAssets}
+            createCategory={createCategory}
+            deleteCategory={deleteCategory}
+            renameCategory={renameCategory}
             setFilter={setAssetFilter}
             setAssetStatus={setAssetStatus}
           />
@@ -2221,7 +2499,7 @@ function SidebarSearch({
               type="button"
             >
               <strong>{asset.code} · {asset.name}</strong>
-              <span>{roomName(asset.roomId)} · {categoryLabels[asset.category]}</span>
+              <span>{roomName(asset.roomId)} · {categoryLabel(asset.category)}</span>
             </button>
           ))}
         </div>
@@ -2438,6 +2716,7 @@ function PlanView({
   assets,
   allAssets,
   activePlanMode,
+  categories,
   assetDraft,
   assetSaving,
   cancelPlanChanges,
@@ -2460,6 +2739,7 @@ function PlanView({
   assets: Asset[];
   allAssets: Asset[];
   activePlanMode: PlanModeId;
+  categories: AssetCategory[];
   assetDraft: AssetDraft;
   assetSaving: boolean;
   cancelPlanChanges: () => void;
@@ -2591,6 +2871,7 @@ function PlanView({
           {editMode ? (
             <PlanAssetEditor
               asset={editingAsset}
+              categories={categories}
               draft={assetDraft}
               isSaving={assetSaving}
               onChange={setAssetDraft}
@@ -2618,6 +2899,7 @@ function PlanView({
 
 function PlanAssetEditor({
   asset,
+  categories,
   draft,
   isSaving,
   onChange,
@@ -2625,6 +2907,7 @@ function PlanAssetEditor({
   onSave,
 }: {
   asset: Asset | null;
+  categories: AssetCategory[];
   draft: AssetDraft;
   isSaving: boolean;
   onChange: (draft: AssetDraft | ((current: AssetDraft) => AssetDraft)) => void;
@@ -2686,9 +2969,9 @@ function PlanAssetEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(categoryLabels) as Category[]).map((category) => (
-                <SelectItem key={category} value={category}>
-                  {categoryLabels[category]}
+              {categoryOptions(categories).map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -2889,7 +3172,7 @@ function ApartmentPlan({
                 <span className="grid gap-1">
                   <strong>{asset.code} · {asset.name}</strong>
                   <span>{roomName(asset.roomId)}</span>
-                  <span>{asset.photoNote || categoryLabels[asset.category]}</span>
+                  <span>{asset.photoNote || categoryLabel(asset.category)}</span>
                 </span>
               </TooltipContent>
             </Tooltip>
@@ -2909,19 +3192,30 @@ function ApartmentPlan({
 
 function AssetsView({
   assets,
+  categories,
   filter,
   openAsset,
+  createAsset,
+  createCategory,
+  deleteCategory,
+  renameCategory,
   setFilter,
   setAssetStatus,
 }: {
   assets: Asset[];
+  categories: AssetCategory[];
   filter: AssetFilter;
   openAsset: (id: string) => void;
+  createAsset: () => void;
+  createCategory: (label: string) => Promise<boolean>;
+  deleteCategory: (categoryId: Category) => Promise<boolean>;
+  renameCategory: (categoryId: Category, label: string) => Promise<boolean>;
   setFilter: (filter: AssetFilter) => void;
   setAssetStatus: (id: string, status: Status) => void;
 }) {
   const [sort, setSort] = useState<AssetSort>("status");
   const [query, setQuery] = useState("");
+  const filterOptions = useMemo(() => assetFiltersForCategories(categories), [categories]);
 
   const filteredAssets = useMemo(() => {
     return assets
@@ -2949,11 +3243,11 @@ function AssetsView({
   }, [assets, filter, query, sort]);
 
   const filterCounts = useMemo(() => {
-    return assetFilterOptions.reduce<Record<string, number>>((counts, option) => {
+    return filterOptions.reduce<Record<string, number>>((counts, option) => {
       counts[option.id] = assets.filter((asset) => matchesAssetFilter(asset, option.id)).length;
       return counts;
     }, {});
-  }, [assets]);
+  }, [assets, filterOptions]);
 
   return (
     <div className="assets-view">
@@ -2968,6 +3262,10 @@ function AssetsView({
             value={query}
           />
         </div>
+        <Button className="asset-create-button" onClick={createAsset} type="button">
+          <Plus size={16} />
+          Новый узел
+        </Button>
         <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
           <SelectTrigger className="asset-sort-trigger w-full sm:w-[260px]">
             <SelectValue />
@@ -2983,7 +3281,7 @@ function AssetsView({
       </div>
 
       <div className="asset-filter-bar" role="list" aria-label="Фильтры узлов">
-        {assetFilterOptions.map((option) => (
+        {filterOptions.map((option) => (
           <Button
             aria-pressed={filter === option.id}
             className="asset-filter-chip"
@@ -2998,6 +3296,15 @@ function AssetsView({
           </Button>
         ))}
       </div>
+
+      <CategoryManager
+        assets={assets}
+        categories={categories}
+        createCategory={createCategory}
+        deleteCategory={deleteCategory}
+        renameCategory={renameCategory}
+        setFilter={setFilter}
+      />
 
       <div className="asset-table">
         <div className="asset-table-head">
@@ -3026,6 +3333,106 @@ function AssetsView({
             В этой группе пока нет узлов. Когда добавим реальные точки с плана, они появятся здесь.
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CategoryManager({
+  assets,
+  categories,
+  createCategory,
+  deleteCategory,
+  renameCategory,
+  setFilter,
+}: {
+  assets: Asset[];
+  categories: AssetCategory[];
+  createCategory: (label: string) => Promise<boolean>;
+  deleteCategory: (categoryId: Category) => Promise<boolean>;
+  renameCategory: (categoryId: Category, label: string) => Promise<boolean>;
+  setFilter: (filter: AssetFilter) => void;
+}) {
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const options = categoryOptions(categories);
+
+  async function submitCategory() {
+    const created = await createCategory(newCategoryName);
+    if (created) setNewCategoryName("");
+  }
+
+  async function promptRename(category: AssetCategory) {
+    const nextLabel = window.prompt("Новое название категории", category.label);
+    if (nextLabel === null || nextLabel.trim() === category.label) return;
+    await renameCategory(category.id, nextLabel);
+  }
+
+  return (
+    <div className="category-manager">
+      <div className="category-manager-header">
+        <div>
+          <strong>Категории</strong>
+          <span>Создавайте группы, переносите между ними узлы и управляйте фильтрами.</span>
+        </div>
+        <div className="category-create-row">
+          <Input
+            aria-label="Название новой категории"
+            onChange={(event) => setNewCategoryName(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void submitCategory();
+              }
+            }}
+            placeholder="Новая категория"
+            value={newCategoryName}
+          />
+          <Button onClick={() => void submitCategory()} type="button" variant="secondary">
+            <Plus size={16} />
+            Добавить
+          </Button>
+        </div>
+      </div>
+
+      <div className="category-list" role="list" aria-label="Категории узлов">
+        {options.map((category) => {
+          const count = assets.filter((asset) => asset.category === category.id).length;
+          return (
+            <div className="category-item" key={category.id}>
+              <span
+                aria-hidden="true"
+                className="category-color"
+                style={{ backgroundColor: category.color }}
+              />
+              <button
+                className="category-name"
+                onClick={() => setFilter(category.id)}
+                type="button"
+              >
+                <strong>{category.label}</strong>
+                <span>{count} узлов · префикс {category.prefix}</span>
+              </button>
+              <Button
+                aria-label={`Переименовать ${category.label}`}
+                onClick={() => void promptRename(category)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <Pencil size={14} />
+              </Button>
+              <Button
+                aria-label={`Удалить ${category.label}`}
+                onClick={() => void deleteCategory(category.id)}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 size={14} />
+              </Button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -3159,7 +3566,7 @@ function AssetDetail({
     <dl className="grid grid-cols-[128px_1fr] gap-x-3 gap-y-2 text-sm">
       <dt className="text-muted-foreground">ID</dt><dd className="font-medium">{asset.code}</dd>
       <dt className="text-muted-foreground">Комната</dt><dd className="font-medium">{roomName(asset.roomId)}</dd>
-      <dt className="text-muted-foreground">Категория</dt><dd className="font-medium">{categoryLabels[asset.category]}</dd>
+      <dt className="text-muted-foreground">Категория</dt><dd className="font-medium">{categoryLabel(asset.category)}</dd>
       <dt className="text-muted-foreground">Последняя проверка</dt><dd className="font-medium">{asset.lastChecked}</dd>
       <dt className="text-muted-foreground">Гарантия</dt><dd className="font-medium">{asset.warrantyUntil ?? "не указана"}</dd>
       <dt className="text-muted-foreground">Мастер</dt><dd className="font-medium">{asset.master ?? "не назначен"}</dd>
@@ -3225,7 +3632,7 @@ function AssetDetail({
               <div>
                 <CardTitle className="text-xl">{asset.code} · {asset.name}</CardTitle>
                 <CardDescription>
-                  {roomName(asset.roomId)} · {categoryLabels[asset.category]} · 220 В · координаты:
+                  {roomName(asset.roomId)} · {categoryLabel(asset.category)} · 220 В · координаты:
                   {" "}
                   {asset.x}% / {asset.y}%
                 </CardDescription>
@@ -3465,7 +3872,7 @@ function InspectionView({
         <CardHeader>
           <CardDescription>{index + 1} из {total}</CardDescription>
           <CardTitle>{asset.code} · {asset.name}</CardTitle>
-          <CardDescription>{roomName(asset.roomId)} · {categoryLabels[asset.category]}</CardDescription>
+          <CardDescription>{roomName(asset.roomId)} · {categoryLabel(asset.category)}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           <Button variant="secondary" onClick={() => openAsset(asset.id)} type="button">
@@ -3986,7 +4393,7 @@ function ContractorAccessView({
                 </CardTitle>
                 <CardDescription>
                   {selectedContractorAsset
-                    ? `${roomName(selectedContractorAsset.roomId)} · ${categoryLabels[selectedContractorAsset.category]}`
+                    ? `${roomName(selectedContractorAsset.roomId)} · ${categoryLabel(selectedContractorAsset.category)}`
                     : "Выберите узел на плане или в списке."}
                 </CardDescription>
               </CardHeader>
@@ -4423,7 +4830,7 @@ function AssetRow({
       <span className="grid min-w-0 gap-1 text-left">
         <strong className="truncate font-medium">{asset.code} · {asset.name}</strong>
         <small className="truncate text-muted-foreground text-sm">
-          {roomName(asset.roomId)} · {categoryLabels[asset.category]}
+          {roomName(asset.roomId)} · {categoryLabel(asset.category)}
         </small>
       </span>
       <StatusBadge status={asset.status} />

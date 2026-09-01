@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { APARTMENT_ID, requireApartmentAccess } from "../access";
 
-const categories = new Set(["electric", "plumbing", "appliance", "furniture", "window", "hvac"]);
 const kinds = new Set([
   "socket",
   "switch",
@@ -74,7 +73,9 @@ export async function PATCH(
   if (typeof body.name === "string") patch.name = body.name.trim();
   if (typeof body.roomId === "string") patch.room_id = body.roomId.trim();
   if (typeof body.photoNote === "string") patch.photo_note = body.photoNote.trim();
-  if (typeof body.category === "string" && categories.has(body.category)) patch.category = body.category;
+  if (typeof body.category === "string" && /^[a-z0-9_-]+$/i.test(body.category)) {
+    patch.category = body.category;
+  }
   if (typeof body.kind === "string" && kinds.has(body.kind)) patch.kind = body.kind;
   if (typeof body.status === "string" && statuses.has(body.status)) patch.status = body.status;
 
@@ -126,4 +127,3 @@ export async function DELETE(
 
   return NextResponse.json({ ok: true });
 }
-

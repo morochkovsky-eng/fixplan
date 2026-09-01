@@ -853,7 +853,7 @@ textarea {
 
 .asset-tools {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 260px;
+  grid-template-columns: minmax(260px, 1fr) auto 260px;
   gap: 10px;
   align-items: center;
 }
@@ -865,6 +865,10 @@ textarea {
   background: var(--content);
   font-size: 14px;
   line-height: 20px;
+}
+
+.asset-create-button {
+  height: 40px;
 }
 
 .asset-filter-bar {
@@ -902,6 +906,83 @@ textarea {
 .asset-filter-chip[aria-pressed="false"] [data-slot="badge"] {
   background: color-mix(in oklab, var(--content) 75%, var(--muted));
   color: var(--text);
+}
+
+.category-manager {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--content);
+  padding: 12px;
+}
+
+.category-manager-header {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 420px);
+  gap: 12px;
+  align-items: end;
+}
+
+.category-manager-header > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.category-manager-header strong {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.category-manager-header span,
+.category-name span {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.category-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.category-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.category-color {
+  width: 8px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.category-name {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  text-align: left;
+}
+
+.category-name strong,
+.category-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .asset-table {
@@ -2026,6 +2107,15 @@ select:focus-visible {
   }
 
   .asset-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .category-manager-header,
+  .category-create-row {
+    grid-template-columns: 1fr;
+  }
+
+  .category-list {
     grid-template-columns: 1fr;
   }
 
