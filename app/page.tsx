@@ -2317,7 +2317,6 @@ function StatusSelect({
         className={triggerClassName}
         size="default"
       >
-        <span aria-hidden="true" className={`status-select-dot status-select-dot-${value}`} />
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
