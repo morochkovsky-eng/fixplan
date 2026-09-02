@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, Check, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -394,13 +395,21 @@ export function GuestInspectionClient({ token }: { token: string }) {
 
     return (
       <main className="min-h-screen bg-muted px-4 py-6">
-        <section className="mx-auto grid max-w-lg gap-4">
-          <Card>
-            <CardHeader>
+        <section className="mx-auto grid max-w-[490px] gap-4">
+          <Card className="guest-start-card">
+            <CardHeader className="guest-start-header">
+              <div className="guest-brand-mark" aria-label="FIXPLAN, Шпалерная, 34Б">
+                <Image
+                  alt="FIXPLAN"
+                  height={18}
+                  priority
+                  src="/fixplan-logo.svg"
+                  width={133}
+                />
+                <span>Шпалерная, 34Б</span>
+              </div>
               <CardTitle>{payload.inspection.number}</CardTitle>
-              <CardDescription>
-                {payload.inspection.title} · {payload.inspection.contractor}
-              </CardDescription>
+              <CardDescription>{contractorLine}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
               <div className="grid grid-cols-2 gap-3">

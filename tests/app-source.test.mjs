@@ -3,9 +3,11 @@ import fs from "node:fs";
 import test from "node:test";
 
 const pageSource = fs.readFileSync("app/page.tsx", "utf8");
+const guestSource = fs.readFileSync("app/guest/[token]/guest-inspection-client.tsx", "utf8");
 const schemaSource = fs.readFileSync("supabase/schema.sql", "utf8");
 const seedSource = fs.readFileSync("supabase/seed.sql", "utf8");
 const eventRouteSource = fs.readFileSync("app/api/assets/[id]/events/[eventId]/route.ts", "utf8");
+const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
   const hotspotBlock = pageSource.slice(
@@ -87,4 +89,16 @@ test("supports editing and deleting node comments without schema-cache fields", 
   assert.match(eventRouteSource, /\.from\("asset_media"\)/);
   assert.match(eventRouteSource, /\.from\("events"\)/);
   assert.doesNotMatch(eventRouteSource, /updated_at/);
+});
+
+test("uses the Figma FixPlan logo and compact menu glyph in headers", () => {
+  assert.match(logoSource, /<svg width="133" height="18"/);
+  assert.match(pageSource, /function BrandMark/);
+  assert.match(pageSource, /src="\/fixplan-logo\.svg"/);
+  assert.match(pageSource, /function MenuGlyph/);
+  assert.match(pageSource, /mobile-menu-button/);
+  assert.doesNotMatch(pageSource, /\bMenu,/);
+
+  assert.match(guestSource, /guest-brand-mark/);
+  assert.match(guestSource, /src="\/fixplan-logo\.svg"/);
 });

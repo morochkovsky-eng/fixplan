@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState, type PointerEvent } from "react";
 import {
   Attachment,
@@ -67,7 +68,6 @@ import {
   LayoutDashboard,
   List,
   Map as MapIcon,
-  Menu,
   Plus,
   ArrowLeft,
   Pencil,
@@ -2296,19 +2296,17 @@ export default function Home() {
           onClick={() => navigate("dashboard")}
           type="button"
         >
-          <strong>{state.config.serviceName}</strong>
-          <span>{state.config.objectName}</span>
+          <BrandMark objectName={state.config.objectName} />
         </button>
-        <Button
+        <button
           aria-expanded={mobileMenuOpen}
           aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
+          className="mobile-menu-button"
           onClick={() => setMobileMenuOpen((value) => !value)}
-          size="icon"
           type="button"
-          variant="secondary"
         >
-          {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-        </Button>
+          {mobileMenuOpen ? <X size={30} strokeWidth={1.8} /> : <MenuGlyph />}
+        </button>
       </header>
       {mobileMenuOpen && (
         <div className="mobile-menu">
@@ -2324,8 +2322,7 @@ export default function Home() {
           onClick={() => navigate("dashboard")}
           type="button"
         >
-          <strong>{state.config.serviceName}</strong>
-          <span>{state.config.objectName}</span>
+          <BrandMark objectName={state.config.objectName} />
         </button>
         <SidebarSearch assets={state.assets} openAsset={openAsset} />
         <nav className="nav-list" aria-label="Главная навигация">
@@ -2596,6 +2593,31 @@ function assetReturnLabel(view: View) {
     contractor: "К обходам",
   };
   return labels[view] ?? "Назад";
+}
+
+function BrandMark({ objectName }: { objectName: string }) {
+  return (
+    <span className="brand-mark" aria-label={`FIXPLAN, ${objectName}`}>
+      <Image
+        alt="FIXPLAN"
+        height={18}
+        priority
+        src="/fixplan-logo.svg"
+        width={133}
+      />
+      <span>{objectName}</span>
+    </span>
+  );
+}
+
+function MenuGlyph() {
+  return (
+    <span className="menu-glyph" aria-hidden="true">
+      <span />
+      <span />
+      <span />
+    </span>
+  );
 }
 
 function SidebarSearch({

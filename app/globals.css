@@ -141,11 +141,11 @@ button {
 
 .brand {
   display: grid;
-  gap: 4px;
-  padding: 8px 10px 12px;
+  gap: 0;
+  padding: 16px 10px 14px;
   border: 0;
   border-bottom: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0;
   background: transparent;
   color: inherit;
   text-align: left;
@@ -161,13 +161,22 @@ button {
   outline-offset: 2px;
 }
 
-.brand strong {
-  font-size: 16px;
-  line-height: 20px;
-  font-weight: 600;
+.brand-mark,
+.guest-brand-mark {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
-.brand span,
+.brand-mark img,
+.guest-brand-mark img {
+  display: block;
+  width: 133px;
+  height: 18px;
+}
+
+.brand-mark span,
+.guest-brand-mark span,
 .muted,
 .summary-note,
 .asset-row small,
@@ -179,12 +188,65 @@ button {
   color: var(--text-muted);
 }
 
-.brand span,
+.brand-mark span,
+.guest-brand-mark span,
 .summary-note,
 .asset-row small,
 .work-item small {
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.mobile-menu-button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.mobile-menu-button:hover {
+  background: transparent;
+}
+
+.mobile-menu-button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.menu-glyph {
+  display: grid;
+  gap: 6px;
+}
+
+.menu-glyph span {
+  display: block;
+  width: 28px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.guest-start-card {
+  border-radius: 12px;
+}
+
+.guest-start-header {
+  gap: 24px;
+}
+
+.guest-start-header [data-slot="card-title"] {
+  font-size: 20px;
+  line-height: 28px;
+}
+
+.guest-start-header [data-slot="card-description"] {
+  font-size: 15px;
+  line-height: 22px;
 }
 
 .nav-list {
@@ -2103,48 +2165,24 @@ select:focus-visible {
     justify-content: space-between;
     gap: 12px;
     border-bottom: 1px solid var(--border);
-    background: color-mix(in oklab, var(--content) 94%, transparent);
-    padding: 18px 20px;
-    backdrop-filter: blur(16px);
+    background: var(--content);
+    padding: 18px 15px 13px;
   }
 
   .mobile-brand {
     display: grid;
     min-width: 0;
-    gap: 4px;
+    gap: 0;
     border: 0;
-    border-radius: 8px;
     background: transparent;
     color: inherit;
     text-align: left;
     transition: background-color 140ms ease, box-shadow 140ms ease;
   }
 
-  .mobile-brand:hover {
-    background: var(--muted);
-  }
-
   .mobile-brand:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 3px;
-  }
-
-  .mobile-brand strong {
-    overflow: hidden;
-    font-size: 34px;
-    line-height: 36px;
-    font-weight: 700;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .mobile-brand span {
-    overflow: hidden;
-    color: var(--text-muted);
-    font-size: 17px;
-    line-height: 22px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .mobile-header button {
