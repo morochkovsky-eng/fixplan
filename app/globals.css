@@ -1125,6 +1125,124 @@ textarea {
   line-height: 20px;
 }
 
+.event-task-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+}
+
+.event-task-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.event-task-trigger:hover .event-task-actions,
+.event-task-trigger:focus-within .event-task-actions {
+  opacity: 1;
+}
+
+.event-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.event-edit-form [data-slot="input"] {
+  height: 36px;
+}
+
+.event-edit-form [data-slot="textarea"] {
+  min-height: 96px;
+}
+
+.media-gallery-item {
+  cursor: zoom-in;
+}
+
+.media-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  background: rgba(0, 0, 0, 0.88);
+  padding: 20px;
+  color: #fff;
+}
+
+.media-lightbox-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.media-lightbox-top > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.media-lightbox-top strong,
+.media-lightbox-top span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-lightbox-top strong {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.media-lightbox-top span,
+.media-lightbox-count {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.media-lightbox-stage {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  place-items: center;
+}
+
+.media-lightbox-stage img {
+  display: block;
+  max-width: min(100%, 1120px);
+  max-height: 100%;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+.media-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
+.media-lightbox-nav.previous {
+  left: 0;
+}
+
+.media-lightbox-nav.next {
+  right: 0;
+}
+
+.media-lightbox-count {
+  text-align: center;
+}
+
 .status-select-trigger {
   height: 32px;
   min-height: 32px;

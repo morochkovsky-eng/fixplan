@@ -5,6 +5,7 @@ import test from "node:test";
 const pageSource = fs.readFileSync("app/page.tsx", "utf8");
 const schemaSource = fs.readFileSync("supabase/schema.sql", "utf8");
 const seedSource = fs.readFileSync("supabase/seed.sql", "utf8");
+const eventRouteSource = fs.readFileSync("app/api/assets/[id]/events/[eventId]/route.ts", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
   const hotspotBlock = pageSource.slice(
@@ -71,4 +72,19 @@ test("supports custom asset categories from the UI", () => {
   assert.match(pageSource, /Новая категория/);
   assert.match(pageSource, /categoryOptions\(categories\)\.map/);
   assert.match(pageSource, /Нельзя удалить/);
+});
+
+test("supports editing and deleting node comments without schema-cache fields", () => {
+  assert.match(pageSource, /function EditableEventTask/);
+  assert.match(pageSource, /function updateEvent/);
+  assert.match(pageSource, /function deleteEvent/);
+  assert.match(pageSource, /media-lightbox/);
+  assert.match(pageSource, /showPrevious/);
+  assert.match(pageSource, /showNext/);
+
+  assert.match(eventRouteSource, /export async function PATCH/);
+  assert.match(eventRouteSource, /export async function DELETE/);
+  assert.match(eventRouteSource, /\.from\("asset_media"\)/);
+  assert.match(eventRouteSource, /\.from\("events"\)/);
+  assert.doesNotMatch(eventRouteSource, /updated_at/);
 });

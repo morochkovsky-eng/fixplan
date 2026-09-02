@@ -60,6 +60,8 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   History,
   LayoutDashboard,
@@ -1796,6 +1798,75 @@ export default function Home() {
     setNewEventText("");
   }
 
+  async function updateEvent(assetId: string, eventId: string, patch: Pick<AssetEvent, "title" | "body">) {
+    const nextTitle = patch.title.trim();
+    const nextBody = patch.body.trim();
+    if (!nextTitle || !nextBody) {
+      window.alert("У события должны быть название и комментарий.");
+      return false;
+    }
+
+    try {
+      const response = await fetch(`/api/assets/${assetId}/events/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: nextTitle, body: nextBody }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        event?: AssetEvent;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.event) {
+        window.alert(payload.error ?? "Не удалось обновить комментарий.");
+        return false;
+      }
+
+      setState((current) => ({
+        ...current,
+        events: current.events.map((event) =>
+          event.id === eventId ? { ...event, ...payload.event } : event,
+        ),
+      }));
+      return true;
+    } catch {
+      window.alert("Не удалось обновить комментарий.");
+      return false;
+    }
+  }
+
+  async function deleteEvent(assetId: string, eventId: string) {
+    const confirmed = window.confirm("Удалить эту запись истории и прикрепленные к ней фото?");
+    if (!confirmed) return false;
+
+    try {
+      const response = await fetch(`/api/assets/${assetId}/events/${eventId}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        deletedEventId?: string;
+        deletedMediaIds?: string[];
+        error?: string;
+      };
+
+      if (!response.ok) {
+        window.alert(payload.error ?? "Не удалось удалить комментарий.");
+        return false;
+      }
+
+      const deletedMediaIds = new Set(payload.deletedMediaIds ?? []);
+      setState((current) => ({
+        ...current,
+        events: current.events.filter((event) => event.id !== eventId),
+        media: current.media.filter((item) => item.eventId !== eventId && !deletedMediaIds.has(item.id)),
+      }));
+      return true;
+    } catch {
+      window.alert("Не удалось удалить комментарий.");
+      return false;
+    }
+  }
+
   function setAssetStatus(assetId: string, status: Status, body?: string) {
     setState((current) => ({
       ...current,
@@ -2337,6 +2408,8 @@ export default function Home() {
             newEventText={newEventText}
             setNewEventText={setNewEventText}
             addEvent={addEvent}
+            updateEvent={updateEvent}
+            deleteEvent={deleteEvent}
             setAssetStatus={setAssetStatus}
             editAsset={() => editAssetFromCatalog(selectedAsset.id)}
             returnLabel={assetReturnLabel(assetReturnView)}
@@ -2345,7 +2418,14 @@ export default function Home() {
         )}
 
         {view === "log" && (
-          <ActivityLog assets={state.assets} events={state.events} media={state.media} openAsset={openAsset} />
+          <ActivityLog
+            assets={state.assets}
+            deleteEvent={deleteEvent}
+            events={state.events}
+            media={state.media}
+            openAsset={openAsset}
+            updateEvent={updateEvent}
+          />
         )}
 
         {view === "inspection" && (
@@ -3647,6 +3727,8 @@ function AssetDetail({
   newEventText,
   setNewEventText,
   addEvent,
+  updateEvent,
+  deleteEvent,
   setAssetStatus,
   editAsset,
   returnLabel,
@@ -3662,6 +3744,12 @@ function AssetDetail({
     patch?: Partial<AssetEvent>,
     files?: PromptInputMessage["files"],
   ) => void;
+  updateEvent: (
+    assetId: string,
+    eventId: string,
+    patch: Pick<AssetEvent, "title" | "body">,
+  ) => Promise<boolean>;
+  deleteEvent: (assetId: string, eventId: string) => Promise<boolean>;
   setAssetStatus: (assetId: string, status: Status, body?: string) => void;
   editAsset: () => void;
   returnLabel: string;
@@ -3676,38 +3764,14 @@ function AssetDetail({
           const eventMedia = mediaForEvent(event, assetMedia);
 
           return (
-            <Task key={event.id} defaultOpen>
-              <TaskTrigger title={`${event.date} · ${event.title}`}>
-                <button className="group flex w-full items-start gap-3 text-left" type="button">
-                  <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
-                  <span className="grid min-w-0 flex-1 gap-1">
-                    <span className="text-muted-foreground text-sm">
-                      {event.date} · {eventLabels[event.type]}
-                    </span>
-                    <span className="font-medium text-base leading-snug">
-                      {event.title}
-                    </span>
-                  </span>
-                </button>
-              </TaskTrigger>
-              <TaskContent>
-                <TaskItem>{event.body}</TaskItem>
-                {(event.cost || event.master || event.statusAfter) && (
-                  <div className="flex flex-wrap gap-2">
-                    {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
-                    {event.cost && (
-                      <TaskItemFile>
-                        Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
-                      </TaskItemFile>
-                    )}
-                    {event.statusAfter && (
-                      <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>
-                    )}
-                  </div>
-                )}
-                <MediaGallery fallbackEvent={event.photo ? event : undefined} items={eventMedia} variant="list" />
-              </TaskContent>
-            </Task>
+            <EditableEventTask
+              assetId={asset.id}
+              deleteEvent={deleteEvent}
+              event={event}
+              key={event.id}
+              media={eventMedia}
+              updateEvent={updateEvent}
+            />
           );
         })}
       </div>
@@ -3901,6 +3965,139 @@ function AssetDetail({
   );
 }
 
+function EditableEventTask({
+  asset,
+  assetId,
+  deleteEvent,
+  event,
+  media,
+  onOpen,
+  updateEvent,
+}: {
+  asset?: Asset;
+  assetId: string;
+  deleteEvent: (assetId: string, eventId: string) => Promise<boolean>;
+  event: AssetEvent;
+  media: AssetMedia[];
+  onOpen?: () => void;
+  updateEvent: (
+    assetId: string,
+    eventId: string,
+    patch: Pick<AssetEvent, "title" | "body">,
+  ) => Promise<boolean>;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(event.title);
+  const [draftBody, setDraftBody] = useState(event.body);
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function saveEvent() {
+    setIsSaving(true);
+    const ok = await updateEvent(assetId, event.id, {
+      title: draftTitle,
+      body: draftBody,
+    });
+    setIsSaving(false);
+    if (ok) setIsEditing(false);
+  }
+
+  function cancelEdit() {
+    setDraftTitle(event.title);
+    setDraftBody(event.body);
+    setIsEditing(false);
+  }
+
+  return (
+    <Task defaultOpen>
+      <TaskTrigger title={`${event.date} · ${event.title}`}>
+        <div className="event-task-trigger">
+          <button className="group flex min-w-0 flex-1 items-start gap-3 text-left" type="button">
+            <span className="mt-1.5 size-2.5 rounded-full bg-primary" />
+            <span className="grid min-w-0 flex-1 gap-1">
+              <span className="text-muted-foreground text-sm">
+                {event.date}
+                {asset ? ` · ${asset.code} · ${roomName(asset.roomId)}` : ` · ${eventLabels[event.type]}`}
+              </span>
+              <span className="font-medium text-base leading-snug">{event.title}</span>
+            </span>
+          </button>
+          <div className="event-task-actions">
+            <Button
+              aria-label={`Редактировать ${event.title}`}
+              onClick={(actionEvent) => {
+                actionEvent.stopPropagation();
+                setIsEditing(true);
+              }}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              aria-label={`Удалить ${event.title}`}
+              onClick={(actionEvent) => {
+                actionEvent.stopPropagation();
+                void deleteEvent(assetId, event.id);
+              }}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        </div>
+      </TaskTrigger>
+      <TaskContent>
+        {isEditing ? (
+          <div className="event-edit-form">
+            <Input
+              aria-label="Название события"
+              onChange={(inputEvent) => setDraftTitle(inputEvent.currentTarget.value)}
+              value={draftTitle}
+            />
+            <Textarea
+              aria-label="Комментарий события"
+              onChange={(inputEvent) => setDraftBody(inputEvent.currentTarget.value)}
+              value={draftBody}
+            />
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button disabled={isSaving} onClick={cancelEdit} type="button" variant="secondary">
+                Отменить
+              </Button>
+              <Button disabled={isSaving} onClick={() => void saveEvent()} type="button">
+                {isSaving ? "Сохраняю" : "Сохранить"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <TaskItem>{event.body}</TaskItem>
+        )}
+        {(event.cost || event.master || event.statusAfter) && (
+          <div className="flex flex-wrap gap-2">
+            {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
+            {event.cost && (
+              <TaskItemFile>
+                Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
+              </TaskItemFile>
+            )}
+            {event.statusAfter && (
+              <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>
+            )}
+          </div>
+        )}
+        <MediaGallery fallbackEvent={event.photo ? event : undefined} items={media} variant="list" />
+        {onOpen && (
+          <Button className="mt-1" variant="ghost" size="sm" onClick={onOpen} type="button">
+            Открыть узел
+          </Button>
+        )}
+      </TaskContent>
+    </Task>
+  );
+}
+
 function mediaForEvent(event: AssetEvent, media: AssetMedia[]) {
   const directMedia = media.filter((item) => item.eventId === event.id);
   if (directMedia.length) return directMedia;
@@ -3932,6 +4129,27 @@ function eventPhotoData(event: AssetEvent): AttachmentData {
   };
 }
 
+type GalleryPhoto = AttachmentData & {
+  caption?: string;
+  imageUrl: string;
+};
+
+function mediaGalleryPhoto(media: AssetMedia): GalleryPhoto {
+  return {
+    ...mediaPhotoData(media),
+    caption: media.caption ?? media.filename,
+    imageUrl: media.url,
+  };
+}
+
+function eventGalleryPhoto(event: AssetEvent): GalleryPhoto {
+  return {
+    ...eventPhotoData(event),
+    caption: event.photo?.note ?? event.title,
+    imageUrl: "/plan/base.png",
+  };
+}
+
 function MediaGallery({
   fallbackEvent,
   fallbackEvents = [],
@@ -3944,40 +4162,131 @@ function MediaGallery({
   variant?: "grid" | "list";
 }) {
   const fallback = fallbackEvent ? [fallbackEvent] : fallbackEvents;
+  const photos = [
+    ...items.map(mediaGalleryPhoto),
+    ...(items.length ? [] : fallback.map(eventGalleryPhoto)),
+  ];
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  if (!items.length && !fallback.length) {
+  if (!photos.length) {
     return null;
   }
 
+  const activePhoto = activeIndex === null ? null : photos[activeIndex];
+  const currentPhotoNumber = activeIndex === null ? 0 : activeIndex + 1;
+  const hasManyPhotos = photos.length > 1;
+
+  function showPrevious() {
+    setActiveIndex((current) => {
+      if (current === null) return null;
+      return current === 0 ? photos.length - 1 : current - 1;
+    });
+  }
+
+  function showNext() {
+    setActiveIndex((current) => {
+      if (current === null) return null;
+      return current === photos.length - 1 ? 0 : current + 1;
+    });
+  }
+
   return (
-    <Attachments className={variant === "list" ? "mt-2 w-full" : "ml-0 w-full"} variant={variant}>
-      {items.map((item) => (
-        <Attachment key={item.id} data={mediaPhotoData(item)}>
-          <AttachmentPreview />
-          {variant === "list" && <AttachmentInfo />}
-        </Attachment>
-      ))}
-      {!items.length &&
-        fallback.map((event) => (
-          <Attachment key={event.id} data={eventPhotoData(event)}>
+    <>
+      <Attachments className={variant === "list" ? "mt-2 w-full" : "ml-0 w-full"} variant={variant}>
+        {photos.map((photo, index) => (
+          <Attachment
+            className="media-gallery-item"
+            data={photo}
+            key={photo.id}
+            onClick={() => setActiveIndex(index)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setActiveIndex(index);
+              }
+            }}
+          >
             <AttachmentPreview />
             {variant === "list" && <AttachmentInfo />}
           </Attachment>
         ))}
-    </Attachments>
+      </Attachments>
+
+      {activePhoto && (
+        <div className="media-lightbox" role="dialog" aria-modal="true" aria-label="Просмотр фото">
+          <div className="media-lightbox-top">
+            <div>
+              <strong>{activePhoto.filename}</strong>
+              {activePhoto.caption && <span>{activePhoto.caption}</span>}
+            </div>
+            <Button
+              aria-label="Закрыть галерею"
+              onClick={() => setActiveIndex(null)}
+              size="icon-sm"
+              type="button"
+              variant="secondary"
+            >
+              <X size={16} />
+            </Button>
+          </div>
+          <div className="media-lightbox-stage">
+            {hasManyPhotos && (
+              <Button
+                aria-label="Предыдущее фото"
+                className="media-lightbox-nav previous"
+                onClick={showPrevious}
+                size="icon"
+                type="button"
+                variant="secondary"
+              >
+                <ChevronLeft size={20} />
+              </Button>
+            )}
+            <img alt={activePhoto.filename} src={activePhoto.imageUrl} />
+            {hasManyPhotos && (
+              <Button
+                aria-label="Следующее фото"
+                className="media-lightbox-nav next"
+                onClick={showNext}
+                size="icon"
+                type="button"
+                variant="secondary"
+              >
+                <ChevronRight size={20} />
+              </Button>
+            )}
+          </div>
+          {hasManyPhotos && (
+            <div className="media-lightbox-count">
+              {currentPhotoNumber} из {photos.length}
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
 function ActivityLog({
   assets,
+  deleteEvent,
   events,
   media,
   openAsset,
+  updateEvent,
 }: {
   assets: Asset[];
+  deleteEvent: (assetId: string, eventId: string) => Promise<boolean>;
   events: AssetEvent[];
   media: AssetMedia[];
   openAsset: (id: string) => void;
+  updateEvent: (
+    assetId: string,
+    eventId: string,
+    patch: Pick<AssetEvent, "title" | "body">,
+  ) => Promise<boolean>;
 }) {
   const sortedEvents = [...events].sort((a, b) => b.id.localeCompare(a.id));
   return (
@@ -3992,12 +4301,15 @@ function ActivityLog({
         {sortedEvents.map((event) => {
           const asset = assets.find((item) => item.id === event.assetId);
           return (
-            <EventTask
+            <EditableEventTask
               asset={asset}
+              assetId={event.assetId}
+              deleteEvent={deleteEvent}
               event={event}
               key={event.id}
               media={mediaForEvent(event, media.filter((item) => item.assetId === event.assetId))}
               onOpen={() => openAsset(event.assetId)}
+              updateEvent={updateEvent}
             />
           );
         })}
