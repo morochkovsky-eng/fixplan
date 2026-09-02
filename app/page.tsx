@@ -2328,11 +2328,24 @@ export default function Home() {
           <Dashboard
             assets={state.assets}
             attentionAssets={attentionAssets}
+            events={state.events}
+            inspections={inspectionFlows}
+            inspectionResults={state.inspectionResults}
             issueAssets={issueAssets}
             inProgressAssets={inProgressAssets}
+            media={state.media}
             needsMasterAssets={needsMasterAssets}
+            workOrders={workOrderFlows}
             openAsset={openAsset}
             openAssets={openAssets}
+            openContractor={(workflow) => {
+              setContractorWorkflow(workflow);
+              setView("contractor");
+            }}
+            openInspections={() => setView("inspections")}
+            openLog={() => setView("log")}
+            openReport={openReport}
+            openWorkOrders={() => setView("work_orders")}
             goPlan={() => setView("plan")}
           />
         )}
@@ -2777,22 +2790,66 @@ function StatusSelect({
 function Dashboard({
   assets,
   attentionAssets,
+  events,
+  inspections,
+  inspectionResults,
   issueAssets,
   inProgressAssets,
+  media,
   needsMasterAssets,
+  workOrders,
   openAsset,
   openAssets,
+  openContractor,
+  openInspections,
+  openLog,
+  openReport,
+  openWorkOrders,
   goPlan,
 }: {
   assets: Asset[];
   attentionAssets: Asset[];
+  events: AssetEvent[];
+  inspections: Inspection[];
+  inspectionResults: InspectionResult[];
   issueAssets: Asset[];
   inProgressAssets: Asset[];
+  media: AssetMedia[];
   needsMasterAssets: Asset[];
+  workOrders: Inspection[];
   openAsset: (id: string) => void;
   openAssets: (filter: AssetFilter) => void;
+  openContractor: (workflow: Workflow) => void;
+  openInspections: () => void;
+  openLog: () => void;
+  openReport: (id: string) => void;
+  openWorkOrders: () => void;
   goPlan: () => void;
 }) {
+  const activeInspections = inspections.filter((inspection) =>
+    !["completed", "accepted"].includes(inspection.status),
+  );
+  const activeWorkOrders = workOrders.filter((inspection) =>
+    !["completed", "accepted"].includes(inspection.status),
+  );
+  const completedInspections = inspections.filter((inspection) =>
+    ["completed", "accepted"].includes(inspection.status),
+  );
+  const completedWorkOrders = workOrders.filter((inspection) =>
+    ["completed", "accepted"].includes(inspection.status),
+  );
+  const recentEvents = events.slice().sort((a, b) => b.id.localeCompare(a.id)).slice(0, 5);
+  const unresolvedResultCount = inspectionResults.filter((result) => result.statusAfter !== "ok").length;
+  const assetsWithPhotos = new Set(media.map((item) => item.assetId)).size;
+  const primaryIssues = issueAssets
+    .slice()
+    .sort((left, right) =>
+      statusWeight(left.status) - statusWeight(right.status) ||
+      left.code.localeCompare(right.code, "ru"),
+    )
+    .slice(0, 6);
+  const activeMasterFlows = [...activeWorkOrders, ...activeInspections].slice(0, 5);
+
   return (
     <div className="grid gap-4">
       <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -2822,49 +2879,221 @@ function Dashboard({
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card className="md:col-span-2">
+        <StatCard
+          label="Активные задания"
+          onClick={openWorkOrders}
+          tone={activeWorkOrders.length ? "warning" : "positive"}
+          value={activeWorkOrders.length.toString()}
+        />
+        <StatCard
+          label="Активные обходы"
+          onClick={openInspections}
+          tone={activeInspections.length ? "warning" : "positive"}
+          value={activeInspections.length.toString()}
+        />
+        <StatCard
+          label="Замечания из отчетов"
+          onClick={openInspections}
+          tone={unresolvedResultCount ? "negative" : "positive"}
+          value={unresolvedResultCount.toString()}
+        />
+        <StatCard
+          label="Узлы с фото"
+          onClick={openLog}
+          value={assetsWithPhotos.toString()}
+        />
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)] gap-4 max-[1080px]:grid-cols-1">
+        <Card>
           <CardHeader className="grid-cols-[1fr_auto] gap-3">
             <div>
-              <CardTitle>Что не так сейчас</CardTitle>
-              <CardDescription>Узлы, которые требуют решения или мастера.</CardDescription>
+              <CardTitle>Что требует решения</CardTitle>
+              <CardDescription>Проблемные узлы, с которых стоит начинать работу.</CardDescription>
             </div>
-            <Button variant="ghost" onClick={goPlan} type="button">
-              Открыть план
+            <Button variant="secondary" onClick={() => openAssets("issues")} type="button">
+              Открыть список
             </Button>
           </CardHeader>
           <CardContent className="grid gap-2">
-            {issueAssets.map((asset) => (
+            {primaryIssues.map((asset) => (
               <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
             ))}
+            {!primaryIssues.length && (
+              <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
+                Сейчас нет узлов с проблемным статусом.
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Работы и мастера</CardTitle>
-            <CardDescription>Что уже в процессе.</CardDescription>
+          <CardHeader className="grid-cols-[1fr_auto] gap-3">
+            <div>
+              <CardTitle>Быстрые действия</CardTitle>
+              <CardDescription>Основные входы в новую структуру.</CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="grid gap-2">
-            {inProgressAssets.concat(needsMasterAssets).map((asset) => (
-              <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
-            ))}
+            <Button className="justify-start" onClick={goPlan} type="button" variant="secondary">
+              <MapIcon size={16} />
+              Открыть план
+            </Button>
+            <Button className="justify-start" onClick={() => openAssets("all")} type="button" variant="secondary">
+              <List size={16} />
+              Открыть узлы
+            </Button>
+            <Button className="justify-start" onClick={() => openContractor("work_order")} type="button">
+              <Plus size={16} />
+              Создать задание
+            </Button>
+            <Button className="justify-start" onClick={() => openContractor("inspection")} type="button" variant="secondary">
+              <UserRoundCheck size={16} />
+              Выдать доступ мастеру
+            </Button>
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2 xl:col-span-3">
+        <Card>
+          <CardHeader className="grid-cols-[1fr_auto] gap-3">
+            <div>
+              <CardTitle>У мастеров</CardTitle>
+              <CardDescription>Активные задания и обходы по ссылкам.</CardDescription>
+            </div>
+            <Button variant="secondary" onClick={openWorkOrders} type="button">
+              Задания
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {activeMasterFlows.map((inspection) => (
+              <InspectionSummaryRow
+                inspection={inspection}
+                key={inspection.id}
+                results={inspectionResults}
+                onClick={() => openReport(inspection.id)}
+              />
+            ))}
+            {!activeMasterFlows.length && (
+              <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
+                Сейчас нет активных ссылок у мастеров.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="grid-cols-[1fr_auto] gap-3">
+            <div>
+              <CardTitle>Последние события</CardTitle>
+              <CardDescription>Новые комментарии, фото, отчеты и изменения статусов.</CardDescription>
+            </div>
+            <Button variant="secondary" onClick={openLog} type="button">
+              Журнал
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {recentEvents.map((event) => (
+              <EventSummaryRow
+                asset={assets.find((asset) => asset.id === event.assetId)}
+                event={event}
+                key={event.id}
+                media={mediaForEvent(event, media)}
+                onClick={() => openAsset(event.assetId)}
+              />
+            ))}
+            {!recentEvents.length && (
+              <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
+                В журнале пока нет событий.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-2">
           <CardHeader>
-            <CardTitle>Здоровье квартиры</CardTitle>
-            <CardDescription>Контрольные показатели по обслуживанию.</CardDescription>
+            <CardTitle>Состояние процессов</CardTitle>
+            <CardDescription>Сводка по обходам, заданиям и накопленной истории.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Metric value="82%" label="проверено за месяц" />
-            <Metric value="3" label="гарантии в календаре" />
-            <Metric value="3 500 руб." label="расходы за август" />
-            <Metric value="1" label="отчет мастера ожидает решения" />
+            <Metric value={completedInspections.length.toString()} label="завершенных обходов" />
+            <Metric value={completedWorkOrders.length.toString()} label="закрытых заданий" />
+            <Metric value={events.length.toString()} label="событий в журнале" />
+            <Metric value={media.length.toString()} label="фото в истории" />
           </CardContent>
         </Card>
       </div>
     </div>
+  );
+}
+
+function InspectionSummaryRow({
+  inspection,
+  onClick,
+  results,
+}: {
+  inspection: Inspection;
+  onClick: () => void;
+  results: InspectionResult[];
+}) {
+  const flowResults = results.filter((result) => result.inspectionId === inspection.id);
+  const issueCount = flowResults.filter((result) => result.statusAfter !== "ok").length;
+  const isWorkOrder = inspection.workflow === "work_order";
+
+  return (
+    <button
+      className="flex w-full items-start justify-between gap-3 rounded-lg bg-muted p-3 text-left transition-colors hover:bg-secondary"
+      onClick={onClick}
+      type="button"
+    >
+      <span className="grid min-w-0 gap-1">
+        <strong className="truncate font-medium">
+          {isWorkOrder ? "Задание" : "Обход"} · {inspection.contractor}
+        </strong>
+        <small className="truncate text-muted-foreground text-sm">
+          {inspection.createdAt} · {inspection.allowedAssetIds.length} узлов
+        </small>
+      </span>
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        <Badge variant={inspection.status === "in_progress" ? "outline" : "secondary"}>
+          {inspectionStatusLabels[inspection.status]}
+        </Badge>
+        <small className="text-muted-foreground text-xs">{issueCount} замечаний</small>
+      </span>
+    </button>
+  );
+}
+
+function EventSummaryRow({
+  asset,
+  event,
+  media,
+  onClick,
+}: {
+  asset?: Asset;
+  event: AssetEvent;
+  media: AssetMedia[];
+  onClick: () => void;
+}) {
+  const photoCount = media.length || (event.photo ? 1 : 0);
+
+  return (
+    <button
+      className="flex w-full items-start justify-between gap-3 rounded-lg bg-muted p-3 text-left transition-colors hover:bg-secondary"
+      onClick={onClick}
+      type="button"
+    >
+      <span className="grid min-w-0 gap-1">
+        <small className="text-muted-foreground text-sm">
+          {event.date} · {asset ? `${asset.code} · ${roomName(asset.roomId)}` : eventLabels[event.type]}
+        </small>
+        <strong className="truncate font-medium">{event.title}</strong>
+        <span className="line-clamp-2 text-muted-foreground text-sm">{event.body}</span>
+      </span>
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        {event.statusAfter && <StatusBadge status={event.statusAfter} />}
+        {photoCount > 0 && <Badge variant="outline">{photoCount} фото</Badge>}
+      </span>
+    </button>
   );
 }
 
