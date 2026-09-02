@@ -398,15 +398,21 @@ export function GuestInspectionClient({ token }: { token: string }) {
         <section className="mx-auto grid max-w-[490px] gap-4">
           <Card className="guest-start-card">
             <CardHeader className="guest-start-header">
-              <div className="guest-brand-mark" aria-label="FIXPLAN, Шпалерная, 34Б">
+              <div
+                className="guest-brand-mark grid min-w-0 gap-1.5"
+                aria-label="FIXPLAN, Шпалерная, 34Б"
+              >
                 <Image
                   alt="FIXPLAN"
                   height={18}
                   priority
                   src="/fixplan-logo.svg"
+                  style={{ height: 18, width: 133 }}
                   width={133}
                 />
-                <span>Шпалерная, 34Б</span>
+                <span className="text-muted-foreground" style={{ fontSize: 14, lineHeight: "20px" }}>
+                  Шпалерная, 34Б
+                </span>
               </div>
               <CardTitle>{payload.inspection.number}</CardTitle>
               <CardDescription>{contractorLine}</CardDescription>

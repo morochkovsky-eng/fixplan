@@ -2301,7 +2301,7 @@ export default function Home() {
         <button
           aria-expanded={mobileMenuOpen}
           aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
-          className="mobile-menu-button"
+          className="mobile-menu-button grid h-10 w-10 place-items-center border-0 bg-transparent text-foreground"
           onClick={() => setMobileMenuOpen((value) => !value)}
           type="button"
         >
@@ -2597,25 +2597,31 @@ function assetReturnLabel(view: View) {
 
 function BrandMark({ objectName }: { objectName: string }) {
   return (
-    <span className="brand-mark" aria-label={`FIXPLAN, ${objectName}`}>
+    <span
+      className="brand-mark grid min-w-0 gap-1.5"
+      aria-label={`FIXPLAN, ${objectName}`}
+    >
       <Image
         alt="FIXPLAN"
         height={18}
         priority
         src="/fixplan-logo.svg"
+        style={{ height: 18, width: 133 }}
         width={133}
       />
-      <span>{objectName}</span>
+      <span className="text-muted-foreground" style={{ fontSize: 14, lineHeight: "20px" }}>
+        {objectName}
+      </span>
     </span>
   );
 }
 
 function MenuGlyph() {
   return (
-    <span className="menu-glyph" aria-hidden="true">
-      <span />
-      <span />
-      <span />
+    <span className="menu-glyph grid gap-1.5" aria-hidden="true">
+      <span className="block h-0.5 w-7 rounded-full bg-current" />
+      <span className="block h-0.5 w-7 rounded-full bg-current" />
+      <span className="block h-0.5 w-7 rounded-full bg-current" />
     </span>
   );
 }
