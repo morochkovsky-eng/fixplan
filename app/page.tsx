@@ -2834,45 +2834,65 @@ function PlanView({
   toggleIssues: () => void;
   openAsset: (id: string) => void;
 }) {
+  const [planQuery, setPlanQuery] = useState("");
   const activeMode = planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
   const activeHotspots = planHotspots[activeMode.id];
   const planCategories = categoryOptions(categories);
   const activeCategory =
     planCategories.find((category) => category.id === activePlanCategory) ?? planCategories[0];
+  const activeCategoryAssets = useMemo(
+    () => allAssets.filter((asset) => asset.category === activePlanCategory),
+    [activePlanCategory, allAssets],
+  );
+  const activeCategoryIssueCount = activeCategoryAssets.filter((asset) => asset.status !== "ok").length;
+  const searchedAssets = useMemo(
+    () => assets.filter((asset) => matchesAssetSearch(asset, planQuery)),
+    [assets, planQuery],
+  );
   const editingAsset = editingAssetId
     ? allAssets.find((asset) => asset.id === editingAssetId) ?? null
     : null;
 
   return (
     <div className="grid grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 max-[980px]:grid-cols-1">
-      <Card>
+      <Card className="plan-main-card">
         <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Схема квартиры</CardTitle>
-              <CardDescription>
-                Переключайте рабочий лист плана. Одновременно активен один режим.
-              </CardDescription>
+          <CardTitle>Схема квартиры</CardTitle>
+          <CardDescription>
+            Переключайте рабочий лист плана. Одновременно активен один режим.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="plan-main-content">
+          <div className="plan-tools">
+            <div className="asset-search">
+              <Search size={16} />
+              <Input
+                aria-label="Поиск по плану"
+                className="asset-search-input"
+                onChange={(event) => setPlanQuery(event.currentTarget.value)}
+                placeholder="Код, комната, тип"
+                value={planQuery}
+              />
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="plan-primary-actions">
               {editMode ? (
                 <>
                   <Button
+                    className="plan-primary-button"
                     disabled={assetSaving}
                     onClick={cancelPlanChanges}
-                    size="sm"
                     type="button"
                     variant="secondary"
                   >
                     Отменить
                   </Button>
                   <Button
+                    className="plan-primary-button"
                     disabled={assetSaving}
                     onClick={savePlanChanges}
-                    size="sm"
                     type="button"
                   >
-                    <Save size={14} />
+                    <Save size={16} />
                     {assetSaving
                       ? "Сохраняю"
                       : dirtyPlanAssetCount
@@ -2881,29 +2901,47 @@ function PlanView({
                   </Button>
                 </>
               ) : (
-                <Button
-                  onClick={enterPlanEditMode}
-                  size="sm"
-                  type="button"
-                  variant="secondary"
-                >
-                  <Pencil size={14} />
-                  Редактировать узлы
-                </Button>
+                <>
+                  <Button
+                    className="plan-primary-button"
+                    onClick={enterPlanEditMode}
+                    type="button"
+                  >
+                    <Pencil size={16} />
+                    Редактировать
+                  </Button>
+                  <Button
+                    className="plan-primary-button"
+                    onClick={() => startNewAsset(activeMode.id, activeCategory?.id)}
+                    type="button"
+                  >
+                    <Plus size={16} />
+                    Новый узел
+                  </Button>
+                </>
               )}
+            </div>
+            <div className="plan-issue-filter" aria-label="Фильтр проблем">
               <Button
-                onClick={() => startNewAsset(activeMode.id, activeCategory?.id)}
-                size="sm"
+                aria-pressed={!onlyIssues}
+                onClick={onlyIssues ? toggleIssues : undefined}
                 type="button"
-                variant="secondary"
+                variant={!onlyIssues ? "default" : "secondary"}
               >
-                <Plus size={14} />
-                Новый узел
+                Все точки
+                <Badge variant="secondary">{activeCategoryAssets.length}</Badge>
+              </Button>
+              <Button
+                aria-pressed={onlyIssues}
+                onClick={!onlyIssues ? toggleIssues : undefined}
+                type="button"
+                variant={onlyIssues ? "default" : "secondary"}
+              >
+                Только проблемы
+                <Badge variant="secondary">{activeCategoryIssueCount}</Badge>
               </Button>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
           <div className="plan-mode-toolbar" role="tablist" aria-label="Категории плана">
             {planCategories.map((category) => (
               <Button
@@ -2922,19 +2960,11 @@ function PlanView({
                 {category.label}
               </Button>
             ))}
-            <Button
-              variant={onlyIssues ? "destructive" : "secondary"}
-              onClick={toggleIssues}
-              size="sm"
-              type="button"
-            >
-              Только проблемы
-            </Button>
           </div>
           <ApartmentPlan
             activeMode={activeMode}
             hotspots={activeHotspots}
-            assets={assets}
+            assets={searchedAssets}
             editMode={editMode}
             editingAssetId={editingAssetId}
             moveAssetOnPlan={moveAssetOnPlan}
@@ -2969,10 +2999,10 @@ function PlanView({
               <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
                 {activeMode.summary}
               </div>
-              {assets.map((asset) => (
+              {searchedAssets.map((asset) => (
                 <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
               ))}
-              {!assets.length && (
+              {!searchedAssets.length && (
                 <p className="text-muted-foreground text-sm">По выбранным фильтрам узлов нет.</p>
               )}
             </>

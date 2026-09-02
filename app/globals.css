@@ -640,6 +640,49 @@ textarea {
   padding-bottom: 8px;
 }
 
+.plan-main-content,
+.plan-tools {
+  display: grid;
+  gap: 12px;
+}
+
+.plan-primary-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.plan-primary-button {
+  width: 100%;
+  height: 40px;
+  justify-content: center;
+}
+
+.plan-issue-filter {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.plan-issue-filter [data-slot="button"] {
+  justify-content: center;
+}
+
+.plan-issue-filter [data-slot="badge"] {
+  min-width: 22px;
+  height: 20px;
+  border: 0;
+  background: var(--content);
+  color: inherit;
+  padding-inline: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.plan-issue-filter [aria-pressed="true"] [data-slot="badge"] {
+  color: var(--text);
+}
+
 .apartment-plan {
   margin-top: 20px;
   border: 1px solid var(--border);
@@ -2099,6 +2142,59 @@ select:focus-visible {
   .topbar-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .plan-main-card {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .plan-main-card > [data-slot="card-header"],
+  .plan-main-card > [data-slot="card-content"] {
+    padding-inline: 0;
+  }
+
+  .plan-main-content,
+  .plan-tools {
+    gap: 12px;
+  }
+
+  .plan-primary-actions,
+  .plan-issue-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plan-primary-button {
+    height: 48px;
+    border-radius: 12px;
+    font-size: 16px;
+  }
+
+  .plan-mode-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    margin-inline: -20px;
+    overflow-x: auto;
+    padding: 0 20px 2px;
+    scrollbar-width: none;
+  }
+
+  .plan-mode-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .plan-mode-toolbar [data-slot="button"] {
+    flex: 0 0 auto;
+    min-width: 156px;
+    justify-content: flex-start;
+  }
+
+  .apartment-plan {
+    margin-top: 2px;
+    border-radius: 12px;
+    padding: 10px;
   }
 
   .contractor-setup-card,
