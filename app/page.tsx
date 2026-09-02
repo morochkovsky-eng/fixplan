@@ -1817,6 +1817,65 @@ export default function Home() {
     }));
   }
 
+  async function updateAssetsBulk(
+    assetIds: string[],
+    patch: Partial<Pick<Asset, "category" | "status">>,
+  ) {
+    if (!assetIds.length) return false;
+
+    const knownIds = new Set(assetIds);
+    const date = todayLabel();
+    const statusEvent =
+      patch.status !== undefined
+        ? assetIds.map((assetId) => ({
+            id: eventId(),
+            assetId,
+            type: "status" as EventType,
+            date,
+            title: `Статус: ${statusLabels[patch.status!]}`,
+            body: `Массовое действие: узел переведен в статус «${statusLabels[patch.status!]}».`,
+            statusAfter: patch.status,
+          }))
+        : [];
+
+    setState((current) => ({
+      ...current,
+      assets: current.assets.map((asset) =>
+        knownIds.has(asset.id)
+          ? {
+              ...asset,
+              ...patch,
+              lastChecked: patch.status ? date : asset.lastChecked,
+            }
+          : asset,
+      ),
+      events: [...statusEvent, ...current.events],
+    }));
+
+    try {
+      const responses = await Promise.all(
+        assetIds.map((assetId) =>
+          fetch(`/api/assets/${assetId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patch),
+          }),
+        ),
+      );
+
+      const failed = responses.filter((response) => !response.ok);
+      if (failed.length) {
+        window.alert(`Не удалось сохранить ${failed.length} из ${responses.length} изменений.`);
+        return false;
+      }
+
+      return true;
+    } catch {
+      window.alert("Не удалось сохранить массовое действие.");
+      return false;
+    }
+  }
+
   function completeInspection(status: Status) {
     setAssetStatus(
       currentInspectionAsset.id,
@@ -2266,6 +2325,7 @@ export default function Home() {
             renameCategory={renameCategory}
             setFilter={setAssetFilter}
             setAssetStatus={setAssetStatus}
+            updateAssetsBulk={updateAssetsBulk}
           />
         )}
 
@@ -2583,14 +2643,18 @@ function StatusSelect({
   value,
   onValueChange,
   className,
+  disabled,
+  placeholder = "Выберите статус",
 }: {
-  value: Status;
+  value?: Status;
   onValueChange: (value: Status) => void;
   className?: string;
+  disabled?: boolean;
+  placeholder?: string;
 }) {
   const triggerClassName = [
     "status-select-trigger",
-    `status-select-${value}`,
+    value ? `status-select-${value}` : "status-select-empty",
     className ?? "w-[240px]",
   ].join(" ");
 
@@ -2599,9 +2663,10 @@ function StatusSelect({
       <SelectTrigger
         aria-label="Текущий статус"
         className={triggerClassName}
+        disabled={disabled}
         size="default"
       >
-        <SelectValue />
+        <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(statusLabels) as Status[]).map((status) => (
@@ -3197,6 +3262,7 @@ function AssetsView({
   renameCategory,
   setFilter,
   setAssetStatus,
+  updateAssetsBulk,
 }: {
   assets: Asset[];
   categories: AssetCategory[];
@@ -3209,10 +3275,17 @@ function AssetsView({
   renameCategory: (categoryId: Category, label: string) => Promise<boolean>;
   setFilter: (filter: AssetFilter) => void;
   setAssetStatus: (id: string, status: Status) => void;
+  updateAssetsBulk: (
+    assetIds: string[],
+    patch: Partial<Pick<Asset, "category" | "status">>,
+  ) => Promise<boolean>;
 }) {
   const [sort, setSort] = useState<AssetSort>("status");
   const [query, setQuery] = useState("");
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [bulkSaving, setBulkSaving] = useState(false);
   const filterOptions = useMemo(() => assetFiltersForCategories(categories), [categories]);
+  const categoryChoices = useMemo(() => categoryOptions(categories), [categories]);
 
   const filteredAssets = useMemo(() => {
     return assets
@@ -3245,6 +3318,44 @@ function AssetsView({
       return counts;
     }, {});
   }, [assets, filterOptions]);
+
+  const visibleAssetIds = useMemo(() => filteredAssets.map((asset) => asset.id), [filteredAssets]);
+  const selectedVisibleCount = selectedAssetIds.filter((id) => visibleAssetIds.includes(id)).length;
+  const allVisibleSelected = visibleAssetIds.length > 0 && selectedVisibleCount === visibleAssetIds.length;
+  const hasPartialVisibleSelection = selectedVisibleCount > 0 && !allVisibleSelected;
+
+  function toggleAllVisible() {
+    if (allVisibleSelected) {
+      setSelectedAssetIds((current) => current.filter((id) => !visibleAssetIds.includes(id)));
+      return;
+    }
+
+    setSelectedAssetIds((current) => Array.from(new Set([...current, ...visibleAssetIds])));
+  }
+
+  function toggleAssetSelection(assetId: string) {
+    setSelectedAssetIds((current) =>
+      current.includes(assetId)
+        ? current.filter((id) => id !== assetId)
+        : [...current, assetId],
+    );
+  }
+
+  async function applyBulkStatus(status: Status) {
+    if (!selectedAssetIds.length || bulkSaving) return;
+    setBulkSaving(true);
+    const ok = await updateAssetsBulk(selectedAssetIds, { status });
+    if (ok) setSelectedAssetIds([]);
+    setBulkSaving(false);
+  }
+
+  async function applyBulkCategory(category: Category) {
+    if (!selectedAssetIds.length || bulkSaving) return;
+    setBulkSaving(true);
+    const ok = await updateAssetsBulk(selectedAssetIds, { category });
+    if (ok) setSelectedAssetIds([]);
+    setBulkSaving(false);
+  }
 
   return (
     <div className="assets-view">
@@ -3303,8 +3414,52 @@ function AssetsView({
         setFilter={setFilter}
       />
 
+      {selectedAssetIds.length > 0 && (
+        <div className="asset-bulk-toolbar" role="region" aria-label="Массовые действия">
+          <div className="asset-bulk-summary">
+            <strong>{selectedAssetIds.length}</strong>
+            <span>выбрано</span>
+          </div>
+          <StatusSelect
+            className="asset-bulk-select"
+            disabled={bulkSaving}
+            onValueChange={applyBulkStatus}
+            placeholder="Изменить статус"
+          />
+          <Select disabled={bulkSaving} onValueChange={(value) => applyBulkCategory(value)}>
+            <SelectTrigger className="asset-bulk-select">
+              <SelectValue placeholder="Переместить в категорию" />
+            </SelectTrigger>
+            <SelectContent>
+              {categoryChoices.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            disabled={bulkSaving}
+            onClick={() => setSelectedAssetIds([])}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Снять выбор
+          </Button>
+        </div>
+      )}
+
       <div className="asset-table">
         <div className="asset-table-head">
+          <label className="asset-checkbox-cell" aria-label="Выбрать все видимые узлы">
+            <input
+              checked={allVisibleSelected}
+              data-indeterminate={hasPartialVisibleSelection || undefined}
+              onChange={toggleAllVisible}
+              type="checkbox"
+            />
+          </label>
           <span>Узел</span>
           <span>Комната</span>
           <span>Тип</span>
@@ -3312,7 +3467,17 @@ function AssetsView({
           <span>Действия</span>
         </div>
         {filteredAssets.map((asset) => (
-          <div className="asset-table-row" key={asset.id}>
+          <div
+            className={`asset-table-row${selectedAssetIds.includes(asset.id) ? " selected" : ""}`}
+            key={asset.id}
+          >
+            <label className="asset-checkbox-cell" aria-label={`Выбрать ${asset.code}`}>
+              <input
+                checked={selectedAssetIds.includes(asset.id)}
+                onChange={() => toggleAssetSelection(asset.id)}
+                type="checkbox"
+              />
+            </label>
             <button className="asset-table-title" onClick={() => openAsset(asset.id)} type="button">
               <strong>{asset.code} · {asset.name}</strong>
               <span>{asset.photoNote}</span>

@@ -1030,6 +1030,41 @@ textarea {
   gap: 4px;
 }
 
+.asset-bulk-toolbar {
+  position: sticky;
+  top: 12px;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--content) 94%, var(--muted));
+  padding: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.asset-bulk-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  border-radius: 8px;
+  background: var(--muted);
+  padding: 0 10px;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.asset-bulk-summary span {
+  color: var(--text-muted);
+}
+
+.asset-bulk-select {
+  width: 220px;
+}
+
 .asset-table {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -1040,7 +1075,7 @@ textarea {
 .asset-table-head,
 .asset-table-row {
   display: grid;
-  grid-template-columns: minmax(280px, 1.8fr) minmax(120px, 0.7fr) minmax(140px, 0.8fr) 220px 72px;
+  grid-template-columns: 28px minmax(280px, 1.8fr) minmax(120px, 0.7fr) minmax(140px, 0.8fr) 220px 72px;
   align-items: center;
   gap: 12px;
 }
@@ -1068,6 +1103,30 @@ textarea {
 
 .asset-table-row:hover {
   background: color-mix(in oklab, var(--muted) 58%, transparent);
+}
+
+.asset-table-row.selected {
+  background: color-mix(in oklab, var(--primary) 8%, var(--content));
+}
+
+.asset-checkbox-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.asset-checkbox-cell input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.asset-checkbox-cell input[data-indeterminate="true"] {
+  opacity: 0.72;
 }
 
 .asset-table-title {
@@ -1118,6 +1177,10 @@ textarea {
   color: var(--text);
   font-size: 14px;
   line-height: 20px;
+}
+
+.status-select-empty {
+  color: var(--text-muted);
 }
 
 .status-select-trigger [data-slot="select-value"] {
@@ -2203,6 +2266,16 @@ select:focus-visible {
     flex: 0 0 auto;
   }
 
+  .asset-bulk-toolbar {
+    position: static;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .asset-bulk-select {
+    width: 100%;
+  }
+
   .asset-table {
     display: grid;
     gap: 8px;
@@ -2216,7 +2289,7 @@ select:focus-visible {
   }
 
   .asset-table-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 28px 1fr;
     gap: 10px;
     min-height: 0;
     border: 0;
@@ -2224,6 +2297,16 @@ select:focus-visible {
     background: var(--content);
     padding: 14px;
     box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .asset-table-row > :not(.asset-checkbox-cell) {
+    grid-column: 2;
+  }
+
+  .asset-checkbox-cell {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
   }
 
   .asset-table-row:hover {
