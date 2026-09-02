@@ -66,7 +66,9 @@ test("supports custom asset categories from the UI", () => {
   assert.match(pageSource, /function createCategory/);
   assert.match(pageSource, /function renameCategory/);
   assert.match(pageSource, /function deleteCategory/);
-  assert.match(pageSource, /CategoryManager/);
+  assert.match(pageSource, /promptCreateCategory/);
+  assert.match(pageSource, /promptRenameCategory/);
+  assert.match(pageSource, /Новая категория/);
   assert.match(pageSource, /categoryOptions\(categories\)\.map/);
   assert.match(pageSource, /Нельзя удалить/);
 });

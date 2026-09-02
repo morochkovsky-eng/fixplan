@@ -3286,6 +3286,8 @@ function AssetsView({
   const [bulkSaving, setBulkSaving] = useState(false);
   const filterOptions = useMemo(() => assetFiltersForCategories(categories), [categories]);
   const categoryChoices = useMemo(() => categoryOptions(categories), [categories]);
+  const selectedCategory = categoryChoices.find((category) => category.id === filter);
+  const selectedFilter = filterOptions.find((option) => option.id === filter);
 
   const filteredAssets = useMemo(() => {
     return assets
@@ -3357,6 +3359,19 @@ function AssetsView({
     setBulkSaving(false);
   }
 
+  async function promptCreateCategory() {
+    const label = window.prompt("Название новой категории");
+    if (!label?.trim()) return;
+    await createCategory(label);
+  }
+
+  async function promptRenameCategory() {
+    if (!selectedCategory) return;
+    const nextLabel = window.prompt("Новое название категории", selectedCategory.label);
+    if (nextLabel === null || nextLabel.trim() === selectedCategory.label) return;
+    await renameCategory(selectedCategory.id, nextLabel);
+  }
+
   return (
     <div className="assets-view">
       <div className="asset-tools">
@@ -3370,10 +3385,16 @@ function AssetsView({
             value={query}
           />
         </div>
-        <Button className="asset-create-button" onClick={createAsset} type="button">
-          <Plus size={16} />
-          Новый узел
-        </Button>
+        <div className="asset-primary-actions">
+          <Button className="asset-create-button" onClick={createAsset} type="button">
+            <Plus size={16} />
+            Новый узел
+          </Button>
+          <Button className="asset-create-button" onClick={() => void promptCreateCategory()} type="button">
+            <Plus size={16} />
+            Новая категория
+          </Button>
+        </div>
         <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
           <SelectTrigger className="asset-sort-trigger w-full sm:w-[260px]">
             <SelectValue />
@@ -3405,14 +3426,38 @@ function AssetsView({
         ))}
       </div>
 
-      <CategoryManager
-        assets={assets}
-        categories={categories}
-        createCategory={createCategory}
-        deleteCategory={deleteCategory}
-        renameCategory={renameCategory}
-        setFilter={setFilter}
-      />
+      <div className="asset-current-section">
+        <div>
+          <h2>{selectedCategory?.label ?? selectedFilter?.label ?? "Все узлы"}</h2>
+          <p>
+            {selectedCategory
+              ? `${filterCounts[selectedCategory.id] ?? 0} узлов в категории`
+              : `${filteredAssets.length} узлов по выбранному фильтру`}
+          </p>
+        </div>
+        {selectedCategory && (
+          <div className="asset-current-actions">
+            <Button
+              aria-label={`Переименовать категорию ${selectedCategory.label}`}
+              onClick={() => void promptRenameCategory()}
+              size="icon-sm"
+              type="button"
+              variant="secondary"
+            >
+              <Pencil size={14} />
+            </Button>
+            <Button
+              aria-label={`Удалить категорию ${selectedCategory.label}`}
+              onClick={() => void deleteCategory(selectedCategory.id)}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <Trash2 size={14} />
+            </Button>
+          </div>
+        )}
+      </div>
 
       {selectedAssetIds.length > 0 && (
         <div className="asset-bulk-toolbar" role="region" aria-label="Массовые действия">
@@ -3507,115 +3552,6 @@ function AssetsView({
             В этой группе пока нет узлов. Когда добавим реальные точки с плана, они появятся здесь.
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function CategoryManager({
-  assets,
-  categories,
-  createCategory,
-  deleteCategory,
-  renameCategory,
-  setFilter,
-}: {
-  assets: Asset[];
-  categories: AssetCategory[];
-  createCategory: (label: string) => Promise<boolean>;
-  deleteCategory: (categoryId: Category) => Promise<boolean>;
-  renameCategory: (categoryId: Category, label: string) => Promise<boolean>;
-  setFilter: (filter: AssetFilter) => void;
-}) {
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const options = categoryOptions(categories);
-
-  async function submitCategory() {
-    const created = await createCategory(newCategoryName);
-    if (created) setNewCategoryName("");
-  }
-
-  async function promptRename(category: AssetCategory) {
-    const nextLabel = window.prompt("Новое название категории", category.label);
-    if (nextLabel === null || nextLabel.trim() === category.label) return;
-    await renameCategory(category.id, nextLabel);
-  }
-
-  return (
-    <div className="category-manager">
-      <div className="category-manager-header">
-        <div>
-          <strong>Категории</strong>
-          <span>Справочник групп: фильтр, цвет точки и схема по умолчанию.</span>
-        </div>
-        <div className="category-create-row">
-          <Input
-            aria-label="Название новой категории"
-            onChange={(event) => setNewCategoryName(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void submitCategory();
-              }
-            }}
-            placeholder="Новая категория"
-            value={newCategoryName}
-          />
-          <Button onClick={() => void submitCategory()} type="button" variant="secondary">
-            <Plus size={16} />
-            Добавить
-          </Button>
-        </div>
-      </div>
-
-      <div className="category-table" role="table" aria-label="Категории узлов">
-        <div className="category-table-head" role="row">
-          <span>Категория</span>
-          <span>Узлов</span>
-          <span>Префикс</span>
-          <span>Действия</span>
-        </div>
-        {options.map((category) => {
-          const count = assets.filter((asset) => asset.category === category.id).length;
-          return (
-            <div className="category-table-row" key={category.id} role="row">
-              <button
-                className="category-main"
-                onClick={() => setFilter(category.id)}
-                type="button"
-              >
-                <span
-                  aria-hidden="true"
-                  className="category-color"
-                  style={{ backgroundColor: category.color }}
-                />
-                <strong>{category.label}</strong>
-              </button>
-              <span className="category-count">{count}</span>
-              <span className="category-prefix">{category.prefix || "без префикса"}</span>
-              <div className="category-actions">
-                <Button
-                  aria-label={`Переименовать ${category.label}`}
-                  onClick={() => void promptRename(category)}
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Pencil size={14} />
-                </Button>
-                <Button
-                  aria-label={`Удалить ${category.label}`}
-                  onClick={() => void deleteCategory(category.id)}
-                  size="icon-sm"
-                  type="button"
-                  variant="ghost"
-                >
-                  <Trash2 size={14} />
-                </Button>
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
