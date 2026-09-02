@@ -914,22 +914,11 @@ function matchesAssetSearch(asset: Asset, query: string) {
     .includes(value);
 }
 
-function assetBelongsToPlanMode(asset: Asset, modeId: PlanModeId) {
-  const kind = assetKind(asset);
-  if (modeId === "sockets") {
-    return kind === "socket" || kind === "switch" || kind === "appliance" || asset.category === "household_appliance";
-  }
-  if (modeId === "lighting") return kind === "light";
-  if (modeId === "plumbing") {
-    return kind === "plumbing_fixture" || kind === "drain" || asset.category === "plumbing";
-  }
-  if (modeId === "ventilation") return kind === "ventilation";
-  if (modeId === "furniture") return kind === "furniture" || asset.category === "furniture";
-  if (modeId === "windows") return kind === "window" || asset.category === "window";
-  if (modeId === "flooring") return asset.code.startsWith("FL-");
-  if (modeId === "radiators") return kind === "radiator";
-  if (modeId === "warmFloor") return kind === "warm_floor";
-  return false;
+function planModeForCategory(categoryId: Category, categories: AssetCategory[]) {
+  return (
+    categoryOptions(categories).find((category) => category.id === categoryId)?.planModeId ??
+    planModeFromAssetFilter(categoryId)
+  );
 }
 
 function planModeFromAssetFilter(filter: AssetFilter): PlanModeId {
@@ -1157,6 +1146,7 @@ export default function Home() {
   const [assetReturnView, setAssetReturnView] = useState<View>("dashboard");
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("all");
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
+  const [activePlanCategory, setActivePlanCategory] = useState<Category>("electric");
   const [contractorWorkflow, setContractorWorkflow] = useState<Workflow>("inspection");
   const [onlyIssues, setOnlyIssues] = useState(false);
   const [newEventText, setNewEventText] = useState("");
@@ -1312,12 +1302,12 @@ export default function Home() {
   const visibleAssets = useMemo(
     () =>
       state.assets.filter((asset) => {
-        const categoryVisible = assetBelongsToPlanMode(asset, activePlan.id);
+        const categoryVisible = asset.category === activePlanCategory;
         const issueVisible =
           !onlyIssues || ["attention", "in_progress", "needs_master"].includes(asset.status);
         return categoryVisible && issueVisible;
       }),
-    [activePlan.id, onlyIssues, state.assets],
+    [activePlanCategory, onlyIssues, state.assets],
   );
 
   const issueAssets = state.assets.filter((asset) => asset.status !== "ok");
@@ -1366,7 +1356,8 @@ export default function Home() {
     const asset = state.assets.find((item) => item.id === assetId);
     if (!asset) return;
 
-    setActivePlanMode(planModeFromAssetFilter(asset.category));
+    setActivePlanCategory(asset.category);
+    setActivePlanMode(planModeForCategory(asset.category, state.categories));
     selectAssetForEditing(asset);
     setView("plan");
     setMobileMenuOpen(false);
@@ -1435,6 +1426,7 @@ export default function Home() {
       photoNote: draft.photoNote,
     };
     setActivePlanMode(mode.id);
+    setActivePlanCategory(draft.category);
     enterPlanEditMode();
     setState((current) => ({
       ...current,
@@ -2236,6 +2228,7 @@ export default function Home() {
           <PlanView
             assets={visibleAssets}
             allAssets={state.assets}
+            activePlanCategory={activePlanCategory}
             activePlanMode={activePlanMode}
             categories={state.categories}
             assetDraft={assetDraft}
@@ -2248,6 +2241,7 @@ export default function Home() {
             enterPlanEditMode={enterPlanEditMode}
             onlyIssues={onlyIssues}
             moveAssetOnPlan={moveAssetOnPlan}
+            setActivePlanCategory={setActivePlanCategory}
             setActivePlanMode={setActivePlanMode}
             setAssetDraft={updateAssetDraft}
             savePlanChanges={savePlanChanges}
@@ -2727,6 +2721,7 @@ function Metric({ value, label }: { value: string; label: string }) {
 function PlanView({
   assets,
   allAssets,
+  activePlanCategory,
   activePlanMode,
   categories,
   assetDraft,
@@ -2739,6 +2734,7 @@ function PlanView({
   enterPlanEditMode,
   onlyIssues,
   moveAssetOnPlan,
+  setActivePlanCategory,
   setActivePlanMode,
   setAssetDraft,
   savePlanChanges,
@@ -2750,6 +2746,7 @@ function PlanView({
 }: {
   assets: Asset[];
   allAssets: Asset[];
+  activePlanCategory: Category;
   activePlanMode: PlanModeId;
   categories: AssetCategory[];
   assetDraft: AssetDraft;
@@ -2762,17 +2759,21 @@ function PlanView({
   enterPlanEditMode: () => void;
   onlyIssues: boolean;
   moveAssetOnPlan: (assetId: string, x: number, y: number) => void;
+  setActivePlanCategory: (category: Category) => void;
   setActivePlanMode: (mode: PlanModeId) => void;
   setAssetDraft: (draft: AssetDraft | ((current: AssetDraft) => AssetDraft)) => void;
   savePlanChanges: () => void;
   saveAssetDraft: () => void;
   selectAssetForEditing: (asset: Asset) => void;
-  startNewAsset: () => void;
+  startNewAsset: (modeId?: PlanModeId, categoryId?: Category) => void;
   toggleIssues: () => void;
   openAsset: (id: string) => void;
 }) {
   const activeMode = planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
   const activeHotspots = planHotspots[activeMode.id];
+  const planCategories = categoryOptions(categories);
+  const activeCategory =
+    planCategories.find((category) => category.id === activePlanCategory) ?? planCategories[0];
   const editingAsset = editingAssetId
     ? allAssets.find((asset) => asset.id === editingAssetId) ?? null
     : null;
@@ -2825,7 +2826,12 @@ function PlanView({
                   Редактировать узлы
                 </Button>
               )}
-              <Button onClick={startNewAsset} size="sm" type="button" variant="secondary">
+              <Button
+                onClick={() => startNewAsset(activeMode.id, activeCategory?.id)}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
                 <Plus size={14} />
                 Новый узел
               </Button>
@@ -2833,19 +2839,22 @@ function PlanView({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="plan-mode-toolbar" role="tablist" aria-label="Режимы плана">
-            {planModes.map((mode) => (
+          <div className="plan-mode-toolbar" role="tablist" aria-label="Категории плана">
+            {planCategories.map((category) => (
               <Button
-                aria-selected={activePlanMode === mode.id}
+                aria-selected={activePlanCategory === category.id}
                 className="justify-start"
-                key={mode.id}
-                onClick={() => setActivePlanMode(mode.id)}
+                key={category.id}
+                onClick={() => {
+                  setActivePlanCategory(category.id);
+                  setActivePlanMode(category.planModeId);
+                }}
                 role="tab"
                 size="sm"
                 type="button"
-                variant={activePlanMode === mode.id ? "default" : "secondary"}
+                variant={activePlanCategory === category.id ? "default" : "secondary"}
               >
-                {mode.label}
+                {category.label}
               </Button>
             ))}
             <Button
