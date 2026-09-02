@@ -1250,6 +1250,7 @@ export default function Home() {
             inspections: remoteState.inspections ?? current.inspections,
             inspectionResults: remoteState.inspectionResults ?? current.inspectionResults,
             categories: remoteState.categories ?? current.categories,
+            deletedAssetIds: remoteState.deletedAssetIds ?? current.deletedAssetIds,
             contractorAccess: {
               ...current.contractorAccess,
               inspectionId:

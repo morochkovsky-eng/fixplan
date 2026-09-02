@@ -7,6 +7,7 @@ const guestSource = fs.readFileSync("app/guest/[token]/guest-inspection-client.t
 const schemaSource = fs.readFileSync("supabase/schema.sql", "utf8");
 const seedSource = fs.readFileSync("supabase/seed.sql", "utf8");
 const eventRouteSource = fs.readFileSync("app/api/assets/[id]/events/[eventId]/route.ts", "utf8");
+const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
@@ -62,6 +63,11 @@ test("keeps new asset editing as a persisted temporary plan node", () => {
     pageSource,
     /setAssetDraft\(\(currentDraft\) => \{[\s\S]*?setState\(\(current\) =>/m,
   );
+});
+
+test("keeps server deleted nodes authoritative over browser storage", () => {
+  assert.match(appDataRouteSource, /deletedAssetIds/);
+  assert.match(pageSource, /deletedAssetIds: remoteState\.deletedAssetIds \?\? current\.deletedAssetIds/);
 });
 
 test("supports custom asset categories from the UI", () => {
