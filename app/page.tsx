@@ -1150,7 +1150,7 @@ export default function Home() {
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
   const [activePlanCategory, setActivePlanCategory] = useState<Category>("electric");
   const [contractorWorkflow, setContractorWorkflow] = useState<Workflow>("inspection");
-  const [onlyIssues, setOnlyIssues] = useState(false);
+  const [planFilter, setPlanFilter] = useState<AssetFilter>("all");
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1300,17 +1300,6 @@ export default function Home() {
 
   const activePlan =
     planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
-
-  const visibleAssets = useMemo(
-    () =>
-      state.assets.filter((asset) => {
-        const categoryVisible = asset.category === activePlanCategory;
-        const issueVisible =
-          !onlyIssues || ["attention", "in_progress", "needs_master"].includes(asset.status);
-        return categoryVisible && issueVisible;
-      }),
-    [activePlanCategory, onlyIssues, state.assets],
-  );
 
   const issueAssets = state.assets.filter((asset) => asset.status !== "ok");
   const attentionAssets = state.assets.filter((asset) => asset.status === "attention");
@@ -2353,11 +2342,12 @@ export default function Home() {
 
         {view === "plan" && (
           <PlanView
-            assets={visibleAssets}
             allAssets={state.assets}
             activePlanCategory={activePlanCategory}
             activePlanMode={activePlanMode}
             categories={state.categories}
+            createCategory={createCategory}
+            filter={planFilter}
             assetDraft={assetDraft}
             assetSaving={assetSaving}
             cancelPlanChanges={cancelPlanChanges}
@@ -2366,16 +2356,15 @@ export default function Home() {
             editingAssetId={editingAssetId}
             editMode={planEditMode}
             enterPlanEditMode={enterPlanEditMode}
-            onlyIssues={onlyIssues}
             moveAssetOnPlan={moveAssetOnPlan}
             setActivePlanCategory={setActivePlanCategory}
+            setFilter={setPlanFilter}
             setActivePlanMode={setActivePlanMode}
             setAssetDraft={updateAssetDraft}
             savePlanChanges={savePlanChanges}
             saveAssetDraft={saveAssetDraft}
             selectAssetForEditing={selectAssetForEditing}
             startNewAsset={startNewAsset}
-            toggleIssues={() => setOnlyIssues((value) => !value)}
             openAsset={openAsset}
           />
         )}
@@ -2892,11 +2881,12 @@ function Metric({ value, label }: { value: string; label: string }) {
 }
 
 function PlanView({
-  assets,
   allAssets,
   activePlanCategory,
   activePlanMode,
   categories,
+  createCategory,
+  filter,
   assetDraft,
   assetSaving,
   cancelPlanChanges,
@@ -2905,23 +2895,23 @@ function PlanView({
   editingAssetId,
   editMode,
   enterPlanEditMode,
-  onlyIssues,
   moveAssetOnPlan,
   setActivePlanCategory,
+  setFilter,
   setActivePlanMode,
   setAssetDraft,
   savePlanChanges,
   saveAssetDraft,
   selectAssetForEditing,
   startNewAsset,
-  toggleIssues,
   openAsset,
 }: {
-  assets: Asset[];
   allAssets: Asset[];
   activePlanCategory: Category;
   activePlanMode: PlanModeId;
   categories: AssetCategory[];
+  createCategory: (label: string) => Promise<boolean>;
+  filter: AssetFilter;
   assetDraft: AssetDraft;
   assetSaving: boolean;
   cancelPlanChanges: () => void;
@@ -2930,48 +2920,84 @@ function PlanView({
   editingAssetId: string | null;
   editMode: boolean;
   enterPlanEditMode: () => void;
-  onlyIssues: boolean;
   moveAssetOnPlan: (assetId: string, x: number, y: number) => void;
   setActivePlanCategory: (category: Category) => void;
+  setFilter: (filter: AssetFilter) => void;
   setActivePlanMode: (mode: PlanModeId) => void;
   setAssetDraft: (draft: AssetDraft | ((current: AssetDraft) => AssetDraft)) => void;
   savePlanChanges: () => void;
   saveAssetDraft: () => void;
   selectAssetForEditing: (asset: Asset) => void;
   startNewAsset: (modeId?: PlanModeId, categoryId?: Category) => void;
-  toggleIssues: () => void;
   openAsset: (id: string) => void;
 }) {
   const [planQuery, setPlanQuery] = useState("");
+  const [sort, setSort] = useState<AssetSort>("status");
   const activeMode = planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
   const activeHotspots = planHotspots[activeMode.id];
-  const planCategories = categoryOptions(categories);
+  const filterOptions = useMemo(() => assetFiltersForCategories(categories), [categories]);
+  const planCategories = useMemo(() => categoryOptions(categories), [categories]);
   const activeCategory =
     planCategories.find((category) => category.id === activePlanCategory) ?? planCategories[0];
-  const activeCategoryAssets = useMemo(
-    () => allAssets.filter((asset) => asset.category === activePlanCategory),
-    [activePlanCategory, allAssets],
-  );
-  const activeCategoryIssueCount = activeCategoryAssets.filter((asset) => asset.status !== "ok").length;
-  const searchedAssets = useMemo(
-    () => assets.filter((asset) => matchesAssetSearch(asset, planQuery)),
-    [assets, planQuery],
-  );
+  const selectedCategory = planCategories.find((category) => category.id === filter);
+  const selectedFilter = filterOptions.find((option) => option.id === filter);
+  const filteredAssets = useMemo(() => {
+    return allAssets
+      .filter((asset) => matchesAssetFilter(asset, filter))
+      .filter((asset) => matchesAssetSearch(asset, planQuery))
+      .slice()
+      .sort((left, right) => {
+        if (sort === "status") {
+          return (
+            statusWeight(left.status) - statusWeight(right.status) ||
+            left.code.localeCompare(right.code, "ru")
+          );
+        }
+        if (sort === "room") {
+          return (
+            roomName(left.roomId).localeCompare(roomName(right.roomId), "ru") ||
+            left.code.localeCompare(right.code, "ru")
+          );
+        }
+        if (sort === "checked") {
+          return right.lastChecked.localeCompare(left.lastChecked, "ru");
+        }
+        return left.code.localeCompare(right.code, "ru");
+      });
+  }, [allAssets, filter, planQuery, sort]);
+  const filterCounts = useMemo(() => {
+    return filterOptions.reduce<Record<string, number>>((counts, option) => {
+      counts[option.id] = allAssets.filter((asset) => matchesAssetFilter(asset, option.id)).length;
+      return counts;
+    }, {});
+  }, [allAssets, filterOptions]);
   const editingAsset = editingAssetId
     ? allAssets.find((asset) => asset.id === editingAssetId) ?? null
     : null;
 
+  function selectPlanFilter(nextFilter: AssetFilter) {
+    setFilter(nextFilter);
+    const category = planCategories.find((item) => item.id === nextFilter);
+    if (category) {
+      setActivePlanCategory(category.id);
+      setActivePlanMode(category.planModeId);
+      return;
+    }
+
+    setActivePlanMode(planModeFromAssetFilter(nextFilter));
+  }
+
+  async function promptCreateCategory() {
+    const label = window.prompt("Название новой категории");
+    if (!label?.trim()) return;
+    await createCategory(label);
+  }
+
   return (
     <div className="grid grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 max-[980px]:grid-cols-1">
-      <Card className="plan-main-card">
-        <CardHeader>
-          <CardTitle>Схема квартиры</CardTitle>
-          <CardDescription>
-            Переключайте рабочий лист плана. Одновременно активен один режим.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="plan-main-content">
-          <div className="plan-tools">
+      <div className="plan-main-column">
+        <div className="assets-view">
+          <div className="asset-tools plan-header-tools">
             <div className="asset-search">
               <Search size={16} />
               <Input
@@ -2982,11 +3008,11 @@ function PlanView({
                 value={planQuery}
               />
             </div>
-            <div className="plan-primary-actions">
+            <div className="asset-primary-actions plan-primary-actions">
               {editMode ? (
                 <>
                   <Button
-                    className="plan-primary-button"
+                    className="asset-create-button"
                     disabled={assetSaving}
                     onClick={cancelPlanChanges}
                     type="button"
@@ -2995,7 +3021,7 @@ function PlanView({
                     Отменить
                   </Button>
                   <Button
-                    className="plan-primary-button"
+                    className="asset-create-button"
                     disabled={assetSaving}
                     onClick={savePlanChanges}
                     type="button"
@@ -3011,7 +3037,7 @@ function PlanView({
               ) : (
                 <>
                   <Button
-                    className="plan-primary-button"
+                    className="asset-create-button"
                     onClick={enterPlanEditMode}
                     type="button"
                   >
@@ -3019,68 +3045,82 @@ function PlanView({
                     Редактировать
                   </Button>
                   <Button
-                    className="plan-primary-button"
+                    className="asset-create-button"
                     onClick={() => startNewAsset(activeMode.id, activeCategory?.id)}
                     type="button"
                   >
                     <Plus size={16} />
                     Новый узел
                   </Button>
+                  <Button
+                    className="asset-create-button"
+                    onClick={() => void promptCreateCategory()}
+                    type="button"
+                  >
+                    <Plus size={16} />
+                    Новая категория
+                  </Button>
                 </>
               )}
             </div>
-            <div className="plan-issue-filter" aria-label="Фильтр проблем">
-              <Button
-                aria-pressed={!onlyIssues}
-                onClick={onlyIssues ? toggleIssues : undefined}
-                type="button"
-                variant={!onlyIssues ? "default" : "secondary"}
-              >
-                Все точки
-                <Badge variant="secondary">{activeCategoryAssets.length}</Badge>
-              </Button>
-              <Button
-                aria-pressed={onlyIssues}
-                onClick={!onlyIssues ? toggleIssues : undefined}
-                type="button"
-                variant={onlyIssues ? "default" : "secondary"}
-              >
-                Только проблемы
-                <Badge variant="secondary">{activeCategoryIssueCount}</Badge>
-              </Button>
-            </div>
+            <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
+              <SelectTrigger className="asset-sort-trigger w-full sm:w-[260px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(assetSortLabels) as AssetSort[]).map((sortKey) => (
+                  <SelectItem key={sortKey} value={sortKey}>
+                    {assetSortLabels[sortKey]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="plan-mode-toolbar" role="tablist" aria-label="Категории плана">
-            {planCategories.map((category) => (
+
+          <div className="asset-filter-bar" role="list" aria-label="Фильтры плана">
+            {filterOptions.map((option) => (
               <Button
-                aria-selected={activePlanCategory === category.id}
-                className="justify-start"
-                key={category.id}
-                onClick={() => {
-                  setActivePlanCategory(category.id);
-                  setActivePlanMode(category.planModeId);
-                }}
-                role="tab"
+                aria-pressed={filter === option.id}
+                className="asset-filter-chip"
+                key={option.id}
+                onClick={() => selectPlanFilter(option.id)}
                 size="sm"
                 type="button"
-                variant={activePlanCategory === category.id ? "default" : "secondary"}
+                variant={filter === option.id ? "default" : "secondary"}
               >
-                {category.label}
+                {option.label}
+                <Badge variant="secondary">{filterCounts[option.id] ?? 0}</Badge>
               </Button>
             ))}
           </div>
-          <ApartmentPlan
-            activeMode={activeMode}
-            hotspots={activeHotspots}
-            assets={searchedAssets}
-            editMode={editMode}
-            editingAssetId={editingAssetId}
-            moveAssetOnPlan={moveAssetOnPlan}
-            openAsset={openAsset}
-            selectAssetForEditing={selectAssetForEditing}
-          />
-        </CardContent>
-      </Card>
+
+          <div className="asset-current-section">
+            <div>
+              <h2>{selectedCategory?.label ?? selectedFilter?.label ?? "Все"}</h2>
+              <p>
+                {selectedCategory
+                  ? `${filterCounts[selectedCategory.id] ?? 0} узлов в категории`
+                  : `${filteredAssets.length} узлов по выбранному фильтру`}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Card className="plan-main-card">
+          <CardContent className="plan-main-content">
+            <ApartmentPlan
+              activeMode={activeMode}
+              hotspots={activeHotspots}
+              assets={filteredAssets}
+              editMode={editMode}
+              editingAssetId={editingAssetId}
+              moveAssetOnPlan={moveAssetOnPlan}
+              openAsset={openAsset}
+              selectAssetForEditing={selectAssetForEditing}
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
@@ -3088,7 +3128,7 @@ function PlanView({
           <CardDescription>
             {editMode
               ? "Выберите точку на плане, перетащите ее и сохраните положение."
-              : `${activeMode.label}: ${activeHotspots.length} контрольных точек, ${assets.length} из ${allAssets.length} узлов системы.`}
+              : `${activeMode.label}: ${activeHotspots.length} контрольных точек, ${filteredAssets.length} из ${allAssets.length} узлов системы.`}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -3107,10 +3147,10 @@ function PlanView({
               <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
                 {activeMode.summary}
               </div>
-              {searchedAssets.map((asset) => (
+              {filteredAssets.map((asset) => (
                 <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
               ))}
-              {!searchedAssets.length && (
+              {!filteredAssets.length && (
                 <p className="text-muted-foreground text-sm">По выбранным фильтрам узлов нет.</p>
               )}
             </>
