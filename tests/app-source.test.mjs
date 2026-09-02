@@ -81,6 +81,9 @@ test("supports editing and deleting node comments without schema-cache fields", 
   assert.match(pageSource, /function updateEvent/);
   assert.match(pageSource, /function deleteEvent/);
   assert.match(pageSource, /media-lightbox/);
+  assert.match(pageSource, /media-lightbox-track/);
+  assert.match(pageSource, /media-lightbox-thumbnails/);
+  assert.match(pageSource, /media-lightbox-open/);
   assert.match(pageSource, /showPrevious/);
   assert.match(pageSource, /showNext/);
 

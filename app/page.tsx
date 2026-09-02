@@ -3,10 +3,6 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState, type PointerEvent } from "react";
 import {
-  Attachment,
-  AttachmentInfo,
-  AttachmentPreview,
-  Attachments,
   type AttachmentData,
 } from "@/components/ai-elements/attachments";
 import {
@@ -2994,7 +2990,7 @@ function PlanView({
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-6 max-[980px]:grid-cols-1">
+    <div className="plan-layout">
       <div className="plan-main-column">
         <div className="assets-view">
           <div className="asset-tools plan-header-tools">
@@ -3009,59 +3005,22 @@ function PlanView({
               />
             </div>
             <div className="asset-primary-actions plan-primary-actions">
-              {editMode ? (
-                <>
-                  <Button
-                    className="asset-create-button"
-                    disabled={assetSaving}
-                    onClick={cancelPlanChanges}
-                    type="button"
-                    variant="secondary"
-                  >
-                    Отменить
-                  </Button>
-                  <Button
-                    className="asset-create-button"
-                    disabled={assetSaving}
-                    onClick={savePlanChanges}
-                    type="button"
-                  >
-                    <Save size={16} />
-                    {assetSaving
-                      ? "Сохраняю"
-                      : dirtyPlanAssetCount
-                        ? `Сохранить (${dirtyPlanAssetCount})`
-                        : "Сохранить"}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    className="asset-create-button"
-                    onClick={enterPlanEditMode}
-                    type="button"
-                  >
-                    <Pencil size={16} />
-                    Редактировать
-                  </Button>
-                  <Button
-                    className="asset-create-button"
-                    onClick={() => startNewAsset(activeMode.id, activeCategory?.id)}
-                    type="button"
-                  >
-                    <Plus size={16} />
-                    Новый узел
-                  </Button>
-                  <Button
-                    className="asset-create-button"
-                    onClick={() => void promptCreateCategory()}
-                    type="button"
-                  >
-                    <Plus size={16} />
-                    Новая категория
-                  </Button>
-                </>
-              )}
+              <Button
+                className="asset-create-button"
+                onClick={() => startNewAsset(activeMode.id, activeCategory?.id)}
+                type="button"
+              >
+                <Plus size={16} />
+                Новый узел
+              </Button>
+              <Button
+                className="asset-create-button"
+                onClick={() => void promptCreateCategory()}
+                type="button"
+              >
+                <Plus size={16} />
+                Новая категория
+              </Button>
             </div>
             <Select value={sort} onValueChange={(value) => setSort(value as AssetSort)}>
               <SelectTrigger className="asset-sort-trigger w-full sm:w-[260px]">
@@ -3102,6 +3061,39 @@ function PlanView({
                   ? `${filterCounts[selectedCategory.id] ?? 0} узлов в категории`
                   : `${filteredAssets.length} узлов по выбранному фильтру`}
               </p>
+            </div>
+            <div className="asset-current-actions">
+              {editMode ? (
+                <>
+                  <Button
+                    disabled={assetSaving}
+                    onClick={cancelPlanChanges}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    Отменить
+                  </Button>
+                  <Button
+                    disabled={assetSaving}
+                    onClick={savePlanChanges}
+                    size="sm"
+                    type="button"
+                  >
+                    <Save size={14} />
+                    {assetSaving
+                      ? "Сохраняю"
+                      : dirtyPlanAssetCount
+                        ? `Сохранить (${dirtyPlanAssetCount})`
+                        : "Сохранить"}
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={enterPlanEditMode} size="sm" type="button" variant="secondary">
+                  <Pencil size={14} />
+                  Редактировать
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -4235,14 +4227,44 @@ function MediaGallery({
     ...(items.length ? [] : fallback.map(eventGalleryPhoto)),
   ];
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activePhoto = activeIndex === null ? null : photos[activeIndex];
+  const currentPhotoNumber = activeIndex === null ? 0 : activeIndex + 1;
+  const hasManyPhotos = photos.length > 1;
+  const activeSlideIndex = activeIndex ?? 0;
+
+  useEffect(() => {
+    if (!activePhoto) return undefined;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveIndex(null);
+      }
+      if (event.key === "ArrowLeft" && hasManyPhotos) {
+        setActiveIndex((current) => {
+          if (current === null) return null;
+          return current === 0 ? photos.length - 1 : current - 1;
+        });
+      }
+      if (event.key === "ArrowRight" && hasManyPhotos) {
+        setActiveIndex((current) => {
+          if (current === null) return null;
+          return current === photos.length - 1 ? 0 : current + 1;
+        });
+      }
+    };
+
+    document.body.classList.add("media-lightbox-open");
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.classList.remove("media-lightbox-open");
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activePhoto, hasManyPhotos, photos.length]);
 
   if (!photos.length) {
     return null;
   }
-
-  const activePhoto = activeIndex === null ? null : photos[activeIndex];
-  const currentPhotoNumber = activeIndex === null ? 0 : activeIndex + 1;
-  const hasManyPhotos = photos.length > 1;
 
   function showPrevious() {
     setActiveIndex((current) => {
@@ -4260,30 +4282,35 @@ function MediaGallery({
 
   return (
     <>
-      <Attachments className={variant === "list" ? "mt-2 w-full" : "ml-0 w-full"} variant={variant}>
+      <div className={`media-gallery ${variant}`}>
         {photos.map((photo, index) => (
-          <Attachment
+          <button
+            aria-label={`Открыть фото ${index + 1} из ${photos.length}`}
             className="media-gallery-item"
-            data={photo}
             key={photo.id}
             onClick={() => setActiveIndex(index)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                setActiveIndex(index);
-              }
-            }}
+            type="button"
           >
-            <AttachmentPreview />
-            {variant === "list" && <AttachmentInfo />}
-          </Attachment>
+            <span className="media-gallery-preview">
+              <img alt={photo.filename} src={photo.imageUrl} />
+            </span>
+            {variant === "list" && (
+              <span className="media-gallery-info">
+                <span>{photo.filename}</span>
+                {photo.caption && <small>{photo.caption}</small>}
+              </span>
+            )}
+          </button>
         ))}
-      </Attachments>
+      </div>
 
       {activePhoto && (
-        <div className="media-lightbox" role="dialog" aria-modal="true" aria-label="Просмотр фото">
+        <div
+          className="media-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Просмотр фото"
+        >
           <div className="media-lightbox-top">
             <div>
               <strong>{activePhoto.filename}</strong>
@@ -4312,7 +4339,16 @@ function MediaGallery({
                 <ChevronLeft size={20} />
               </Button>
             )}
-            <img alt={activePhoto.filename} src={activePhoto.imageUrl} />
+            <div
+              className="media-lightbox-track"
+              style={{ transform: `translateX(-${activeSlideIndex * 100}%)` }}
+            >
+              {photos.map((photo) => (
+                <div className="media-lightbox-slide" key={photo.id}>
+                  <img alt={photo.filename} src={photo.imageUrl} />
+                </div>
+              ))}
+            </div>
             {hasManyPhotos && (
               <Button
                 aria-label="Следующее фото"
@@ -4326,11 +4362,33 @@ function MediaGallery({
               </Button>
             )}
           </div>
-          {hasManyPhotos && (
-            <div className="media-lightbox-count">
+          <div className="media-lightbox-footer">
+            {hasManyPhotos && (
+              <div className="media-lightbox-count">
+                {currentPhotoNumber} из {photos.length}
+              </div>
+            )}
+            {hasManyPhotos && (
+              <div className="media-lightbox-thumbnails" aria-label="Все фото">
+                {photos.map((photo, index) => (
+                  <button
+                    aria-label={`Показать фото ${index + 1}`}
+                    aria-current={index === activeIndex}
+                    key={photo.id}
+                    onClick={() => setActiveIndex(index)}
+                    type="button"
+                  >
+                    <img alt={photo.filename} src={photo.imageUrl} />
+                  </button>
+                ))}
+              </div>
+            )}
+            {!hasManyPhotos && (
+              <div className="media-lightbox-count">
               {currentPhotoNumber} из {photos.length}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>
