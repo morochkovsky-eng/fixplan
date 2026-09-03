@@ -4765,8 +4765,10 @@ function InspectionsView({
     assetInstructions: Record<string, string>;
   } | null>(null);
   const isWorkOrder = workflow === "work_order";
-  const latestInspection = inspections[0];
-  const completedCount = inspections.filter((inspection) => inspection.status === "completed").length;
+  const completedCount = inspections.filter((inspection) =>
+    ["completed", "accepted"].includes(inspection.status),
+  ).length;
+  const acceptedCount = inspections.filter((inspection) => inspection.status === "accepted").length;
   const visibleInspectionIds = new Set(inspections.map((inspection) => inspection.id));
   const issueResultCount = results.filter(
     (result) => visibleInspectionIds.has(result.inspectionId) && result.statusAfter !== "ok",
@@ -4796,13 +4798,24 @@ function InspectionsView({
     }
   }
 
+  async function acceptInspection(inspection: Inspection) {
+    const saved = await updateInspection(inspection.id, { status: "accepted" });
+    if (!saved) {
+      window.alert(
+        isWorkOrder
+          ? "Не удалось принять задание."
+          : "Не удалось принять отчет.",
+      );
+    }
+  }
+
   return (
     <div className="grid gap-4">
       <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label={isWorkOrder ? "Всего заданий" : "Всего обходов"} value={`${inspections.length}`} />
         <StatCard label="Завершено" value={`${completedCount}`} tone="positive" />
+        <StatCard label="Принято" value={`${acceptedCount}`} tone="positive" />
         <StatCard label={isWorkOrder ? "Замечаний из заданий" : "Замечаний из отчетов"} value={`${issueResultCount}`} tone="negative" />
-        <StatCard label="Последний" value={latestInspection?.completedAt ?? latestInspection?.createdAt ?? "нет"} />
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
@@ -4828,6 +4841,7 @@ function InspectionsView({
               const cost = inspectionResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
               const canEdit = !["completed", "accepted"].includes(inspection.status);
               const isEditing = editingInspectionId === inspection.id && editDraft;
+              const canAccept = inspection.status === "completed";
 
               return (
                 <div className="grid gap-3 rounded-xl bg-muted p-4" key={inspection.id}>
@@ -4934,8 +4948,19 @@ function InspectionsView({
                       type="button"
                       variant={inspection.status === "completed" ? "default" : "secondary"}
                     >
-                      Открыть отчет
+                      {isWorkOrder ? "Открыть результат" : "Открыть отчет"}
                     </Button>
+                    {canAccept && (
+                      <Button
+                        className="w-fit"
+                        onClick={() => void acceptInspection(inspection)}
+                        size="sm"
+                        type="button"
+                      >
+                        <Check size={14} />
+                        {isWorkOrder ? "Принять задание" : "Принять отчет"}
+                      </Button>
+                    )}
                     {canEdit && !isEditing && (
                       <Button
                         className="w-fit"
@@ -4973,7 +4998,7 @@ function InspectionsView({
                         </Button>
                       </>
                     )}
-                    {inspection.status !== "completed" && (
+                    {!["completed", "accepted"].includes(inspection.status) && (
                       <Button asChild className="w-fit" size="sm" type="button" variant="secondary">
                         <a href={inspection.link} rel="noreferrer" target="_blank">
                           Открыть ссылку мастера

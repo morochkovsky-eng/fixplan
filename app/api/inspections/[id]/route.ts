@@ -6,6 +6,7 @@ const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
 
 type ContractorScope = "plumbing" | "electric" | "all" | "custom";
 type Workflow = "inspection" | "work_order";
+type InspectionStatus = "draft" | "sent" | "in_progress" | "completed" | "accepted";
 
 type InspectionRow = {
   id: string;
@@ -125,6 +126,7 @@ export async function PATCH(
     contractor?: string;
     contractorPhone?: string;
     scope?: ContractorScope;
+    status?: InspectionStatus;
     allowedAssetIds?: string[];
     assetInstructions?: Record<string, string>;
   };
@@ -144,6 +146,35 @@ export async function PATCH(
     return NextResponse.json({ error: "Inspection not found" }, { status: 404 });
   }
 
+  const workflow: Workflow = currentInspection.workflow === "work_order" ? "work_order" : "inspection";
+
+  if (body.status === "accepted") {
+    if (currentInspection.status !== "completed" && currentInspection.status !== "accepted") {
+      return NextResponse.json({ error: "Only completed results can be accepted" }, { status: 409 });
+    }
+
+    const { data: inspection, error: acceptError } = await admin
+      .from("inspections")
+      .update({
+        status: "accepted",
+        summary:
+          workflow === "work_order"
+            ? "Задание принято владельцем. Результат сохранен в истории выбранных узлов."
+            : "Отчет принят владельцем. Результат сохранен в истории выбранных узлов.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("apartment_id", APARTMENT_ID)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (acceptError) {
+      return NextResponse.json({ error: acceptError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ inspection: serializeInspection(inspection, request) });
+  }
+
   if (currentInspection.status === "completed" || currentInspection.status === "accepted") {
     return NextResponse.json({ error: "Completed inspections cannot be edited" }, { status: 409 });
   }
@@ -154,7 +185,6 @@ export async function PATCH(
       ? body.contractorPhone.trim() || null
       : currentInspection.contractor_phone;
   const scope = body.scope ?? currentInspection.scope;
-  const workflow: Workflow = currentInspection.workflow === "work_order" ? "work_order" : "inspection";
 
   if (!contractor) {
     return NextResponse.json({ error: "Contractor name is required" }, { status: 400 });
