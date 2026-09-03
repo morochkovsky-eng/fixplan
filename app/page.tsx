@@ -5062,7 +5062,7 @@ function DocumentsView({
   const [query, setQuery] = useState("");
   const [documentNote, setDocumentNote] = useState("");
   const [documentType, setDocumentType] = useState<DocumentTypeId>("passport");
-  const [documentTypeFilter, setDocumentTypeFilter] = useState<"all" | DocumentTypeId>("all");
+  const [documentTypeFilter, setDocumentTypeFilter] = useState<"all" | "attention" | DocumentTypeId>("all");
   const [documentIssuedAt, setDocumentIssuedAt] = useState("");
   const [documentValidUntil, setDocumentValidUntil] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState(() => assets[0]?.id ?? "");
@@ -5094,7 +5094,14 @@ function DocumentsView({
     documentTypeCounts.set(item.type, (documentTypeCounts.get(item.type) ?? 0) + 1);
   });
   const documents = documentRows
-    .filter((item) => documentTypeFilter === "all" || item.type === documentTypeFilter)
+    .filter((item) => {
+      if (documentTypeFilter === "all") return true;
+      if (documentTypeFilter === "attention") {
+        const tone = documentValidityTone(item.meta.validUntil);
+        return tone === "expired" || tone === "soon";
+      }
+      return item.type === documentTypeFilter;
+    })
     .filter(({ media: item, asset, event, meta }) => {
       const haystack = [
         item.caption,
@@ -5252,6 +5259,18 @@ function DocumentsView({
               variant={documentTypeFilter === "all" ? "default" : "secondary"}
             >
               Все <Badge className="ml-2" variant={documentTypeFilter === "all" ? "secondary" : "outline"}>{documentTypeCounts.get("all") ?? 0}</Badge>
+            </Button>
+            <Button
+              className="h-8 rounded-md"
+              onClick={() => setDocumentTypeFilter("attention")}
+              size="sm"
+              type="button"
+              variant={documentTypeFilter === "attention" ? "default" : "secondary"}
+            >
+              Требуют внимания
+              <Badge className="ml-2" variant={documentTypeFilter === "attention" ? "secondary" : "outline"}>
+                {attentionDocumentsCount}
+              </Badge>
             </Button>
             {documentTypes.map((type) => (
               <Button

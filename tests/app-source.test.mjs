@@ -121,6 +121,8 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /documentTypeFilter/);
   assert.match(pageSource, /documentTypeCounts/);
   assert.match(pageSource, /attentionDocumentsCount/);
+  assert.match(pageSource, /documentTypeFilter === "attention"/);
+  assert.match(pageSource, /setDocumentTypeFilter\("attention"\)/);
   assert.match(pageSource, /Требуют внимания/);
   assert.match(pageSource, /const documentEventIds = new Set/);
   assert.match(pageSource, /events\.filter\(isDocumentEvent\)/);
