@@ -96,6 +96,18 @@ test("keeps asset passport fields editable and persisted", () => {
   assert.match(assetRouteSource, /patch\.master/);
 });
 
+test("keeps asset documents separate from photo galleries", () => {
+  assert.match(pageSource, /function DocumentList/);
+  assert.match(pageSource, /const documentEventIds = new Set/);
+  assert.match(pageSource, /const isDocumentMedia =/);
+  assert.match(pageSource, /const assetDocuments = assetMedia\.filter\(isDocumentMedia\)/);
+  assert.match(pageSource, /const imageItems = items\.filter\(isImageMedia\)/);
+  assert.match(pageSource, /value="documents"/);
+  assert.match(pageSource, /Прикрепить файл/);
+  assert.match(pageSource, /Добавлен документ к паспорту узла/);
+  assert.match(pageSource, /<DocumentList items=\{documentMedia\} \/>/);
+});
+
 test("supports editing and deleting node comments without schema-cache fields", () => {
   assert.match(pageSource, /function EditableEventTask/);
   assert.match(pageSource, /function updateEvent/);

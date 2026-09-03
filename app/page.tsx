@@ -60,6 +60,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  FileText,
   History,
   LayoutDashboard,
   List,
@@ -4147,6 +4148,11 @@ function AssetDetail({
   goBack: () => void;
 }) {
   const assetMedia = media.filter((item) => item.assetId === asset.id);
+  const documentEventIds = new Set(events.filter((event) => event.title === "Документ").map((event) => event.id));
+  const isDocumentMedia = (item: AssetMedia) => !isImageMedia(item) || documentEventIds.has(item.eventId ?? "");
+  const assetImages = assetMedia.filter((item) => isImageMedia(item) && !isDocumentMedia(item));
+  const assetDocuments = assetMedia.filter(isDocumentMedia);
+  const [documentNote, setDocumentNote] = useState("");
   const mediaEvents = events.filter((event) => event.photo || assetMedia.some((item) => item.eventId === event.id));
   const historyContent = (
     <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto max-[980px]:pr-0">
@@ -4178,16 +4184,61 @@ function AssetDetail({
       <dt className="text-muted-foreground">Мастер</dt><dd className="font-medium">{asset.master ?? "не назначен"}</dd>
     </dl>
   );
-  const mediaContent = assetMedia.length || mediaEvents.length ? (
+  const mediaContent = assetImages.length || mediaEvents.length ? (
     <MediaGallery
       fallbackEvents={mediaEvents.filter((event) => event.photo)}
-      items={assetMedia}
+      items={assetImages}
       variant="grid"
     />
   ) : (
     <p className="text-muted-foreground text-sm">
       Фотографии появятся после события с вложением.
     </p>
+  );
+  const documentContent = (
+    <div className="grid gap-4">
+      {assetDocuments.length ? (
+        <DocumentList items={assetDocuments} />
+      ) : (
+        <p className="m-0 text-muted-foreground text-sm">
+          Документы появятся после загрузки инструкции, чека, гарантии или акта.
+        </p>
+      )}
+      <PromptInput
+        accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
+        className="w-full"
+        onSubmit={(message: PromptInputMessage) => {
+          const text = message.text.trim() || documentNote.trim();
+          if (message.files.length === 0) return;
+          void addEvent(asset.id, {
+            type: "comment",
+            title: "Документ",
+            body: text || "Добавлен документ к паспорту узла.",
+            photo: undefined,
+          }, message.files);
+          setDocumentNote("");
+        }}
+      >
+        <PromptInputBody>
+          <PromptInputTextarea
+            placeholder="Комментарий к документу"
+            value={documentNote}
+            onChange={(event) => setDocumentNote(event.currentTarget.value)}
+          />
+        </PromptInputBody>
+        <PromptInputFooter>
+          <PromptInputTools>
+            <PromptInputActionMenu>
+              <PromptInputActionMenuTrigger />
+              <PromptInputActionMenuContent>
+                <PromptInputActionAddAttachments label="Прикрепить файл" />
+              </PromptInputActionMenuContent>
+            </PromptInputActionMenu>
+          </PromptInputTools>
+          <PromptInputSubmit aria-label="Добавить документ" />
+        </PromptInputFooter>
+      </PromptInput>
+    </div>
   );
   const commentContent = (
     <PromptInput
@@ -4301,12 +4352,15 @@ function AssetDetail({
         <Tabs defaultValue="passport">
           <Card>
             <CardHeader>
-              <TabsList aria-label="Данные узла" className="grid w-full grid-cols-2">
+              <TabsList aria-label="Данные узла" className="grid w-full grid-cols-3">
                 <TabsTrigger value="passport">
               Паспорт
                 </TabsTrigger>
                 <TabsTrigger value="media">
               Медиа
+                </TabsTrigger>
+                <TabsTrigger value="documents">
+              Документы
                 </TabsTrigger>
               </TabsList>
             </CardHeader>
@@ -4320,6 +4374,9 @@ function AssetDetail({
               </TabsContent>
               <TabsContent value="media" className="mt-0">
                 {mediaContent}
+              </TabsContent>
+              <TabsContent value="documents" className="mt-0">
+                {documentContent}
               </TabsContent>
             </CardContent>
           </Card>
@@ -4341,10 +4398,11 @@ function AssetDetail({
       <Card className="hidden max-[980px]:block">
         <Tabs defaultValue="history">
           <CardHeader className="gap-3">
-            <TabsList aria-label="Разделы карточки узла" className="grid w-full grid-cols-3">
+            <TabsList aria-label="Разделы карточки узла" className="grid w-full grid-cols-4">
               <TabsTrigger value="history">История</TabsTrigger>
               <TabsTrigger value="passport">Паспорт</TabsTrigger>
               <TabsTrigger value="media">Медиа</TabsTrigger>
+              <TabsTrigger value="documents">Документы</TabsTrigger>
             </TabsList>
           </CardHeader>
           <CardContent>
@@ -4360,6 +4418,9 @@ function AssetDetail({
             </TabsContent>
             <TabsContent value="media" className="mt-0">
               {mediaContent}
+            </TabsContent>
+            <TabsContent value="documents" className="mt-0">
+              {documentContent}
             </TabsContent>
           </CardContent>
         </Tabs>
@@ -4393,6 +4454,7 @@ function EditableEventTask({
   const [draftTitle, setDraftTitle] = useState(event.title);
   const [draftBody, setDraftBody] = useState(event.body);
   const [isSaving, setIsSaving] = useState(false);
+  const documentMedia = event.title === "Документ" ? media : media.filter((item) => !isImageMedia(item));
 
   async function saveEvent() {
     setIsSaving(true);
@@ -4491,6 +4553,7 @@ function EditableEventTask({
           </div>
         )}
         <MediaGallery fallbackEvent={event.photo ? event : undefined} items={media} variant="list" />
+        <DocumentList items={documentMedia} />
         {onOpen && (
           <Button className="mt-1" variant="ghost" size="sm" onClick={onOpen} type="button">
             Открыть узел
@@ -4510,6 +4573,10 @@ function mediaForEvent(event: AssetEvent, media: AssetMedia[]) {
   }
 
   return [];
+}
+
+function isImageMedia(media: Pick<AssetMedia, "mediaType">) {
+  return media.mediaType.startsWith("image/");
 }
 
 function mediaPhotoData(media: AssetMedia): AttachmentData {
@@ -4565,9 +4632,10 @@ function MediaGallery({
   variant?: "grid" | "list";
 }) {
   const fallback = fallbackEvent ? [fallbackEvent] : fallbackEvents;
+  const imageItems = items.filter(isImageMedia);
   const photos = [
-    ...items.map(mediaGalleryPhoto),
-    ...(items.length ? [] : fallback.map(eventGalleryPhoto)),
+    ...imageItems.map(mediaGalleryPhoto),
+    ...(imageItems.length ? [] : fallback.map(eventGalleryPhoto)),
   ];
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePhoto = activeIndex === null ? null : photos[activeIndex];
@@ -4735,6 +4803,34 @@ function MediaGallery({
         </div>
       )}
     </>
+  );
+}
+
+function DocumentList({ items }: { items: AssetMedia[] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-2">
+      {items.map((document) => (
+        <a
+          className="flex min-w-0 items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm transition-colors hover:bg-secondary"
+          href={document.url}
+          key={document.id}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+            <FileText size={16} />
+          </span>
+          <span className="grid min-w-0 gap-0.5">
+            <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
+            <span className="truncate text-muted-foreground">{document.mediaType}</span>
+          </span>
+        </a>
+      ))}
+    </div>
   );
 }
 
