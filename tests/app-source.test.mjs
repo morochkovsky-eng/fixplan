@@ -99,15 +99,24 @@ test("keeps asset passport fields editable and persisted", () => {
 test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /function DocumentList/);
   assert.match(pageSource, /function DocumentsView/);
+  assert.match(pageSource, /const documentTypes = \[/);
+  assert.match(pageSource, /type DocumentTypeId/);
+  assert.match(pageSource, /function documentTypeFromEvent/);
   assert.match(pageSource, /\| "documents"/);
   assert.match(pageSource, /Документы"/);
   assert.match(pageSource, /К документам/);
   assert.match(pageSource, /Архив документов/);
   assert.match(pageSource, /Добавить документ/);
   assert.match(pageSource, /Выберите узел/);
+  assert.match(pageSource, /Тип документа/);
+  assert.match(pageSource, /Паспорт/);
+  assert.match(pageSource, /Гарантия/);
   assert.match(pageSource, /Файл, узел, категория/);
   assert.match(pageSource, /Открыть узел/);
+  assert.match(pageSource, /documentTypeFilter/);
+  assert.match(pageSource, /documentTypeCounts/);
   assert.match(pageSource, /const documentEventIds = new Set/);
+  assert.match(pageSource, /events\.filter\(isDocumentEvent\)/);
   assert.match(pageSource, /const isDocumentMedia =/);
   assert.match(pageSource, /const assetDocuments = assetMedia\.filter\(isDocumentMedia\)/);
   assert.match(pageSource, /const imageItems = items\.filter\(isImageMedia\)/);
@@ -117,6 +126,7 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /Добавлен документ к архиву квартиры/);
   assert.match(pageSource, /aria-label="Добавить документ в архив"/);
   assert.match(pageSource, /addEvent=\{addEvent\}/);
+  assert.match(pageSource, /<DocumentList events=\{events\} items=\{assetDocuments\} \/>/);
   assert.match(pageSource, /<DocumentList items=\{documentMedia\} \/>/);
 });
 

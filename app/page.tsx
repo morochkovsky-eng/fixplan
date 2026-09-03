@@ -91,6 +91,19 @@ type PlanModeId =
 
 type Status = "ok" | "attention" | "in_progress" | "needs_master";
 
+const documentTypes = [
+  { id: "passport", label: "Паспорт" },
+  { id: "manual", label: "Инструкция" },
+  { id: "warranty", label: "Гарантия" },
+  { id: "receipt", label: "Чек" },
+  { id: "act", label: "Акт" },
+  { id: "contract", label: "Договор" },
+  { id: "scheme", label: "Схема" },
+  { id: "other", label: "Прочее" },
+] as const;
+
+type DocumentTypeId = (typeof documentTypes)[number]["id"];
+
 type AssetKind =
   | "socket"
   | "switch"
@@ -4166,11 +4179,12 @@ function AssetDetail({
   goBack: () => void;
 }) {
   const assetMedia = media.filter((item) => item.assetId === asset.id);
-  const documentEventIds = new Set(events.filter((event) => event.title === "Документ").map((event) => event.id));
+  const documentEventIds = new Set(events.filter(isDocumentEvent).map((event) => event.id));
   const isDocumentMedia = (item: AssetMedia) => !isImageMedia(item) || documentEventIds.has(item.eventId ?? "");
   const assetImages = assetMedia.filter((item) => isImageMedia(item) && !isDocumentMedia(item));
   const assetDocuments = assetMedia.filter(isDocumentMedia);
   const [documentNote, setDocumentNote] = useState("");
+  const [documentType, setDocumentType] = useState<DocumentTypeId>("passport");
   const mediaEvents = events.filter((event) => event.photo || assetMedia.some((item) => item.eventId === event.id));
   const historyContent = (
     <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto max-[980px]:pr-0">
@@ -4216,12 +4230,27 @@ function AssetDetail({
   const documentContent = (
     <div className="grid gap-4">
       {assetDocuments.length ? (
-        <DocumentList items={assetDocuments} />
+        <DocumentList events={events} items={assetDocuments} />
       ) : (
         <p className="m-0 text-muted-foreground text-sm">
           Документы появятся после загрузки инструкции, чека, гарантии или акта.
         </p>
       )}
+      <div className="grid gap-1.5">
+        <span className="text-sm font-medium">Тип документа</span>
+        <Select value={documentType} onValueChange={(value) => setDocumentType(value as DocumentTypeId)}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Выберите тип" />
+          </SelectTrigger>
+          <SelectContent>
+            {documentTypes.map((type) => (
+              <SelectItem key={type.id} value={type.id}>
+                {type.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <PromptInput
         accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
         className="w-full"
@@ -4230,7 +4259,7 @@ function AssetDetail({
           if (message.files.length === 0) return;
           void addEvent(asset.id, {
             type: "comment",
-            title: "Документ",
+            title: documentTitle(documentType),
             body: text || "Добавлен документ к паспорту узла.",
             photo: undefined,
           }, message.files);
@@ -4597,6 +4626,23 @@ function isImageMedia(media: Pick<AssetMedia, "mediaType">) {
   return media.mediaType.startsWith("image/");
 }
 
+function isDocumentEvent(event: Pick<AssetEvent, "title">) {
+  return event.title === "Документ" || event.title.startsWith("Документ:");
+}
+
+function documentTypeLabel(type: DocumentTypeId) {
+  return documentTypes.find((item) => item.id === type)?.label ?? "Прочее";
+}
+
+function documentTypeFromEvent(event?: Pick<AssetEvent, "title">): DocumentTypeId {
+  const label = event?.title.match(/^Документ:\s*(.+)$/)?.[1]?.trim();
+  return documentTypes.find((item) => item.label === label)?.id ?? "other";
+}
+
+function documentTitle(type: DocumentTypeId) {
+  return `Документ: ${documentTypeLabel(type)}`;
+}
+
 function mediaPhotoData(media: AssetMedia): AttachmentData {
   return {
     filename: media.caption ?? media.filename,
@@ -4824,30 +4870,38 @@ function MediaGallery({
   );
 }
 
-function DocumentList({ items }: { items: AssetMedia[] }) {
+function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: AssetMedia[] }) {
   if (!items.length) {
     return null;
   }
 
   return (
     <div className="grid gap-2">
-      {items.map((document) => (
-        <a
-          className="flex min-w-0 items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm transition-colors hover:bg-secondary"
-          href={document.url}
-          key={document.id}
-          rel="noreferrer"
-          target="_blank"
-        >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <FileText size={16} />
-          </span>
-          <span className="grid min-w-0 gap-0.5">
-            <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
-            <span className="truncate text-muted-foreground">{document.mediaType}</span>
-          </span>
-        </a>
-      ))}
+      {items.map((document) => {
+        const event = events.find((item) => item.id === document.eventId);
+        const type = documentTypeFromEvent(event);
+
+        return (
+          <a
+            className="flex min-w-0 items-center gap-3 rounded-lg border bg-background px-3 py-2 text-sm transition-colors hover:bg-secondary"
+            href={document.url}
+            key={document.id}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+              <FileText size={16} />
+            </span>
+            <span className="grid min-w-0 gap-0.5">
+              <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
+              <span className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                <Badge variant="outline">{documentTypeLabel(type)}</Badge>
+                <span className="truncate">{document.mediaType}</span>
+              </span>
+            </span>
+          </a>
+        );
+      })}
     </div>
   );
 }
@@ -4922,6 +4976,8 @@ function DocumentsView({
 }) {
   const [query, setQuery] = useState("");
   const [documentNote, setDocumentNote] = useState("");
+  const [documentType, setDocumentType] = useState<DocumentTypeId>("passport");
+  const [documentTypeFilter, setDocumentTypeFilter] = useState<"all" | DocumentTypeId>("all");
   const [selectedAssetId, setSelectedAssetId] = useState(() => assets[0]?.id ?? "");
   const sortedAssets = useMemo(
     () => assets.slice().sort((left, right) => left.code.localeCompare(right.code, "ru")),
@@ -4929,19 +4985,30 @@ function DocumentsView({
   );
   const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) ?? sortedAssets[0];
 
-  const documentEventIds = new Set(events.filter((event) => event.title === "Документ").map((event) => event.id));
-  const documents = media
+  const documentEventIds = new Set(events.filter(isDocumentEvent).map((event) => event.id));
+  const documentRows = media
     .filter((item) => !isImageMedia(item) || documentEventIds.has(item.eventId ?? ""))
-    .map((item) => ({
-      media: item,
-      asset: assets.find((asset) => asset.id === item.assetId),
-      event: events.find((event) => event.id === item.eventId),
-    }))
+    .map((item) => {
+      const event = events.find((candidate) => candidate.id === item.eventId);
+      return {
+        asset: assets.find((asset) => asset.id === item.assetId),
+        event,
+        media: item,
+        type: documentTypeFromEvent(event),
+      };
+    });
+  const documentTypeCounts = new Map<"all" | DocumentTypeId, number>([["all", documentRows.length]]);
+  documentRows.forEach((item) => {
+    documentTypeCounts.set(item.type, (documentTypeCounts.get(item.type) ?? 0) + 1);
+  });
+  const documents = documentRows
+    .filter((item) => documentTypeFilter === "all" || item.type === documentTypeFilter)
     .filter(({ media: item, asset, event }) => {
       const haystack = [
         item.caption,
         item.filename,
         item.mediaType,
+        documentTypeLabel(documentTypeFromEvent(event)),
         asset?.code,
         asset?.name,
         asset ? roomName(asset.roomId) : "",
@@ -4994,6 +5061,21 @@ function DocumentsView({
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-1.5">
+            <span className="text-sm font-medium">Тип документа</span>
+            <Select value={documentType} onValueChange={(value) => setDocumentType(value as DocumentTypeId)}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Выберите тип" />
+              </SelectTrigger>
+              <SelectContent>
+                {documentTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <PromptInput
             accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
             className="w-full"
@@ -5002,7 +5084,7 @@ function DocumentsView({
               if (!selectedAsset || message.files.length === 0) return;
               void addEvent(selectedAsset.id, {
                 type: "comment",
-                title: "Документ",
+                title: documentTitle(documentType),
                 body: text || "Добавлен документ к архиву квартиры.",
                 photo: undefined,
               }, message.files);
@@ -5039,7 +5121,33 @@ function DocumentsView({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
-          {documents.map(({ media: document, asset, event }) => (
+          <div className="flex flex-wrap gap-2 pb-2">
+            <Button
+              className="h-8 rounded-md"
+              onClick={() => setDocumentTypeFilter("all")}
+              size="sm"
+              type="button"
+              variant={documentTypeFilter === "all" ? "default" : "secondary"}
+            >
+              Все <Badge className="ml-2" variant={documentTypeFilter === "all" ? "secondary" : "outline"}>{documentTypeCounts.get("all") ?? 0}</Badge>
+            </Button>
+            {documentTypes.map((type) => (
+              <Button
+                className="h-8 rounded-md"
+                key={type.id}
+                onClick={() => setDocumentTypeFilter(type.id)}
+                size="sm"
+                type="button"
+                variant={documentTypeFilter === type.id ? "default" : "secondary"}
+              >
+                {type.label}
+                <Badge className="ml-2" variant={documentTypeFilter === type.id ? "secondary" : "outline"}>
+                  {documentTypeCounts.get(type.id) ?? 0}
+                </Badge>
+              </Button>
+            ))}
+          </div>
+          {documents.map(({ media: document, asset, event, type }) => (
             <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={document.id}>
               <a
                 className="flex min-w-0 items-center gap-3 text-sm"
@@ -5061,6 +5169,7 @@ function DocumentsView({
                 </span>
               </a>
               <div className="flex flex-wrap gap-2 md:justify-end">
+                <Badge variant="secondary">{documentTypeLabel(type)}</Badge>
                 <Badge variant="outline">{document.mediaType}</Badge>
                 {asset && (
                   <Button onClick={() => openAsset(asset.id)} size="sm" type="button" variant="secondary">
