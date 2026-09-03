@@ -2479,6 +2479,7 @@ export default function Home() {
 
         {view === "documents" && (
           <DocumentsView
+            addEvent={addEvent}
             assets={state.assets}
             events={state.events}
             media={state.media}
@@ -4903,17 +4904,31 @@ function ActivityLog({
 }
 
 function DocumentsView({
+  addEvent,
   assets,
   events,
   media,
   openAsset,
 }: {
+  addEvent: (
+    assetId: string,
+    patch?: Partial<AssetEvent>,
+    files?: PromptInputMessage["files"],
+  ) => void;
   assets: Asset[];
   events: AssetEvent[];
   media: AssetMedia[];
   openAsset: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [documentNote, setDocumentNote] = useState("");
+  const [selectedAssetId, setSelectedAssetId] = useState(() => assets[0]?.id ?? "");
+  const sortedAssets = useMemo(
+    () => assets.slice().sort((left, right) => left.code.localeCompare(right.code, "ru")),
+    [assets],
+  );
+  const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) ?? sortedAssets[0];
+
   const documentEventIds = new Set(events.filter((event) => event.title === "Документ").map((event) => event.id));
   const documents = media
     .filter((item) => !isImageMedia(item) || documentEventIds.has(item.eventId ?? ""))
@@ -4955,6 +4970,66 @@ function DocumentsView({
         <StatCard label="Документов" value={documents.length.toString()} />
         <StatCard label="Узлов с документами" value={assetCount.toString()} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Добавить документ</CardTitle>
+          <CardDescription>
+            Выберите узел, прикрепите файл и добавьте короткий комментарий к паспорту.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="grid gap-1.5">
+            <span className="text-sm font-medium">Узел</span>
+            <Select value={selectedAsset?.id ?? ""} onValueChange={setSelectedAssetId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Выберите узел" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedAssets.map((asset) => (
+                  <SelectItem key={asset.id} value={asset.id}>
+                    {asset.code} · {asset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <PromptInput
+            accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
+            className="w-full"
+            onSubmit={(message: PromptInputMessage) => {
+              const text = message.text.trim() || documentNote.trim();
+              if (!selectedAsset || message.files.length === 0) return;
+              void addEvent(selectedAsset.id, {
+                type: "comment",
+                title: "Документ",
+                body: text || "Добавлен документ к архиву квартиры.",
+                photo: undefined,
+              }, message.files);
+              setDocumentNote("");
+            }}
+          >
+            <PromptInputBody>
+              <PromptInputTextarea
+                placeholder="Комментарий к документу"
+                value={documentNote}
+                onChange={(event) => setDocumentNote(event.currentTarget.value)}
+              />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools>
+                <PromptInputActionMenu>
+                  <PromptInputActionMenuTrigger />
+                  <PromptInputActionMenuContent>
+                    <PromptInputActionAddAttachments label="Прикрепить файл" />
+                  </PromptInputActionMenuContent>
+                </PromptInputActionMenu>
+              </PromptInputTools>
+              <PromptInputSubmit aria-label="Добавить документ в архив" />
+            </PromptInputFooter>
+          </PromptInput>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

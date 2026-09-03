@@ -103,6 +103,8 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /Документы"/);
   assert.match(pageSource, /К документам/);
   assert.match(pageSource, /Архив документов/);
+  assert.match(pageSource, /Добавить документ/);
+  assert.match(pageSource, /Выберите узел/);
   assert.match(pageSource, /Файл, узел, категория/);
   assert.match(pageSource, /Открыть узел/);
   assert.match(pageSource, /const documentEventIds = new Set/);
@@ -112,6 +114,9 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /value="documents"/);
   assert.match(pageSource, /Прикрепить файл/);
   assert.match(pageSource, /Добавлен документ к паспорту узла/);
+  assert.match(pageSource, /Добавлен документ к архиву квартиры/);
+  assert.match(pageSource, /aria-label="Добавить документ в архив"/);
+  assert.match(pageSource, /addEvent=\{addEvent\}/);
   assert.match(pageSource, /<DocumentList items=\{documentMedia\} \/>/);
 });
 
