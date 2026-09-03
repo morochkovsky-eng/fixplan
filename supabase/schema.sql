@@ -19,6 +19,7 @@ create type public.event_type as enum ('inspection', 'comment', 'repair', 'statu
 create type public.inspection_status as enum ('draft', 'sent', 'in_progress', 'completed', 'accepted');
 create type public.contractor_scope as enum ('plumbing', 'electric', 'all', 'custom');
 create type public.inspection_workflow as enum ('inspection', 'work_order');
+create type public.utility_bill_status as enum ('draft', 'due', 'paid', 'overdue');
 
 create table public.apartments (
   id uuid primary key default gen_random_uuid(),
@@ -165,6 +166,25 @@ create table public.asset_media (
   foreign key (apartment_id, event_id) references public.events(apartment_id, id)
 );
 
+create table public.utility_bills (
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  id text not null,
+  service text not null,
+  period text not null,
+  amount numeric not null default 0,
+  due_date_label text not null default '',
+  paid_at_label text,
+  status public.utility_bill_status not null default 'due',
+  receipt_url text,
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (apartment_id, id),
+  constraint utility_bills_service_not_blank check (length(trim(service)) > 0),
+  constraint utility_bills_period_not_blank check (length(trim(period)) > 0),
+  constraint utility_bills_amount_non_negative check (amount >= 0)
+);
+
 insert into storage.buckets (id, name, public)
 values ('asset-media', 'asset-media', false)
 on conflict (id) do nothing;
@@ -195,6 +215,7 @@ alter table public.events enable row level security;
 alter table public.inspections enable row level security;
 alter table public.inspection_results enable row level security;
 alter table public.asset_media enable row level security;
+alter table public.utility_bills enable row level security;
 
 create policy "members can read apartments"
 on public.apartments for select
@@ -255,6 +276,11 @@ with check (public.is_apartment_member(apartment_id));
 
 create policy "members can manage media rows"
 on public.asset_media for all
+using (public.is_apartment_member(apartment_id))
+with check (public.is_apartment_member(apartment_id));
+
+create policy "members can manage utility bills"
+on public.utility_bills for all
 using (public.is_apartment_member(apartment_id))
 with check (public.is_apartment_member(apartment_id));
 

@@ -1338,6 +1338,7 @@ export default function Home() {
             media: remoteState.media ?? current.media,
             inspections: remoteState.inspections ?? current.inspections,
             inspectionResults: remoteState.inspectionResults ?? current.inspectionResults,
+            utilityBills: remoteState.utilityBills ?? current.utilityBills,
             categories: remoteState.categories ?? current.categories,
             deletedAssetIds: remoteState.deletedAssetIds ?? current.deletedAssetIds,
             contractorAccess: {
@@ -5123,22 +5124,32 @@ function UtilitiesView({
   const overdueBills = bills.filter((bill) => bill.status === "overdue");
   const unpaidAmount = unpaidBills.reduce((sum, bill) => sum + bill.amount, 0);
 
-  function createBill() {
+  async function createBill() {
     if (!draft.service.trim() || !draft.period.trim()) {
       window.alert("Укажите услугу и период.");
       return;
     }
-    setBills([
-      {
-        ...draft,
-        id: utilityBillId(),
-        service: draft.service.trim(),
-        period: draft.period.trim(),
-        note: draft.note?.trim(),
-        receiptUrl: draft.receiptUrl?.trim(),
-      },
-      ...bills,
-    ]);
+    const nextBill: UtilityBill = {
+      ...draft,
+      id: utilityBillId(),
+      service: draft.service.trim(),
+      period: draft.period.trim(),
+      note: draft.note?.trim(),
+      receiptUrl: draft.receiptUrl?.trim(),
+    };
+
+    try {
+      const response = await fetch("/api/utility-bills", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextBill),
+      });
+      const payload = (await response.json()) as { bill?: UtilityBill };
+      setBills([response.ok && payload.bill ? payload.bill : nextBill, ...bills]);
+    } catch {
+      setBills([nextBill, ...bills]);
+    }
+
     setDraft({
       service: "",
       period: "",
@@ -5164,44 +5175,79 @@ function UtilitiesView({
     });
   }
 
-  function saveBill() {
+  async function saveBill() {
     if (!editingBillId || !editDraft) return;
     if (!editDraft.service.trim() || !editDraft.period.trim()) {
       window.alert("Укажите услугу и период.");
       return;
     }
-    setBills(
-      bills.map((bill) =>
-        bill.id === editingBillId
-          ? {
-              ...bill,
-              ...editDraft,
-              service: editDraft.service.trim(),
-              period: editDraft.period.trim(),
-              note: editDraft.note?.trim(),
-              receiptUrl: editDraft.receiptUrl?.trim(),
-            }
-          : bill,
-      ),
-    );
+    const nextBill = {
+      ...editDraft,
+      service: editDraft.service.trim(),
+      period: editDraft.period.trim(),
+      note: editDraft.note?.trim(),
+      receiptUrl: editDraft.receiptUrl?.trim(),
+    };
+
+    try {
+      const response = await fetch(`/api/utility-bills/${editingBillId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextBill),
+      });
+      const payload = (await response.json()) as { bill?: UtilityBill };
+      setBills(
+        bills.map((bill) =>
+          bill.id === editingBillId
+            ? response.ok && payload.bill
+              ? payload.bill
+              : { ...bill, ...nextBill }
+            : bill,
+        ),
+      );
+    } catch {
+      setBills(
+        bills.map((bill) =>
+          bill.id === editingBillId ? { ...bill, ...nextBill } : bill,
+        ),
+      );
+    }
+
     setEditingBillId(null);
     setEditDraft(null);
   }
 
-  function deleteBill(billId: string) {
+  async function deleteBill(billId: string) {
     const confirmed = window.confirm("Удалить этот счет?");
     if (!confirmed) return;
+    try {
+      await fetch(`/api/utility-bills/${billId}`, { method: "DELETE" });
+    } catch {
+      // The bill still disappears locally if the database migration has not been applied yet.
+    }
     setBills(bills.filter((bill) => bill.id !== billId));
   }
 
-  function markPaid(billId: string) {
-    setBills(
-      bills.map((bill) =>
-        bill.id === billId
-          ? { ...bill, status: "paid", paidAt: todayLabel() }
-          : bill,
-      ),
-    );
+  async function markPaid(billId: string) {
+    const nextBill = bills.find((bill) => bill.id === billId);
+    if (!nextBill) return;
+
+    const paidBill: UtilityBill = { ...nextBill, status: "paid", paidAt: todayLabel() };
+    try {
+      const response = await fetch(`/api/utility-bills/${billId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(paidBill),
+      });
+      const payload = (await response.json()) as { bill?: UtilityBill };
+      setBills(
+        bills.map((bill) =>
+          bill.id === billId ? response.ok && payload.bill ? payload.bill : paidBill : bill,
+        ),
+      );
+    } catch {
+      setBills(bills.map((bill) => (bill.id === billId ? paidBill : bill)));
+    }
   }
 
   return (

@@ -10,6 +10,8 @@ const eventRouteSource = fs.readFileSync("app/api/assets/[id]/events/[eventId]/r
 const assetsRouteSource = fs.readFileSync("app/api/assets/route.ts", "utf8");
 const assetRouteSource = fs.readFileSync("app/api/assets/[id]/route.ts", "utf8");
 const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
+const utilityBillsRouteSource = fs.readFileSync("app/api/utility-bills/route.ts", "utf8");
+const utilityBillRouteSource = fs.readFileSync("app/api/utility-bills/[id]/route.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
@@ -42,15 +44,18 @@ test("contains the production Supabase model", () => {
     "events",
     "inspections",
     "inspection_results",
+    "utility_bills",
   ]) {
     assert.match(schemaSource, new RegExp(`create table public\\.${table}`));
   }
 
   assert.match(schemaSource, /submit_guest_report/);
   assert.match(schemaSource, /asset-media/);
+  assert.match(schemaSource, /utility_bill_status/);
   assert.match(schemaSource, /category text not null/);
   assert.match(seedSource, /Шпалерная, 34Б/);
   assert.match(seedSource, /morochkovsky@gmail\.com/);
+  assert.match(seedSource, /bill-aug-electricity/);
 });
 
 test("keeps new asset editing as a persisted temporary plan node", () => {
@@ -162,6 +167,13 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /\| "utilities"/);
   assert.match(pageSource, /function UtilitiesView/);
   assert.match(pageSource, /view === "utilities"/);
+  assert.match(pageSource, /remoteState\.utilityBills \?\? current\.utilityBills/);
+  assert.match(appDataRouteSource, /utilityBillsResult/);
+  assert.match(appDataRouteSource, /isMissingUtilityBillsTable/);
+  assert.match(utilityBillsRouteSource, /export async function POST/);
+  assert.match(utilityBillsRouteSource, /\.from\("utility_bills"\)/);
+  assert.match(utilityBillRouteSource, /export async function PATCH/);
+  assert.match(utilityBillRouteSource, /export async function DELETE/);
   assert.match(pageSource, /Коммуналка и счета/);
   assert.match(pageSource, /Счета/);
   assert.match(pageSource, /Новый счет/);

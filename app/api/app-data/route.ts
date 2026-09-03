@@ -4,6 +4,11 @@ import { createClient as createServerSupabaseClient } from "@/lib/supabase/serve
 
 const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
 
+function isMissingUtilityBillsTable(error?: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return error.code === "PGRST205" || error.message?.includes("utility_bills");
+}
+
 export async function GET() {
   const supabase = await createServerSupabaseClient();
   const admin = createAdminClient();
@@ -39,6 +44,7 @@ export async function GET() {
     inspectionsResult,
     resultsResult,
     mediaResult,
+    utilityBillsResult,
   ] = await Promise.all([
     admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).is("deleted_at", null).order("code"),
     admin.from("asset_categories").select("*").eq("apartment_id", APARTMENT_ID).order("sort_order"),
@@ -47,6 +53,7 @@ export async function GET() {
     admin.from("inspections").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("inspection_results").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("asset_media").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
+    admin.from("utility_bills").select("*").eq("apartment_id", APARTMENT_ID).order("due_date_label"),
   ]);
 
   const error =
@@ -56,12 +63,14 @@ export async function GET() {
     eventsResult.error ??
     inspectionsResult.error ??
     resultsResult.error ??
-    mediaResult.error;
+    mediaResult.error ??
+    (isMissingUtilityBillsTable(utilityBillsResult.error) ? null : utilityBillsResult.error);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const hasUtilityBillsTable = !isMissingUtilityBillsTable(utilityBillsResult.error);
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const mediaRows = mediaResult.data ?? [];
   const signedMedia = await Promise.all(
@@ -154,5 +163,20 @@ export async function GET() {
       cost: result.cost ? Number(result.cost) : undefined,
       photoCount: result.photo_count,
     })),
+    ...(hasUtilityBillsTable
+      ? {
+          utilityBills: (utilityBillsResult.data ?? []).map((bill) => ({
+            id: bill.id,
+            service: bill.service,
+            period: bill.period,
+            amount: Number(bill.amount),
+            dueDate: bill.due_date_label,
+            paidAt: bill.paid_at_label ?? undefined,
+            status: bill.status,
+            receiptUrl: bill.receipt_url ?? undefined,
+            note: bill.note ?? undefined,
+          })),
+        }
+      : {}),
   });
 }
