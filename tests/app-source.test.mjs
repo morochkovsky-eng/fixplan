@@ -154,6 +154,26 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /<DocumentList items=\{documentMedia\} \/>/);
 });
 
+test("supports utility bills as a first-class apartment section", () => {
+  assert.match(pageSource, /type UtilityBillStatus/);
+  assert.match(pageSource, /type UtilityBill =/);
+  assert.match(pageSource, /utilityBills: UtilityBill\[\]/);
+  assert.match(pageSource, /utilityBills: state\.utilityBills \?\? initialState\.utilityBills/);
+  assert.match(pageSource, /\| "utilities"/);
+  assert.match(pageSource, /function UtilitiesView/);
+  assert.match(pageSource, /view === "utilities"/);
+  assert.match(pageSource, /Коммуналка и счета/);
+  assert.match(pageSource, /Счета/);
+  assert.match(pageSource, /Новый счет/);
+  assert.match(pageSource, /Добавить счет/);
+  assert.match(pageSource, /Оплатить до/);
+  assert.match(pageSource, /Квитанция/);
+  assert.match(pageSource, /utilityBillStatusLabels/);
+  assert.match(pageSource, /markPaid/);
+  assert.match(pageSource, /deleteBill/);
+  assert.match(pageSource, /saveBill/);
+});
+
 test("supports editing and deleting node comments without schema-cache fields", () => {
   assert.match(pageSource, /function EditableEventTask/);
   assert.match(pageSource, /function updateEvent/);

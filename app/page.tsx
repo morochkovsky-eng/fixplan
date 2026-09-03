@@ -285,6 +285,20 @@ type Inspection = {
   resultIds: string[];
 };
 
+type UtilityBillStatus = "draft" | "due" | "paid" | "overdue";
+
+type UtilityBill = {
+  id: string;
+  service: string;
+  period: string;
+  amount: number;
+  dueDate: string;
+  paidAt?: string;
+  status: UtilityBillStatus;
+  receiptUrl?: string;
+  note?: string;
+};
+
 type AppState = {
   config: AppConfig;
   categories: AssetCategory[];
@@ -295,6 +309,7 @@ type AppState = {
   contractorAccess: ContractorAccess;
   inspections: Inspection[];
   inspectionResults: InspectionResult[];
+  utilityBills: UtilityBill[];
 };
 
 type View =
@@ -303,6 +318,7 @@ type View =
   | "assets"
   | "asset"
   | "documents"
+  | "utilities"
   | "log"
   | "inspection"
   | "inspections"
@@ -861,6 +877,27 @@ const initialState: AppState = {
       photoCount: 3,
     },
   ],
+  utilityBills: [
+    {
+      id: "bill-aug-electricity",
+      service: "Электричество",
+      period: "Август 2026",
+      amount: 4860,
+      dueDate: "10.09.2026",
+      status: "due",
+      note: "Перед оплатой сверить показания счетчика.",
+    },
+    {
+      id: "bill-aug-water",
+      service: "Вода",
+      period: "Август 2026",
+      amount: 2380,
+      dueDate: "05.09.2026",
+      status: "paid",
+      paidAt: "28.08.2026",
+      note: "Оплачено по квитанции УК.",
+    },
+  ],
 };
 
 const storageKey = "shpalernaya-maintenance-mvp";
@@ -879,6 +916,27 @@ function roomName(roomId: string) {
 
 function eventId() {
   return `event-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
+function utilityBillId() {
+  return `bill-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
+const utilityBillStatusLabels: Record<UtilityBillStatus, string> = {
+  draft: "Черновик",
+  due: "К оплате",
+  paid: "Оплачен",
+  overdue: "Просрочен",
+};
+
+function moneyLabel(value: number) {
+  return `${value.toLocaleString("ru-RU")} руб.`;
+}
+
+function utilityBillTone(status: UtilityBillStatus): "secondary" | "destructive" | "outline" {
+  if (status === "paid") return "secondary";
+  if (status === "overdue") return "destructive";
+  return "outline";
 }
 
 function assetKind(asset: Asset): AssetKind {
@@ -1142,6 +1200,7 @@ function withCatalogAssets(state: AppState): AppState {
     media: state.media ?? initialState.media,
     inspections: state.inspections ?? initialState.inspections,
     inspectionResults: state.inspectionResults ?? initialState.inspectionResults,
+    utilityBills: state.utilityBills ?? initialState.utilityBills,
     contractorAccess: {
       ...state.contractorAccess,
       inspectionId: state.contractorAccess.inspectionId ?? initialState.contractorAccess.inspectionId,
@@ -2502,6 +2561,18 @@ export default function Home() {
           />
         )}
 
+        {view === "utilities" && (
+          <UtilitiesView
+            bills={state.utilityBills}
+            setBills={(utilityBills) =>
+              setState((current) => ({
+                ...current,
+                utilityBills,
+              }))
+            }
+          />
+        )}
+
         {view === "inspection" && (
           <InspectionView
             asset={currentInspectionAsset}
@@ -2633,6 +2704,7 @@ function viewTitle(view: View, asset: Asset) {
     assets: "Список узлов",
     asset: `${asset.code} · ${asset.name}`,
     documents: "Документы",
+    utilities: "Коммуналка и счета",
     log: "Журнал квартиры",
     inspection: "Обход квартиры",
     inspections: "Обходы и отчеты",
@@ -2651,6 +2723,7 @@ function viewSubtitle(view: View) {
     assets: "Инвентарный список по комнатам, категориям и статусам.",
     asset: "История, фото, паспорт узла и быстрые действия.",
     documents: "Паспорта, чеки, гарантии, инструкции и акты по узлам.",
+    utilities: "Начисления, сроки оплаты, квитанции и история коммунальных платежей.",
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
     inspections: "Выдача ссылок мастерам, все созданные обходы и сводки по узлам.",
@@ -2668,6 +2741,7 @@ function assetReturnLabel(view: View) {
     plan: "К схеме",
     assets: "К списку",
     documents: "К документам",
+    utilities: "К счетам",
     log: "К журналу",
     inspection: "К обходу",
     inspections: "К обходам",
@@ -2800,6 +2874,10 @@ function AppNavigation({
       <NavButton active={activeView === "documents"} onClick={() => navigate("documents")}>
         <FileText size={16} />
         Документы
+      </NavButton>
+      <NavButton active={activeView === "utilities"} onClick={() => navigate("utilities")}>
+        <FileText size={16} />
+        Счета
       </NavButton>
       <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
         <History size={16} />
@@ -4134,7 +4212,7 @@ function SettingsView({
           <CardDescription>В бургер-меню доступны основные рабочие разделы.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 text-muted-foreground text-sm">
-          {["Дашборд", "План", "Узлы", "Обходы и отчеты", "Задания", "Документы", "Журнал", "Настройки"].map((item) => (
+          {["Дашборд", "План", "Узлы", "Обходы и отчеты", "Задания", "Документы", "Счета", "Журнал", "Настройки"].map((item) => (
             <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
           ))}
         </CardContent>
@@ -5016,6 +5094,366 @@ function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: As
           </a>
         );
       })}
+    </div>
+  );
+}
+
+function UtilitiesView({
+  bills,
+  setBills,
+}: {
+  bills: UtilityBill[];
+  setBills: (bills: UtilityBill[]) => void;
+}) {
+  const [draft, setDraft] = useState<Omit<UtilityBill, "id">>({
+    service: "",
+    period: "",
+    amount: 0,
+    dueDate: "",
+    status: "due",
+    receiptUrl: "",
+    note: "",
+  });
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<Omit<UtilityBill, "id"> | null>(null);
+  const sortedBills = [...bills].sort(
+    (left, right) => documentExpiryTime(left.dueDate) - documentExpiryTime(right.dueDate),
+  );
+  const unpaidBills = bills.filter((bill) => bill.status !== "paid");
+  const overdueBills = bills.filter((bill) => bill.status === "overdue");
+  const unpaidAmount = unpaidBills.reduce((sum, bill) => sum + bill.amount, 0);
+
+  function createBill() {
+    if (!draft.service.trim() || !draft.period.trim()) {
+      window.alert("Укажите услугу и период.");
+      return;
+    }
+    setBills([
+      {
+        ...draft,
+        id: utilityBillId(),
+        service: draft.service.trim(),
+        period: draft.period.trim(),
+        note: draft.note?.trim(),
+        receiptUrl: draft.receiptUrl?.trim(),
+      },
+      ...bills,
+    ]);
+    setDraft({
+      service: "",
+      period: "",
+      amount: 0,
+      dueDate: "",
+      status: "due",
+      receiptUrl: "",
+      note: "",
+    });
+  }
+
+  function startEditBill(bill: UtilityBill) {
+    setEditingBillId(bill.id);
+    setEditDraft({
+      service: bill.service,
+      period: bill.period,
+      amount: bill.amount,
+      dueDate: bill.dueDate,
+      paidAt: bill.paidAt,
+      status: bill.status,
+      receiptUrl: bill.receiptUrl,
+      note: bill.note,
+    });
+  }
+
+  function saveBill() {
+    if (!editingBillId || !editDraft) return;
+    if (!editDraft.service.trim() || !editDraft.period.trim()) {
+      window.alert("Укажите услугу и период.");
+      return;
+    }
+    setBills(
+      bills.map((bill) =>
+        bill.id === editingBillId
+          ? {
+              ...bill,
+              ...editDraft,
+              service: editDraft.service.trim(),
+              period: editDraft.period.trim(),
+              note: editDraft.note?.trim(),
+              receiptUrl: editDraft.receiptUrl?.trim(),
+            }
+          : bill,
+      ),
+    );
+    setEditingBillId(null);
+    setEditDraft(null);
+  }
+
+  function deleteBill(billId: string) {
+    const confirmed = window.confirm("Удалить этот счет?");
+    if (!confirmed) return;
+    setBills(bills.filter((bill) => bill.id !== billId));
+  }
+
+  function markPaid(billId: string) {
+    setBills(
+      bills.map((bill) =>
+        bill.id === billId
+          ? { ...bill, status: "paid", paidAt: todayLabel() }
+          : bill,
+      ),
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <StatCard label="Счетов" value={bills.length.toString()} />
+        <StatCard label="К оплате" value={moneyLabel(unpaidAmount)} tone={unpaidAmount ? "warning" : undefined} />
+        <StatCard label="Просрочено" value={overdueBills.length.toString()} tone={overdueBills.length ? "negative" : undefined} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Новый счет</CardTitle>
+          <CardDescription>Добавьте начисление, срок оплаты и ссылку на квитанцию.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-service">
+              Услуга
+              <Input
+                id="utility-service"
+                onChange={(event) => setDraft((current) => ({ ...current, service: event.currentTarget.value }))}
+                placeholder="Электричество"
+                value={draft.service}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-period">
+              Период
+              <Input
+                id="utility-period"
+                onChange={(event) => setDraft((current) => ({ ...current, period: event.currentTarget.value }))}
+                placeholder="Сентябрь 2026"
+                value={draft.period}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-amount">
+              Сумма
+              <Input
+                id="utility-amount"
+                min="0"
+                onChange={(event) => setDraft((current) => ({ ...current, amount: Number(event.currentTarget.value) }))}
+                type="number"
+                value={draft.amount}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-due-date">
+              Оплатить до
+              <Input
+                id="utility-due-date"
+                onChange={(event) => setDraft((current) => ({ ...current, dueDate: formatDateInput(event.currentTarget.value) }))}
+                type="date"
+                value={dateInputFromFormatted(draft.dueDate)}
+              />
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="grid gap-1.5">
+              <span className="text-sm font-medium">Статус</span>
+              <Select
+                value={draft.status}
+                onValueChange={(value) => setDraft((current) => ({ ...current, status: value as UtilityBillStatus }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(utilityBillStatusLabels).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-receipt">
+              Квитанция
+              <Input
+                id="utility-receipt"
+                onChange={(event) => setDraft((current) => ({ ...current, receiptUrl: event.currentTarget.value }))}
+                placeholder="Ссылка на файл или номер квитанции"
+                value={draft.receiptUrl}
+              />
+            </label>
+          </div>
+          <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-note">
+            Комментарий
+            <Textarea
+              id="utility-note"
+              onChange={(event) => setDraft((current) => ({ ...current, note: event.currentTarget.value }))}
+              placeholder="Например, сверить показания перед оплатой"
+              rows={3}
+              value={draft.note}
+            />
+          </label>
+          <div className="flex justify-end">
+            <Button onClick={createBill} type="button">
+              <Plus size={14} />
+              Добавить счет
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Счета</CardTitle>
+          <CardDescription>Начисления, статусы оплаты и квитанции по квартире.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          {sortedBills.map((bill) => {
+            const isEditing = editingBillId === bill.id && editDraft;
+
+            return (
+              <div className="grid gap-3 rounded-lg border bg-background p-3" key={bill.id}>
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                  <div className="grid min-w-0 gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="font-medium">{bill.service}</strong>
+                      <Badge variant={utilityBillTone(bill.status)}>{utilityBillStatusLabels[bill.status]}</Badge>
+                    </div>
+                    <div className="text-muted-foreground text-sm">
+                      {bill.period} · {moneyLabel(bill.amount)}
+                      {bill.dueDate ? ` · оплатить до ${bill.dueDate}` : ""}
+                      {bill.paidAt ? ` · оплачено ${bill.paidAt}` : ""}
+                    </div>
+                    {bill.note && <div className="line-clamp-1 text-muted-foreground text-sm">{bill.note}</div>}
+                  </div>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    {bill.receiptUrl && (
+                      <Button asChild size="sm" variant="secondary">
+                        <a href={bill.receiptUrl} rel="noreferrer" target="_blank">
+                          Квитанция
+                        </a>
+                      </Button>
+                    )}
+                    {bill.status !== "paid" && (
+                      <Button onClick={() => markPaid(bill.id)} size="sm" type="button" variant="secondary">
+                        Оплачено
+                      </Button>
+                    )}
+                    <Button onClick={() => startEditBill(bill)} size="sm" type="button" variant="secondary">
+                      <Pencil size={14} />
+                      Редактировать
+                    </Button>
+                    <Button onClick={() => deleteBill(bill.id)} size="sm" type="button" variant="destructive">
+                      <Trash2 size={14} />
+                      Удалить
+                    </Button>
+                  </div>
+                </div>
+
+                {isEditing && (
+                  <div className="grid gap-3 rounded-lg bg-muted p-3">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-service`}>
+                        Услуга
+                        <Input
+                          id={`edit-${bill.id}-service`}
+                          onChange={(event) => setEditDraft((current) => current ? { ...current, service: event.currentTarget.value } : current)}
+                          value={editDraft.service}
+                        />
+                      </label>
+                      <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-period`}>
+                        Период
+                        <Input
+                          id={`edit-${bill.id}-period`}
+                          onChange={(event) => setEditDraft((current) => current ? { ...current, period: event.currentTarget.value } : current)}
+                          value={editDraft.period}
+                        />
+                      </label>
+                      <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-amount`}>
+                        Сумма
+                        <Input
+                          id={`edit-${bill.id}-amount`}
+                          min="0"
+                          onChange={(event) => setEditDraft((current) => current ? { ...current, amount: Number(event.currentTarget.value) } : current)}
+                          type="number"
+                          value={editDraft.amount}
+                        />
+                      </label>
+                      <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-due-date`}>
+                        Оплатить до
+                        <Input
+                          id={`edit-${bill.id}-due-date`}
+                          onChange={(event) => setEditDraft((current) => current ? { ...current, dueDate: formatDateInput(event.currentTarget.value) } : current)}
+                          type="date"
+                          value={dateInputFromFormatted(editDraft.dueDate)}
+                        />
+                      </label>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+                      <div className="grid gap-1.5">
+                        <span className="text-sm font-medium">Статус</span>
+                        <Select
+                          value={editDraft.status}
+                          onValueChange={(value) => setEditDraft((current) => current ? { ...current, status: value as UtilityBillStatus } : current)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(utilityBillStatusLabels).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-receipt`}>
+                        Квитанция
+                        <Input
+                          id={`edit-${bill.id}-receipt`}
+                          onChange={(event) => setEditDraft((current) => current ? { ...current, receiptUrl: event.currentTarget.value } : current)}
+                          value={editDraft.receiptUrl ?? ""}
+                        />
+                      </label>
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-note`}>
+                      Комментарий
+                      <Textarea
+                        id={`edit-${bill.id}-note`}
+                        onChange={(event) => setEditDraft((current) => current ? { ...current, note: event.currentTarget.value } : current)}
+                        rows={3}
+                        value={editDraft.note ?? ""}
+                      />
+                    </label>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        onClick={() => {
+                          setEditingBillId(null);
+                          setEditDraft(null);
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Отменить
+                      </Button>
+                      <Button onClick={saveBill} size="sm" type="button">
+                        <Save size={14} />
+                        Сохранить
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {!sortedBills.length && (
+            <div className="rounded-lg bg-muted p-4 text-muted-foreground text-sm">
+              Счетов пока нет. Добавьте первое начисление по квартире.
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
