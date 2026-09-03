@@ -1345,9 +1345,9 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
-  function createWorkOrderFromAssets(assetIds: string[]) {
+  function createContractorFlowFromAssets(assetIds: string[], workflow: Workflow) {
     if (!assetIds.length) return;
-    setContractorWorkflow("work_order");
+    setContractorWorkflow(workflow);
     setState((current) => ({
       ...current,
       contractorAccess: {
@@ -1362,6 +1362,14 @@ export default function Home() {
     }));
     setView("contractor");
     setMobileMenuOpen(false);
+  }
+
+  function createInspectionFromAssets(assetIds: string[]) {
+    createContractorFlowFromAssets(assetIds, "inspection");
+  }
+
+  function createWorkOrderFromAssets(assetIds: string[]) {
+    createContractorFlowFromAssets(assetIds, "work_order");
   }
 
   function createWorkOrderFromAsset(assetId: string) {
@@ -2433,6 +2441,7 @@ export default function Home() {
             setFilter={setAssetFilter}
             setAssetStatus={setAssetStatus}
             updateAssetsBulk={updateAssetsBulk}
+            createInspectionFromAssets={createInspectionFromAssets}
             createWorkOrderFromAssets={createWorkOrderFromAssets}
           />
         )}
@@ -3730,6 +3739,7 @@ function AssetsView({
   setFilter,
   setAssetStatus,
   updateAssetsBulk,
+  createInspectionFromAssets,
   createWorkOrderFromAssets,
 }: {
   assets: Asset[];
@@ -3747,6 +3757,7 @@ function AssetsView({
     assetIds: string[],
     patch: Partial<Pick<Asset, "category" | "status">>,
   ) => Promise<boolean>;
+  createInspectionFromAssets: (assetIds: string[]) => void;
   createWorkOrderFromAssets: (assetIds: string[]) => void;
 }) {
   const [sort, setSort] = useState<AssetSort>("status");
@@ -3960,6 +3971,16 @@ function AssetsView({
           >
             <Plus size={14} />
             Создать задание
+          </Button>
+          <Button
+            disabled={bulkSaving}
+            onClick={() => createInspectionFromAssets(selectedAssetIds)}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <UserRoundCheck size={14} />
+            Создать обход
           </Button>
           <Button
             disabled={bulkSaving}
