@@ -1345,6 +1345,24 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
+  function createWorkOrderFromAsset(assetId: string) {
+    setContractorWorkflow("work_order");
+    setState((current) => ({
+      ...current,
+      contractorAccess: {
+        ...current.contractorAccess,
+        scope: contractorScopeFromIds(current.assets, [assetId]),
+        allowedAssetIds: [assetId],
+        assetInstructions: {
+          ...current.contractorAccess.assetInstructions,
+          [assetId]: current.contractorAccess.assetInstructions[assetId] ?? "",
+        },
+      },
+    }));
+    setView("contractor");
+    setMobileMenuOpen(false);
+  }
+
   function createAssetFromAssets() {
     const category = categoryOptions(state.categories).find((item) => item.id === assetFilter);
     startNewAsset(
@@ -2425,6 +2443,7 @@ export default function Home() {
             deleteEvent={deleteEvent}
             setAssetStatus={setAssetStatus}
             editAsset={() => editAssetFromCatalog(selectedAsset.id)}
+            createWorkOrder={() => createWorkOrderFromAsset(selectedAsset.id)}
             returnLabel={assetReturnLabel(assetReturnView)}
             goBack={() => navigate(assetReturnView)}
           />
@@ -4063,6 +4082,7 @@ function AssetDetail({
   deleteEvent,
   setAssetStatus,
   editAsset,
+  createWorkOrder,
   returnLabel,
   goBack,
 }: {
@@ -4084,6 +4104,7 @@ function AssetDetail({
   deleteEvent: (assetId: string, eventId: string) => Promise<boolean>;
   setAssetStatus: (assetId: string, status: Status, body?: string) => void;
   editAsset: () => void;
+  createWorkOrder: () => void;
   returnLabel: string;
   goBack: () => void;
 }) {
@@ -4205,6 +4226,10 @@ function AssetDetail({
             <Button variant="secondary" onClick={editAsset} type="button">
               <Pencil size={16} />
               Редактировать
+            </Button>
+            <Button onClick={createWorkOrder} type="button">
+              <Plus size={16} />
+              Создать задание
             </Button>
           </div>
         </CardHeader>

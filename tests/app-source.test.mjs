@@ -136,6 +136,10 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(inspectionRouteSource, /Only completed results can be accepted/);
   assert.match(pageSource, /Принять задание/);
   assert.match(pageSource, /Открыть результат/);
+  assert.match(pageSource, /function createWorkOrderFromAsset/);
+  assert.match(pageSource, /createWorkOrder=\{\(\) => createWorkOrderFromAsset\(selectedAsset\.id\)\}/);
+  assert.match(pageSource, /setContractorWorkflow\("work_order"\)/);
+  assert.match(pageSource, /Создать задание/);
   assert.match(pageSource, /acceptCurrentInspection/);
   assert.match(pageSource, /updateInspection=\{updateInspection\}/);
   assert.match(pageSource, /selectedInspection\?\.workflow === "work_order" \? "work_orders" : "inspections"/);
