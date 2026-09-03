@@ -2487,7 +2487,10 @@ export default function Home() {
             media={state.media}
             results={state.inspectionResults}
             openAsset={openAsset}
-            openInspections={() => setView("inspections")}
+            openInspections={() =>
+              setView(selectedInspection?.workflow === "work_order" ? "work_orders" : "inspections")
+            }
+            updateInspection={updateInspection}
           />
         )}
 
@@ -5449,6 +5452,7 @@ function ContractorReport({
   results,
   openAsset,
   openInspections,
+  updateInspection,
 }: {
   assets: Asset[];
   events: AssetEvent[];
@@ -5457,6 +5461,7 @@ function ContractorReport({
   results: InspectionResult[];
   openAsset: (id: string) => void;
   openInspections: () => void;
+  updateInspection: (inspectionId: string, patch: Partial<Inspection>) => Promise<boolean>;
 }) {
   const reportEvents = events.filter((event) =>
     inspection ? event.inspectionId === inspection.id : event.type === "report",
@@ -5470,7 +5475,18 @@ function ContractorReport({
   const issueResults = reportResults.filter((result) => result.statusAfter !== "ok");
   const totalCost = reportResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
   const photoCount = reportResults.reduce((sum, result) => sum + result.photoCount, 0);
+  const isWorkOrder = inspection?.workflow === "work_order";
   const isCompleted = inspection?.status === "completed";
+  const isAccepted = inspection?.status === "accepted";
+  const hasFinalResult = isCompleted || isAccepted;
+
+  async function acceptCurrentInspection() {
+    if (!inspection) return;
+    const saved = await updateInspection(inspection.id, { status: "accepted" });
+    if (!saved) {
+      window.alert(isWorkOrder ? "Не удалось принять задание." : "Не удалось принять отчет.");
+    }
+  }
 
   return (
     <div className="grid gap-4">
@@ -5487,12 +5503,18 @@ function ContractorReport({
           </div>
           <div className="flex flex-wrap gap-2">
             {inspection && (
-              <Badge variant={isCompleted ? "secondary" : "default"}>
+              <Badge variant={hasFinalResult ? "secondary" : "default"}>
                 {inspectionStatusLabels[inspection.status]}
               </Badge>
             )}
+            {isCompleted && (
+              <Button onClick={() => void acceptCurrentInspection()} type="button">
+                <Check size={16} />
+                {isWorkOrder ? "Принять задание" : "Принять отчет"}
+              </Button>
+            )}
             <Button onClick={openInspections} type="button" variant="secondary">
-              Все обходы
+              {isWorkOrder ? "Все задания" : "Все обходы"}
             </Button>
           </div>
         </CardHeader>
@@ -5514,21 +5536,21 @@ function ContractorReport({
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
         <Card>
           <CardHeader>
-            <CardTitle>{isCompleted ? "Результаты по узлам" : "Узлы в задании"}</CardTitle>
+            <CardTitle>{hasFinalResult ? "Результаты по узлам" : "Узлы в задании"}</CardTitle>
             <CardDescription>
-              {isCompleted
-                ? "Все, что мастер написал по каждому узлу в рамках этого обхода."
+              {hasFinalResult
+                ? "Все, что мастер написал по каждому узлу в рамках этой работы."
                 : "Состав отправленного задания. Результаты появятся после отправки мастером."}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {isCompleted && inspection?.conclusion && (
+            {hasFinalResult && inspection?.conclusion && (
               <div className="rounded-xl bg-muted p-4">
                 <strong className="block text-sm">Общее заключение мастера</strong>
                 <p className="m-0 mt-2 text-muted-foreground text-sm">{inspection.conclusion}</p>
               </div>
             )}
-            {isCompleted &&
+            {hasFinalResult &&
               reportResults.map((result) => {
                 const asset = assets.find((item) => item.id === result.assetId);
                 if (!asset) return null;
@@ -5550,7 +5572,7 @@ function ContractorReport({
                   </div>
                 );
               })}
-            {!isCompleted &&
+            {!hasFinalResult &&
               reportAssets.map((asset) => (
                 <div className="grid gap-2 rounded-xl bg-muted/60 p-3" key={asset.id}>
                   <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
@@ -5570,11 +5592,11 @@ function ContractorReport({
           </CardHeader>
           <CardContent className="grid gap-3">
             <div className="rounded-lg bg-muted p-3 text-sm">
-              {isCompleted
+              {hasFinalResult
                 ? `Проверено ${reportResults.length} из ${reportAssets.length}. Замечаний: ${issueResults.length}.`
                 : `Отправлено ${reportAssets.length} узлов. Мастер еще не прислал результаты.`}
             </div>
-            {isCompleted && inspection?.conclusion && (
+            {hasFinalResult && inspection?.conclusion && (
               <div className="rounded-lg bg-muted p-3 text-sm">
                 <strong className="block">Комментарий мастера</strong>
                 <span className="mt-1 block text-muted-foreground">{inspection.conclusion}</span>

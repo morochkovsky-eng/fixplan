@@ -122,6 +122,10 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(inspectionRouteSource, /Only completed results can be accepted/);
   assert.match(pageSource, /Принять задание/);
   assert.match(pageSource, /Открыть результат/);
+  assert.match(pageSource, /acceptCurrentInspection/);
+  assert.match(pageSource, /updateInspection=\{updateInspection\}/);
+  assert.match(pageSource, /selectedInspection\?\.workflow === "work_order" \? "work_orders" : "inspections"/);
+  assert.match(pageSource, /const hasFinalResult = isCompleted \|\| isAccepted/);
   assert.match(pageSource, /!\["completed", "accepted"\]\.includes\(inspection\.status\)/);
   assert.match(guestSource, /const workOrderStatusLabels/);
   assert.match(guestSource, /Что нужно сделать/);
