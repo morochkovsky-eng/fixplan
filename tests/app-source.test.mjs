@@ -101,6 +101,9 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /function DocumentsView/);
   assert.match(pageSource, /const documentTypes = \[/);
   assert.match(pageSource, /type DocumentTypeId/);
+  assert.match(pageSource, /function buildDocumentBody/);
+  assert.match(pageSource, /function documentMetaFromEvent/);
+  assert.match(pageSource, /function documentValidityTone/);
   assert.match(pageSource, /function documentTypeFromEvent/);
   assert.match(pageSource, /\| "documents"/);
   assert.match(pageSource, /Документы"/);
@@ -109,12 +112,16 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /Добавить документ/);
   assert.match(pageSource, /Выберите узел/);
   assert.match(pageSource, /Тип документа/);
+  assert.match(pageSource, /Дата документа/);
+  assert.match(pageSource, /Действует до/);
   assert.match(pageSource, /Паспорт/);
   assert.match(pageSource, /Гарантия/);
   assert.match(pageSource, /Файл, узел, категория/);
   assert.match(pageSource, /Открыть узел/);
   assert.match(pageSource, /documentTypeFilter/);
   assert.match(pageSource, /documentTypeCounts/);
+  assert.match(pageSource, /attentionDocumentsCount/);
+  assert.match(pageSource, /Требуют внимания/);
   assert.match(pageSource, /const documentEventIds = new Set/);
   assert.match(pageSource, /events\.filter\(isDocumentEvent\)/);
   assert.match(pageSource, /const isDocumentMedia =/);

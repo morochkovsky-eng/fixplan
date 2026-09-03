@@ -4185,6 +4185,8 @@ function AssetDetail({
   const assetDocuments = assetMedia.filter(isDocumentMedia);
   const [documentNote, setDocumentNote] = useState("");
   const [documentType, setDocumentType] = useState<DocumentTypeId>("passport");
+  const [documentIssuedAt, setDocumentIssuedAt] = useState("");
+  const [documentValidUntil, setDocumentValidUntil] = useState("");
   const mediaEvents = events.filter((event) => event.photo || assetMedia.some((item) => item.eventId === event.id));
   const historyContent = (
     <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto max-[980px]:pr-0">
@@ -4251,6 +4253,26 @@ function AssetDetail({
           </SelectContent>
         </Select>
       </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1.5 text-sm font-medium" htmlFor={`${asset.id}-document-issued-at`}>
+          Дата документа
+          <Input
+            id={`${asset.id}-document-issued-at`}
+            type="date"
+            value={documentIssuedAt}
+            onChange={(event) => setDocumentIssuedAt(event.currentTarget.value)}
+          />
+        </label>
+        <label className="grid gap-1.5 text-sm font-medium" htmlFor={`${asset.id}-document-valid-until`}>
+          Действует до
+          <Input
+            id={`${asset.id}-document-valid-until`}
+            type="date"
+            value={documentValidUntil}
+            onChange={(event) => setDocumentValidUntil(event.currentTarget.value)}
+          />
+        </label>
+      </div>
       <PromptInput
         accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
         className="w-full"
@@ -4260,10 +4282,17 @@ function AssetDetail({
           void addEvent(asset.id, {
             type: "comment",
             title: documentTitle(documentType),
-            body: text || "Добавлен документ к паспорту узла.",
+            body: buildDocumentBody({
+              defaultBody: "Добавлен документ к паспорту узла.",
+              issuedAt: documentIssuedAt,
+              note: text,
+              validUntil: documentValidUntil,
+            }),
             photo: undefined,
           }, message.files);
           setDocumentNote("");
+          setDocumentIssuedAt("");
+          setDocumentValidUntil("");
         }}
       >
         <PromptInputBody>
@@ -4643,6 +4672,55 @@ function documentTitle(type: DocumentTypeId) {
   return `Документ: ${documentTypeLabel(type)}`;
 }
 
+function formatDateInput(value: string) {
+  if (!value) return "";
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) return value;
+  return `${day}.${month}.${year}`;
+}
+
+function parseFormattedDate(value?: string) {
+  const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return undefined;
+  return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+}
+
+function buildDocumentBody({
+  defaultBody,
+  issuedAt,
+  note,
+  validUntil,
+}: {
+  defaultBody: string;
+  issuedAt?: string;
+  note?: string;
+  validUntil?: string;
+}) {
+  const meta = [
+    issuedAt ? `Дата документа: ${formatDateInput(issuedAt)}` : "",
+    validUntil ? `Действует до: ${formatDateInput(validUntil)}` : "",
+  ].filter(Boolean);
+  return [...meta, note || defaultBody].join(meta.length ? "\n\n" : "");
+}
+
+function documentMetaFromEvent(event?: Pick<AssetEvent, "body">) {
+  return {
+    issuedAt: event?.body.match(/Дата документа:\s*([0-9.]+)/)?.[1],
+    validUntil: event?.body.match(/Действует до:\s*([0-9.]+)/)?.[1],
+  };
+}
+
+function documentValidityTone(validUntil?: string) {
+  const date = parseFormattedDate(validUntil);
+  if (!date) return undefined;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((date.getTime() - now.getTime()) / 86_400_000);
+  if (daysLeft < 0) return "expired";
+  if (daysLeft <= 30) return "soon";
+  return "active";
+}
+
 function mediaPhotoData(media: AssetMedia): AttachmentData {
   return {
     filename: media.caption ?? media.filename,
@@ -4879,7 +4957,9 @@ function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: As
     <div className="grid gap-2">
       {items.map((document) => {
         const event = events.find((item) => item.id === document.eventId);
+        const meta = documentMetaFromEvent(event);
         const type = documentTypeFromEvent(event);
+        const validityTone = documentValidityTone(meta.validUntil);
 
         return (
           <a
@@ -4896,6 +4976,11 @@ function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: As
               <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
               <span className="flex flex-wrap items-center gap-2 text-muted-foreground">
                 <Badge variant="outline">{documentTypeLabel(type)}</Badge>
+                {meta.validUntil && (
+                  <Badge variant={validityTone === "expired" || validityTone === "soon" ? "destructive" : "secondary"}>
+                    до {meta.validUntil}
+                  </Badge>
+                )}
                 <span className="truncate">{document.mediaType}</span>
               </span>
             </span>
@@ -4978,6 +5063,8 @@ function DocumentsView({
   const [documentNote, setDocumentNote] = useState("");
   const [documentType, setDocumentType] = useState<DocumentTypeId>("passport");
   const [documentTypeFilter, setDocumentTypeFilter] = useState<"all" | DocumentTypeId>("all");
+  const [documentIssuedAt, setDocumentIssuedAt] = useState("");
+  const [documentValidUntil, setDocumentValidUntil] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState(() => assets[0]?.id ?? "");
   const sortedAssets = useMemo(
     () => assets.slice().sort((left, right) => left.code.localeCompare(right.code, "ru")),
@@ -4993,22 +5080,29 @@ function DocumentsView({
       return {
         asset: assets.find((asset) => asset.id === item.assetId),
         event,
+        meta: documentMetaFromEvent(event),
         media: item,
         type: documentTypeFromEvent(event),
       };
     });
+  const attentionDocumentsCount = documentRows.filter((item) => {
+    const tone = documentValidityTone(item.meta.validUntil);
+    return tone === "expired" || tone === "soon";
+  }).length;
   const documentTypeCounts = new Map<"all" | DocumentTypeId, number>([["all", documentRows.length]]);
   documentRows.forEach((item) => {
     documentTypeCounts.set(item.type, (documentTypeCounts.get(item.type) ?? 0) + 1);
   });
   const documents = documentRows
     .filter((item) => documentTypeFilter === "all" || item.type === documentTypeFilter)
-    .filter(({ media: item, asset, event }) => {
+    .filter(({ media: item, asset, event, meta }) => {
       const haystack = [
         item.caption,
         item.filename,
         item.mediaType,
         documentTypeLabel(documentTypeFromEvent(event)),
+        meta.issuedAt,
+        meta.validUntil,
         asset?.code,
         asset?.name,
         asset ? roomName(asset.roomId) : "",
@@ -5023,7 +5117,7 @@ function DocumentsView({
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
         <label className="search-field" htmlFor="documents-search">
           <Search size={16} />
           <Input
@@ -5036,6 +5130,7 @@ function DocumentsView({
         </label>
         <StatCard label="Документов" value={documents.length.toString()} />
         <StatCard label="Узлов с документами" value={assetCount.toString()} />
+        <StatCard label="Требуют внимания" value={attentionDocumentsCount.toString()} />
       </div>
 
       <Card>
@@ -5076,6 +5171,26 @@ function DocumentsView({
               </SelectContent>
             </Select>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="archive-document-issued-at">
+              Дата документа
+              <Input
+                id="archive-document-issued-at"
+                type="date"
+                value={documentIssuedAt}
+                onChange={(event) => setDocumentIssuedAt(event.currentTarget.value)}
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor="archive-document-valid-until">
+              Действует до
+              <Input
+                id="archive-document-valid-until"
+                type="date"
+                value={documentValidUntil}
+                onChange={(event) => setDocumentValidUntil(event.currentTarget.value)}
+              />
+            </label>
+          </div>
           <PromptInput
             accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
             className="w-full"
@@ -5085,10 +5200,17 @@ function DocumentsView({
               void addEvent(selectedAsset.id, {
                 type: "comment",
                 title: documentTitle(documentType),
-                body: text || "Добавлен документ к архиву квартиры.",
+                body: buildDocumentBody({
+                  defaultBody: "Добавлен документ к архиву квартиры.",
+                  issuedAt: documentIssuedAt,
+                  note: text,
+                  validUntil: documentValidUntil,
+                }),
                 photo: undefined,
               }, message.files);
               setDocumentNote("");
+              setDocumentIssuedAt("");
+              setDocumentValidUntil("");
             }}
           >
             <PromptInputBody>
@@ -5147,7 +5269,10 @@ function DocumentsView({
               </Button>
             ))}
           </div>
-          {documents.map(({ media: document, asset, event, type }) => (
+          {documents.map(({ media: document, asset, event, meta, type }) => {
+            const validityTone = documentValidityTone(meta.validUntil);
+
+            return (
             <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={document.id}>
               <a
                 className="flex min-w-0 items-center gap-3 text-sm"
@@ -5170,6 +5295,12 @@ function DocumentsView({
               </a>
               <div className="flex flex-wrap gap-2 md:justify-end">
                 <Badge variant="secondary">{documentTypeLabel(type)}</Badge>
+                {meta.issuedAt && <Badge variant="outline">от {meta.issuedAt}</Badge>}
+                {meta.validUntil && (
+                  <Badge variant={validityTone === "expired" || validityTone === "soon" ? "destructive" : "secondary"}>
+                    до {meta.validUntil}
+                  </Badge>
+                )}
                 <Badge variant="outline">{document.mediaType}</Badge>
                 {asset && (
                   <Button onClick={() => openAsset(asset.id)} size="sm" type="button" variant="secondary">
@@ -5178,7 +5309,8 @@ function DocumentsView({
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
           {!documents.length && (
             <div className="rounded-lg bg-muted p-4 text-muted-foreground text-sm">
               Документов пока нет. Добавьте файл во вкладке «Документы» в карточке нужного узла.
