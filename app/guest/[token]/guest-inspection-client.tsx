@@ -69,6 +69,17 @@ const statusLabels: Record<Status, string> = {
   needs_master: "Нужен ремонт",
 };
 
+const workOrderStatusLabels: Record<Status, string> = {
+  ok: "Выполнено",
+  attention: "Нужна проверка",
+  in_progress: "В работе",
+  needs_master: "Нужна доработка",
+};
+
+function labelsForWorkflow(isWorkOrder: boolean) {
+  return isWorkOrder ? workOrderStatusLabels : statusLabels;
+}
+
 const roomLabels: Record<string, string> = {
   living: "Гостиная",
   kitchen: "Кухня",
@@ -308,6 +319,22 @@ export function GuestInspectionClient({ token }: { token: string }) {
       return;
     }
 
+    const firstIncompleteAsset = assets.find((item) => {
+      const result = results[item.id] ?? defaultResult(item);
+      return !result.statusAfter;
+    });
+
+    if (firstIncompleteAsset) {
+      setIndex(Math.max(0, assets.findIndex((item) => item.id === firstIncompleteAsset.id)));
+      setStatusErrorAssetId(firstIncompleteAsset.id);
+      setError(
+        isWorkOrder
+          ? "Заполните результат по каждому узлу, чтобы завершить задание."
+          : "Заполните статус по каждому узлу, чтобы отправить обход.",
+      );
+      return;
+    }
+
     const submittedResults = assets
       .map((item) => results[item.id] ?? defaultResult(item))
       .filter((result): result is GuestResult & { statusAfter: Status } =>
@@ -374,13 +401,15 @@ export function GuestInspectionClient({ token }: { token: string }) {
       <main className="grid min-h-screen place-items-center bg-muted px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Отчет отправлен</CardTitle>
+            <CardTitle>{isWorkOrder ? "Задание отправлено" : "Отчет отправлен"}</CardTitle>
             <CardDescription>
               Спасибо. Владелец увидит {isWorkOrder ? "результат задания" : "сводку обхода"} и результаты по каждому узлу.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Badge variant="secondary">Проверено {assets.length} узлов</Badge>
+            <Badge variant="secondary">
+              {isWorkOrder ? "Готово" : "Проверено"} {assets.length} узлов
+            </Badge>
           </CardContent>
         </Card>
       </main>
@@ -441,7 +470,9 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 </div>
               )}
               <p className="m-0 text-muted-foreground text-sm">
-                Нажмите «Начать». Дальше будет один узел за раз: схема, статус, комментарий и кнопки назад/далее.
+                {isWorkOrder
+                  ? "Нажмите «Начать». Дальше будет один узел за раз: схема, задача, результат, комментарий и фото."
+                  : "Нажмите «Начать». Дальше будет один узел за раз: схема, статус, комментарий и кнопки назад/далее."}
               </p>
               <Button className="w-full" onClick={() => setStarted(true)} size="lg" type="button">
                 {isWorkOrder ? "Начать задание" : "Начать обход"}
@@ -459,6 +490,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
     payload.inspection.contractor,
     payload.inspection.contractorPhone,
   ].filter(Boolean).join(" · ");
+  const workflowStatusLabels = labelsForWorkflow(isWorkOrder);
 
   return (
     <main className="min-h-screen bg-muted px-3 py-3 sm:px-4 sm:py-5">
@@ -497,14 +529,14 @@ export function GuestInspectionClient({ token }: { token: string }) {
 
             {isWorkOrder && currentInstruction && (
               <div className="rounded-lg bg-background p-3">
-                <span className="text-muted-foreground text-sm">Комментарий владельца</span>
+                <span className="text-muted-foreground text-sm">Что нужно сделать</span>
                 <p className="m-0 mt-1 text-sm">{currentInstruction}</p>
               </div>
             )}
 
             <div className="grid gap-1.5">
               <label className="text-sm font-medium" htmlFor="guest-status">
-                Статус
+                {isWorkOrder ? "Результат по узлу" : "Статус"}
               </label>
               <Select
                 onValueChange={(value) => patchResult(asset.id, { statusAfter: value as Status })}
@@ -517,9 +549,9 @@ export function GuestInspectionClient({ token }: { token: string }) {
                   <SelectValue placeholder="Выберите статус" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(statusLabels) as Status[]).map((status) => (
+                  {(Object.keys(workflowStatusLabels) as Status[]).map((status) => (
                     <SelectItem key={status} value={status}>
-                      {statusLabels[status]}
+                      {workflowStatusLabels[status]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -532,7 +564,11 @@ export function GuestInspectionClient({ token }: { token: string }) {
             <Textarea
               className="min-h-24"
               onChange={(event) => patchResult(asset.id, { comment: event.currentTarget.value })}
-              placeholder="Что проверили, что нашли, что нужно сделать"
+              placeholder={
+                isWorkOrder
+                  ? "Что сделали, что осталось, что важно знать владельцу"
+                  : "Что проверили, что нашли, что нужно сделать"
+              }
               value={currentResult.comment}
             />
 
@@ -568,7 +604,11 @@ export function GuestInspectionClient({ token }: { token: string }) {
               <Textarea
                 className="min-h-24"
                 onChange={(event) => setConclusion(event.currentTarget.value)}
-                placeholder="Общее заключение по обходу: что важно знать владельцу"
+                placeholder={
+                  isWorkOrder
+                    ? "Общий итог по заданию: что выполнено и что требует решения"
+                    : "Общее заключение по обходу: что важно знать владельцу"
+                }
                 value={conclusion}
               />
             )}
@@ -589,7 +629,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
               {isLast ? (
                 <Button disabled={submitting} onClick={submitReport} size="lg" type="button">
                   {submitting ? <Loader2 className="size-4 animate-spin" /> : <Check size={16} />}
-                  Отправить
+                  {isWorkOrder ? "Завершить" : "Отправить"}
                 </Button>
               ) : (
                 <Button

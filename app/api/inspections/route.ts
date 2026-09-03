@@ -90,7 +90,8 @@ export async function POST(request: Request) {
   const { count } = await admin
     .from("inspections")
     .select("id", { count: "exact", head: true })
-    .eq("apartment_id", APARTMENT_ID);
+    .eq("apartment_id", APARTMENT_ID)
+    .eq("workflow", workflow);
 
   const id = `insp-${Date.now()}-${Math.round(Math.random() * 1000)}`;
   const token = randomBytes(24).toString("hex");
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
     .insert({
       apartment_id: APARTMENT_ID,
       id,
-      number: `Обход #${(count ?? 0) + 1}`,
+      number: `${workflow === "work_order" ? "Задание" : "Обход"} #${(count ?? 0) + 1}`,
       title: contractorPhone ? `${contractor} · ${contractorPhone}` : contractor,
       created_at_label: createdAt,
       created_by: user.email,

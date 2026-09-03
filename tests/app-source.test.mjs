@@ -111,3 +111,15 @@ test("uses the Figma FixPlan logo and compact menu glyph in headers", () => {
   assert.match(guestSource, /guest-brand-mark/);
   assert.match(guestSource, /src="\/fixplan-logo\.svg"/);
 });
+
+test("treats work orders as a first-class master workflow", () => {
+  const inspectionsRouteSource = fs.readFileSync("app/api/inspections/route.ts", "utf8");
+
+  assert.match(inspectionsRouteSource, /workflow === "work_order" \? "Задание" : "Обход"/);
+  assert.match(inspectionsRouteSource, /\.eq\("workflow", workflow\)/);
+  assert.match(guestSource, /const workOrderStatusLabels/);
+  assert.match(guestSource, /Что нужно сделать/);
+  assert.match(guestSource, /Результат по узлу/);
+  assert.match(guestSource, /Заполните результат по каждому узлу, чтобы завершить задание/);
+  assert.match(guestSource, /Задание отправлено/);
+});
