@@ -4737,6 +4737,14 @@ function documentValidityTone(validUntil?: string) {
   return "active";
 }
 
+function documentValidityLabel(validUntil?: string) {
+  const tone = documentValidityTone(validUntil);
+  if (tone === "expired") return "Просрочен";
+  if (tone === "soon") return "Скоро истекает";
+  if (tone === "active") return "Действует";
+  return undefined;
+}
+
 function mediaPhotoData(media: AssetMedia): AttachmentData {
   return {
     filename: media.caption ?? media.filename,
@@ -4975,6 +4983,7 @@ function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: As
         const event = events.find((item) => item.id === document.eventId);
         const meta = documentMetaFromEvent(event);
         const type = documentTypeFromEvent(event);
+        const validityLabel = documentValidityLabel(meta.validUntil);
         const validityTone = documentValidityTone(meta.validUntil);
 
         return (
@@ -4994,7 +5003,7 @@ function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: As
                 <Badge variant="outline">{documentTypeLabel(type)}</Badge>
                 {meta.validUntil && (
                   <Badge variant={validityTone === "expired" || validityTone === "soon" ? "destructive" : "secondary"}>
-                    до {meta.validUntil}
+                    {validityLabel}: до {meta.validUntil}
                   </Badge>
                 )}
                 <span className="truncate">{document.mediaType}</span>
@@ -5352,6 +5361,7 @@ function DocumentsView({
           </div>
           {documents.map(({ media: document, asset, event, meta, type }) => {
             const isEditing = editingDocumentId === document.id;
+            const validityLabel = documentValidityLabel(meta.validUntil);
             const validityTone = documentValidityTone(meta.validUntil);
 
             return (
@@ -5381,7 +5391,7 @@ function DocumentsView({
                     {meta.issuedAt && <Badge variant="outline">от {meta.issuedAt}</Badge>}
                     {meta.validUntil && (
                       <Badge variant={validityTone === "expired" || validityTone === "soon" ? "destructive" : "secondary"}>
-                        до {meta.validUntil}
+                        {validityLabel}: до {meta.validUntil}
                       </Badge>
                     )}
                     <Badge variant="outline">{document.mediaType}</Badge>
