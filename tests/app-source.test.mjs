@@ -107,6 +107,7 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /function documentNoteFromEvent/);
   assert.match(pageSource, /function documentValidityLabel/);
   assert.match(pageSource, /function documentValidityTone/);
+  assert.match(pageSource, /function documentExpiryTime/);
   assert.match(pageSource, /function documentTypeFromEvent/);
   assert.match(pageSource, /\| "documents"/);
   assert.match(pageSource, /Документы"/);
@@ -124,9 +125,12 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /documentTypeFilter/);
   assert.match(pageSource, /documentTypeCounts/);
   assert.match(pageSource, /attentionDocumentsCount/);
+  assert.match(pageSource, /expiringDocuments/);
   assert.match(pageSource, /documentTypeFilter === "attention"/);
   assert.match(pageSource, /setDocumentTypeFilter\("attention"\)/);
   assert.match(pageSource, /Требуют внимания/);
+  assert.match(pageSource, /Ближайшие сроки/);
+  assert.match(pageSource, /заканчиваются в ближайшие 30 дней/);
   assert.match(pageSource, /Просрочен/);
   assert.match(pageSource, /Скоро истекает/);
   assert.match(pageSource, /Действует/);

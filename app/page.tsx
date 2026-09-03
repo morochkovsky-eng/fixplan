@@ -4745,6 +4745,10 @@ function documentValidityLabel(validUntil?: string) {
   return undefined;
 }
 
+function documentExpiryTime(validUntil?: string) {
+  return parseFormattedDate(validUntil)?.getTime() ?? Number.POSITIVE_INFINITY;
+}
+
 function mediaPhotoData(media: AssetMedia): AttachmentData {
   return {
     filename: media.caption ?? media.filename,
@@ -5128,6 +5132,13 @@ function DocumentsView({
     const tone = documentValidityTone(item.meta.validUntil);
     return tone === "expired" || tone === "soon";
   }).length;
+  const expiringDocuments = documentRows
+    .filter((item) => {
+      const tone = documentValidityTone(item.meta.validUntil);
+      return tone === "expired" || tone === "soon";
+    })
+    .sort((left, right) => documentExpiryTime(left.meta.validUntil) - documentExpiryTime(right.meta.validUntil))
+    .slice(0, 5);
   const documentTypeCounts = new Map<"all" | DocumentTypeId, number>([["all", documentRows.length]]);
   documentRows.forEach((item) => {
     documentTypeCounts.set(item.type, (documentTypeCounts.get(item.type) ?? 0) + 1);
@@ -5312,6 +5323,62 @@ function DocumentsView({
           </PromptInput>
         </CardContent>
       </Card>
+
+      {expiringDocuments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ближайшие сроки</CardTitle>
+            <CardDescription>
+              Просроченные документы и сроки, которые заканчиваются в ближайшие 30 дней.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {expiringDocuments.map(({ asset, media: document, meta, type }) => {
+              const validityLabel = documentValidityLabel(meta.validUntil);
+              const validityTone = documentValidityTone(meta.validUntil);
+
+              return (
+                <div
+                  className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                  key={`expiry-${document.id}`}
+                >
+                  <a
+                    className="flex min-w-0 items-center gap-3 text-sm"
+                    href={document.url}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <FileText size={17} />
+                    </span>
+                    <span className="grid min-w-0 gap-1">
+                      <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
+                      <span className="line-clamp-1 text-muted-foreground">
+                        {asset
+                          ? `${asset.code} · ${asset.name} · ${roomName(asset.roomId)}`
+                          : "Без привязки к узлу"}
+                      </span>
+                    </span>
+                  </a>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <Badge variant="secondary">{documentTypeLabel(type)}</Badge>
+                    {meta.validUntil && (
+                      <Badge variant={validityTone === "expired" || validityTone === "soon" ? "destructive" : "secondary"}>
+                        {validityLabel}: до {meta.validUntil}
+                      </Badge>
+                    )}
+                    {asset && (
+                      <Button onClick={() => openAsset(asset.id)} size="sm" type="button" variant="secondary">
+                        Открыть узел
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
