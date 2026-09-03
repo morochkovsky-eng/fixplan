@@ -1345,22 +1345,27 @@ export default function Home() {
     setMobileMenuOpen(false);
   }
 
-  function createWorkOrderFromAsset(assetId: string) {
+  function createWorkOrderFromAssets(assetIds: string[]) {
+    if (!assetIds.length) return;
     setContractorWorkflow("work_order");
     setState((current) => ({
       ...current,
       contractorAccess: {
         ...current.contractorAccess,
-        scope: contractorScopeFromIds(current.assets, [assetId]),
-        allowedAssetIds: [assetId],
-        assetInstructions: {
-          ...current.contractorAccess.assetInstructions,
-          [assetId]: current.contractorAccess.assetInstructions[assetId] ?? "",
-        },
+        scope: contractorScopeFromIds(current.assets, assetIds),
+        allowedAssetIds: assetIds,
+        assetInstructions: assetIds.reduce<Record<string, string>>((instructions, assetId) => {
+          instructions[assetId] = current.contractorAccess.assetInstructions[assetId] ?? "";
+          return instructions;
+        }, { ...current.contractorAccess.assetInstructions }),
       },
     }));
     setView("contractor");
     setMobileMenuOpen(false);
+  }
+
+  function createWorkOrderFromAsset(assetId: string) {
+    createWorkOrderFromAssets([assetId]);
   }
 
   function createAssetFromAssets() {
@@ -2428,6 +2433,7 @@ export default function Home() {
             setFilter={setAssetFilter}
             setAssetStatus={setAssetStatus}
             updateAssetsBulk={updateAssetsBulk}
+            createWorkOrderFromAssets={createWorkOrderFromAssets}
           />
         )}
 
@@ -3724,6 +3730,7 @@ function AssetsView({
   setFilter,
   setAssetStatus,
   updateAssetsBulk,
+  createWorkOrderFromAssets,
 }: {
   assets: Asset[];
   categories: AssetCategory[];
@@ -3740,6 +3747,7 @@ function AssetsView({
     assetIds: string[],
     patch: Partial<Pick<Asset, "category" | "status">>,
   ) => Promise<boolean>;
+  createWorkOrderFromAssets: (assetIds: string[]) => void;
 }) {
   const [sort, setSort] = useState<AssetSort>("status");
   const [query, setQuery] = useState("");
@@ -3944,6 +3952,15 @@ function AssetsView({
               ))}
             </SelectContent>
           </Select>
+          <Button
+            disabled={bulkSaving}
+            onClick={() => createWorkOrderFromAssets(selectedAssetIds)}
+            size="sm"
+            type="button"
+          >
+            <Plus size={14} />
+            Создать задание
+          </Button>
           <Button
             disabled={bulkSaving}
             onClick={() => setSelectedAssetIds([])}
