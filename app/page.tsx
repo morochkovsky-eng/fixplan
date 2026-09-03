@@ -1885,7 +1885,7 @@ export default function Home() {
   }
 
   async function deleteEvent(assetId: string, eventId: string) {
-    const confirmed = window.confirm("Удалить эту запись истории и прикрепленные к ней фото?");
+    const confirmed = window.confirm("Удалить эту запись истории и прикрепленные к ней файлы?");
     if (!confirmed) return false;
 
     try {
@@ -2494,9 +2494,11 @@ export default function Home() {
           <DocumentsView
             addEvent={addEvent}
             assets={state.assets}
+            deleteEvent={deleteEvent}
             events={state.events}
             media={state.media}
             openAsset={openAsset}
+            updateEvent={updateEvent}
           />
         )}
 
@@ -4530,7 +4532,7 @@ function EditableEventTask({
   const [draftTitle, setDraftTitle] = useState(event.title);
   const [draftBody, setDraftBody] = useState(event.body);
   const [isSaving, setIsSaving] = useState(false);
-  const documentMedia = event.title === "Документ" ? media : media.filter((item) => !isImageMedia(item));
+  const documentMedia = isDocumentEvent(event) ? media : media.filter((item) => !isImageMedia(item));
 
   async function saveEvent() {
     setIsSaving(true);
@@ -4679,6 +4681,12 @@ function formatDateInput(value: string) {
   return `${day}.${month}.${year}`;
 }
 
+function dateInputFromFormatted(value?: string) {
+  const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return "";
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
 function parseFormattedDate(value?: string) {
   const match = value?.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   if (!match) return undefined;
@@ -4708,6 +4716,14 @@ function documentMetaFromEvent(event?: Pick<AssetEvent, "body">) {
     issuedAt: event?.body.match(/Дата документа:\s*([0-9.]+)/)?.[1],
     validUntil: event?.body.match(/Действует до:\s*([0-9.]+)/)?.[1],
   };
+}
+
+function documentNoteFromEvent(event?: Pick<AssetEvent, "body">) {
+  return (event?.body ?? "")
+    .split("\n")
+    .filter((line) => !line.startsWith("Дата документа:") && !line.startsWith("Действует до:"))
+    .join("\n")
+    .trim();
 }
 
 function documentValidityTone(validUntil?: string) {
@@ -5045,9 +5061,11 @@ function ActivityLog({
 function DocumentsView({
   addEvent,
   assets,
+  deleteEvent,
   events,
   media,
   openAsset,
+  updateEvent,
 }: {
   addEvent: (
     assetId: string,
@@ -5055,9 +5073,15 @@ function DocumentsView({
     files?: PromptInputMessage["files"],
   ) => void;
   assets: Asset[];
+  deleteEvent: (assetId: string, eventId: string) => Promise<boolean>;
   events: AssetEvent[];
   media: AssetMedia[];
   openAsset: (id: string) => void;
+  updateEvent: (
+    assetId: string,
+    eventId: string,
+    patch: Pick<AssetEvent, "title" | "body">,
+  ) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
   const [documentNote, setDocumentNote] = useState("");
@@ -5065,6 +5089,12 @@ function DocumentsView({
   const [documentTypeFilter, setDocumentTypeFilter] = useState<"all" | "attention" | DocumentTypeId>("all");
   const [documentIssuedAt, setDocumentIssuedAt] = useState("");
   const [documentValidUntil, setDocumentValidUntil] = useState("");
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
+  const [editDocumentIssuedAt, setEditDocumentIssuedAt] = useState("");
+  const [editDocumentNote, setEditDocumentNote] = useState("");
+  const [editDocumentType, setEditDocumentType] = useState<DocumentTypeId>("passport");
+  const [editDocumentValidUntil, setEditDocumentValidUntil] = useState("");
+  const [savingDocumentId, setSavingDocumentId] = useState<string | null>(null);
   const [selectedAssetId, setSelectedAssetId] = useState(() => assets[0]?.id ?? "");
   const sortedAssets = useMemo(
     () => assets.slice().sort((left, right) => left.code.localeCompare(right.code, "ru")),
@@ -5121,6 +5151,38 @@ function DocumentsView({
     })
     .sort((left, right) => (right.media.createdAt ?? "").localeCompare(left.media.createdAt ?? ""));
   const assetCount = new Set(documents.map((item) => item.media.assetId)).size;
+
+  function startEditDocument(document: AssetMedia, event?: AssetEvent) {
+    const meta = documentMetaFromEvent(event);
+    setEditingDocumentId(document.id);
+    setEditDocumentIssuedAt(dateInputFromFormatted(meta.issuedAt));
+    setEditDocumentNote(documentNoteFromEvent(event));
+    setEditDocumentType(documentTypeFromEvent(event));
+    setEditDocumentValidUntil(dateInputFromFormatted(meta.validUntil));
+  }
+
+  function cancelEditDocument() {
+    setEditingDocumentId(null);
+    setEditDocumentIssuedAt("");
+    setEditDocumentNote("");
+    setEditDocumentType("passport");
+    setEditDocumentValidUntil("");
+  }
+
+  async function saveDocumentEdit(assetId: string, eventId: string) {
+    setSavingDocumentId(eventId);
+    const ok = await updateEvent(assetId, eventId, {
+      title: documentTitle(editDocumentType),
+      body: buildDocumentBody({
+        defaultBody: "Добавлен документ к архиву квартиры.",
+        issuedAt: editDocumentIssuedAt,
+        note: editDocumentNote.trim(),
+        validUntil: editDocumentValidUntil,
+      }),
+    });
+    setSavingDocumentId(null);
+    if (ok) cancelEditDocument();
+  }
 
   return (
     <div className="grid gap-4">
@@ -5289,45 +5351,122 @@ function DocumentsView({
             ))}
           </div>
           {documents.map(({ media: document, asset, event, meta, type }) => {
+            const isEditing = editingDocumentId === document.id;
             const validityTone = documentValidityTone(meta.validUntil);
 
             return (
-            <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={document.id}>
-              <a
-                className="flex min-w-0 items-center gap-3 text-sm"
-                href={document.url}
-                rel="noreferrer"
-                target="_blank"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <FileText size={17} />
-                </span>
-                <span className="grid min-w-0 gap-1">
-                  <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
-                  <span className="line-clamp-1 text-muted-foreground">
-                    {asset
-                      ? `${asset.code} · ${asset.name} · ${roomName(asset.roomId)} · ${categoryLabel(asset.category)}`
-                      : "Без привязки к узлу"}
-                  </span>
-                  {event?.body && <span className="line-clamp-1 text-muted-foreground">{event.body}</span>}
-                </span>
-              </a>
-              <div className="flex flex-wrap gap-2 md:justify-end">
-                <Badge variant="secondary">{documentTypeLabel(type)}</Badge>
-                {meta.issuedAt && <Badge variant="outline">от {meta.issuedAt}</Badge>}
-                {meta.validUntil && (
-                  <Badge variant={validityTone === "expired" || validityTone === "soon" ? "destructive" : "secondary"}>
-                    до {meta.validUntil}
-                  </Badge>
-                )}
-                <Badge variant="outline">{document.mediaType}</Badge>
-                {asset && (
-                  <Button onClick={() => openAsset(asset.id)} size="sm" type="button" variant="secondary">
-                    Открыть узел
-                  </Button>
+              <div className="grid gap-3 rounded-lg border bg-background p-3" key={document.id}>
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                  <a
+                    className="flex min-w-0 items-center gap-3 text-sm"
+                    href={document.url}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                      <FileText size={17} />
+                    </span>
+                    <span className="grid min-w-0 gap-1">
+                      <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
+                      <span className="line-clamp-1 text-muted-foreground">
+                        {asset
+                          ? `${asset.code} · ${asset.name} · ${roomName(asset.roomId)} · ${categoryLabel(asset.category)}`
+                          : "Без привязки к узлу"}
+                      </span>
+                      {event?.body && <span className="line-clamp-1 text-muted-foreground">{event.body}</span>}
+                    </span>
+                  </a>
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <Badge variant="secondary">{documentTypeLabel(type)}</Badge>
+                    {meta.issuedAt && <Badge variant="outline">от {meta.issuedAt}</Badge>}
+                    {meta.validUntil && (
+                      <Badge variant={validityTone === "expired" || validityTone === "soon" ? "destructive" : "secondary"}>
+                        до {meta.validUntil}
+                      </Badge>
+                    )}
+                    <Badge variant="outline">{document.mediaType}</Badge>
+                    {asset && (
+                      <Button onClick={() => openAsset(asset.id)} size="sm" type="button" variant="secondary">
+                        Открыть узел
+                      </Button>
+                    )}
+                    {event && (
+                      <>
+                        <Button onClick={() => startEditDocument(document, event)} size="sm" type="button" variant="secondary">
+                          <Pencil size={14} />
+                          Редактировать
+                        </Button>
+                        <Button onClick={() => void deleteEvent(document.assetId, event.id)} size="sm" type="button" variant="destructive">
+                          <Trash2 size={14} />
+                          Удалить
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {isEditing && event && (
+                  <div className="grid gap-3 rounded-lg bg-muted p-3">
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="grid gap-1.5">
+                        <span className="text-sm font-medium">Тип документа</span>
+                        <Select value={editDocumentType} onValueChange={(value) => setEditDocumentType(value as DocumentTypeId)}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Выберите тип" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {documentTypes.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${document.id}-issued-at`}>
+                        Дата документа
+                        <Input
+                          id={`edit-${document.id}-issued-at`}
+                          onChange={(inputEvent) => setEditDocumentIssuedAt(inputEvent.currentTarget.value)}
+                          type="date"
+                          value={editDocumentIssuedAt}
+                        />
+                      </label>
+                      <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${document.id}-valid-until`}>
+                        Действует до
+                        <Input
+                          id={`edit-${document.id}-valid-until`}
+                          onChange={(inputEvent) => setEditDocumentValidUntil(inputEvent.currentTarget.value)}
+                          type="date"
+                          value={editDocumentValidUntil}
+                        />
+                      </label>
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${document.id}-note`}>
+                      Комментарий
+                      <Textarea
+                        id={`edit-${document.id}-note`}
+                        onChange={(inputEvent) => setEditDocumentNote(inputEvent.currentTarget.value)}
+                        rows={3}
+                        value={editDocumentNote}
+                      />
+                    </label>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button onClick={cancelEditDocument} size="sm" type="button" variant="secondary">
+                        Отменить
+                      </Button>
+                      <Button
+                        disabled={savingDocumentId === event.id}
+                        onClick={() => void saveDocumentEdit(document.assetId, event.id)}
+                        size="sm"
+                        type="button"
+                      >
+                        <Save size={14} />
+                        Сохранить
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
             );
           })}
           {!documents.length && (

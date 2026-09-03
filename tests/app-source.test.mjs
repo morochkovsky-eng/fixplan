@@ -102,7 +102,9 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /const documentTypes = \[/);
   assert.match(pageSource, /type DocumentTypeId/);
   assert.match(pageSource, /function buildDocumentBody/);
+  assert.match(pageSource, /function dateInputFromFormatted/);
   assert.match(pageSource, /function documentMetaFromEvent/);
+  assert.match(pageSource, /function documentNoteFromEvent/);
   assert.match(pageSource, /function documentValidityTone/);
   assert.match(pageSource, /function documentTypeFromEvent/);
   assert.match(pageSource, /\| "documents"/);
@@ -135,6 +137,11 @@ test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /Добавлен документ к архиву квартиры/);
   assert.match(pageSource, /aria-label="Добавить документ в архив"/);
   assert.match(pageSource, /addEvent=\{addEvent\}/);
+  assert.match(pageSource, /deleteEvent=\{deleteEvent\}/);
+  assert.match(pageSource, /updateEvent=\{updateEvent\}/);
+  assert.match(pageSource, /startEditDocument/);
+  assert.match(pageSource, /saveDocumentEdit/);
+  assert.match(pageSource, /editingDocumentId/);
   assert.match(pageSource, /<DocumentList events=\{events\} items=\{assetDocuments\} \/>/);
   assert.match(pageSource, /<DocumentList items=\{documentMedia\} \/>/);
 });
