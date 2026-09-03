@@ -7,6 +7,8 @@ const guestSource = fs.readFileSync("app/guest/[token]/guest-inspection-client.t
 const schemaSource = fs.readFileSync("supabase/schema.sql", "utf8");
 const seedSource = fs.readFileSync("supabase/seed.sql", "utf8");
 const eventRouteSource = fs.readFileSync("app/api/assets/[id]/events/[eventId]/route.ts", "utf8");
+const assetsRouteSource = fs.readFileSync("app/api/assets/route.ts", "utf8");
+const assetRouteSource = fs.readFileSync("app/api/assets/[id]/route.ts", "utf8");
 const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
@@ -80,6 +82,18 @@ test("supports custom asset categories from the UI", () => {
   assert.match(pageSource, /Новая категория/);
   assert.match(pageSource, /categoryOptions\(categories\)\.map/);
   assert.match(pageSource, /Нельзя удалить/);
+});
+
+test("keeps asset passport fields editable and persisted", () => {
+  assert.match(pageSource, /warrantyUntil: asset\.warrantyUntil \?\? ""/);
+  assert.match(pageSource, /master: asset\.master \?\? ""/);
+  assert.match(pageSource, /plan-asset-warranty/);
+  assert.match(pageSource, /plan-asset-master/);
+  assert.match(pageSource, /Редактировать паспорт/);
+  assert.match(assetsRouteSource, /warranty_until:/);
+  assert.match(assetsRouteSource, /master:/);
+  assert.match(assetRouteSource, /patch\.warranty_until/);
+  assert.match(assetRouteSource, /patch\.master/);
 });
 
 test("supports editing and deleting node comments without schema-cache fields", () => {

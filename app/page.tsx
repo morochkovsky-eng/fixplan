@@ -187,7 +187,17 @@ type Asset = {
 
 type AssetDraft = Pick<
   Asset,
-  "code" | "name" | "roomId" | "category" | "kind" | "status" | "x" | "y" | "photoNote"
+  | "code"
+  | "name"
+  | "roomId"
+  | "category"
+  | "kind"
+  | "status"
+  | "x"
+  | "y"
+  | "warrantyUntil"
+  | "master"
+  | "photoNote"
 >;
 
 type PlanMode = {
@@ -1024,6 +1034,7 @@ function catalogAssetFromHotspot(mode: PlanMode, hotspot: PlanHotspot): Asset {
     x: hotspot.x,
     y: hotspot.y,
     lastChecked: "не проверялось",
+    warrantyUntil: undefined,
     master: undefined,
     photoNote: hotspot.note,
   };
@@ -1039,6 +1050,8 @@ function assetDraftFromAsset(asset: Asset): AssetDraft {
     status: asset.status,
     x: asset.x,
     y: asset.y,
+    warrantyUntil: asset.warrantyUntil ?? "",
+    master: asset.master ?? "",
     photoNote: asset.photoNote,
   };
 }
@@ -1080,6 +1093,8 @@ function newAssetDraft(mode: PlanMode): AssetDraft {
     status: "ok",
     x: 50,
     y: 50,
+    warrantyUntil: "",
+    master: "",
     photoNote: "",
   };
 }
@@ -1478,6 +1493,8 @@ export default function Home() {
       ...assetDraft,
       code: assetDraft.code.trim(),
       name: assetDraft.name.trim(),
+      warrantyUntil: assetDraft.warrantyUntil?.trim(),
+      master: assetDraft.master?.trim(),
       photoNote: assetDraft.photoNote.trim(),
     };
 
@@ -3492,6 +3509,28 @@ function PlanAssetEditor({
             onValueChange={(status) => onChange((current) => ({ ...current, status }))}
           />
         </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-warranty">Гарантия</label>
+          <Input
+            id="plan-asset-warranty"
+            onChange={(event) =>
+              onChange((current) => ({ ...current, warrantyUntil: event.currentTarget.value }))
+            }
+            placeholder="например, до 12 декабря 2027"
+            value={draft.warrantyUntil ?? ""}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-master">Ответственный</label>
+          <Input
+            id="plan-asset-master"
+            onChange={(event) =>
+              onChange((current) => ({ ...current, master: event.currentTarget.value }))
+            }
+            placeholder="мастер, сервис или подрядчик"
+            value={draft.master ?? ""}
+          />
+        </div>
       </div>
 
       <div className="grid gap-1.5">
@@ -4211,6 +4250,10 @@ function AssetDetail({
             <CardContent>
               <TabsContent value="passport" className="mt-0">
                 {passportContent}
+                <Button className="mt-4 w-full" onClick={editAsset} type="button" variant="secondary">
+                  <Pencil size={16} />
+                  Редактировать паспорт
+                </Button>
               </TabsContent>
               <TabsContent value="media" className="mt-0">
                 {mediaContent}
@@ -4247,6 +4290,10 @@ function AssetDetail({
             </TabsContent>
             <TabsContent value="passport" className="mt-0">
               {passportContent}
+              <Button className="mt-4 w-full" onClick={editAsset} type="button" variant="secondary">
+                <Pencil size={16} />
+                Редактировать паспорт
+              </Button>
             </TabsContent>
             <TabsContent value="media" className="mt-0">
               {mediaContent}

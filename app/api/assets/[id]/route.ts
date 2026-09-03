@@ -73,6 +73,12 @@ export async function PATCH(
   if (typeof body.name === "string") patch.name = body.name.trim();
   if (typeof body.roomId === "string") patch.room_id = body.roomId.trim();
   if (typeof body.photoNote === "string") patch.photo_note = body.photoNote.trim();
+  if (typeof body.warrantyUntil === "string") {
+    patch.warranty_until = body.warrantyUntil.trim() || null;
+  }
+  if (typeof body.master === "string") {
+    patch.master = body.master.trim() || null;
+  }
   if (typeof body.category === "string" && /^[a-z0-9_-]+$/i.test(body.category)) {
     patch.category = body.category;
   }

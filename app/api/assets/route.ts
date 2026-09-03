@@ -50,6 +50,14 @@ function normalizeAssetPayload(body: Record<string, unknown>) {
       status,
       x: clampCoordinate(body.x),
       y: clampCoordinate(body.y),
+      warranty_until:
+        typeof body.warrantyUntil === "string" && body.warrantyUntil.trim()
+          ? body.warrantyUntil.trim()
+          : null,
+      master:
+        typeof body.master === "string" && body.master.trim()
+          ? body.master.trim()
+          : null,
       photo_note: String(body.photoNote ?? "").trim(),
     },
   };
