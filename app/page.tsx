@@ -289,6 +289,7 @@ type View =
   | "plan"
   | "assets"
   | "asset"
+  | "documents"
   | "log"
   | "inspection"
   | "inspections"
@@ -2476,6 +2477,15 @@ export default function Home() {
           />
         )}
 
+        {view === "documents" && (
+          <DocumentsView
+            assets={state.assets}
+            events={state.events}
+            media={state.media}
+            openAsset={openAsset}
+          />
+        )}
+
         {view === "inspection" && (
           <InspectionView
             asset={currentInspectionAsset}
@@ -2606,6 +2616,7 @@ function viewTitle(view: View, asset: Asset) {
     plan: "План квартиры",
     assets: "Список узлов",
     asset: `${asset.code} · ${asset.name}`,
+    documents: "Документы",
     log: "Журнал квартиры",
     inspection: "Обход квартиры",
     inspections: "Обходы и отчеты",
@@ -2623,6 +2634,7 @@ function viewSubtitle(view: View) {
     plan: "Слои узлов поверх схемы квартиры.",
     assets: "Инвентарный список по комнатам, категориям и статусам.",
     asset: "История, фото, паспорт узла и быстрые действия.",
+    documents: "Паспорта, чеки, гарантии, инструкции и акты по узлам.",
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
     inspections: "Выдача ссылок мастерам, все созданные обходы и сводки по узлам.",
@@ -2639,6 +2651,7 @@ function assetReturnLabel(view: View) {
     dashboard: "К дашборду",
     plan: "К схеме",
     assets: "К списку",
+    documents: "К документам",
     log: "К журналу",
     inspection: "К обходу",
     inspections: "К обходам",
@@ -2767,6 +2780,10 @@ function AppNavigation({
       <NavButton active={activeView === "work_orders"} onClick={() => navigate("work_orders")}>
         <Check size={16} />
         Задания
+      </NavButton>
+      <NavButton active={activeView === "documents"} onClick={() => navigate("documents")}>
+        <FileText size={16} />
+        Документы
       </NavButton>
       <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
         <History size={16} />
@@ -4101,7 +4118,7 @@ function SettingsView({
           <CardDescription>В бургер-меню доступны основные рабочие разделы.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2 text-muted-foreground text-sm">
-          {["Дашборд", "План", "Узлы", "Обходы и отчеты", "Журнал", "Настройки"].map((item) => (
+          {["Дашборд", "План", "Узлы", "Обходы и отчеты", "Задания", "Документы", "Журнал", "Настройки"].map((item) => (
             <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
           ))}
         </CardContent>
@@ -4882,6 +4899,110 @@ function ActivityLog({
         </ScrollArea>
       </CardContent>
     </Card>
+  );
+}
+
+function DocumentsView({
+  assets,
+  events,
+  media,
+  openAsset,
+}: {
+  assets: Asset[];
+  events: AssetEvent[];
+  media: AssetMedia[];
+  openAsset: (id: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const documentEventIds = new Set(events.filter((event) => event.title === "Документ").map((event) => event.id));
+  const documents = media
+    .filter((item) => !isImageMedia(item) || documentEventIds.has(item.eventId ?? ""))
+    .map((item) => ({
+      media: item,
+      asset: assets.find((asset) => asset.id === item.assetId),
+      event: events.find((event) => event.id === item.eventId),
+    }))
+    .filter(({ media: item, asset, event }) => {
+      const haystack = [
+        item.caption,
+        item.filename,
+        item.mediaType,
+        asset?.code,
+        asset?.name,
+        asset ? roomName(asset.roomId) : "",
+        asset ? categoryLabel(asset.category) : "",
+        event?.title,
+        event?.body,
+      ].join(" ").toLowerCase();
+      return haystack.includes(query.trim().toLowerCase());
+    })
+    .sort((left, right) => (right.media.createdAt ?? "").localeCompare(left.media.createdAt ?? ""));
+  const assetCount = new Set(documents.map((item) => item.media.assetId)).size;
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <label className="search-field" htmlFor="documents-search">
+          <Search size={16} />
+          <Input
+            aria-label="Найти документ"
+            id="documents-search"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="Файл, узел, категория"
+            value={query}
+          />
+        </label>
+        <StatCard label="Документов" value={documents.length.toString()} />
+        <StatCard label="Узлов с документами" value={assetCount.toString()} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Архив документов</CardTitle>
+          <CardDescription>
+            Файлы, прикрепленные к паспортам узлов и событиям истории.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-2">
+          {documents.map(({ media: document, asset, event }) => (
+            <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={document.id}>
+              <a
+                className="flex min-w-0 items-center gap-3 text-sm"
+                href={document.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <FileText size={17} />
+                </span>
+                <span className="grid min-w-0 gap-1">
+                  <strong className="truncate font-medium">{document.caption ?? document.filename}</strong>
+                  <span className="line-clamp-1 text-muted-foreground">
+                    {asset
+                      ? `${asset.code} · ${asset.name} · ${roomName(asset.roomId)} · ${categoryLabel(asset.category)}`
+                      : "Без привязки к узлу"}
+                  </span>
+                  {event?.body && <span className="line-clamp-1 text-muted-foreground">{event.body}</span>}
+                </span>
+              </a>
+              <div className="flex flex-wrap gap-2 md:justify-end">
+                <Badge variant="outline">{document.mediaType}</Badge>
+                {asset && (
+                  <Button onClick={() => openAsset(asset.id)} size="sm" type="button" variant="secondary">
+                    Открыть узел
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+          {!documents.length && (
+            <div className="rounded-lg bg-muted p-4 text-muted-foreground text-sm">
+              Документов пока нет. Добавьте файл во вкладке «Документы» в карточке нужного узла.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

@@ -98,6 +98,13 @@ test("keeps asset passport fields editable and persisted", () => {
 
 test("keeps asset documents separate from photo galleries", () => {
   assert.match(pageSource, /function DocumentList/);
+  assert.match(pageSource, /function DocumentsView/);
+  assert.match(pageSource, /\| "documents"/);
+  assert.match(pageSource, /Документы"/);
+  assert.match(pageSource, /К документам/);
+  assert.match(pageSource, /Архив документов/);
+  assert.match(pageSource, /Файл, узел, категория/);
+  assert.match(pageSource, /Открыть узел/);
   assert.match(pageSource, /const documentEventIds = new Set/);
   assert.match(pageSource, /const isDocumentMedia =/);
   assert.match(pageSource, /const assetDocuments = assetMedia\.filter\(isDocumentMedia\)/);
