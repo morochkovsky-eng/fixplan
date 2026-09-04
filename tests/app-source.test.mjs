@@ -45,6 +45,8 @@ test("contains the production Supabase model", () => {
     "inspections",
     "inspection_results",
     "utility_bills",
+    "utility_meters",
+    "utility_readings",
   ]) {
     assert.match(schemaSource, new RegExp(`create table public\\.${table}`));
   }
@@ -52,6 +54,8 @@ test("contains the production Supabase model", () => {
   assert.match(schemaSource, /submit_guest_report/);
   assert.match(schemaSource, /asset-media/);
   assert.match(schemaSource, /utility_bill_status/);
+  assert.match(schemaSource, /utility_meter_status/);
+  assert.match(schemaSource, /utility_reading_source/);
   assert.match(schemaSource, /category text not null/);
   assert.match(seedSource, /Шпалерная, 34Б/);
   assert.match(seedSource, /morochkovsky@gmail\.com/);
@@ -161,9 +165,16 @@ test("keeps asset documents separate from photo galleries", () => {
 
 test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /type UtilityBillStatus/);
+  assert.match(pageSource, /type UtilityMonthStatus/);
+  assert.match(pageSource, /type UtilityMeter =/);
+  assert.match(pageSource, /type UtilityReading =/);
   assert.match(pageSource, /type UtilityBill =/);
   assert.match(pageSource, /utilityBills: UtilityBill\[\]/);
+  assert.match(pageSource, /utilityMeters: UtilityMeter\[\]/);
+  assert.match(pageSource, /utilityReadings: UtilityReading\[\]/);
   assert.match(pageSource, /utilityBills: state\.utilityBills \?\? initialState\.utilityBills/);
+  assert.match(pageSource, /buildUtilityMonths/);
+  assert.match(pageSource, /source: "telegram"/);
   assert.match(pageSource, /\| "utilities"/);
   assert.match(pageSource, /function UtilitiesView/);
   assert.match(pageSource, /view === "utilities"/);
@@ -175,9 +186,14 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityBillRouteSource, /export async function PATCH/);
   assert.match(utilityBillRouteSource, /export async function DELETE/);
   assert.match(pageSource, /Коммуналка и счета/);
+  assert.match(pageSource, /Месяцы, счета, счетчики и статусы передачи/);
+  assert.match(pageSource, /Данные за/);
+  assert.match(pageSource, /Счетчики/);
+  assert.match(pageSource, /Ждем показания/);
   assert.match(pageSource, /Счета/);
-  assert.match(pageSource, /Новый счет/);
+  assert.match(pageSource, /Выставление счета/);
   assert.match(pageSource, /Добавить счет/);
+  assert.match(pageSource, /Уже оплачено/);
   assert.match(pageSource, /Оплатить до/);
   assert.match(pageSource, /Квитанция/);
   assert.match(pageSource, /utilityBillStatusLabels/);

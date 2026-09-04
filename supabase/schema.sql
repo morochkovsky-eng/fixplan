@@ -20,6 +20,8 @@ create type public.inspection_status as enum ('draft', 'sent', 'in_progress', 'c
 create type public.contractor_scope as enum ('plumbing', 'electric', 'all', 'custom');
 create type public.inspection_workflow as enum ('inspection', 'work_order');
 create type public.utility_bill_status as enum ('draft', 'due', 'paid', 'overdue');
+create type public.utility_meter_status as enum ('due', 'submitted', 'overdue');
+create type public.utility_reading_source as enum ('owner', 'telegram', 'manual');
 
 create table public.apartments (
   id uuid primary key default gen_random_uuid(),
@@ -185,6 +187,39 @@ create table public.utility_bills (
   constraint utility_bills_amount_non_negative check (amount >= 0)
 );
 
+create table public.utility_meters (
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  id text not null,
+  service text not null,
+  label text not null,
+  serial text not null default '',
+  location text not null default '',
+  unit text not null default '',
+  next_due_label text not null default '',
+  status public.utility_meter_status not null default 'due',
+  last_reading numeric,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (apartment_id, id),
+  constraint utility_meters_label_not_blank check (length(trim(label)) > 0)
+);
+
+create table public.utility_readings (
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  id text not null,
+  meter_id text not null,
+  period text not null,
+  value numeric not null,
+  submitted_at_label text not null default '',
+  source public.utility_reading_source not null default 'manual',
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (apartment_id, id),
+  foreign key (apartment_id, meter_id) references public.utility_meters(apartment_id, id) on delete cascade,
+  constraint utility_readings_period_not_blank check (length(trim(period)) > 0)
+);
+
 insert into storage.buckets (id, name, public)
 values ('asset-media', 'asset-media', false)
 on conflict (id) do nothing;
@@ -216,6 +251,8 @@ alter table public.inspections enable row level security;
 alter table public.inspection_results enable row level security;
 alter table public.asset_media enable row level security;
 alter table public.utility_bills enable row level security;
+alter table public.utility_meters enable row level security;
+alter table public.utility_readings enable row level security;
 
 create policy "members can read apartments"
 on public.apartments for select
@@ -281,6 +318,16 @@ with check (public.is_apartment_member(apartment_id));
 
 create policy "members can manage utility bills"
 on public.utility_bills for all
+using (public.is_apartment_member(apartment_id))
+with check (public.is_apartment_member(apartment_id));
+
+create policy "members can manage utility meters"
+on public.utility_meters for all
+using (public.is_apartment_member(apartment_id))
+with check (public.is_apartment_member(apartment_id));
+
+create policy "members can manage utility readings"
+on public.utility_readings for all
 using (public.is_apartment_member(apartment_id))
 with check (public.is_apartment_member(apartment_id));
 
