@@ -5144,7 +5144,7 @@ function UtilitiesView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nextBill),
       });
-      const payload = (await response.json()) as { bill?: UtilityBill };
+      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill };
       setBills([response.ok && payload.bill ? payload.bill : nextBill, ...bills]);
     } catch {
       setBills([nextBill, ...bills]);
@@ -5195,7 +5195,7 @@ function UtilitiesView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nextBill),
       });
-      const payload = (await response.json()) as { bill?: UtilityBill };
+      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill };
       setBills(
         bills.map((bill) =>
           bill.id === editingBillId
@@ -5239,7 +5239,7 @@ function UtilitiesView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(paidBill),
       });
-      const payload = (await response.json()) as { bill?: UtilityBill };
+      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill };
       setBills(
         bills.map((bill) =>
           bill.id === billId ? response.ok && payload.bill ? payload.bill : paidBill : bill,
@@ -6183,8 +6183,8 @@ function InspectionsView({
         <StatCard label={isWorkOrder ? "Замечаний из заданий" : "Замечаний из отчетов"} value={`${issueResultCount}`} tone="negative" />
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-6 max-[980px]:grid-cols-1">
-        <Card>
+      <div className="grid min-w-0 gap-6">
+        <Card className="min-w-0">
           <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
             <div>
               <CardTitle>{isWorkOrder ? "Все задания" : "Все обходы"}</CardTitle>
@@ -6199,7 +6199,7 @@ function InspectionsView({
               {isWorkOrder ? "Создать задание" : "Выдать доступ мастеру"}
             </Button>
           </CardHeader>
-          <CardContent className="grid gap-3">
+          <CardContent className="grid min-w-0 gap-3">
             {inspections.map((inspection) => {
               const inspectionResults = results.filter((result) => result.inspectionId === inspection.id);
               const issues = inspectionResults.filter((result) => result.statusAfter !== "ok");
@@ -6209,9 +6209,9 @@ function InspectionsView({
               const canAccept = inspection.status === "completed";
 
               return (
-                <div className="grid gap-3 rounded-xl bg-muted p-4" key={inspection.id}>
+                <div className="inspection-flow-card grid min-w-0 gap-3 rounded-xl bg-muted p-4" key={inspection.id}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="grid gap-1">
+                    <div className="grid min-w-0 gap-1">
                       <strong className="font-medium">
                         {inspection.contractor}
                         {inspection.contractorPhone ? ` · ${inspection.contractorPhone}` : ""}
@@ -6311,7 +6311,7 @@ function InspectionsView({
                       onClick={() => openReport(inspection.id)}
                       size="sm"
                       type="button"
-                      variant={inspection.status === "completed" ? "default" : "secondary"}
+                      variant="default"
                     >
                       {isWorkOrder ? "Открыть результат" : "Открыть отчет"}
                     </Button>
@@ -6332,7 +6332,7 @@ function InspectionsView({
                         onClick={() => startEdit(inspection)}
                         size="sm"
                         type="button"
-                        variant="secondary"
+                        variant="outline"
                       >
                         <Pencil size={14} />
                         Редактировать
@@ -6357,14 +6357,14 @@ function InspectionsView({
                           }}
                           size="sm"
                           type="button"
-                          variant="secondary"
+                          variant="outline"
                         >
                           Отмена
                         </Button>
                       </>
                     )}
                     {!["completed", "accepted"].includes(inspection.status) && (
-                      <Button asChild className="w-fit" size="sm" type="button" variant="secondary">
+                      <Button asChild className="w-fit" size="sm" variant="outline">
                         <a href={inspection.link} rel="noreferrer" target="_blank">
                           Открыть ссылку мастера
                         </a>
@@ -6411,29 +6411,6 @@ function InspectionsView({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{isWorkOrder ? "Как работает задание" : "Как теперь копится отчет"}</CardTitle>
-            <CardDescription>Структура данных зафиксирована в интерфейсе.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm">
-            {(isWorkOrder
-              ? [
-                  "Создаем задание и выбираем узлы или категории.",
-                  "По каждому узлу можно оставить инструкцию для мастера.",
-                  "Мастер открывает ссылку и проходит работу по шагам.",
-                  "Результат попадает в задание и в историю каждого узла.",
-                ]
-              : [
-                  "Создаем обход и выбираем область доступа.",
-                  "Мастер открывает ссылку и проходит выбранные узлы.",
-                  "По каждому узлу сохраняется результат: статус, комментарий, фото, стоимость.",
-                  "Итог попадает в список обходов и одновременно в историю каждого узла.",
-                ]).map((item) => (
-              <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
-            ))}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

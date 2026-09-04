@@ -1744,6 +1744,10 @@ select:focus-visible {
   align-content: start;
 }
 
+.inspection-flow-card {
+  overflow: hidden;
+}
+
 .permissions span {
   border-radius: 8px;
   background: var(--content-alt);
@@ -2407,10 +2411,17 @@ select:focus-visible {
   }
 
   .workspace {
+    min-width: 0;
     padding: 12px;
   }
 
+  .workspace > * {
+    min-width: 0;
+  }
+
   [data-slot="card"] {
+    max-width: 100%;
+    min-width: 0;
     border-radius: 16px;
   }
 
@@ -2722,6 +2733,15 @@ select:focus-visible {
 
   .button-row {
     display: grid;
+  }
+
+  .inspection-flow-card {
+    width: 100%;
+    padding: 14px;
+  }
+
+  .inspection-flow-card [data-slot="button"] {
+    width: 100%;
   }
 
   .apartment-plan {
