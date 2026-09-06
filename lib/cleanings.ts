@@ -13,6 +13,7 @@ export type CleaningZoneResult = {
 export type CleaningPhoto = {
   id: string;
   phase: CleaningPhotoPhase;
+  zone?: string;
   url: string;
   filename: string;
   createdAt?: string;

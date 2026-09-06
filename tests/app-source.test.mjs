@@ -80,6 +80,7 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(schemaSource, /cleaning_photo_phase/);
   assert.match(schemaSource, /create table public\.cleanings/);
   assert.match(schemaSource, /create table public\.cleaning_media/);
+  assert.match(schemaSource, /phase public\.cleaning_photo_phase not null,\s+zone text,/);
   assert.match(schemaSource, /require_photo_before boolean not null default false/);
   assert.match(schemaSource, /require_photo_after boolean not null default false/);
   assert.match(schemaSource, /zone_results jsonb not null default '\[\]'::jsonb/);
@@ -109,14 +110,19 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningGuestSource, /Принять задание/);
   assert.match(cleaningGuestSource, /Отказаться/);
   assert.match(cleaningGuestSource, /Что нужно убрать/);
-  assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /Добавьте обязательное фото до уборки/);
+  assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /Добавьте обязательное фото до по каждой зоне/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /Укажите результат по каждой зоне уборки/);
   assert.match(cleaningsViewSource, /Проблемы:/);
   assert.match(cleaningsViewSource, /Вернуть на доработку/);
   assert.match(cleaningsViewSource, /Комментарий владельца/);
+  assert.match(cleaningsViewSource, /Галерея фотографий уборки/);
+  assert.match(cleaningGuestSource, /Ранее загруженные общие фотографии/);
+  assert.match(cleaningGuestSource, /formData\.set\("zone", zone\)/);
   assert.match(cleaningPhotoRouteSource, /export async function POST/);
   assert.match(cleaningPhotoRouteSource, /15 \* 1024 \* 1024/);
   assert.match(cleaningPhotoRouteSource, /file\.type\.startsWith\("image\/"\)/);
+  assert.match(cleaningPhotoRouteSource, /formData\.get\("zone"\)/);
+  assert.match(cleaningPhotoRouteSource, /cleaning\.zones\.includes\(zone\)/);
   assert.doesNotMatch(
     cleaningsViewSource,
     /setDraft\(\(current\) => \(\{[^}]*event\.currentTarget/,

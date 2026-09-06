@@ -33,7 +33,7 @@ async function signedPhotos(
   const { data } = await admin.from("cleaning_media").select("*").eq("apartment_id", apartmentId).eq("cleaning_id", cleaningId).order("created_at");
   return Promise.all((data ?? []).map(async (item) => {
     const { data: signed } = await admin.storage.from("asset-media").createSignedUrl(item.storage_path, 60 * 60);
-    return { id: item.id, phase: item.phase, url: signed?.signedUrl ?? "", filename: item.filename, createdAt: item.created_at } as CleaningPhoto;
+    return { id: item.id, phase: item.phase, zone: item.zone ?? undefined, url: signed?.signedUrl ?? "", filename: item.filename, createdAt: item.created_at } as CleaningPhoto;
   }));
 }
 
@@ -88,13 +88,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   if (status === "completed" && (currentCleaning.require_photo_before || currentCleaning.require_photo_after)) {
     const { data: media, error: mediaError } = await admin
       .from("cleaning_media")
-      .select("phase")
+      .select("phase,zone")
       .eq("apartment_id", currentCleaning.apartment_id)
       .eq("cleaning_id", currentCleaning.id);
     if (mediaError) return NextResponse.json({ error: "Не удалось проверить фотографии." }, { status: 500 });
-    const phases = new Set((media ?? []).map((item) => item.phase));
-    if (currentCleaning.require_photo_before && !phases.has("before")) return NextResponse.json({ error: "Добавьте обязательное фото до уборки." }, { status: 400 });
-    if (currentCleaning.require_photo_after && !phases.has("after")) return NextResponse.json({ error: "Добавьте обязательное фото после уборки." }, { status: 400 });
+    const hasRequiredPhoto = (phase: "before" | "after", zone: string) => (media ?? []).some((item) => item.phase === phase && (!item.zone || item.zone === zone));
+    if (currentCleaning.require_photo_before && currentCleaning.zones.some((zone: string) => !hasRequiredPhoto("before", zone))) return NextResponse.json({ error: "Добавьте обязательное фото до по каждой зоне." }, { status: 400 });
+    if (currentCleaning.require_photo_after && currentCleaning.zones.some((zone: string) => !hasRequiredPhoto("after", zone))) return NextResponse.json({ error: "Добавьте обязательное фото после по каждой зоне." }, { status: 400 });
   }
   const patch: Record<string, unknown> = { completed_items: completedItems, updated_at: new Date().toISOString() };
   if (Array.isArray(body.zoneResults)) {

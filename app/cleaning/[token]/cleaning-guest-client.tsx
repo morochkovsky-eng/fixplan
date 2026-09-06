@@ -28,11 +28,9 @@ export function CleaningGuestClient({ token }: { token: string }) {
   const [cleaning, setCleaning] = useState<Cleaning | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingPhase, setUploadingPhase] = useState<CleaningPhotoPhase | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const beforeInputRef = useRef<HTMLInputElement>(null);
-  const afterInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,9 +83,10 @@ export function CleaningGuestClient({ token }: { token: string }) {
     return nextResults;
   }
 
-  async function uploadPhotos(files: FileList | null, phase: CleaningPhotoPhase) {
+  async function uploadPhotos(files: FileList | null, phase: CleaningPhotoPhase, zone: string) {
     if (!files?.length || !cleaning) return;
-    setUploadingPhase(phase);
+    const uploadKey = `${zone}:${phase}`;
+    setUploadingPhoto(uploadKey);
     setError("");
     try {
       const uploaded: CleaningPhoto[] = [];
@@ -95,6 +94,7 @@ export function CleaningGuestClient({ token }: { token: string }) {
         const formData = new FormData();
         formData.set("file", file);
         formData.set("phase", phase);
+        formData.set("zone", zone);
         const response = await fetch(`/api/cleanings/guest/${token}/photos`, {
           method: "POST",
           body: formData,
@@ -116,9 +116,7 @@ export function CleaningGuestClient({ token }: { token: string }) {
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Не удалось загрузить фотографию.");
     } finally {
-      setUploadingPhase(null);
-      if (beforeInputRef.current) beforeInputRef.current.value = "";
-      if (afterInputRef.current) afterInputRef.current.value = "";
+      setUploadingPhoto(null);
     }
   }
 
@@ -131,11 +129,12 @@ export function CleaningGuestClient({ token }: { token: string }) {
   }
 
   const done = cleaning.status === "completed" || cleaning.status === "accepted";
-  const beforePhotos = cleaning.photos.filter((photo) => photo.phase === "before");
-  const afterPhotos = cleaning.photos.filter((photo) => photo.phase === "after");
-  const missingRequiredPhoto =
-    (cleaning.requirePhotoBefore && beforePhotos.length === 0) ||
-    (cleaning.requirePhotoAfter && afterPhotos.length === 0);
+  const legacyPhotos = cleaning.photos.filter((photo) => !photo.zone);
+  const hasPhoto = (phase: CleaningPhotoPhase, zone: string) => cleaning.photos.some((photo) => photo.phase === phase && (!photo.zone || photo.zone === zone));
+  const missingRequiredPhoto = cleaning.zones.some((zone) =>
+    (cleaning.requirePhotoBefore && !hasPhoto("before", zone)) ||
+    (cleaning.requirePhotoAfter && !hasPhoto("after", zone))
+  );
   const missingZoneResult = cleaning.zones.some((zone) => {
     const result = cleaning.zoneResults.find((item) => item.zone === zone);
     return !result || result.status === "pending";
@@ -163,34 +162,33 @@ export function CleaningGuestClient({ token }: { token: string }) {
                   <SelectContent>{Object.entries(zoneStatusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                 </Select>
                 <Textarea disabled={done || saving} onChange={(event) => { const comment = event.currentTarget.value; updateZoneResult(zone, { comment }); }} placeholder="Комментарий, если нужен" rows={2} value={result.comment} />
+                {(cleaning.requirePhotoBefore || cleaning.requirePhotoAfter) && <div className="grid gap-2 sm:grid-cols-2">
+                  {cleaning.requirePhotoBefore && <PhotoSection
+                    disabled={done || uploadingPhoto !== null}
+                    label="Фото до"
+                    loading={uploadingPhoto === `${zone}:before`}
+                    onOpen={(photo) => setGalleryIndex(cleaning.photos.findIndex((item) => item.id === photo.id))}
+                    onUpload={(files) => void uploadPhotos(files, "before", zone)}
+                    photos={cleaning.photos.filter((photo) => photo.zone === zone && photo.phase === "before")}
+                  />}
+                  {cleaning.requirePhotoAfter && <PhotoSection
+                    disabled={done || uploadingPhoto !== null}
+                    label="Фото после"
+                    loading={uploadingPhoto === `${zone}:after`}
+                    onOpen={(photo) => setGalleryIndex(cleaning.photos.findIndex((item) => item.id === photo.id))}
+                    onUpload={(files) => void uploadPhotos(files, "after", zone)}
+                    photos={cleaning.photos.filter((photo) => photo.zone === zone && photo.phase === "after")}
+                  />}
+                </div>}
               </div>;
             })}
             {!done && <Button disabled={saving} onClick={() => void patch(cleaning.completedItems, "in_progress", cleaning.zoneResults)} type="button" variant="outline">Сохранить комментарии</Button>}
           </section>}
-          {(cleaning.requirePhotoBefore || cleaning.requirePhotoAfter) && <section className="grid gap-3 sm:grid-cols-2">
-            {cleaning.requirePhotoBefore && <PhotoSection
-              disabled={done || uploadingPhase !== null}
-              inputRef={beforeInputRef}
-              label="Фото до"
-              loading={uploadingPhase === "before"}
-              onOpen={(photo) => setGalleryIndex(cleaning.photos.findIndex((item) => item.id === photo.id))}
-              onUpload={(files) => void uploadPhotos(files, "before")}
-              photos={beforePhotos}
-            />}
-            {cleaning.requirePhotoAfter && <PhotoSection
-              disabled={done || uploadingPhase !== null}
-              inputRef={afterInputRef}
-              label="Фото после"
-              loading={uploadingPhase === "after"}
-              onOpen={(photo) => setGalleryIndex(cleaning.photos.findIndex((item) => item.id === photo.id))}
-              onUpload={(files) => void uploadPhotos(files, "after")}
-              photos={afterPhotos}
-            />}
-          </section>}
+          {legacyPhotos.length > 0 && <section className="grid gap-2"><strong className="text-sm">Ранее загруженные общие фотографии</strong><div className="flex gap-2 overflow-x-auto pb-1">{legacyPhotos.map((photo) => <button aria-label={`Открыть ${photo.filename}`} className="size-20 shrink-0 rounded-md border bg-cover bg-center" key={photo.id} onClick={() => setGalleryIndex(cleaning.photos.findIndex((item) => item.id === photo.id))} style={{ backgroundImage: `url(${photo.url})` }} type="button" />)}</div></section>}
           <section className="grid gap-2"><div className="flex items-center justify-between gap-3"><strong>Чек-лист</strong><span className="text-muted-foreground text-sm">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div>{cleaning.checklist.map((item) => { const checked = cleaning.completedItems.includes(item); return <button className={`flex min-h-12 items-center gap-3 rounded-lg border p-3 text-left ${checked ? "bg-muted text-muted-foreground" : "bg-background"}`} disabled={done || saving} key={item} onClick={() => { const completedItems = checked ? cleaning.completedItems.filter((value) => value !== item) : [...cleaning.completedItems, item]; void patch(completedItems, "in_progress"); }} type="button"><span className={`grid size-5 shrink-0 place-items-center rounded border ${checked ? "border-foreground bg-foreground text-background" : "bg-background"}`}>{checked && <Check size={14} />}</span><span className={checked ? "line-through" : ""}>{item}</span></button>; })}</section>
           {error && <p className="m-0 text-destructive text-sm">{error}</p>}
           {(missingRequiredPhoto || missingZoneResult) && !done && <p className="m-0 text-center text-muted-foreground text-sm">Для завершения заполните результаты по зонам и добавьте обязательные фотографии.</p>}
-          {done ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Уборка завершена</strong><p className="m-1 text-muted-foreground text-sm">Результат уже передан владельцу.</p></div> : <Button className="w-full" disabled={saving || uploadingPhase !== null || missingRequiredPhoto || missingZoneResult || cleaning.completedItems.length !== cleaning.checklist.length} onClick={() => void patch(cleaning.completedItems, "completed", cleaning.zoneResults)} type="button">{saving ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}Завершить уборку</Button>}
+          {done ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Уборка завершена</strong><p className="m-1 text-muted-foreground text-sm">Результат уже передан владельцу.</p></div> : <Button className="w-full" disabled={saving || uploadingPhoto !== null || missingRequiredPhoto || missingZoneResult || cleaning.completedItems.length !== cleaning.checklist.length} onClick={() => void patch(cleaning.completedItems, "completed", cleaning.zoneResults)} type="button">{saving ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}Завершить уборку</Button>}
         </CardContent>
       </Card>
       {galleryIndex !== null && cleaning.photos[galleryIndex] && (
@@ -224,7 +222,6 @@ export function CleaningGuestClient({ token }: { token: string }) {
 
 function PhotoSection({
   disabled,
-  inputRef,
   label,
   loading,
   onOpen,
@@ -232,13 +229,14 @@ function PhotoSection({
   photos,
 }: {
   disabled: boolean;
-  inputRef: React.RefObject<HTMLInputElement | null>;
   label: string;
   loading: boolean;
   onOpen: (photo: CleaningPhoto) => void;
   onUpload: (files: FileList | null) => void;
   photos: CleaningPhoto[];
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="grid content-start gap-3 rounded-lg border p-3">
       <div className="flex items-center justify-between gap-3">
@@ -265,7 +263,11 @@ function PhotoSection({
         className="hidden"
         disabled={disabled}
         multiple
-        onChange={(event) => onUpload(event.currentTarget.files)}
+        onChange={(event) => {
+          const files = event.currentTarget.files;
+          onUpload(files);
+          event.currentTarget.value = "";
+        }}
         ref={inputRef}
         type="file"
       />

@@ -132,6 +132,7 @@ export async function GET() {
         id: item.id,
         cleaningId: item.cleaning_id,
         phase: item.phase,
+        zone: item.zone ?? undefined,
         url: data?.signedUrl ?? "",
         filename: item.filename,
         createdAt: item.created_at,
@@ -284,6 +285,7 @@ export async function GET() {
               .map((photo) => ({
                 id: photo.id,
                 phase: photo.phase,
+                zone: photo.zone,
                 url: photo.url,
                 filename: photo.filename,
                 createdAt: photo.createdAt,

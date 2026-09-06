@@ -260,6 +260,7 @@ create table public.cleaning_media (
   id uuid primary key default gen_random_uuid(),
   cleaning_id text not null,
   phase public.cleaning_photo_phase not null,
+  zone text,
   storage_path text not null,
   media_type text not null default 'image/jpeg',
   filename text not null default 'Фото уборки',
