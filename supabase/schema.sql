@@ -183,6 +183,7 @@ create table public.utility_bills (
   paid_at_label text,
   status public.utility_bill_status not null default 'due',
   receipt_url text,
+  receipt_storage_path text,
   note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

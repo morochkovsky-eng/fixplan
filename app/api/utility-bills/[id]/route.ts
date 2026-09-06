@@ -1,31 +1,8 @@
 import { NextResponse } from "next/server";
+import { formatUtilityBill } from "@/lib/server/utility-bills";
 import { APARTMENT_ID, requireApartmentAccess } from "../../assets/access";
 
 const statuses = new Set(["draft", "due", "paid", "overdue"]);
-
-function formatBill(bill: {
-  id: string;
-  service: string;
-  period: string;
-  amount: number | string;
-  due_date_label: string;
-  paid_at_label: string | null;
-  status: string;
-  receipt_url: string | null;
-  note: string | null;
-}) {
-  return {
-    id: bill.id,
-    service: bill.service,
-    period: bill.period,
-    amount: Number(bill.amount),
-    dueDate: bill.due_date_label,
-    paidAt: bill.paid_at_label ?? undefined,
-    status: bill.status,
-    receiptUrl: bill.receipt_url ?? undefined,
-    note: bill.note ?? undefined,
-  };
-}
 
 export async function PATCH(
   request: Request,
@@ -72,7 +49,7 @@ export async function PATCH(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ bill: formatBill(data) });
+  return NextResponse.json({ bill: formatUtilityBill(data) });
 }
 
 export async function DELETE(
@@ -86,6 +63,13 @@ export async function DELETE(
     return NextResponse.json({ error }, { status });
   }
 
+  const { data: existing } = await admin
+    .from("utility_bills")
+    .select("receipt_storage_path")
+    .eq("apartment_id", APARTMENT_ID)
+    .eq("id", id)
+    .maybeSingle();
+
   const { error: deleteError } = await admin
     .from("utility_bills")
     .delete()
@@ -94,6 +78,10 @@ export async function DELETE(
 
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
+
+  if (existing?.receipt_storage_path) {
+    await admin.storage.from("asset-media").remove([existing.receipt_storage_path]);
   }
 
   return NextResponse.json({ ok: true });

@@ -26,6 +26,7 @@ const telegramWebhookSource = fs.readFileSync("app/api/telegram/webhook/route.ts
 const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts", "utf8");
 const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
 const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
+const utilityBillServiceSource = fs.readFileSync("lib/server/utility-bills.ts", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
@@ -88,6 +89,9 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /x-telegram-bot-api-secret-token/);
   assert.match(telegramWebhookSource, /telegram_updates/);
   assert.match(telegramWebhookSource, /23505/);
+  assert.match(telegramWebhookSource, /message\.photo/);
+  assert.match(telegramWebhookSource, /message\.document/);
+  assert.match(telegramWebhookSource, /utility-bills/);
   assert.match(telegramPairingSource, /code_hash/);
   assert.match(telegramPairingSource, /15 \* 60 \* 1000/);
   assert.match(telegramPairingSource, /export async function GET/);
@@ -97,11 +101,17 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.doesNotMatch(pageSource, /Роль пользователя/);
   assert.match(telegramAssistantSource, /list_cleanings/);
   assert.match(telegramAssistantSource, /prepare_cleaning/);
+  assert.match(telegramAssistantSource, /prepare_utility_bill/);
   assert.match(telegramAssistantSource, /confirmationWords/);
   assert.match(telegramAssistantSource, /createCleaningRecord/);
+  assert.match(telegramAssistantSource, /createUtilityBillRecord/);
+  assert.match(telegramAssistantSource, /input_image/);
+  assert.match(telegramAssistantSource, /input_file/);
+  assert.match(telegramAssistantSource, /removePendingAttachment/);
   assert.match(telegramAssistantSource, /api\.openai\.com\/v1\/responses/);
   assert.match(telegramAssistantSource, /личный ассистент владельца/);
   assert.match(telegramClientSource, /getFile/);
+  assert.match(telegramClientSource, /downloadTelegramFile/);
   assert.match(telegramClientSource, /gpt-4o-mini-transcribe/);
   assert.match(telegramClientSource, /api\.openai\.com\/v1\/audio\/transcriptions/);
 });
@@ -306,7 +316,11 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(appDataRouteSource, /utilityReadingsResult/);
   assert.match(appDataRouteSource, /isMissingUtilityTable/);
   assert.match(utilityBillsRouteSource, /export async function POST/);
-  assert.match(utilityBillsRouteSource, /\.from\("utility_bills"\)/);
+  assert.match(utilityBillsRouteSource, /createUtilityBillRecord/);
+  assert.match(utilityBillServiceSource, /\.from\("utility_bills"\)/);
+  assert.match(utilityBillServiceSource, /receipt_storage_path/);
+  assert.match(schemaSource, /receipt_storage_path text/);
+  assert.match(appDataRouteSource, /createSignedUrl\(bill\.receipt_storage_path/);
   assert.match(utilityBillRouteSource, /export async function PATCH/);
   assert.match(utilityBillRouteSource, /export async function DELETE/);
   assert.match(utilityReadingsRouteSource, /export async function POST/);

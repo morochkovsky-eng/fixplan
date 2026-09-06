@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { formatUtilityBill } from "@/lib/server/utility-bills";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -139,6 +140,18 @@ export async function GET() {
       };
     }),
   );
+  const signedUtilityBills = await Promise.all(
+    (utilityBillsResult.data ?? []).map(async (bill) => {
+      let signedReceiptUrl = "";
+      if (bill.receipt_storage_path) {
+        const { data } = await admin.storage
+          .from("asset-media")
+          .createSignedUrl(bill.receipt_storage_path, 60 * 60);
+        signedReceiptUrl = data?.signedUrl ?? "";
+      }
+      return formatUtilityBill(bill, signedReceiptUrl);
+    }),
+  );
 
   return NextResponse.json({
     deletedAssetIds: (deletedAssetsResult.data ?? []).map((asset) => asset.id),
@@ -211,17 +224,7 @@ export async function GET() {
     })),
     ...(hasUtilityBillsTable
       ? {
-          utilityBills: (utilityBillsResult.data ?? []).map((bill) => ({
-            id: bill.id,
-            service: bill.service,
-            period: bill.period,
-            amount: Number(bill.amount),
-            dueDate: bill.due_date_label,
-            paidAt: bill.paid_at_label ?? undefined,
-            status: bill.status,
-            receiptUrl: bill.receipt_url ?? undefined,
-            note: bill.note ?? undefined,
-          })),
+          utilityBills: signedUtilityBills,
         }
       : {}),
     ...(hasUtilityMeters

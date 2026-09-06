@@ -1,8 +1,46 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { runTelegramAssistant } from "@/lib/server/telegram-assistant";
-import { sendTelegramMessage, transcribeTelegramVoice, type TelegramUpdate, type TelegramUser } from "@/lib/server/telegram";
+import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
+import { downloadTelegramFile, sendTelegramMessage, transcribeTelegramVoice, type TelegramUpdate, type TelegramUser } from "@/lib/server/telegram";
+
+const supportedBillTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+function safeFilename(filename: string) {
+  return filename.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "bill";
+}
+
+async function uploadBillAttachment(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  apartmentId: string,
+  message: NonNullable<TelegramUpdate["message"]>,
+) {
+  const largestPhoto = message.photo?.at(-1);
+  const document = message.document;
+  if (!largestPhoto && !document) return undefined;
+  const file = await downloadTelegramFile(largestPhoto?.file_id ?? document!.file_id, {
+    filename: largestPhoto ? "telegram-photo.jpg" : document?.file_name,
+    mimeType: largestPhoto ? "image/jpeg" : document?.mime_type,
+  });
+  if (!supportedBillTypes.has(file.mimeType)) {
+    throw new Error("Unsupported bill attachment type");
+  }
+  if (file.bytes.byteLength > 20 * 1024 * 1024) {
+    throw new Error("Bill attachment is too large");
+  }
+  const storagePath = `${apartmentId}/telegram/utility-bills/${randomUUID()}-${safeFilename(file.filename)}`;
+  const { error } = await admin.storage.from("asset-media").upload(storagePath, file.bytes, {
+    contentType: file.mimeType,
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+  return {
+    dataUrl: `data:${file.mimeType};base64,${Buffer.from(file.bytes).toString("base64")}`,
+    filename: file.filename,
+    mimeType: file.mimeType,
+    storagePath,
+  } satisfies TelegramAssistantAttachment;
+}
 
 function displayName(user: TelegramUser) {
   return [user.first_name, user.last_name].filter(Boolean).join(" ");
@@ -51,14 +89,21 @@ export async function POST(request: Request) {
     const startCode = text.match(/^\/start(?:\s+(.+))?$/i)?.[1];
     if (startCode) {
       const connected = await connectAccount(admin, startCode, user, message.chat.id);
-      await sendTelegramMessage(message.chat.id, connected ? "FixPlan подключён. Теперь можно спрашивать об уборках или создать новую." : "Ссылка подключения недействительна или уже использована.");
+      await sendTelegramMessage(message.chat.id, connected ? "FixPlan подключён. Можно управлять квартирой текстом и голосом, а также пересылать сюда счета и квитанции." : "Ссылка подключения недействительна или уже использована.");
     } else {
       const { data: account } = await admin.from("telegram_accounts").select("telegram_user_id,apartment_id,display_name").eq("telegram_user_id", user.id).eq("active", true).maybeSingle();
       if (!account) {
         await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
-      } else if (message.voice || text) {
+      } else if (message.voice || message.photo?.length || message.document || text) {
         const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
-        const answer = await runTelegramAssistant(admin, account, userMessage, new URL(request.url).origin);
+        const attachment = await uploadBillAttachment(admin, account.apartment_id, message);
+        const answer = await runTelegramAssistant(
+          admin,
+          account,
+          message.caption?.trim() || userMessage,
+          new URL(request.url).origin,
+          attachment,
+        );
         await sendTelegramMessage(message.chat.id, answer);
       }
     }

@@ -51,7 +51,9 @@ TELEGRAM_WEBHOOK_SECRET=
 3. Apply the Supabase migrations before opening that link.
 4. Register `https://<production-domain>/api/telegram/webhook` with Telegram `setWebhook`, passing the same `TELEGRAM_WEBHOOK_SECRET` as `secret_token`.
 
-The bot is the owner's personal interface. It supports text and Telegram voice conversations, reading cleanings, and preparing a new cleaning. A prepared cleaning is persisted only after the owner explicitly sends `Создавай`. Cleaners and masters do not use the bot; they continue to work through guest links for individual jobs.
+The bot is the owner's personal interface. It supports text and Telegram voice conversations, reading cleanings, preparing a new cleaning, and extracting a utility-bill draft from a Telegram photo or PDF. A prepared cleaning or bill is persisted only after the owner explicitly sends `Создавай`. Bill attachments are kept in the private `asset-media` bucket and exposed to the web UI through short-lived signed URLs. Cleaners and masters do not use the bot; they continue to work through guest links for individual jobs.
+
+The bill flow requires `20260906240000_add_utility_bill_receipt_storage.sql` in addition to the Telegram migrations. Telegram accepts bill images and PDFs up to 20 MB; unsupported files are rejected without creating a draft.
 
 ## Deployment
 
