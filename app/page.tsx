@@ -1019,6 +1019,10 @@ function utilityBillId() {
   return `bill-${Date.now()}-${Math.round(Math.random() * 1000)}`;
 }
 
+function utilityReadingId() {
+  return `reading-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+}
+
 const utilityBillStatusLabels: Record<UtilityBillStatus, string> = {
   draft: "Черновик",
   due: "К оплате",
@@ -1066,6 +1070,12 @@ const utilityMeterStatusLabels: Record<UtilityMeterStatus, string> = {
   due: "Нужно передать",
   submitted: "Передано",
   overdue: "Просрочено",
+};
+
+const utilityReadingSourceLabels: Record<UtilityReading["source"], string> = {
+  owner: "Владелец",
+  telegram: "Telegram",
+  manual: "Вручную",
 };
 
 function utilityMonthTone(status: UtilityMonthStatus): "secondary" | "destructive" | "outline" {
@@ -1518,6 +1528,8 @@ export default function Home() {
             inspections: remoteState.inspections ?? current.inspections,
             inspectionResults: remoteState.inspectionResults ?? current.inspectionResults,
             utilityBills: remoteState.utilityBills ?? current.utilityBills,
+            utilityMeters: remoteState.utilityMeters ?? current.utilityMeters,
+            utilityReadings: remoteState.utilityReadings ?? current.utilityReadings,
             categories: remoteState.categories ?? current.categories,
             deletedAssetIds: remoteState.deletedAssetIds ?? current.deletedAssetIds,
             contractorAccess: {
@@ -2751,6 +2763,12 @@ export default function Home() {
                 ...current,
                 utilityBills,
               }))
+            }
+            setMeters={(utilityMeters) =>
+              setState((current) => ({ ...current, utilityMeters }))
+            }
+            setReadings={(utilityReadings) =>
+              setState((current) => ({ ...current, utilityReadings }))
             }
           />
         )}
@@ -5285,11 +5303,15 @@ function UtilitiesView({
   meters,
   readings,
   setBills,
+  setMeters,
+  setReadings,
 }: {
   bills: UtilityBill[];
   meters: UtilityMeter[];
   readings: UtilityReading[];
   setBills: (bills: UtilityBill[]) => void;
+  setMeters: (meters: UtilityMeter[]) => void;
+  setReadings: (readings: UtilityReading[]) => void;
 }) {
   const months = useMemo(() => buildUtilityMonths(bills, meters, readings), [bills, meters, readings]);
   const [selectedPeriod, setSelectedPeriod] = useState(months[0]?.period ?? "Сентябрь 2026");
@@ -5309,13 +5331,15 @@ function UtilitiesView({
   const [showBillForm, setShowBillForm] = useState(false);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Omit<UtilityBill, "id"> | null>(null);
+  const [editingMeterId, setEditingMeterId] = useState<string | null>(null);
+  const [readingDraft, setReadingDraft] = useState({ value: "", note: "" });
   const sortedBills = [...selectedBills].sort(
     (left, right) => documentExpiryTime(left.dueDate) - documentExpiryTime(right.dueDate),
   );
   const unpaidBills = bills.filter((bill) => bill.status !== "paid");
   const overdueBills = bills.filter((bill) => bill.status === "overdue");
   const unpaidAmount = unpaidBills.reduce((sum, bill) => sum + bill.amount, 0);
-  const activeMeters = meters.filter((meter) => meter.status !== "submitted").length;
+  const activeMeters = Math.max(0, meters.length - selectedReadings.length);
   const currentStatus = selectedMonth?.status ?? "awaiting_readings";
 
   function selectPeriod(period: string) {
@@ -5324,6 +5348,68 @@ function UtilitiesView({
     setShowBillForm(false);
     setEditingBillId(null);
     setEditDraft(null);
+    setEditingMeterId(null);
+  }
+
+  function startReading(meter: UtilityMeter, reading?: UtilityReading) {
+    setEditingMeterId(meter.id);
+    setReadingDraft({
+      value: reading ? String(reading.value) : "",
+      note: reading?.note ?? "",
+    });
+  }
+
+  async function saveReading(meter: UtilityMeter) {
+    const value = Number(readingDraft.value.replace(",", "."));
+    if (!Number.isFinite(value) || value < 0) {
+      window.alert("Введите корректное показание.");
+      return;
+    }
+
+    const existingReading = readingByMeter.get(meter.id);
+    const nextReading: UtilityReading = {
+      id: existingReading?.id ?? utilityReadingId(),
+      meterId: meter.id,
+      period: selectedMonth?.period ?? selectedPeriod,
+      value,
+      submittedAt: todayLabel(),
+      source: "owner",
+      note: readingDraft.note.trim() || undefined,
+    };
+    let savedReading = nextReading;
+
+    try {
+      const response = await fetch("/api/utility-readings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...nextReading, meter }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        reading?: UtilityReading;
+        error?: string;
+      };
+      if (response.ok && payload.reading) {
+        savedReading = payload.reading;
+      } else if (payload.error) {
+        window.alert("Показание сохранено на этом устройстве, но пока не синхронизировано.");
+      }
+    } catch {
+      // Keep the reading locally while the database is unavailable.
+    }
+
+    setReadings([
+      savedReading,
+      ...readings.filter((reading) => reading.id !== savedReading.id),
+    ]);
+    setMeters(
+      meters.map((item) =>
+        item.id === meter.id
+          ? { ...item, lastReading: savedReading.value, status: "submitted" }
+          : item,
+      ),
+    );
+    setEditingMeterId(null);
+    setReadingDraft({ value: "", note: "" });
   }
 
   async function createBill() {
@@ -5569,30 +5655,70 @@ function UtilitiesView({
             <CardContent className="grid gap-2">
               {meters.map((meter) => {
                 const reading = readingByMeter.get(meter.id);
+                const isEditingReading = editingMeterId === meter.id;
                 return (
-                  <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center" key={meter.id}>
-                    <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
-                      {utilityMeterIcon(meter.service)}
+                  <div className="grid gap-3 rounded-lg border bg-background p-3" key={meter.id}>
+                    <div className="grid gap-3 md:grid-cols-[auto_minmax(0,1fr)_auto_auto] md:items-center">
+                      <div className="flex size-10 items-center justify-center rounded-lg bg-muted text-foreground">
+                        {utilityMeterIcon(meter.service)}
+                      </div>
+                      <div className="grid min-w-0 gap-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="font-medium">{meter.label}</strong>
+                          <Badge variant={reading ? "secondary" : meter.status === "overdue" ? "destructive" : "outline"}>
+                            {reading ? "Передано" : utilityMeterStatusLabels[meter.status]}
+                          </Badge>
+                        </div>
+                        <div className="text-muted-foreground text-sm">
+                          N{meter.serial} · {meter.location} · до {meter.nextDue}
+                        </div>
+                      </div>
+                      <div className="text-left md:text-right">
+                        <div className="font-medium">
+                          {reading ? `${reading.value} ${meter.unit}` : meter.lastReading !== undefined ? `${meter.lastReading} ${meter.unit}` : "Нет данных"}
+                        </div>
+                        <div className="text-muted-foreground text-sm">
+                          {reading ? `${utilityReadingSourceLabels[reading.source]} · ${reading.submittedAt}` : "Ожидаем показание"}
+                        </div>
+                      </div>
+                      <Button onClick={() => startReading(meter, reading)} size="sm" type="button" variant="outline">
+                        {reading ? "Изменить" : "Передать показание"}
+                      </Button>
                     </div>
-                    <div className="grid min-w-0 gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <strong className="font-medium">{meter.label}</strong>
-                        <Badge variant={reading ? "secondary" : meter.status === "overdue" ? "destructive" : "outline"}>
-                          {reading ? "Передано" : utilityMeterStatusLabels[meter.status]}
-                        </Badge>
+                    {isEditingReading && (
+                      <div className="grid gap-3 rounded-lg bg-muted p-3 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] md:items-end">
+                        <label className="grid gap-1.5 text-sm font-medium" htmlFor={`reading-${meter.id}`}>
+                          Показание, {meter.unit}
+                          <Input
+                            id={`reading-${meter.id}`}
+                            inputMode="decimal"
+                            min="0"
+                            onChange={(event) => setReadingDraft((current) => ({ ...current, value: event.currentTarget.value }))}
+                            placeholder={meter.lastReading !== undefined ? String(meter.lastReading) : "0"}
+                            type="number"
+                            value={readingDraft.value}
+                          />
+                        </label>
+                        <label className="grid gap-1.5 text-sm font-medium" htmlFor={`reading-${meter.id}-note`}>
+                          Комментарий
+                          <Input
+                            id={`reading-${meter.id}-note`}
+                            onChange={(event) => setReadingDraft((current) => ({ ...current, note: event.currentTarget.value }))}
+                            placeholder="Необязательно"
+                            value={readingDraft.note}
+                          />
+                        </label>
+                        <div className="flex gap-2">
+                          <Button onClick={() => setEditingMeterId(null)} size="sm" type="button" variant="outline">
+                            Отменить
+                          </Button>
+                          <Button onClick={() => void saveReading(meter)} size="sm" type="button">
+                            <Save size={14} />
+                            Сохранить
+                          </Button>
+                        </div>
                       </div>
-                      <div className="text-muted-foreground text-sm">
-                        N{meter.serial} · {meter.location} · до {meter.nextDue}
-                      </div>
-                    </div>
-                    <div className="text-left md:text-right">
-                      <div className="font-medium">
-                        {reading ? `${reading.value} ${meter.unit}` : meter.lastReading ? `${meter.lastReading} ${meter.unit}` : "Нет данных"}
-                      </div>
-                      <div className="text-muted-foreground text-sm">
-                        {reading ? `Источник: ${reading.source}` : "Ожидаем показание"}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}

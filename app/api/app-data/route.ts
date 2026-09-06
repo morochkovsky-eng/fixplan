@@ -4,9 +4,12 @@ import { createClient as createServerSupabaseClient } from "@/lib/supabase/serve
 
 const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
 
-function isMissingUtilityBillsTable(error?: { code?: string; message?: string } | null) {
+function isMissingUtilityTable(
+  error: { code?: string; message?: string } | null | undefined,
+  table: string,
+) {
   if (!error) return false;
-  return error.code === "PGRST205" || error.message?.includes("utility_bills");
+  return error.code === "PGRST205" || error.message?.includes(table);
 }
 
 export async function GET() {
@@ -45,6 +48,8 @@ export async function GET() {
     resultsResult,
     mediaResult,
     utilityBillsResult,
+    utilityMetersResult,
+    utilityReadingsResult,
   ] = await Promise.all([
     admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).is("deleted_at", null).order("code"),
     admin.from("asset_categories").select("*").eq("apartment_id", APARTMENT_ID).order("sort_order"),
@@ -54,6 +59,8 @@ export async function GET() {
     admin.from("inspection_results").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("asset_media").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("utility_bills").select("*").eq("apartment_id", APARTMENT_ID).order("due_date_label"),
+    admin.from("utility_meters").select("*").eq("apartment_id", APARTMENT_ID).order("created_at"),
+    admin.from("utility_readings").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
   ]);
 
   const error =
@@ -64,13 +71,22 @@ export async function GET() {
     inspectionsResult.error ??
     resultsResult.error ??
     mediaResult.error ??
-    (isMissingUtilityBillsTable(utilityBillsResult.error) ? null : utilityBillsResult.error);
+    (isMissingUtilityTable(utilityBillsResult.error, "utility_bills") ? null : utilityBillsResult.error) ??
+    (isMissingUtilityTable(utilityMetersResult.error, "utility_meters") ? null : utilityMetersResult.error) ??
+    (isMissingUtilityTable(utilityReadingsResult.error, "utility_readings") ? null : utilityReadingsResult.error);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const hasUtilityBillsTable = !isMissingUtilityBillsTable(utilityBillsResult.error);
+  const hasUtilityBillsTable = !isMissingUtilityTable(utilityBillsResult.error, "utility_bills");
+  const hasUtilityMeters =
+    !isMissingUtilityTable(utilityMetersResult.error, "utility_meters") &&
+    Boolean(utilityMetersResult.data?.length);
+  const hasUtilityReadingsTable = !isMissingUtilityTable(
+    utilityReadingsResult.error,
+    "utility_readings",
+  );
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const mediaRows = mediaResult.data ?? [];
   const signedMedia = await Promise.all(
@@ -175,6 +191,35 @@ export async function GET() {
             status: bill.status,
             receiptUrl: bill.receipt_url ?? undefined,
             note: bill.note ?? undefined,
+          })),
+        }
+      : {}),
+    ...(hasUtilityMeters
+      ? {
+          utilityMeters: (utilityMetersResult.data ?? []).map((meter) => ({
+            id: meter.id,
+            service: meter.service,
+            label: meter.label,
+            serial: meter.serial,
+            location: meter.location,
+            unit: meter.unit,
+            nextDue: meter.next_due_label,
+            status: meter.status,
+            lastReading:
+              meter.last_reading === null ? undefined : Number(meter.last_reading),
+          })),
+        }
+      : {}),
+    ...(hasUtilityReadingsTable
+      ? {
+          utilityReadings: (utilityReadingsResult.data ?? []).map((reading) => ({
+            id: reading.id,
+            meterId: reading.meter_id,
+            period: reading.period,
+            value: Number(reading.value),
+            submittedAt: reading.submitted_at_label,
+            source: reading.source,
+            note: reading.note ?? undefined,
           })),
         }
       : {}),

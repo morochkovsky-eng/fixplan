@@ -154,3 +154,15 @@ on conflict (apartment_id, id) do update set service = excluded.service, period 
 insert into public.utility_bills (apartment_id, id, service, period, amount, due_date_label, paid_at_label, status, receipt_url, note)
 values ('00000000-0000-4000-8000-000000000034'::uuid, 'bill-aug-water', 'Вода', 'Август 2026', 2380, '05.09.2026', '28.08.2026', 'paid'::public.utility_bill_status, null, 'Оплачено по квитанции УК.')
 on conflict (apartment_id, id) do update set service = excluded.service, period = excluded.period, amount = excluded.amount, due_date_label = excluded.due_date_label, paid_at_label = excluded.paid_at_label, status = excluded.status, receipt_url = excluded.receipt_url, note = excluded.note, updated_at = now();
+
+insert into public.utility_meters (apartment_id, id, service, label, serial, location, unit, next_due_label, status, last_reading) values
+('00000000-0000-4000-8000-000000000034'::uuid, 'meter-cold-water', 'cold_water', 'Холодная вода', '210152202', 'Прихожая', 'м3', '25.09.2026', 'overdue'::public.utility_meter_status, 128.4),
+('00000000-0000-4000-8000-000000000034'::uuid, 'meter-hot-water', 'hot_water', 'Горячая вода', '0049391', 'Прихожая', 'м3', '25.09.2026', 'overdue'::public.utility_meter_status, 62.1),
+('00000000-0000-4000-8000-000000000034'::uuid, 'meter-electricity', 'electricity', 'Электроэнергия', '60196178', 'Квартира', 'кВт·ч', '25.09.2026', 'due'::public.utility_meter_status, 4830)
+on conflict (apartment_id, id) do update set service = excluded.service, label = excluded.label, serial = excluded.serial, location = excluded.location, unit = excluded.unit, next_due_label = excluded.next_due_label, status = excluded.status, last_reading = excluded.last_reading, updated_at = now();
+
+insert into public.utility_readings (apartment_id, id, meter_id, period, value, submitted_at_label, source, note) values
+('00000000-0000-4000-8000-000000000034'::uuid, 'reading-aug-cold-water', 'meter-cold-water', 'Август 2026', 128.4, '24.08.2026', 'telegram'::public.utility_reading_source, 'Передано владельцем через будущий сценарий бота.'),
+('00000000-0000-4000-8000-000000000034'::uuid, 'reading-aug-hot-water', 'meter-hot-water', 'Август 2026', 62.1, '24.08.2026', 'manual'::public.utility_reading_source, null),
+('00000000-0000-4000-8000-000000000034'::uuid, 'reading-aug-electricity', 'meter-electricity', 'Август 2026', 4830, '24.08.2026', 'owner'::public.utility_reading_source, null)
+on conflict (apartment_id, id) do update set meter_id = excluded.meter_id, period = excluded.period, value = excluded.value, submitted_at_label = excluded.submitted_at_label, source = excluded.source, note = excluded.note, updated_at = now();

@@ -12,6 +12,7 @@ const assetRouteSource = fs.readFileSync("app/api/assets/[id]/route.ts", "utf8")
 const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
 const utilityBillsRouteSource = fs.readFileSync("app/api/utility-bills/route.ts", "utf8");
 const utilityBillRouteSource = fs.readFileSync("app/api/utility-bills/[id]/route.ts", "utf8");
+const utilityReadingsRouteSource = fs.readFileSync("app/api/utility-readings/route.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
@@ -179,12 +180,19 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /function UtilitiesView/);
   assert.match(pageSource, /view === "utilities"/);
   assert.match(pageSource, /remoteState\.utilityBills \?\? current\.utilityBills/);
+  assert.match(pageSource, /remoteState\.utilityMeters \?\? current\.utilityMeters/);
+  assert.match(pageSource, /remoteState\.utilityReadings \?\? current\.utilityReadings/);
   assert.match(appDataRouteSource, /utilityBillsResult/);
-  assert.match(appDataRouteSource, /isMissingUtilityBillsTable/);
+  assert.match(appDataRouteSource, /utilityMetersResult/);
+  assert.match(appDataRouteSource, /utilityReadingsResult/);
+  assert.match(appDataRouteSource, /isMissingUtilityTable/);
   assert.match(utilityBillsRouteSource, /export async function POST/);
   assert.match(utilityBillsRouteSource, /\.from\("utility_bills"\)/);
   assert.match(utilityBillRouteSource, /export async function PATCH/);
   assert.match(utilityBillRouteSource, /export async function DELETE/);
+  assert.match(utilityReadingsRouteSource, /export async function POST/);
+  assert.match(utilityReadingsRouteSource, /\.from\("utility_meters"\)\.upsert/);
+  assert.match(utilityReadingsRouteSource, /\.from\("utility_readings"\)/);
   assert.match(pageSource, /Коммуналка и счета/);
   assert.match(pageSource, /Месяцы, счета, счетчики и статусы передачи/);
   assert.match(pageSource, /Данные за/);
@@ -200,6 +208,8 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /markPaid/);
   assert.match(pageSource, /deleteBill/);
   assert.match(pageSource, /saveBill/);
+  assert.match(pageSource, /saveReading/);
+  assert.match(pageSource, /Передать показание/);
 });
 
 test("supports editing and deleting node comments without schema-cache fields", () => {
