@@ -1408,7 +1408,10 @@ function withCatalogAssets(state: AppState): AppState {
     utilityBills: state.utilityBills ?? initialState.utilityBills,
     utilityMeters: state.utilityMeters ?? initialState.utilityMeters,
     utilityReadings: state.utilityReadings ?? initialState.utilityReadings,
-    cleanings: state.cleanings ?? initialState.cleanings,
+    cleanings: (state.cleanings ?? initialState.cleanings).map((cleaning) => ({
+      ...cleaning,
+      photos: cleaning.photos ?? [],
+    })),
     contractorAccess: {
       ...state.contractorAccess,
       inspectionId: state.contractorAccess.inspectionId ?? initialState.contractorAccess.inspectionId,

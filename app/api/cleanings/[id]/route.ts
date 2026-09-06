@@ -30,7 +30,15 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const { admin, error, status } = await requireApartmentAccess();
   if (!admin) return NextResponse.json({ error }, { status });
+  const { data: media } = await admin
+    .from("cleaning_media")
+    .select("storage_path")
+    .eq("apartment_id", APARTMENT_ID)
+    .eq("cleaning_id", id);
   const { error: deleteError } = await admin.from("cleanings").delete().eq("apartment_id", APARTMENT_ID).eq("id", id);
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  if (media?.length) {
+    await admin.storage.from("asset-media").remove(media.map((item) => item.storage_path));
+  }
   return NextResponse.json({ ok: true });
 }

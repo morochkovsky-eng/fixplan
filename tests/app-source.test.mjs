@@ -17,6 +17,7 @@ const cleaningsViewSource = fs.readFileSync("components/cleanings-view.tsx", "ut
 const cleaningsRouteSource = fs.readFileSync("app/api/cleanings/route.ts", "utf8");
 const cleaningRouteSource = fs.readFileSync("app/api/cleanings/[id]/route.ts", "utf8");
 const cleaningGuestSource = fs.readFileSync("app/cleaning/[token]/cleaning-guest-client.tsx", "utf8");
+const cleaningPhotoRouteSource = fs.readFileSync("app/api/cleanings/guest/[token]/photos/route.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
@@ -53,6 +54,7 @@ test("contains the production Supabase model", () => {
     "utility_meters",
     "utility_readings",
     "cleanings",
+    "cleaning_media",
   ]) {
     assert.match(schemaSource, new RegExp(`create table public\\.${table}`));
   }
@@ -73,15 +75,25 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(pageSource, /view === "cleanings"/);
   assert.match(pageSource, /remoteState\.cleanings \?\? current\.cleanings/);
   assert.match(appDataRouteSource, /cleaningsResult/);
+  assert.match(appDataRouteSource, /cleaningMediaResult/);
   assert.match(schemaSource, /cleaning_type/);
+  assert.match(schemaSource, /cleaning_photo_phase/);
   assert.match(schemaSource, /create table public\.cleanings/);
+  assert.match(schemaSource, /create table public\.cleaning_media/);
   assert.match(cleaningsRouteSource, /export async function POST/);
   assert.match(cleaningRouteSource, /export async function PATCH/);
   assert.match(cleaningRouteSource, /export async function DELETE/);
   assert.match(cleaningsViewSource, /Новая уборка/);
   assert.match(cleaningsViewSource, /Ссылка клинеру/);
   assert.match(cleaningGuestSource, /Чек-лист/);
+  assert.match(cleaningGuestSource, /Фото до/);
+  assert.match(cleaningGuestSource, /Фото после/);
+  assert.match(cleaningGuestSource, /accept="image\/\*"/);
+  assert.match(cleaningGuestSource, /\/photos/);
   assert.match(cleaningGuestSource, /Завершить уборку/);
+  assert.match(cleaningPhotoRouteSource, /export async function POST/);
+  assert.match(cleaningPhotoRouteSource, /15 \* 1024 \* 1024/);
+  assert.match(cleaningPhotoRouteSource, /file\.type\.startsWith\("image\/"\)/);
   assert.doesNotMatch(
     cleaningsViewSource,
     /setDraft\(\(current\) => \(\{[^}]*event\.currentTarget/,

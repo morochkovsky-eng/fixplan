@@ -25,6 +25,7 @@ create type public.utility_reading_source as enum ('owner', 'telegram', 'manual'
 create type public.cleaning_type as enum ('standard', 'deep', 'post_renovation', 'turnover');
 create type public.cleaning_mode as enum ('managed', 'record_only');
 create type public.cleaning_status as enum ('draft', 'scheduled', 'in_progress', 'completed', 'accepted');
+create type public.cleaning_photo_phase as enum ('before', 'after');
 
 create table public.apartments (
   id uuid primary key default gen_random_uuid(),
@@ -250,6 +251,19 @@ create table public.cleanings (
   constraint cleanings_cost_non_negative check (cost is null or cost >= 0)
 );
 
+create table public.cleaning_media (
+  apartment_id uuid not null,
+  id uuid primary key default gen_random_uuid(),
+  cleaning_id text not null,
+  phase public.cleaning_photo_phase not null,
+  storage_path text not null,
+  media_type text not null default 'image/jpeg',
+  filename text not null default 'Фото уборки',
+  created_at timestamptz not null default now(),
+  foreign key (apartment_id, cleaning_id)
+    references public.cleanings(apartment_id, id) on delete cascade
+);
+
 insert into storage.buckets (id, name, public)
 values ('asset-media', 'asset-media', false)
 on conflict (id) do nothing;
@@ -363,6 +377,11 @@ with check (public.is_apartment_member(apartment_id));
 
 create policy "members can manage cleanings"
 on public.cleanings for all
+using (public.is_apartment_member(apartment_id))
+with check (public.is_apartment_member(apartment_id));
+
+create policy "members can manage cleaning media"
+on public.cleaning_media for all
 using (public.is_apartment_member(apartment_id))
 with check (public.is_apartment_member(apartment_id));
 

@@ -20,7 +20,7 @@ import {
 
 const zones = ["Вся квартира", "Гостиная", "Кухня", "Санузел", "Спальня", "Прихожая", "Кабинет", "Постирочная"];
 
-type CleaningDraft = Omit<Cleaning, "id" | "link" | "createdAt" | "completedAt" | "completedItems"> & {
+type CleaningDraft = Omit<Cleaning, "id" | "link" | "createdAt" | "completedAt" | "completedItems" | "photos"> & {
   checklistText: string;
   suppliesText: string;
 };
@@ -103,7 +103,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
       });
       const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; error?: string };
       if (!response.ok || !payload.cleaning) throw new Error(payload.error ?? "Не удалось сохранить уборку.");
-      setCleanings(editingId ? cleanings.map((item) => item.id === editingId ? payload.cleaning! : item) : [payload.cleaning, ...cleanings]);
+      setCleanings(editingId ? cleanings.map((item) => item.id === editingId ? { ...payload.cleaning!, photos: item.photos } : item) : [payload.cleaning, ...cleanings]);
       closeForm();
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Не удалось сохранить уборку.");
@@ -134,7 +134,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
       window.alert(payload.error ?? "Не удалось принять уборку.");
       return;
     }
-    setCleanings(cleanings.map((item) => item.id === cleaning.id ? payload.cleaning! : item));
+    setCleanings(cleanings.map((item) => item.id === cleaning.id ? { ...payload.cleaning!, photos: item.photos } : item));
   }
 
   return (
@@ -184,7 +184,9 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
       <div className="grid gap-3">
         {sorted.map((cleaning) => {
           const progress = cleaning.checklist.length ? Math.round(cleaning.completedItems.length / cleaning.checklist.length * 100) : 0;
-          return <Card key={cleaning.id}><CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div className="grid min-w-0 gap-2"><div className="flex flex-wrap items-center gap-2"><strong>{cleaning.title}</strong><Badge variant={statusTone(cleaning.status)}>{cleaningStatusLabels[cleaning.status]}</Badge><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge></div><div className="text-muted-foreground text-sm">{cleaning.scheduledFor || "Дата не указана"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : " · Клинер не назначен"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</div><div className="text-sm">{cleaning.zones.join(", ") || "Зоны не выбраны"}</div><div className="flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div><span className="shrink-0 text-muted-foreground text-xs">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div></div><div className="flex flex-wrap gap-2 md:justify-end">{cleaning.link && <Button asChild size="sm" variant="secondary"><a href={cleaning.link} rel="noreferrer" target="_blank"><ExternalLink size={14} />Ссылка клинеру</a></Button>}{cleaning.status === "completed" && <Button onClick={() => void acceptCleaning(cleaning)} size="sm" type="button"><Check size={14} />Принять</Button>}<Button onClick={() => openEdit(cleaning)} size="sm" type="button" variant="outline"><Pencil size={14} />Редактировать</Button><Button aria-label="Удалить уборку" onClick={() => void removeCleaning(cleaning)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /></Button></div></CardContent></Card>;
+          const beforeCount = cleaning.photos.filter((photo) => photo.phase === "before").length;
+          const afterCount = cleaning.photos.filter((photo) => photo.phase === "after").length;
+          return <Card key={cleaning.id}><CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div className="grid min-w-0 gap-2"><div className="flex flex-wrap items-center gap-2"><strong>{cleaning.title}</strong><Badge variant={statusTone(cleaning.status)}>{cleaningStatusLabels[cleaning.status]}</Badge><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge></div><div className="text-muted-foreground text-sm">{cleaning.scheduledFor || "Дата не указана"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : " · Клинер не назначен"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</div><div className="text-sm">{cleaning.zones.join(", ") || "Зоны не выбраны"}</div><div className="text-muted-foreground text-sm">Фото до: {beforeCount} · Фото после: {afterCount}</div>{cleaning.photos.length > 0 && <div className="flex gap-2 overflow-x-auto">{cleaning.photos.map((photo) => <a aria-label={`Открыть ${photo.filename}`} className="block size-16 shrink-0 rounded-md border bg-cover bg-center" href={photo.url} key={photo.id} rel="noreferrer" style={{ backgroundImage: `url(${photo.url})` }} target="_blank" />)}</div>}<div className="flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div><span className="shrink-0 text-muted-foreground text-xs">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div></div><div className="flex flex-wrap gap-2 md:justify-end">{cleaning.link && <Button asChild size="sm" variant="secondary"><a href={cleaning.link} rel="noreferrer" target="_blank"><ExternalLink size={14} />Ссылка клинеру</a></Button>}{cleaning.status === "completed" && <Button onClick={() => void acceptCleaning(cleaning)} size="sm" type="button"><Check size={14} />Принять</Button>}<Button onClick={() => openEdit(cleaning)} size="sm" type="button" variant="outline"><Pencil size={14} />Редактировать</Button><Button aria-label="Удалить уборку" onClick={() => void removeCleaning(cleaning)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /></Button></div></CardContent></Card>;
         })}
         {!sorted.length && <Card><CardContent className="grid place-items-center gap-3 py-12 text-center"><span className="grid size-11 place-items-center rounded-lg bg-muted"><ClipboardCheck size={20} /></span><div><strong className="block">Уборок пока нет</strong><span className="text-muted-foreground text-sm">Создайте первую уборку и передайте клинеру простой чек-лист.</span></div><Button onClick={openCreate} type="button"><Plus size={16} />Новая уборка</Button></CardContent></Card>}
       </div>

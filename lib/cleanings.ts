@@ -1,6 +1,15 @@
 export type CleaningType = "standard" | "deep" | "post_renovation" | "turnover";
 export type CleaningMode = "managed" | "record_only";
 export type CleaningStatus = "draft" | "scheduled" | "in_progress" | "completed" | "accepted";
+export type CleaningPhotoPhase = "before" | "after";
+
+export type CleaningPhoto = {
+  id: string;
+  phase: CleaningPhotoPhase;
+  url: string;
+  filename: string;
+  createdAt?: string;
+};
 
 export type Cleaning = {
   id: string;
@@ -20,6 +29,7 @@ export type Cleaning = {
   link?: string;
   createdAt: string;
   completedAt?: string;
+  photos: CleaningPhoto[];
 };
 
 export const cleaningTypeLabels: Record<CleaningType, string> = {
@@ -41,4 +51,3 @@ export const cleaningStatusLabels: Record<CleaningStatus, string> = {
   completed: "Выполнена",
   accepted: "Принята",
 };
-

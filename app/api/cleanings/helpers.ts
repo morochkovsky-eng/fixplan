@@ -24,6 +24,5 @@ export function cleaningPayload(body: Record<string, unknown>) {
 
 export function serializeCleaning(row: Record<string, unknown>, request: Request) {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
-  return { id: row.id, title: row.title, type: row.type, mode: row.mode, zones: row.zones ?? [], checklist: row.checklist ?? [], completedItems: row.completed_items ?? [], supplies: row.supplies ?? [], scheduledFor: row.scheduled_for_label, cleaner: row.cleaner, cleanerPhone: row.cleaner_phone ?? undefined, status: row.status, cost: row.cost == null ? undefined : Number(row.cost), notes: row.notes ?? undefined, link: row.mode === "managed" ? `${appUrl}/cleaning/${row.guest_token}` : undefined, createdAt: row.created_at_label, completedAt: row.completed_at_label ?? undefined };
+  return { id: row.id, title: row.title, type: row.type, mode: row.mode, zones: row.zones ?? [], checklist: row.checklist ?? [], completedItems: row.completed_items ?? [], supplies: row.supplies ?? [], scheduledFor: row.scheduled_for_label, cleaner: row.cleaner, cleanerPhone: row.cleaner_phone ?? undefined, status: row.status, cost: row.cost == null ? undefined : Number(row.cost), notes: row.notes ?? undefined, link: row.mode === "managed" ? `${appUrl}/cleaning/${row.guest_token}` : undefined, createdAt: row.created_at_label, completedAt: row.completed_at_label ?? undefined, photos: [] };
 }
-

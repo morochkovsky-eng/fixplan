@@ -56,6 +56,7 @@ export async function GET() {
     utilityMetersResult,
     utilityReadingsResult,
     cleaningsResult,
+    cleaningMediaResult,
   ] = await Promise.all([
     admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).is("deleted_at", null).order("code"),
     admin.from("asset_categories").select("*").eq("apartment_id", APARTMENT_ID).order("sort_order"),
@@ -68,6 +69,7 @@ export async function GET() {
     admin.from("utility_meters").select("*").eq("apartment_id", APARTMENT_ID).order("created_at"),
     admin.from("utility_readings").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
     admin.from("cleanings").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
+    admin.from("cleaning_media").select("*").eq("apartment_id", APARTMENT_ID).order("created_at"),
   ]);
 
   const error =
@@ -82,7 +84,10 @@ export async function GET() {
     (isMissingUtilityTable(utilityMetersResult.error, "utility_meters") ? null : utilityMetersResult.error) ??
     (isMissingUtilityTable(utilityReadingsResult.error, "utility_readings") ? null : utilityReadingsResult.error);
 
-  const effectiveError = error ?? (isMissingTable(cleaningsResult.error, "cleanings") ? null : cleaningsResult.error);
+  const effectiveError =
+    error ??
+    (isMissingTable(cleaningsResult.error, "cleanings") ? null : cleaningsResult.error) ??
+    (isMissingTable(cleaningMediaResult.error, "cleaning_media") ? null : cleaningMediaResult.error);
 
   if (effectiveError) {
     return NextResponse.json({ error: effectiveError.message }, { status: 500 });
@@ -114,6 +119,21 @@ export async function GET() {
         mediaType: item.media_type ?? "image/jpeg",
         caption: item.caption,
         createdBy: item.created_by,
+        createdAt: item.created_at,
+      };
+    }),
+  );
+  const signedCleaningMedia = await Promise.all(
+    (cleaningMediaResult.data ?? []).map(async (item) => {
+      const { data } = await admin.storage
+        .from("asset-media")
+        .createSignedUrl(item.storage_path, 60 * 60);
+      return {
+        id: item.id,
+        cleaningId: item.cleaning_id,
+        phase: item.phase,
+        url: data?.signedUrl ?? "",
+        filename: item.filename,
         createdAt: item.created_at,
       };
     }),
@@ -255,6 +275,15 @@ export async function GET() {
                 : undefined,
             createdAt: cleaning.created_at_label,
             completedAt: cleaning.completed_at_label ?? undefined,
+            photos: signedCleaningMedia
+              .filter((photo) => photo.cleaningId === cleaning.id && photo.url)
+              .map((photo) => ({
+                id: photo.id,
+                phase: photo.phase,
+                url: photo.url,
+                filename: photo.filename,
+                createdAt: photo.createdAt,
+              })),
           })),
         }
       : {}),
