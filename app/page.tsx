@@ -58,12 +58,15 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Bot,
   Check,
   ClipboardCheck,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  Copy,
   Droplets,
+  ExternalLink,
   FileText,
   Gauge,
   History,
@@ -78,6 +81,7 @@ import {
   Search,
   Settings,
   Trash2,
+  Unplug,
   UserRoundCheck,
   X,
   Zap,
@@ -4472,7 +4476,116 @@ function SettingsView({
           ))}
         </CardContent>
       </Card>
+
+      <TelegramSettings />
     </div>
+  );
+}
+
+type TelegramConnection = {
+  telegramUserId: string;
+  role: "owner" | "cleaner" | "master";
+  displayName: string;
+  username?: string;
+  active: boolean;
+  createdAt: string;
+};
+
+const telegramRoleLabels: Record<TelegramConnection["role"], string> = {
+  owner: "Владелец",
+  cleaner: "Клинер",
+  master: "Мастер",
+};
+
+function TelegramSettings() {
+  const [accounts, setAccounts] = useState<TelegramConnection[]>([]);
+  const [role, setRole] = useState<TelegramConnection["role"]>("owner");
+  const [pairingLink, setPairingLink] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/telegram/pairing", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => ({}))) as { accounts?: TelegramConnection[]; error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "Не удалось загрузить подключения.");
+        if (!cancelled) setAccounts(payload.accounts ?? []);
+      })
+      .catch((loadError) => {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить подключения.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function createPairingLink() {
+    setSaving(true);
+    setError("");
+    const response = await fetch("/api/telegram/pairing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ role }) });
+    const payload = (await response.json().catch(() => ({}))) as { link?: string; code?: string; expiresAt?: string; error?: string };
+    if (!response.ok) setError(payload.error ?? "Не удалось создать ссылку.");
+    else if (!payload.link) setError("Укажите TELEGRAM_BOT_USERNAME в настройках окружения.");
+    else {
+      setPairingLink(payload.link);
+      setExpiresAt(payload.expiresAt ?? "");
+    }
+    setSaving(false);
+  }
+
+  async function disconnect(account: TelegramConnection) {
+    setError("");
+    const response = await fetch("/api/telegram/pairing", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ telegramUserId: account.telegramUserId }) });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) setError(payload.error ?? "Не удалось отключить аккаунт.");
+    else setAccounts((current) => current.filter((item) => item.telegramUserId !== account.telegramUserId));
+  }
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Bot size={18} />Telegram-ассистент</CardTitle>
+        <CardDescription>Подключите владельца, клинера или мастера персональной одноразовой ссылкой.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-2 sm:grid-cols-[220px_auto] sm:items-end">
+          <div className="grid gap-1.5">
+            <span className="text-sm font-medium">Роль пользователя</span>
+            <Select value={role} onValueChange={(value) => setRole(value as TelegramConnection["role"])}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>{Object.entries(telegramRoleLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <Button disabled={saving} onClick={() => void createPairingLink()} type="button"><Bot size={16} />Создать ссылку</Button>
+        </div>
+
+        {pairingLink && (
+          <div className="grid gap-2 rounded-lg bg-muted p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div className="min-w-0"><strong className="block text-sm">Ссылка для роли «{telegramRoleLabels[role]}»</strong><span className="block truncate text-muted-foreground text-sm">Действует до {new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(expiresAt))}</span></div>
+            <div className="flex gap-2">
+              <Button aria-label="Копировать ссылку" onClick={() => void navigator.clipboard.writeText(pairingLink)} size="icon" type="button" variant="secondary"><Copy size={16} /></Button>
+              <Button asChild><a href={pairingLink} rel="noreferrer" target="_blank"><ExternalLink size={16} />Открыть Telegram</a></Button>
+            </div>
+          </div>
+        )}
+
+        {error && <div className="rounded-lg bg-destructive/10 p-3 text-destructive text-sm">{error}</div>}
+        <div className="grid divide-y rounded-lg border">
+          {accounts.map((account) => (
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3" key={account.telegramUserId}>
+              <div className="grid gap-0.5"><strong className="text-sm">{account.displayName || account.username || `Telegram ${account.telegramUserId}`}</strong><span className="text-muted-foreground text-sm">{telegramRoleLabels[account.role]}{account.username ? ` · @${account.username}` : ""}</span></div>
+              <Button aria-label={`Отключить ${account.displayName}`} onClick={() => void disconnect(account)} size="icon-sm" type="button" variant="ghost"><Unplug size={15} /></Button>
+            </div>
+          ))}
+          {!loading && accounts.length === 0 && <div className="p-3 text-muted-foreground text-sm">Telegram пока не подключён.</div>}
+          {loading && <div className="p-3 text-muted-foreground text-sm">Проверяем подключения…</div>}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -25,6 +25,7 @@ const notificationHelperSource = fs.readFileSync("lib/server/notifications.ts", 
 const telegramWebhookSource = fs.readFileSync("app/api/telegram/webhook/route.ts", "utf8");
 const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts", "utf8");
 const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
+const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
@@ -89,11 +90,18 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /23505/);
   assert.match(telegramPairingSource, /code_hash/);
   assert.match(telegramPairingSource, /15 \* 60 \* 1000/);
+  assert.match(telegramPairingSource, /export async function GET/);
+  assert.match(telegramPairingSource, /export async function DELETE/);
+  assert.match(pageSource, /Telegram-ассистент/);
+  assert.match(pageSource, /Создать ссылку/);
   assert.match(telegramAssistantSource, /list_cleanings/);
   assert.match(telegramAssistantSource, /prepare_cleaning/);
   assert.match(telegramAssistantSource, /confirmationWords/);
   assert.match(telegramAssistantSource, /createCleaningRecord/);
   assert.match(telegramAssistantSource, /api\.openai\.com\/v1\/responses/);
+  assert.match(telegramClientSource, /getFile/);
+  assert.match(telegramClientSource, /gpt-4o-mini-transcribe/);
+  assert.match(telegramClientSource, /api\.openai\.com\/v1\/audio\/transcriptions/);
 });
 
 test("supports cleaning as a first-class owner and guest workflow", () => {

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runTelegramAssistant } from "@/lib/server/telegram-assistant";
-import { sendTelegramMessage, type TelegramUpdate, type TelegramUser } from "@/lib/server/telegram";
+import { sendTelegramMessage, transcribeTelegramVoice, type TelegramUpdate, type TelegramUser } from "@/lib/server/telegram";
 
 function displayName(user: TelegramUser) {
   return [user.first_name, user.last_name].filter(Boolean).join(" ");
@@ -57,10 +57,9 @@ export async function POST(request: Request) {
       const { data: account } = await admin.from("telegram_accounts").select("telegram_user_id,apartment_id,role,display_name").eq("telegram_user_id", user.id).eq("active", true).maybeSingle();
       if (!account) {
         await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
-      } else if (message.voice) {
-        await sendTelegramMessage(message.chat.id, "Голосовые сообщения подключим следующим шагом. Пока отправьте запрос текстом.");
-      } else if (text) {
-        const answer = await runTelegramAssistant(admin, account, text, new URL(request.url).origin);
+      } else if (message.voice || text) {
+        const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
+        const answer = await runTelegramAssistant(admin, account, userMessage, new URL(request.url).origin);
         await sendTelegramMessage(message.chat.id, answer);
       }
     }

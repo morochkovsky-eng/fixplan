@@ -35,6 +35,7 @@ OWNER_EMAIL=morochkovsky@gmail.com
 NEXT_PUBLIC_OWNER_EMAIL=morochkovsky@gmail.com
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.4-mini
+OPENAI_TRANSCRIBE_MODEL=gpt-4o-mini-transcribe
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_BOT_USERNAME=
 TELEGRAM_WEBHOOK_SECRET=
@@ -50,7 +51,7 @@ TELEGRAM_WEBHOOK_SECRET=
 3. Apply the Supabase migrations before opening that link.
 4. Register `https://<production-domain>/api/telegram/webhook` with Telegram `setWebhook`, passing the same `TELEGRAM_WEBHOOK_SECRET` as `secret_token`.
 
-The first bot slice supports text conversations, reading cleanings, and preparing a new cleaning. A prepared cleaning is persisted only after the user explicitly sends `Создавай`.
+The first bot slice supports text and Telegram voice conversations, reading cleanings, and preparing a new cleaning. A prepared cleaning is persisted only after the user explicitly sends `Создавай`.
 
 ## Deployment
 
