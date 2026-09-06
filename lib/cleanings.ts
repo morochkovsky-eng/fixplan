@@ -26,6 +26,8 @@ export type Cleaning = {
   status: CleaningStatus;
   cost?: number;
   notes?: string;
+  requirePhotoBefore: boolean;
+  requirePhotoAfter: boolean;
   link?: string;
   createdAt: string;
   completedAt?: string;

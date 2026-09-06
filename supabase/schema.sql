@@ -240,6 +240,8 @@ create table public.cleanings (
   status public.cleaning_status not null default 'scheduled',
   cost numeric,
   notes text,
+  require_photo_before boolean not null default false,
+  require_photo_after boolean not null default false,
   guest_token text unique not null default encode(extensions.gen_random_bytes(24), 'hex'),
   created_by text not null,
   created_at_label text not null,

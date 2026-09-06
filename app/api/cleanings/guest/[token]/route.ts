@@ -16,6 +16,8 @@ function serialize(row: Record<string, unknown>, photos: CleaningPhoto[]) {
     cleaner: row.cleaner,
     status: row.status,
     notes: row.notes ?? undefined,
+    requirePhotoBefore: row.require_photo_before === true,
+    requirePhotoAfter: row.require_photo_after === true,
     photos,
   };
 }
@@ -49,6 +51,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   const body = (await request.json().catch(() => ({}))) as { completedItems?: unknown; status?: unknown };
   const completedItems = Array.isArray(body.completedItems) ? body.completedItems.map(String) : [];
   const status = body.status === "completed" ? "completed" : body.status === "in_progress" ? "in_progress" : undefined;
+  const { data: currentCleaning, error: currentError } = await admin
+    .from("cleanings")
+    .select("apartment_id,id,require_photo_before,require_photo_after")
+    .eq("guest_token", token)
+    .eq("mode", "managed")
+    .maybeSingle();
+  if (currentError || !currentCleaning) return NextResponse.json({ error: "Уборка не найдена или ссылка недействительна." }, { status: 404 });
+  if (status === "completed" && (currentCleaning.require_photo_before || currentCleaning.require_photo_after)) {
+    const { data: media, error: mediaError } = await admin
+      .from("cleaning_media")
+      .select("phase")
+      .eq("apartment_id", currentCleaning.apartment_id)
+      .eq("cleaning_id", currentCleaning.id);
+    if (mediaError) return NextResponse.json({ error: "Не удалось проверить фотографии." }, { status: 500 });
+    const phases = new Set((media ?? []).map((item) => item.phase));
+    if (currentCleaning.require_photo_before && !phases.has("before")) return NextResponse.json({ error: "Добавьте обязательное фото до уборки." }, { status: 400 });
+    if (currentCleaning.require_photo_after && !phases.has("after")) return NextResponse.json({ error: "Добавьте обязательное фото после уборки." }, { status: 400 });
+  }
   const patch: Record<string, unknown> = { completed_items: completedItems, updated_at: new Date().toISOString() };
   if (status) patch.status = status;
   if (status === "completed") patch.completed_at_label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date());

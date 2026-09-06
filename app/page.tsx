@@ -1411,6 +1411,8 @@ function withCatalogAssets(state: AppState): AppState {
     cleanings: (state.cleanings ?? initialState.cleanings).map((cleaning) => ({
       ...cleaning,
       photos: cleaning.photos ?? [],
+      requirePhotoBefore: cleaning.requirePhotoBefore ?? false,
+      requirePhotoAfter: cleaning.requirePhotoAfter ?? false,
     })),
     contractorAccess: {
       ...state.contractorAccess,

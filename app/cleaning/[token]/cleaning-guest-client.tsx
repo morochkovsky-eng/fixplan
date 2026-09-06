@@ -104,6 +104,9 @@ export function CleaningGuestClient({ token }: { token: string }) {
   const done = cleaning.status === "completed" || cleaning.status === "accepted";
   const beforePhotos = cleaning.photos.filter((photo) => photo.phase === "before");
   const afterPhotos = cleaning.photos.filter((photo) => photo.phase === "after");
+  const missingRequiredPhoto =
+    (cleaning.requirePhotoBefore && beforePhotos.length === 0) ||
+    (cleaning.requirePhotoAfter && afterPhotos.length === 0);
   return (
     <main className="min-h-screen bg-muted px-4 py-6 sm:py-10">
       <Card className="mx-auto w-full max-w-xl">
@@ -115,8 +118,8 @@ export function CleaningGuestClient({ token }: { token: string }) {
           {cleaning.zones.length > 0 && <section className="grid gap-2"><strong className="text-sm">Зоны</strong><div className="flex flex-wrap gap-2">{cleaning.zones.map((zone) => <Badge key={zone} variant="secondary">{zone}</Badge>)}</div></section>}
           {cleaning.supplies.length > 0 && <section className="grid gap-2"><strong className="text-sm">Средства и инвентарь</strong><ul className="m-0 grid gap-1 pl-5 text-muted-foreground text-sm">{cleaning.supplies.map((item) => <li key={item}>{item}</li>)}</ul></section>}
           {cleaning.notes && <div className="rounded-lg bg-muted p-3 text-sm">{cleaning.notes}</div>}
-          <section className="grid gap-3 sm:grid-cols-2">
-            <PhotoSection
+          {(cleaning.requirePhotoBefore || cleaning.requirePhotoAfter) && <section className="grid gap-3 sm:grid-cols-2">
+            {cleaning.requirePhotoBefore && <PhotoSection
               disabled={done || uploadingPhase !== null}
               inputRef={beforeInputRef}
               label="Фото до"
@@ -124,8 +127,8 @@ export function CleaningGuestClient({ token }: { token: string }) {
               onOpen={(photo) => setGalleryIndex(cleaning.photos.findIndex((item) => item.id === photo.id))}
               onUpload={(files) => void uploadPhotos(files, "before")}
               photos={beforePhotos}
-            />
-            <PhotoSection
+            />}
+            {cleaning.requirePhotoAfter && <PhotoSection
               disabled={done || uploadingPhase !== null}
               inputRef={afterInputRef}
               label="Фото после"
@@ -133,11 +136,12 @@ export function CleaningGuestClient({ token }: { token: string }) {
               onOpen={(photo) => setGalleryIndex(cleaning.photos.findIndex((item) => item.id === photo.id))}
               onUpload={(files) => void uploadPhotos(files, "after")}
               photos={afterPhotos}
-            />
-          </section>
+            />}
+          </section>}
           <section className="grid gap-2"><div className="flex items-center justify-between gap-3"><strong>Чек-лист</strong><span className="text-muted-foreground text-sm">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div>{cleaning.checklist.map((item) => { const checked = cleaning.completedItems.includes(item); return <button className={`flex min-h-12 items-center gap-3 rounded-lg border p-3 text-left ${checked ? "bg-muted text-muted-foreground" : "bg-background"}`} disabled={done || saving} key={item} onClick={() => { const completedItems = checked ? cleaning.completedItems.filter((value) => value !== item) : [...cleaning.completedItems, item]; void patch(completedItems, "in_progress"); }} type="button"><span className={`grid size-5 shrink-0 place-items-center rounded border ${checked ? "border-foreground bg-foreground text-background" : "bg-background"}`}>{checked && <Check size={14} />}</span><span className={checked ? "line-through" : ""}>{item}</span></button>; })}</section>
           {error && <p className="m-0 text-destructive text-sm">{error}</p>}
-          {done ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Уборка завершена</strong><p className="m-1 text-muted-foreground text-sm">Результат уже передан владельцу.</p></div> : <Button className="w-full" disabled={saving || cleaning.completedItems.length !== cleaning.checklist.length} onClick={() => void patch(cleaning.completedItems, "completed")} type="button">{saving ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}Завершить уборку</Button>}
+          {missingRequiredPhoto && !done && <p className="m-0 text-center text-muted-foreground text-sm">Для завершения добавьте обязательные фотографии.</p>}
+          {done ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Уборка завершена</strong><p className="m-1 text-muted-foreground text-sm">Результат уже передан владельцу.</p></div> : <Button className="w-full" disabled={saving || uploadingPhase !== null || missingRequiredPhoto || cleaning.completedItems.length !== cleaning.checklist.length} onClick={() => void patch(cleaning.completedItems, "completed")} type="button">{saving ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}Завершить уборку</Button>}
         </CardContent>
       </Card>
       {galleryIndex !== null && cleaning.photos[galleryIndex] && (
@@ -189,7 +193,7 @@ function PhotoSection({
   return (
     <div className="grid content-start gap-3 rounded-lg border p-3">
       <div className="flex items-center justify-between gap-3">
-        <strong className="text-sm">{label}</strong>
+        <div className="flex items-center gap-2"><strong className="text-sm">{label}</strong><Badge variant="secondary">Обязательно</Badge></div>
         <span className="text-muted-foreground text-xs">{photos.length}</span>
       </div>
       {photos.length > 0 && (
