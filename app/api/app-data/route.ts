@@ -266,6 +266,8 @@ export async function GET() {
             completedItems: cleaning.completed_items ?? [],
             supplies: cleaning.supplies ?? [],
             scheduledFor: cleaning.scheduled_for_label,
+            scheduledAt: cleaning.scheduled_for_at ?? undefined,
+            recurrence: cleaning.recurrence ?? "none",
             cleaner: cleaning.cleaner,
             cleanerPhone: cleaning.cleaner_phone ?? undefined,
             status: cleaning.status,

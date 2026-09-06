@@ -14,6 +14,8 @@ function serialize(row: Record<string, unknown>, photos: CleaningPhoto[]) {
     completedItems: row.completed_items ?? [],
     supplies: row.supplies ?? [],
     scheduledFor: row.scheduled_for_label,
+    scheduledAt: row.scheduled_for_at ?? undefined,
+    recurrence: row.recurrence ?? "none",
     cleaner: row.cleaner,
     status: row.status,
     cost: row.cost == null ? undefined : Number(row.cost),

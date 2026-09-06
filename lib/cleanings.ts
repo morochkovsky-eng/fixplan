@@ -3,6 +3,7 @@ export type CleaningMode = "managed" | "record_only";
 export type CleaningStatus = "draft" | "offered" | "scheduled" | "in_progress" | "completed" | "revision_requested" | "accepted" | "declined";
 export type CleaningPhotoPhase = "before" | "after";
 export type CleaningZoneStatus = "pending" | "done" | "issue";
+export type CleaningRecurrence = "none" | "weekly" | "biweekly" | "monthly";
 
 export type CleaningZoneResult = {
   zone: string;
@@ -30,6 +31,8 @@ export type Cleaning = {
   completedItems: string[];
   supplies: string[];
   scheduledFor: string;
+  scheduledAt?: string;
+  recurrence: CleaningRecurrence;
   cleaner: string;
   cleanerPhone?: string;
   status: CleaningStatus;
@@ -65,4 +68,11 @@ export const cleaningStatusLabels: Record<CleaningStatus, string> = {
   revision_requested: "На доработке",
   accepted: "Принята",
   declined: "Отклонена",
+};
+
+export const cleaningRecurrenceLabels: Record<CleaningRecurrence, string> = {
+  none: "Не повторять",
+  weekly: "Каждую неделю",
+  biweekly: "Раз в две недели",
+  monthly: "Каждый месяц",
 };

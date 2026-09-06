@@ -26,6 +26,7 @@ create type public.cleaning_type as enum ('standard', 'deep', 'post_renovation',
 create type public.cleaning_mode as enum ('managed', 'record_only');
 create type public.cleaning_status as enum ('draft', 'offered', 'scheduled', 'in_progress', 'completed', 'revision_requested', 'accepted', 'declined');
 create type public.cleaning_photo_phase as enum ('before', 'after');
+create type public.cleaning_recurrence as enum ('none', 'weekly', 'biweekly', 'monthly');
 
 create table public.apartments (
   id uuid primary key default gen_random_uuid(),
@@ -236,6 +237,9 @@ create table public.cleanings (
   completed_items text[] not null default '{}',
   supplies text[] not null default '{}',
   scheduled_for_label text not null default '',
+  scheduled_for_at timestamptz,
+  recurrence public.cleaning_recurrence not null default 'none',
+  recurs_from_id text,
   cleaner text not null default '',
   cleaner_phone text,
   status public.cleaning_status not null default 'scheduled',
@@ -251,6 +255,7 @@ create table public.cleanings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (apartment_id, id),
+  unique (apartment_id, recurs_from_id),
   constraint cleanings_title_not_blank check (length(trim(title)) > 0),
   constraint cleanings_cost_non_negative check (cost is null or cost >= 0)
 );

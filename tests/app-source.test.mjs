@@ -16,6 +16,7 @@ const utilityReadingsRouteSource = fs.readFileSync("app/api/utility-readings/rou
 const cleaningsViewSource = fs.readFileSync("components/cleanings-view.tsx", "utf8");
 const cleaningsRouteSource = fs.readFileSync("app/api/cleanings/route.ts", "utf8");
 const cleaningRouteSource = fs.readFileSync("app/api/cleanings/[id]/route.ts", "utf8");
+const cleaningHelpersSource = fs.readFileSync("app/api/cleanings/helpers.ts", "utf8");
 const cleaningGuestSource = fs.readFileSync("app/cleaning/[token]/cleaning-guest-client.tsx", "utf8");
 const cleaningPhotoRouteSource = fs.readFileSync("app/api/cleanings/guest/[token]/photos/route.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
@@ -78,6 +79,7 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(appDataRouteSource, /cleaningMediaResult/);
   assert.match(schemaSource, /cleaning_type/);
   assert.match(schemaSource, /cleaning_photo_phase/);
+  assert.match(schemaSource, /cleaning_recurrence/);
   assert.match(schemaSource, /create table public\.cleanings/);
   assert.match(schemaSource, /create table public\.cleaning_media/);
   assert.match(schemaSource, /phase public\.cleaning_photo_phase not null,\s+zone text,/);
@@ -97,6 +99,11 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.doesNotMatch(cleaningsViewSource, /Шаблоны уборки/);
   assert.match(cleaningsViewSource, /Нужно фото до/);
   assert.match(cleaningsViewSource, /Нужно фото после/);
+  assert.match(cleaningsViewSource, /type="datetime-local"/);
+  assert.match(cleaningsViewSource, /cleaningRecurrenceLabels/);
+  assert.match(cleaningHelpersSource, /Europe\/Moscow/);
+  assert.match(cleaningRouteSource, /nextOccurrence/);
+  assert.match(cleaningRouteSource, /recurs_from_id/);
   assert.match(cleaningGuestSource, /Чек-лист/);
   assert.match(cleaningGuestSource, /Фото до/);
   assert.match(cleaningGuestSource, /Фото после/);

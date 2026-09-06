@@ -10,11 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import {
   cleaningModeLabels,
+  cleaningRecurrenceLabels,
   cleaningStatusLabels,
   cleaningTypeLabels,
   type Cleaning,
   type CleaningMode,
   type CleaningPhoto,
+  type CleaningRecurrence,
   type CleaningStatus,
   type CleaningType,
 } from "@/lib/cleanings";
@@ -38,6 +40,8 @@ function emptyDraft(): CleaningDraft {
     supplies: [],
     suppliesText: "",
     scheduledFor: "",
+    scheduledAt: "",
+    recurrence: "none",
     cleaner: "",
     cleanerPhone: "",
     status: "offered",
@@ -51,9 +55,16 @@ function emptyDraft(): CleaningDraft {
 function draftFromCleaning(cleaning: Cleaning): CleaningDraft {
   return {
     ...cleaning,
+    scheduledAt: cleaning.scheduledAt ? toDateTimeLocal(cleaning.scheduledAt) : "",
     checklistText: cleaning.checklist.join("\n"),
     suppliesText: cleaning.supplies.join("\n"),
   };
+}
+
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() + 3 * 60 * 60_000).toISOString().slice(0, 16);
 }
 
 function draftFromRecentCleaning(cleanings: Cleaning[]): CleaningDraft {
@@ -73,6 +84,7 @@ function draftFromRecentCleaning(cleanings: Cleaning[]): CleaningDraft {
     notes: recent.notes ?? "",
     requirePhotoBefore: recent.requirePhotoBefore,
     requirePhotoAfter: recent.requirePhotoAfter,
+    recurrence: "none",
   };
 }
 
@@ -92,7 +104,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
   const activeCount = cleanings.filter((item) => ["offered", "scheduled", "in_progress", "revision_requested"].includes(item.status)).length;
   const completedCount = cleanings.filter((item) => ["completed", "accepted"].includes(item.status)).length;
   const totalCost = cleanings.reduce((sum, item) => sum + (item.cost ?? 0), 0);
-  const sorted = useMemo(() => [...cleanings].sort((a, b) => b.id.localeCompare(a.id)), [cleanings]);
+  const sorted = useMemo(() => [...cleanings], [cleanings]);
 
   function openCreate() {
     setEditingId(null);
@@ -121,7 +133,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
     }
     setSaving(true);
     try {
-      const body = { ...draft, title: draft.title.trim(), checklist, supplies };
+      const body = { ...draft, title: draft.title.trim(), checklist, supplies, scheduledAt: draft.scheduledAt ? `${draft.scheduledAt}:00+03:00` : undefined };
       const response = await fetch(editingId ? `/api/cleanings/${editingId}` : "/api/cleanings", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -160,12 +172,13 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...cleaning, ownerFeedback, status }),
     });
-    const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; error?: string };
+    const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; nextCleaning?: Cleaning; error?: string };
     if (!response.ok || !payload.cleaning) {
       window.alert(payload.error ?? "Не удалось сохранить решение.");
       return;
     }
-    setCleanings(cleanings.map((item) => item.id === cleaning.id ? { ...payload.cleaning!, photos: item.photos } : item));
+    const updated = cleanings.map((item) => item.id === cleaning.id ? { ...payload.cleaning!, photos: item.photos } : item);
+    setCleanings(payload.nextCleaning ? [payload.nextCleaning, ...updated] : updated);
     setReviewDrafts((current) => ({ ...current, [cleaning.id]: "" }));
   }
 
@@ -198,7 +211,8 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
               <Field label="Тип"><Select value={draft.type} onValueChange={(value) => setDraft((current) => ({ ...current, type: value as CleaningType }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
               <Field label="Сценарий"><Select value={draft.mode} onValueChange={(value) => setDraft((current) => ({ ...current, mode: value as CleaningMode }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningModeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
               <Field label="Статус"><Select value={draft.status} onValueChange={(value) => setDraft((current) => ({ ...current, status: value as CleaningStatus }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningStatusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
-              <Field label="Дата и время"><Input onChange={(event) => { const scheduledFor = event.currentTarget.value; setDraft((current) => ({ ...current, scheduledFor })); }} placeholder="12 сентября, 10:00" value={draft.scheduledFor} /></Field>
+              <Field label="Дата и время"><Input onChange={(event) => { const scheduledAt = event.currentTarget.value; setDraft((current) => ({ ...current, scheduledAt, scheduledFor: scheduledAt ? current.scheduledFor : "" })); }} type="datetime-local" value={draft.scheduledAt ?? ""} /></Field>
+              <Field label="Повторение"><Select value={draft.recurrence} onValueChange={(value) => setDraft((current) => ({ ...current, recurrence: value as CleaningRecurrence }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningRecurrenceLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
               <Field label="Клинер"><Input onChange={(event) => { const cleaner = event.currentTarget.value; setDraft((current) => ({ ...current, cleaner })); }} placeholder="Имя" value={draft.cleaner} /></Field>
               <Field label="Телефон"><Input onChange={(event) => { const cleanerPhone = event.currentTarget.value; setDraft((current) => ({ ...current, cleanerPhone })); }} placeholder="+7..." value={draft.cleanerPhone ?? ""} /></Field>
               <Field label="Стоимость"><Input min="0" onChange={(event) => { const value = event.currentTarget.value; setDraft((current) => ({ ...current, cost: value === "" ? undefined : Number(value) })); }} placeholder="0" type="number" value={draft.cost ?? ""} /></Field>
@@ -234,7 +248,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
           const afterCount = cleaning.photos.filter((photo) => photo.phase === "after").length;
           const issueZones = cleaning.zoneResults.filter((result) => result.status === "issue");
           const photoRequirement = cleaning.requirePhotoBefore && cleaning.requirePhotoAfter ? "до и после" : cleaning.requirePhotoBefore ? "до" : cleaning.requirePhotoAfter ? "после" : "не нужен";
-          return <Card key={cleaning.id}><CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div className="grid min-w-0 gap-2"><div className="flex flex-wrap items-center gap-2"><strong>{cleaning.title}</strong><Badge variant={statusTone(cleaning.status)}>{cleaningStatusLabels[cleaning.status]}</Badge><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge>{issueZones.length > 0 && <Badge variant="destructive">Проблемы: {issueZones.length}</Badge>}</div><div className="text-muted-foreground text-sm">{cleaning.scheduledFor || "Дата не указана"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : " · Клинер не назначен"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</div><div className="text-sm">{cleaning.zones.join(", ") || "Зоны не выбраны"}</div>{issueZones.map((result) => <div className="rounded-md bg-destructive/10 p-2 text-destructive text-sm" key={result.zone}><strong>{result.zone}</strong>{result.comment ? ` · ${result.comment}` : ""}</div>)}{cleaning.ownerFeedback && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm"><strong className="block text-destructive">Комментарий владельца</strong><span>{cleaning.ownerFeedback}</span></div>}<div className="text-muted-foreground text-sm">Фотоконтроль: {photoRequirement}{cleaning.requirePhotoBefore ? ` · до ${beforeCount}` : ""}{cleaning.requirePhotoAfter ? ` · после ${afterCount}` : ""}</div>{cleaning.photos.length > 0 && <div className="flex gap-2 overflow-x-auto">{cleaning.photos.map((photo, index) => <button aria-label={`Открыть ${photo.filename}`} className="block size-16 shrink-0 rounded-md border bg-cover bg-center" key={photo.id} onClick={() => setGallery({ photos: cleaning.photos, index })} style={{ backgroundImage: `url(${photo.url})` }} title={photo.zone ? `${photo.zone} · ${photo.phase === "before" ? "Фото до" : "Фото после"}` : photo.filename} type="button" />)}</div>}{cleaning.status === "completed" && <Textarea onChange={(event) => { const value = event.currentTarget.value; setReviewDrafts((current) => ({ ...current, [cleaning.id]: value })); }} placeholder="Что нужно исправить, если возвращаете уборку" rows={2} value={reviewDrafts[cleaning.id] ?? ""} />}<div className="flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div><span className="shrink-0 text-muted-foreground text-xs">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div></div><div className="flex flex-wrap gap-2 md:justify-end">{cleaning.link && <Button asChild size="sm" variant="secondary"><a href={cleaning.link} rel="noreferrer" target="_blank"><ExternalLink size={14} />Ссылка клинеру</a></Button>}{cleaning.status === "completed" && <Button onClick={() => void reviewCleaning(cleaning, "accepted")} size="sm" type="button"><Check size={14} />Принять</Button>}{cleaning.status === "completed" && <Button onClick={() => void reviewCleaning(cleaning, "revision_requested")} size="sm" type="button" variant="outline">Вернуть на доработку</Button>}<Button onClick={() => openEdit(cleaning)} size="sm" type="button" variant="outline"><Pencil size={14} />Редактировать</Button><Button aria-label="Удалить уборку" onClick={() => void removeCleaning(cleaning)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /></Button></div></CardContent></Card>;
+          return <Card key={cleaning.id}><CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div className="grid min-w-0 gap-2"><div className="flex flex-wrap items-center gap-2"><strong>{cleaning.title}</strong><Badge variant={statusTone(cleaning.status)}>{cleaningStatusLabels[cleaning.status]}</Badge><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge>{cleaning.recurrence !== "none" && <Badge variant="outline">{cleaningRecurrenceLabels[cleaning.recurrence]}</Badge>}{issueZones.length > 0 && <Badge variant="destructive">Проблемы: {issueZones.length}</Badge>}</div><div className="text-muted-foreground text-sm">{cleaning.scheduledFor || "Дата не указана"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : " · Клинер не назначен"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</div><div className="text-sm">{cleaning.zones.join(", ") || "Зоны не выбраны"}</div>{issueZones.map((result) => <div className="rounded-md bg-destructive/10 p-2 text-destructive text-sm" key={result.zone}><strong>{result.zone}</strong>{result.comment ? ` · ${result.comment}` : ""}</div>)}{cleaning.ownerFeedback && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm"><strong className="block text-destructive">Комментарий владельца</strong><span>{cleaning.ownerFeedback}</span></div>}<div className="text-muted-foreground text-sm">Фотоконтроль: {photoRequirement}{cleaning.requirePhotoBefore ? ` · до ${beforeCount}` : ""}{cleaning.requirePhotoAfter ? ` · после ${afterCount}` : ""}</div>{cleaning.photos.length > 0 && <div className="flex gap-2 overflow-x-auto">{cleaning.photos.map((photo, index) => <button aria-label={`Открыть ${photo.filename}`} className="block size-16 shrink-0 rounded-md border bg-cover bg-center" key={photo.id} onClick={() => setGallery({ photos: cleaning.photos, index })} style={{ backgroundImage: `url(${photo.url})` }} title={photo.zone ? `${photo.zone} · ${photo.phase === "before" ? "Фото до" : "Фото после"}` : photo.filename} type="button" />)}</div>}{cleaning.status === "completed" && <Textarea onChange={(event) => { const value = event.currentTarget.value; setReviewDrafts((current) => ({ ...current, [cleaning.id]: value })); }} placeholder="Что нужно исправить, если возвращаете уборку" rows={2} value={reviewDrafts[cleaning.id] ?? ""} />}<div className="flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div><span className="shrink-0 text-muted-foreground text-xs">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div></div><div className="flex flex-wrap gap-2 md:justify-end">{cleaning.link && <Button asChild size="sm" variant="secondary"><a href={cleaning.link} rel="noreferrer" target="_blank"><ExternalLink size={14} />Ссылка клинеру</a></Button>}{cleaning.status === "completed" && <Button onClick={() => void reviewCleaning(cleaning, "accepted")} size="sm" type="button"><Check size={14} />Принять</Button>}{cleaning.status === "completed" && <Button onClick={() => void reviewCleaning(cleaning, "revision_requested")} size="sm" type="button" variant="outline">Вернуть на доработку</Button>}<Button onClick={() => openEdit(cleaning)} size="sm" type="button" variant="outline"><Pencil size={14} />Редактировать</Button><Button aria-label="Удалить уборку" onClick={() => void removeCleaning(cleaning)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /></Button></div></CardContent></Card>;
         })}
         {!sorted.length && <Card><CardContent className="grid place-items-center gap-3 py-12 text-center"><span className="grid size-11 place-items-center rounded-lg bg-muted"><ClipboardCheck size={20} /></span><div><strong className="block">Уборок пока нет</strong><span className="text-muted-foreground text-sm">Создайте первую уборку и передайте клинеру простой чек-лист.</span></div><Button onClick={openCreate} type="button"><Plus size={16} />Новая уборка</Button></CardContent></Card>}
       </div>
