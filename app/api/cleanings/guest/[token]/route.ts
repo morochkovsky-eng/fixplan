@@ -17,6 +17,7 @@ function serialize(row: Record<string, unknown>, photos: CleaningPhoto[]) {
     cleaner: row.cleaner,
     status: row.status,
     notes: row.notes ?? undefined,
+    ownerFeedback: row.owner_feedback ?? undefined,
     requirePhotoBefore: row.require_photo_before === true,
     requirePhotoAfter: row.require_photo_after === true,
     photos,
@@ -92,7 +93,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
     patch.zone_results = zoneResults.filter((result) => allowedZones.has(result.zone));
   }
   if (status) patch.status = status;
-  if (status === "completed") patch.completed_at_label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+  if (status === "completed") {
+    patch.completed_at_label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
+    patch.owner_feedback = null;
+  }
   const { data, error } = await admin.from("cleanings").update(patch).eq("guest_token", token).eq("mode", "managed").select("*").single();
   if (error) return NextResponse.json({ error: "Не удалось сохранить прогресс." }, { status: 500 });
   const photos = await signedPhotos(admin, data.apartment_id, data.id);

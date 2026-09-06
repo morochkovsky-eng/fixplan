@@ -146,6 +146,7 @@ export function CleaningGuestClient({ token }: { token: string }) {
           {cleaning.zones.length > 0 && <section className="grid gap-2"><strong className="text-sm">Зоны</strong><div className="flex flex-wrap gap-2">{cleaning.zones.map((zone) => <Badge key={zone} variant="secondary">{zone}</Badge>)}</div></section>}
           {cleaning.supplies.length > 0 && <section className="grid gap-2"><strong className="text-sm">Средства и инвентарь</strong><ul className="m-0 grid gap-1 pl-5 text-muted-foreground text-sm">{cleaning.supplies.map((item) => <li key={item}>{item}</li>)}</ul></section>}
           {cleaning.notes && <div className="rounded-lg bg-muted p-3 text-sm">{cleaning.notes}</div>}
+          {cleaning.ownerFeedback && <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm"><strong className="block text-destructive">Нужно доработать</strong><span>{cleaning.ownerFeedback}</span></div>}
           {cleaning.zones.length > 0 && <section className="grid gap-3">
             <div className="grid gap-1"><strong>Результат по зонам</strong><span className="text-muted-foreground text-sm">Отметьте результат и оставьте комментарий, если обнаружили проблему.</span></div>
             {cleaning.zones.map((zone) => {

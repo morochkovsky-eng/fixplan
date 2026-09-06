@@ -1414,6 +1414,7 @@ function withCatalogAssets(state: AppState): AppState {
       requirePhotoBefore: cleaning.requirePhotoBefore ?? false,
       requirePhotoAfter: cleaning.requirePhotoAfter ?? false,
       zoneResults: cleaning.zoneResults ?? [],
+      ownerFeedback: cleaning.ownerFeedback ?? undefined,
     })),
     contractorAccess: {
       ...state.contractorAccess,

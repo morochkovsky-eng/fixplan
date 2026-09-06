@@ -57,7 +57,7 @@ function draftFromCleaning(cleaning: Cleaning): CleaningDraft {
 
 function statusTone(status: CleaningStatus): "secondary" | "outline" | "destructive" {
   if (status === "in_progress") return "outline";
-  if (status === "draft") return "destructive";
+  if (status === "draft" || status === "revision_requested") return "destructive";
   return "secondary";
 }
 
@@ -66,7 +66,8 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CleaningDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
-  const activeCount = cleanings.filter((item) => ["scheduled", "in_progress"].includes(item.status)).length;
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
+  const activeCount = cleanings.filter((item) => ["scheduled", "in_progress", "revision_requested"].includes(item.status)).length;
   const completedCount = cleanings.filter((item) => ["completed", "accepted"].includes(item.status)).length;
   const totalCost = cleanings.reduce((sum, item) => sum + (item.cost ?? 0), 0);
   const sorted = useMemo(() => [...cleanings].sort((a, b) => b.id.localeCompare(a.id)), [cleanings]);
@@ -126,18 +127,24 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
     setCleanings(cleanings.filter((item) => item.id !== cleaning.id));
   }
 
-  async function acceptCleaning(cleaning: Cleaning) {
+  async function reviewCleaning(cleaning: Cleaning, status: "accepted" | "revision_requested") {
+    const ownerFeedback = status === "revision_requested" ? (reviewDrafts[cleaning.id] ?? "").trim() : "";
+    if (status === "revision_requested" && !ownerFeedback) {
+      window.alert("Напишите, что нужно доработать.");
+      return;
+    }
     const response = await fetch(`/api/cleanings/${cleaning.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...cleaning, status: "accepted" }),
+      body: JSON.stringify({ ...cleaning, ownerFeedback, status }),
     });
     const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; error?: string };
     if (!response.ok || !payload.cleaning) {
-      window.alert(payload.error ?? "Не удалось принять уборку.");
+      window.alert(payload.error ?? "Не удалось сохранить решение.");
       return;
     }
     setCleanings(cleanings.map((item) => item.id === cleaning.id ? { ...payload.cleaning!, photos: item.photos } : item));
+    setReviewDrafts((current) => ({ ...current, [cleaning.id]: "" }));
   }
 
   return (
@@ -205,7 +212,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
           const afterCount = cleaning.photos.filter((photo) => photo.phase === "after").length;
           const issueZones = cleaning.zoneResults.filter((result) => result.status === "issue");
           const photoRequirement = cleaning.requirePhotoBefore && cleaning.requirePhotoAfter ? "до и после" : cleaning.requirePhotoBefore ? "до" : cleaning.requirePhotoAfter ? "после" : "не нужен";
-          return <Card key={cleaning.id}><CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div className="grid min-w-0 gap-2"><div className="flex flex-wrap items-center gap-2"><strong>{cleaning.title}</strong><Badge variant={statusTone(cleaning.status)}>{cleaningStatusLabels[cleaning.status]}</Badge><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge>{issueZones.length > 0 && <Badge variant="destructive">Проблемы: {issueZones.length}</Badge>}</div><div className="text-muted-foreground text-sm">{cleaning.scheduledFor || "Дата не указана"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : " · Клинер не назначен"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</div><div className="text-sm">{cleaning.zones.join(", ") || "Зоны не выбраны"}</div>{issueZones.map((result) => <div className="rounded-md bg-destructive/10 p-2 text-destructive text-sm" key={result.zone}><strong>{result.zone}</strong>{result.comment ? ` · ${result.comment}` : ""}</div>)}<div className="text-muted-foreground text-sm">Фотоконтроль: {photoRequirement}{cleaning.requirePhotoBefore ? ` · до ${beforeCount}` : ""}{cleaning.requirePhotoAfter ? ` · после ${afterCount}` : ""}</div>{cleaning.photos.length > 0 && <div className="flex gap-2 overflow-x-auto">{cleaning.photos.map((photo) => <a aria-label={`Открыть ${photo.filename}`} className="block size-16 shrink-0 rounded-md border bg-cover bg-center" href={photo.url} key={photo.id} rel="noreferrer" style={{ backgroundImage: `url(${photo.url})` }} target="_blank" />)}</div>}<div className="flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div><span className="shrink-0 text-muted-foreground text-xs">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div></div><div className="flex flex-wrap gap-2 md:justify-end">{cleaning.link && <Button asChild size="sm" variant="secondary"><a href={cleaning.link} rel="noreferrer" target="_blank"><ExternalLink size={14} />Ссылка клинеру</a></Button>}{cleaning.status === "completed" && <Button onClick={() => void acceptCleaning(cleaning)} size="sm" type="button"><Check size={14} />Принять</Button>}<Button onClick={() => openEdit(cleaning)} size="sm" type="button" variant="outline"><Pencil size={14} />Редактировать</Button><Button aria-label="Удалить уборку" onClick={() => void removeCleaning(cleaning)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /></Button></div></CardContent></Card>;
+          return <Card key={cleaning.id}><CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div className="grid min-w-0 gap-2"><div className="flex flex-wrap items-center gap-2"><strong>{cleaning.title}</strong><Badge variant={statusTone(cleaning.status)}>{cleaningStatusLabels[cleaning.status]}</Badge><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge>{issueZones.length > 0 && <Badge variant="destructive">Проблемы: {issueZones.length}</Badge>}</div><div className="text-muted-foreground text-sm">{cleaning.scheduledFor || "Дата не указана"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : " · Клинер не назначен"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</div><div className="text-sm">{cleaning.zones.join(", ") || "Зоны не выбраны"}</div>{issueZones.map((result) => <div className="rounded-md bg-destructive/10 p-2 text-destructive text-sm" key={result.zone}><strong>{result.zone}</strong>{result.comment ? ` · ${result.comment}` : ""}</div>)}{cleaning.ownerFeedback && <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm"><strong className="block text-destructive">Комментарий владельца</strong><span>{cleaning.ownerFeedback}</span></div>}<div className="text-muted-foreground text-sm">Фотоконтроль: {photoRequirement}{cleaning.requirePhotoBefore ? ` · до ${beforeCount}` : ""}{cleaning.requirePhotoAfter ? ` · после ${afterCount}` : ""}</div>{cleaning.photos.length > 0 && <div className="flex gap-2 overflow-x-auto">{cleaning.photos.map((photo) => <a aria-label={`Открыть ${photo.filename}`} className="block size-16 shrink-0 rounded-md border bg-cover bg-center" href={photo.url} key={photo.id} rel="noreferrer" style={{ backgroundImage: `url(${photo.url})` }} target="_blank" />)}</div>}{cleaning.status === "completed" && <Textarea onChange={(event) => { const value = event.currentTarget.value; setReviewDrafts((current) => ({ ...current, [cleaning.id]: value })); }} placeholder="Что нужно исправить, если возвращаете уборку" rows={2} value={reviewDrafts[cleaning.id] ?? ""} />}<div className="flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div><span className="shrink-0 text-muted-foreground text-xs">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div></div><div className="flex flex-wrap gap-2 md:justify-end">{cleaning.link && <Button asChild size="sm" variant="secondary"><a href={cleaning.link} rel="noreferrer" target="_blank"><ExternalLink size={14} />Ссылка клинеру</a></Button>}{cleaning.status === "completed" && <Button onClick={() => void reviewCleaning(cleaning, "accepted")} size="sm" type="button"><Check size={14} />Принять</Button>}{cleaning.status === "completed" && <Button onClick={() => void reviewCleaning(cleaning, "revision_requested")} size="sm" type="button" variant="outline">Вернуть на доработку</Button>}<Button onClick={() => openEdit(cleaning)} size="sm" type="button" variant="outline"><Pencil size={14} />Редактировать</Button><Button aria-label="Удалить уборку" onClick={() => void removeCleaning(cleaning)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /></Button></div></CardContent></Card>;
         })}
         {!sorted.length && <Card><CardContent className="grid place-items-center gap-3 py-12 text-center"><span className="grid size-11 place-items-center rounded-lg bg-muted"><ClipboardCheck size={20} /></span><div><strong className="block">Уборок пока нет</strong><span className="text-muted-foreground text-sm">Создайте первую уборку и передайте клинеру простой чек-лист.</span></div><Button onClick={openCreate} type="button"><Plus size={16} />Новая уборка</Button></CardContent></Card>}
       </div>

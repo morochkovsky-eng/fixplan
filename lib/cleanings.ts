@@ -1,6 +1,6 @@
 export type CleaningType = "standard" | "deep" | "post_renovation" | "turnover";
 export type CleaningMode = "managed" | "record_only";
-export type CleaningStatus = "draft" | "scheduled" | "in_progress" | "completed" | "accepted";
+export type CleaningStatus = "draft" | "scheduled" | "in_progress" | "completed" | "revision_requested" | "accepted";
 export type CleaningPhotoPhase = "before" | "after";
 export type CleaningZoneStatus = "pending" | "done" | "issue";
 
@@ -34,6 +34,7 @@ export type Cleaning = {
   status: CleaningStatus;
   cost?: number;
   notes?: string;
+  ownerFeedback?: string;
   requirePhotoBefore: boolean;
   requirePhotoAfter: boolean;
   link?: string;
@@ -59,5 +60,6 @@ export const cleaningStatusLabels: Record<CleaningStatus, string> = {
   scheduled: "Запланирована",
   in_progress: "В процессе",
   completed: "Выполнена",
+  revision_requested: "На доработке",
   accepted: "Принята",
 };

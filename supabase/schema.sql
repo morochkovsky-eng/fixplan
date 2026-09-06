@@ -24,7 +24,7 @@ create type public.utility_meter_status as enum ('due', 'submitted', 'overdue');
 create type public.utility_reading_source as enum ('owner', 'telegram', 'manual');
 create type public.cleaning_type as enum ('standard', 'deep', 'post_renovation', 'turnover');
 create type public.cleaning_mode as enum ('managed', 'record_only');
-create type public.cleaning_status as enum ('draft', 'scheduled', 'in_progress', 'completed', 'accepted');
+create type public.cleaning_status as enum ('draft', 'scheduled', 'in_progress', 'completed', 'revision_requested', 'accepted');
 create type public.cleaning_photo_phase as enum ('before', 'after');
 
 create table public.apartments (
@@ -241,6 +241,7 @@ create table public.cleanings (
   status public.cleaning_status not null default 'scheduled',
   cost numeric,
   notes text,
+  owner_feedback text,
   require_photo_before boolean not null default false,
   require_photo_after boolean not null default false,
   guest_token text unique not null default encode(extensions.gen_random_bytes(24), 'hex'),

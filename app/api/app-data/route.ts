@@ -270,6 +270,7 @@ export async function GET() {
             status: cleaning.status,
             cost: cleaning.cost == null ? undefined : Number(cleaning.cost),
             notes: cleaning.notes ?? undefined,
+            ownerFeedback: cleaning.owner_feedback ?? undefined,
             requirePhotoBefore: cleaning.require_photo_before === true,
             requirePhotoAfter: cleaning.require_photo_after === true,
             link:
