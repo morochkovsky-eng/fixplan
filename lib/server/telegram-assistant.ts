@@ -6,7 +6,6 @@ import { createCleaningRecord } from "@/lib/server/cleanings";
 type TelegramAccount = {
   telegram_user_id: number | string;
   apartment_id: string;
-  role: "owner" | "cleaner" | "master";
   display_name: string;
 };
 
@@ -84,7 +83,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-      instructions: `Ты ассистент сервиса FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс квартиры Europe/Moscow. Роль пользователя: ${account.role}. Данные о квартире получай только через инструменты. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. После подготовки попроси пользователя написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения.`,
+      instructions: `Ты личный ассистент владельца квартиры в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс квартиры Europe/Moscow. Данные о квартире получай только через инструменты. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. После подготовки попроси владельца написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
       input,
       tools,
       tool_choice: "auto",
@@ -119,7 +118,6 @@ async function executeTool(admin: SupabaseClient, account: TelegramAccount, call
   }
 
   if (call.name === "prepare_cleaning") {
-    if (account.role !== "owner") return { ok: false, error: "Только владелец может создавать уборки." };
     if (!String(args.scheduledAt ?? "").trim() || !String(args.cleaner ?? "").trim() || !Array.isArray(args.zones) || !args.zones.length) {
       return { ok: false, error: "Для черновика нужны дата и время, клинер и хотя бы одна зона." };
     }

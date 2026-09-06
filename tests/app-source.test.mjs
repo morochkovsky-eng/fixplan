@@ -93,12 +93,14 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramPairingSource, /export async function GET/);
   assert.match(telegramPairingSource, /export async function DELETE/);
   assert.match(pageSource, /Telegram-ассистент/);
-  assert.match(pageSource, /Создать ссылку/);
+  assert.match(pageSource, /Подключить мой Telegram/);
+  assert.doesNotMatch(pageSource, /Роль пользователя/);
   assert.match(telegramAssistantSource, /list_cleanings/);
   assert.match(telegramAssistantSource, /prepare_cleaning/);
   assert.match(telegramAssistantSource, /confirmationWords/);
   assert.match(telegramAssistantSource, /createCleaningRecord/);
   assert.match(telegramAssistantSource, /api\.openai\.com\/v1\/responses/);
+  assert.match(telegramAssistantSource, /личный ассистент владельца/);
   assert.match(telegramClientSource, /getFile/);
   assert.match(telegramClientSource, /gpt-4o-mini-transcribe/);
   assert.match(telegramClientSource, /api\.openai\.com\/v1\/audio\/transcriptions/);
@@ -137,8 +139,8 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningHelpersSource, /Europe\/Moscow/);
   assert.match(cleaningRouteSource, /nextOccurrence/);
   assert.match(cleaningRouteSource, /recurs_from_id/);
-  assert.match(cleaningServiceSource, /cleaning\.offered/);
-  assert.match(cleaningRouteSource, /cleaning\.revision_requested/);
+  assert.doesNotMatch(cleaningServiceSource, /recipient: "cleaner"/);
+  assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.revision_started/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.completed/);
   assert.match(notificationHelperSource, /telegram/);
   assert.match(notificationsRouteSource, /export async function GET/);

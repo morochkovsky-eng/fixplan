@@ -47,11 +47,11 @@ TELEGRAM_WEBHOOK_SECRET=
 ## Telegram bot
 
 1. Create the bot with BotFather and add the Telegram and OpenAI variables to Vercel.
-2. Generate a pairing link with authenticated `POST /api/telegram/pairing` and a body such as `{ "role": "owner" }`.
+2. Open FixPlan settings and select `Подключить мой Telegram`, or generate the same owner-only link with authenticated `POST /api/telegram/pairing`.
 3. Apply the Supabase migrations before opening that link.
 4. Register `https://<production-domain>/api/telegram/webhook` with Telegram `setWebhook`, passing the same `TELEGRAM_WEBHOOK_SECRET` as `secret_token`.
 
-The first bot slice supports text and Telegram voice conversations, reading cleanings, and preparing a new cleaning. A prepared cleaning is persisted only after the user explicitly sends `Создавай`.
+The bot is the owner's personal interface. It supports text and Telegram voice conversations, reading cleanings, and preparing a new cleaning. A prepared cleaning is persisted only after the owner explicitly sends `Создавай`. Cleaners and masters do not use the bot; they continue to work through guest links for individual jobs.
 
 ## Deployment
 

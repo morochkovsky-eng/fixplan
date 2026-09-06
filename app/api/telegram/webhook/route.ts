@@ -10,14 +10,13 @@ function displayName(user: TelegramUser) {
 
 async function connectAccount(admin: NonNullable<ReturnType<typeof createAdminClient>>, code: string, user: TelegramUser, chatId: number) {
   const now = new Date().toISOString();
-  const { data: pairing, error } = await admin.from("telegram_pairing_codes").select("id,apartment_id,role").eq("code_hash", createHash("sha256").update(code).digest("hex")).is("used_at", null).gt("expires_at", now).maybeSingle();
+  const { data: pairing, error } = await admin.from("telegram_pairing_codes").select("id,apartment_id").eq("code_hash", createHash("sha256").update(code).digest("hex")).is("used_at", null).gt("expires_at", now).maybeSingle();
   if (error || !pairing) return false;
 
   const { error: accountError } = await admin.from("telegram_accounts").upsert({
     telegram_user_id: user.id,
     apartment_id: pairing.apartment_id,
     chat_id: chatId,
-    role: pairing.role,
     display_name: displayName(user),
     username: user.username ?? null,
     active: true,
@@ -54,7 +53,7 @@ export async function POST(request: Request) {
       const connected = await connectAccount(admin, startCode, user, message.chat.id);
       await sendTelegramMessage(message.chat.id, connected ? "FixPlan подключён. Теперь можно спрашивать об уборках или создать новую." : "Ссылка подключения недействительна или уже использована.");
     } else {
-      const { data: account } = await admin.from("telegram_accounts").select("telegram_user_id,apartment_id,role,display_name").eq("telegram_user_id", user.id).eq("active", true).maybeSingle();
+      const { data: account } = await admin.from("telegram_accounts").select("telegram_user_id,apartment_id,display_name").eq("telegram_user_id", user.id).eq("active", true).maybeSingle();
       if (!account) {
         await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
       } else if (message.voice || text) {

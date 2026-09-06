@@ -4484,22 +4484,14 @@ function SettingsView({
 
 type TelegramConnection = {
   telegramUserId: string;
-  role: "owner" | "cleaner" | "master";
   displayName: string;
   username?: string;
   active: boolean;
   createdAt: string;
 };
 
-const telegramRoleLabels: Record<TelegramConnection["role"], string> = {
-  owner: "Владелец",
-  cleaner: "Клинер",
-  master: "Мастер",
-};
-
 function TelegramSettings() {
   const [accounts, setAccounts] = useState<TelegramConnection[]>([]);
-  const [role, setRole] = useState<TelegramConnection["role"]>("owner");
   const [pairingLink, setPairingLink] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [loading, setLoading] = useState(true);
@@ -4526,7 +4518,7 @@ function TelegramSettings() {
   async function createPairingLink() {
     setSaving(true);
     setError("");
-    const response = await fetch("/api/telegram/pairing", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ role }) });
+    const response = await fetch("/api/telegram/pairing", { method: "POST" });
     const payload = (await response.json().catch(() => ({}))) as { link?: string; code?: string; expiresAt?: string; error?: string };
     if (!response.ok) setError(payload.error ?? "Не удалось создать ссылку.");
     else if (!payload.link) setError("Укажите TELEGRAM_BOT_USERNAME в настройках окружения.");
@@ -4549,23 +4541,14 @@ function TelegramSettings() {
     <Card className="lg:col-span-2">
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Bot size={18} />Telegram-ассистент</CardTitle>
-        <CardDescription>Подключите владельца, клинера или мастера персональной одноразовой ссылкой.</CardDescription>
+        <CardDescription>Личный бот владельца для управления квартирой текстом и голосом.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid gap-2 sm:grid-cols-[220px_auto] sm:items-end">
-          <div className="grid gap-1.5">
-            <span className="text-sm font-medium">Роль пользователя</span>
-            <Select value={role} onValueChange={(value) => setRole(value as TelegramConnection["role"])}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>{Object.entries(telegramRoleLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <Button disabled={saving} onClick={() => void createPairingLink()} type="button"><Bot size={16} />Создать ссылку</Button>
-        </div>
+        <div><Button disabled={saving} onClick={() => void createPairingLink()} type="button"><Bot size={16} />Подключить мой Telegram</Button></div>
 
         {pairingLink && (
           <div className="grid gap-2 rounded-lg bg-muted p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-            <div className="min-w-0"><strong className="block text-sm">Ссылка для роли «{telegramRoleLabels[role]}»</strong><span className="block truncate text-muted-foreground text-sm">Действует до {new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(expiresAt))}</span></div>
+            <div className="min-w-0"><strong className="block text-sm">Безопасная ссылка для подключения вашего аккаунта</strong><span className="block truncate text-muted-foreground text-sm">Действует до {new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(new Date(expiresAt))}</span></div>
             <div className="flex gap-2">
               <Button aria-label="Копировать ссылку" onClick={() => void navigator.clipboard.writeText(pairingLink)} size="icon" type="button" variant="secondary"><Copy size={16} /></Button>
               <Button asChild><a href={pairingLink} rel="noreferrer" target="_blank"><ExternalLink size={16} />Открыть Telegram</a></Button>
@@ -4577,7 +4560,7 @@ function TelegramSettings() {
         <div className="grid divide-y rounded-lg border">
           {accounts.map((account) => (
             <div className="flex flex-wrap items-center justify-between gap-3 p-3" key={account.telegramUserId}>
-              <div className="grid gap-0.5"><strong className="text-sm">{account.displayName || account.username || `Telegram ${account.telegramUserId}`}</strong><span className="text-muted-foreground text-sm">{telegramRoleLabels[account.role]}{account.username ? ` · @${account.username}` : ""}</span></div>
+              <div className="grid gap-0.5"><strong className="text-sm">{account.displayName || account.username || `Telegram ${account.telegramUserId}`}</strong><span className="text-muted-foreground text-sm">Владелец{account.username ? ` · @${account.username}` : ""}</span></div>
               <Button aria-label={`Отключить ${account.displayName}`} onClick={() => void disconnect(account)} size="icon-sm" type="button" variant="ghost"><Unplug size={15} /></Button>
             </div>
           ))}

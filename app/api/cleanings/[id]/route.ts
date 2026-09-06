@@ -2,7 +2,6 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { APARTMENT_ID, requireApartmentAccess } from "../../assets/access";
 import type { CleaningRecurrence } from "@/lib/cleanings";
-import { enqueueNotification } from "@/lib/server/notifications";
 import { cleaningPayload, formatCleaningSchedule, serializeCleaning } from "../helpers";
 
 function nextOccurrence(value: string, recurrence: CleaningRecurrence) {
@@ -30,7 +29,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { data: currentCleaning, error: currentError } = await admin
     .from("cleanings")
-    .select("status,updated_at")
+    .select("status")
     .eq("apartment_id", APARTMENT_ID)
     .eq("id", id)
     .maybeSingle();
@@ -49,10 +48,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
   const cleaning = serializeCleaning(data, request);
-  if ((normalized.row.status === "accepted" || normalized.row.status === "revision_requested") && currentCleaning.status !== normalized.row.status) {
-    const accepted = normalized.row.status === "accepted";
-    await enqueueNotification(admin, { apartmentId: APARTMENT_ID, kind: accepted ? "cleaning.accepted" : "cleaning.revision_requested", recipient: "cleaner", entityId: id, title: accepted ? "Уборка принята" : "Уборка возвращена на доработку", body: accepted ? data.title : String(data.owner_feedback ?? "Откройте задание и проверьте комментарий владельца."), actionUrl: cleaning.link, payload: { status: normalized.row.status, ownerFeedback: data.owner_feedback }, dedupeKey: `cleaning:${id}:${currentCleaning.status}:${normalized.row.status}:${currentCleaning.updated_at}` });
-  }
   let nextCleaning;
   if (normalized.row.status === "accepted" && currentCleaning.status !== "accepted" && normalized.row.recurrence !== "none" && normalized.row.scheduled_for_at) {
     const nextDate = nextOccurrence(normalized.row.scheduled_for_at, normalized.row.recurrence);
@@ -76,7 +71,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (createError && createError.code !== "23505") return NextResponse.json({ error: createError.message }, { status: 500 });
     if (created) {
       nextCleaning = serializeCleaning(created, request);
-      await enqueueNotification(admin, { apartmentId: APARTMENT_ID, kind: "cleaning.offered", recipient: "cleaner", entityId: created.id, title: "Следующая уборка запланирована", body: `${created.title} · ${created.scheduled_for_label}`, actionUrl: nextCleaning.link, payload: { cleaner: created.cleaner, cleanerPhone: created.cleaner_phone, scheduledAt: created.scheduled_for_at, recurrence: created.recurrence }, dedupeKey: `cleaning:${created.id}:offered` });
     }
   }
   return NextResponse.json({ cleaning, nextCleaning });
