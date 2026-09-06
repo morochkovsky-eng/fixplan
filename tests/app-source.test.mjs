@@ -93,6 +93,8 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningRouteSource, /export async function DELETE/);
   assert.match(cleaningsViewSource, /Новая уборка/);
   assert.match(cleaningsViewSource, /Ссылка клинеру/);
+  assert.match(cleaningsViewSource, /draftFromRecentCleaning/);
+  assert.doesNotMatch(cleaningsViewSource, /Шаблоны уборки/);
   assert.match(cleaningsViewSource, /Нужно фото до/);
   assert.match(cleaningsViewSource, /Нужно фото после/);
   assert.match(cleaningGuestSource, /Чек-лист/);

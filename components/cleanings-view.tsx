@@ -56,6 +56,26 @@ function draftFromCleaning(cleaning: Cleaning): CleaningDraft {
   };
 }
 
+function draftFromRecentCleaning(cleanings: Cleaning[]): CleaningDraft {
+  const recent = cleanings.find((cleaning) => cleaning.status === "accepted" || cleaning.status === "completed") ?? cleanings[0];
+  if (!recent) return emptyDraft();
+  return {
+    ...emptyDraft(),
+    title: recent.title,
+    type: recent.type,
+    mode: recent.mode,
+    zones: recent.zones,
+    checklistText: recent.checklist.join("\n"),
+    suppliesText: recent.supplies.join("\n"),
+    cleaner: recent.cleaner,
+    cleanerPhone: recent.cleanerPhone ?? "",
+    cost: recent.cost,
+    notes: recent.notes ?? "",
+    requirePhotoBefore: recent.requirePhotoBefore,
+    requirePhotoAfter: recent.requirePhotoAfter,
+  };
+}
+
 function statusTone(status: CleaningStatus): "secondary" | "outline" | "destructive" {
   if (status === "in_progress") return "outline";
   if (status === "draft" || status === "revision_requested" || status === "declined") return "destructive";
@@ -76,7 +96,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
 
   function openCreate() {
     setEditingId(null);
-    setDraft(emptyDraft());
+    setDraft(draftFromRecentCleaning(cleanings));
     setShowForm(true);
   }
 
