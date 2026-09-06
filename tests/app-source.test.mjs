@@ -210,6 +210,10 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /saveBill/);
   assert.match(pageSource, /saveReading/);
   assert.match(pageSource, /Передать показание/);
+  assert.doesNotMatch(
+    pageSource,
+    /set(?:ReadingDraft|Draft|EditDraft)\(\(current\) =>[^\n]*event\.currentTarget/,
+  );
 });
 
 test("supports editing and deleting node comments without schema-cache fields", () => {

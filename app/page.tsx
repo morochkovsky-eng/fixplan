@@ -3779,7 +3779,10 @@ function PlanAssetEditor({
           <label className="plan-editor-label" htmlFor="plan-asset-code">Код</label>
           <Input
             id="plan-asset-code"
-            onChange={(event) => onChange((current) => ({ ...current, code: event.currentTarget.value }))}
+            onChange={(event) => {
+              const code = event.currentTarget.value;
+              onChange((current) => ({ ...current, code }));
+            }}
             value={draft.code}
           />
         </div>
@@ -3787,7 +3790,10 @@ function PlanAssetEditor({
           <label className="plan-editor-label" htmlFor="plan-asset-name">Название</label>
           <Input
             id="plan-asset-name"
-            onChange={(event) => onChange((current) => ({ ...current, name: event.currentTarget.value }))}
+            onChange={(event) => {
+              const name = event.currentTarget.value;
+              onChange((current) => ({ ...current, name }));
+            }}
             value={draft.name}
           />
         </div>
@@ -3859,9 +3865,10 @@ function PlanAssetEditor({
           <label className="plan-editor-label" htmlFor="plan-asset-warranty">Гарантия</label>
           <Input
             id="plan-asset-warranty"
-            onChange={(event) =>
-              onChange((current) => ({ ...current, warrantyUntil: event.currentTarget.value }))
-            }
+            onChange={(event) => {
+              const warrantyUntil = event.currentTarget.value;
+              onChange((current) => ({ ...current, warrantyUntil }));
+            }}
             placeholder="например, до 12 декабря 2027"
             value={draft.warrantyUntil ?? ""}
           />
@@ -3870,9 +3877,10 @@ function PlanAssetEditor({
           <label className="plan-editor-label" htmlFor="plan-asset-master">Ответственный</label>
           <Input
             id="plan-asset-master"
-            onChange={(event) =>
-              onChange((current) => ({ ...current, master: event.currentTarget.value }))
-            }
+            onChange={(event) => {
+              const master = event.currentTarget.value;
+              onChange((current) => ({ ...current, master }));
+            }}
             placeholder="мастер, сервис или подрядчик"
             value={draft.master ?? ""}
           />
@@ -3883,7 +3891,10 @@ function PlanAssetEditor({
         <label className="plan-editor-label" htmlFor="plan-asset-note">Описание</label>
         <Textarea
           id="plan-asset-note"
-          onChange={(event) => onChange((current) => ({ ...current, photoNote: event.currentTarget.value }))}
+          onChange={(event) => {
+            const photoNote = event.currentTarget.value;
+            onChange((current) => ({ ...current, photoNote }));
+          }}
           placeholder="Что важно знать мастеру или владельцу"
           value={draft.photoNote}
         />
@@ -5693,7 +5704,10 @@ function UtilitiesView({
                             id={`reading-${meter.id}`}
                             inputMode="decimal"
                             min="0"
-                            onChange={(event) => setReadingDraft((current) => ({ ...current, value: event.currentTarget.value }))}
+                            onChange={(event) => {
+                              const value = event.currentTarget.value;
+                              setReadingDraft((current) => ({ ...current, value }));
+                            }}
                             placeholder={meter.lastReading !== undefined ? String(meter.lastReading) : "0"}
                             type="number"
                             value={readingDraft.value}
@@ -5703,7 +5717,10 @@ function UtilitiesView({
                           Комментарий
                           <Input
                             id={`reading-${meter.id}-note`}
-                            onChange={(event) => setReadingDraft((current) => ({ ...current, note: event.currentTarget.value }))}
+                            onChange={(event) => {
+                              const note = event.currentTarget.value;
+                              setReadingDraft((current) => ({ ...current, note }));
+                            }}
                             placeholder="Необязательно"
                             value={readingDraft.note}
                           />
@@ -5742,7 +5759,10 @@ function UtilitiesView({
                     Услуга
                     <Input
                       id="utility-service"
-                      onChange={(event) => setDraft((current) => ({ ...current, service: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const service = event.currentTarget.value;
+                        setDraft((current) => ({ ...current, service }));
+                      }}
                       placeholder="Коммунальные услуги"
                       value={draft.service}
                     />
@@ -5752,7 +5772,10 @@ function UtilitiesView({
                     <Input
                       id="utility-amount"
                       min="0"
-                      onChange={(event) => setDraft((current) => ({ ...current, amount: Number(event.currentTarget.value) }))}
+                      onChange={(event) => {
+                        const amount = Number(event.currentTarget.value);
+                        setDraft((current) => ({ ...current, amount }));
+                      }}
                       type="number"
                       value={draft.amount}
                     />
@@ -5761,7 +5784,10 @@ function UtilitiesView({
                     Оплатить до
                     <Input
                       id="utility-due-date"
-                      onChange={(event) => setDraft((current) => ({ ...current, dueDate: formatDateInput(event.currentTarget.value) }))}
+                      onChange={(event) => {
+                        const dueDate = formatDateInput(event.currentTarget.value);
+                        setDraft((current) => ({ ...current, dueDate }));
+                      }}
                       type="date"
                       value={dateInputFromFormatted(draft.dueDate)}
                     />
@@ -5788,7 +5814,10 @@ function UtilitiesView({
                     Квитанция
                     <Input
                       id="utility-receipt"
-                      onChange={(event) => setDraft((current) => ({ ...current, receiptUrl: event.currentTarget.value }))}
+                      onChange={(event) => {
+                        const receiptUrl = event.currentTarget.value;
+                        setDraft((current) => ({ ...current, receiptUrl }));
+                      }}
                       placeholder="Ссылка на файл или номер квитанции"
                       value={draft.receiptUrl}
                     />
@@ -5798,7 +5827,10 @@ function UtilitiesView({
                   Комментарий
                   <Textarea
                     id="utility-note"
-                    onChange={(event) => setDraft((current) => ({ ...current, note: event.currentTarget.value }))}
+                    onChange={(event) => {
+                      const note = event.currentTarget.value;
+                      setDraft((current) => ({ ...current, note }));
+                    }}
                     placeholder="Например, сверить показания перед оплатой"
                     rows={3}
                     value={draft.note}
@@ -5872,7 +5904,10 @@ function UtilitiesView({
                             Услуга
                             <Input
                               id={`edit-${bill.id}-service`}
-                              onChange={(event) => setEditDraft((current) => current ? { ...current, service: event.currentTarget.value } : current)}
+                              onChange={(event) => {
+                                const service = event.currentTarget.value;
+                                setEditDraft((current) => current ? { ...current, service } : current);
+                              }}
                               value={editDraft.service}
                             />
                           </label>
@@ -5880,7 +5915,10 @@ function UtilitiesView({
                             Период
                             <Input
                               id={`edit-${bill.id}-period`}
-                              onChange={(event) => setEditDraft((current) => current ? { ...current, period: event.currentTarget.value } : current)}
+                              onChange={(event) => {
+                                const period = event.currentTarget.value;
+                                setEditDraft((current) => current ? { ...current, period } : current);
+                              }}
                               value={editDraft.period}
                             />
                           </label>
@@ -5889,7 +5927,10 @@ function UtilitiesView({
                             <Input
                               id={`edit-${bill.id}-amount`}
                               min="0"
-                              onChange={(event) => setEditDraft((current) => current ? { ...current, amount: Number(event.currentTarget.value) } : current)}
+                              onChange={(event) => {
+                                const amount = Number(event.currentTarget.value);
+                                setEditDraft((current) => current ? { ...current, amount } : current);
+                              }}
                               type="number"
                               value={editDraft.amount}
                             />
@@ -5898,7 +5939,10 @@ function UtilitiesView({
                             Оплатить до
                             <Input
                               id={`edit-${bill.id}-due-date`}
-                              onChange={(event) => setEditDraft((current) => current ? { ...current, dueDate: formatDateInput(event.currentTarget.value) } : current)}
+                              onChange={(event) => {
+                                const dueDate = formatDateInput(event.currentTarget.value);
+                                setEditDraft((current) => current ? { ...current, dueDate } : current);
+                              }}
                               type="date"
                               value={dateInputFromFormatted(editDraft.dueDate)}
                             />
@@ -5925,7 +5969,10 @@ function UtilitiesView({
                             Квитанция
                             <Input
                               id={`edit-${bill.id}-receipt`}
-                              onChange={(event) => setEditDraft((current) => current ? { ...current, receiptUrl: event.currentTarget.value } : current)}
+                              onChange={(event) => {
+                                const receiptUrl = event.currentTarget.value;
+                                setEditDraft((current) => current ? { ...current, receiptUrl } : current);
+                              }}
                               value={editDraft.receiptUrl ?? ""}
                             />
                           </label>
@@ -5934,7 +5981,10 @@ function UtilitiesView({
                           Комментарий
                           <Textarea
                             id={`edit-${bill.id}-note`}
-                            onChange={(event) => setEditDraft((current) => current ? { ...current, note: event.currentTarget.value } : current)}
+                            onChange={(event) => {
+                              const note = event.currentTarget.value;
+                              setEditDraft((current) => current ? { ...current, note } : current);
+                            }}
                             rows={3}
                             value={editDraft.note ?? ""}
                           />
