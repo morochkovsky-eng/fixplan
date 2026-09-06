@@ -85,6 +85,8 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(schemaSource, /zone_results jsonb not null default '\[\]'::jsonb/);
   assert.match(schemaSource, /owner_feedback text/);
   assert.match(schemaSource, /revision_requested/);
+  assert.match(schemaSource, /offered/);
+  assert.match(schemaSource, /declined/);
   assert.match(cleaningsRouteSource, /export async function POST/);
   assert.match(cleaningRouteSource, /export async function PATCH/);
   assert.match(cleaningRouteSource, /export async function DELETE/);
@@ -104,6 +106,9 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningGuestSource, /Есть проблема/);
   assert.match(cleaningGuestSource, /Сохранить комментарии/);
   assert.match(cleaningGuestSource, /Нужно доработать/);
+  assert.match(cleaningGuestSource, /Принять задание/);
+  assert.match(cleaningGuestSource, /Отказаться/);
+  assert.match(cleaningGuestSource, /Что нужно убрать/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /Добавьте обязательное фото до уборки/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /Укажите результат по каждой зоне уборки/);
   assert.match(cleaningsViewSource, /Проблемы:/);

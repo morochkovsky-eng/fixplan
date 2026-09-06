@@ -2,7 +2,7 @@ import type { CleaningMode, CleaningStatus, CleaningType, CleaningZoneResult } f
 
 const types = new Set<CleaningType>(["standard", "deep", "post_renovation", "turnover"]);
 const modes = new Set<CleaningMode>(["managed", "record_only"]);
-const statuses = new Set<CleaningStatus>(["draft", "scheduled", "in_progress", "completed", "revision_requested", "accepted"]);
+const statuses = new Set<CleaningStatus>(["draft", "offered", "scheduled", "in_progress", "completed", "revision_requested", "accepted", "declined"]);
 
 function textArray(value: unknown) {
   return Array.isArray(value) ? value.map(String).map((item) => item.trim()).filter(Boolean) : [];

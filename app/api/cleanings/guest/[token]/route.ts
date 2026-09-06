@@ -16,6 +16,7 @@ function serialize(row: Record<string, unknown>, photos: CleaningPhoto[]) {
     scheduledFor: row.scheduled_for_label,
     cleaner: row.cleaner,
     status: row.status,
+    cost: row.cost == null ? undefined : Number(row.cost),
     notes: row.notes ?? undefined,
     ownerFeedback: row.owner_feedback ?? undefined,
     requirePhotoBefore: row.require_photo_before === true,
@@ -64,15 +65,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   if (!admin) return NextResponse.json({ error: "Сервис временно недоступен." }, { status: 500 });
   const body = (await request.json().catch(() => ({}))) as { completedItems?: unknown; status?: unknown; zoneResults?: unknown };
   const completedItems = Array.isArray(body.completedItems) ? body.completedItems.map(String) : [];
-  const status = body.status === "completed" ? "completed" : body.status === "in_progress" ? "in_progress" : undefined;
+  const requestedStatus = typeof body.status === "string" ? body.status : undefined;
   const zoneResults = normalizeZoneResults(body.zoneResults);
   const { data: currentCleaning, error: currentError } = await admin
     .from("cleanings")
-    .select("apartment_id,id,zones,require_photo_before,require_photo_after")
+    .select("apartment_id,id,zones,status,require_photo_before,require_photo_after")
     .eq("guest_token", token)
     .eq("mode", "managed")
     .maybeSingle();
   if (currentError || !currentCleaning) return NextResponse.json({ error: "Уборка не найдена или ссылка недействительна." }, { status: 404 });
+  const currentStatus = currentCleaning.status as string;
+  const status =
+    currentStatus === "offered" && requestedStatus === "scheduled" ? "scheduled" :
+    currentStatus === "offered" && requestedStatus === "declined" ? "declined" :
+    ["scheduled", "in_progress", "revision_requested"].includes(currentStatus) && requestedStatus === "in_progress" ? "in_progress" :
+    ["scheduled", "in_progress", "revision_requested"].includes(currentStatus) && requestedStatus === "completed" ? "completed" :
+    undefined;
+  if (requestedStatus && !status) return NextResponse.json({ error: "Это действие недоступно для текущего статуса уборки." }, { status: 409 });
   if (status === "completed" && currentCleaning.zones.some((zone: string) => !zoneResults.some((result) => result.zone === zone && result.status !== "pending"))) {
     return NextResponse.json({ error: "Укажите результат по каждой зоне уборки." }, { status: 400 });
   }

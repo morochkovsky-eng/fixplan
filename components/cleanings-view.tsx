@@ -39,7 +39,7 @@ function emptyDraft(): CleaningDraft {
     scheduledFor: "",
     cleaner: "",
     cleanerPhone: "",
-    status: "scheduled",
+    status: "offered",
     cost: undefined,
     notes: "",
     requirePhotoBefore: false,
@@ -57,7 +57,7 @@ function draftFromCleaning(cleaning: Cleaning): CleaningDraft {
 
 function statusTone(status: CleaningStatus): "secondary" | "outline" | "destructive" {
   if (status === "in_progress") return "outline";
-  if (status === "draft" || status === "revision_requested") return "destructive";
+  if (status === "draft" || status === "revision_requested" || status === "declined") return "destructive";
   return "secondary";
 }
 
@@ -67,7 +67,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
   const [draft, setDraft] = useState<CleaningDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
-  const activeCount = cleanings.filter((item) => ["scheduled", "in_progress", "revision_requested"].includes(item.status)).length;
+  const activeCount = cleanings.filter((item) => ["offered", "scheduled", "in_progress", "revision_requested"].includes(item.status)).length;
   const completedCount = cleanings.filter((item) => ["completed", "accepted"].includes(item.status)).length;
   const totalCost = cleanings.reduce((sum, item) => sum + (item.cost ?? 0), 0);
   const sorted = useMemo(() => [...cleanings].sort((a, b) => b.id.localeCompare(a.id)), [cleanings]);
