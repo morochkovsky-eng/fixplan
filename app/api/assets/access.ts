@@ -8,7 +8,7 @@ export async function requireApartmentAccess() {
   const admin = createAdminClient();
 
   if (!supabase || !admin) {
-    return { admin: null, userEmail: "", error: "Supabase is not configured", status: 500 };
+    return { admin: null, userEmail: "", role: "", error: "Supabase is not configured", status: 500 };
   }
 
   const {
@@ -16,7 +16,7 @@ export async function requireApartmentAccess() {
   } = await supabase.auth.getUser();
 
   if (!user?.email) {
-    return { admin, userEmail: "", error: "Unauthorized", status: 401 };
+    return { admin, userEmail: "", role: "", error: "Unauthorized", status: 401 };
   }
 
   const { data: membership, error: membershipError } = await admin
@@ -27,9 +27,8 @@ export async function requireApartmentAccess() {
     .maybeSingle();
 
   if (membershipError || !membership) {
-    return { admin, userEmail: user.email, error: "Apartment access denied", status: 403 };
+    return { admin, userEmail: user.email, role: "", error: "Apartment access denied", status: 403 };
   }
 
-  return { admin, userEmail: user.email, error: "", status: 200 };
+  return { admin, userEmail: user.email, role: membership.role, error: "", status: 200 };
 }
-

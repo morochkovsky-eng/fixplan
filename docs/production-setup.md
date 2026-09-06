@@ -33,9 +33,24 @@ SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_APP_URL=
 OWNER_EMAIL=morochkovsky@gmail.com
 NEXT_PUBLIC_OWNER_EMAIL=morochkovsky@gmail.com
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.4-mini
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_WEBHOOK_SECRET=
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` must stay server-only and must not be exposed in the browser.
+`OPENAI_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_WEBHOOK_SECRET` are server-only secrets too.
+
+## Telegram bot
+
+1. Create the bot with BotFather and add the Telegram and OpenAI variables to Vercel.
+2. Generate a pairing link with authenticated `POST /api/telegram/pairing` and a body such as `{ "role": "owner" }`.
+3. Apply the Supabase migrations before opening that link.
+4. Register `https://<production-domain>/api/telegram/webhook` with Telegram `setWebhook`, passing the same `TELEGRAM_WEBHOOK_SECRET` as `secret_token`.
+
+The first bot slice supports text conversations, reading cleanings, and preparing a new cleaning. A prepared cleaning is persisted only after the user explicitly sends `Создавай`.
 
 ## Deployment
 

@@ -45,7 +45,8 @@ export function cleaningPayload(body: Record<string, unknown>) {
   return { row: { title, type, mode, zones, zone_results: zoneResults(body.zoneResults).filter((result) => zones.includes(result.zone)), checklist, completed_items: textArray(body.completedItems), supplies: textArray(body.supplies), scheduled_for_label: scheduledAt ? formatCleaningSchedule(scheduledAt) : String(body.scheduledFor ?? "").trim(), scheduled_for_at: scheduledAt?.toISOString() ?? null, recurrence, cleaner, cleaner_phone: String(body.cleanerPhone ?? "").trim() || null, status, cost, notes: String(body.notes ?? "").trim() || null, owner_feedback: String(body.ownerFeedback ?? "").trim() || null, require_photo_before: body.requirePhotoBefore === true, require_photo_after: body.requirePhotoAfter === true } };
 }
 
-export function serializeCleaning(row: Record<string, unknown>, request: Request) {
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
+export function serializeCleaning(row: Record<string, unknown>, requestOrOrigin: Request | string) {
+  const requestOrigin = typeof requestOrOrigin === "string" ? requestOrOrigin : new URL(requestOrOrigin.url).origin;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin).replace(/\/$/, "");
   return { id: row.id, title: row.title, type: row.type, mode: row.mode, zones: row.zones ?? [], zoneResults: row.zone_results ?? [], checklist: row.checklist ?? [], completedItems: row.completed_items ?? [], supplies: row.supplies ?? [], scheduledFor: row.scheduled_for_label, scheduledAt: row.scheduled_for_at ?? undefined, recurrence: row.recurrence ?? "none", cleaner: row.cleaner, cleanerPhone: row.cleaner_phone ?? undefined, status: row.status, cost: row.cost == null ? undefined : Number(row.cost), notes: row.notes ?? undefined, ownerFeedback: row.owner_feedback ?? undefined, requirePhotoBefore: row.require_photo_before === true, requirePhotoAfter: row.require_photo_after === true, link: row.mode === "managed" ? `${appUrl}/cleaning/${row.guest_token}` : undefined, createdAt: row.created_at_label, completedAt: row.completed_at_label ?? undefined, photos: [] };
 }

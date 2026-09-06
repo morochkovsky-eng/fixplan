@@ -298,6 +298,46 @@ create index notification_events_pending_telegram
   on public.notification_events (created_at)
   where telegram_delivered_at is null;
 
+create table public.telegram_pairing_codes (
+  id uuid primary key default gen_random_uuid(),
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  code_hash text not null unique,
+  role text not null check (role in ('owner', 'cleaner', 'master')),
+  created_by text not null,
+  expires_at timestamptz not null,
+  used_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table public.telegram_accounts (
+  telegram_user_id bigint primary key,
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  chat_id bigint not null,
+  role text not null check (role in ('owner', 'cleaner', 'master')),
+  display_name text not null default '',
+  username text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.telegram_conversations (
+  telegram_user_id bigint primary key references public.telegram_accounts(telegram_user_id) on delete cascade,
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  previous_response_id text,
+  pending_action jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create table public.telegram_updates (
+  update_id bigint primary key,
+  telegram_user_id bigint,
+  status text not null default 'processing' check (status in ('processing', 'processed', 'failed')),
+  error text,
+  received_at timestamptz not null default now(),
+  processed_at timestamptz
+);
+
 insert into storage.buckets (id, name, public)
 values ('asset-media', 'asset-media', false)
 on conflict (id) do nothing;
@@ -320,6 +360,25 @@ as $$
   );
 $$;
 
+create or replace function public.is_apartment_manager(target_apartment_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.apartment_members member
+    where member.apartment_id = target_apartment_id
+      and member.role in ('owner', 'admin')
+      and (
+        member.user_id = auth.uid()
+        or lower(member.email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  );
+$$;
+
 alter table public.apartments enable row level security;
 alter table public.apartment_members enable row level security;
 alter table public.rooms enable row level security;
@@ -332,6 +391,10 @@ alter table public.utility_bills enable row level security;
 alter table public.utility_meters enable row level security;
 alter table public.utility_readings enable row level security;
 alter table public.notification_events enable row level security;
+alter table public.telegram_pairing_codes enable row level security;
+alter table public.telegram_accounts enable row level security;
+alter table public.telegram_conversations enable row level security;
+alter table public.telegram_updates enable row level security;
 
 create policy "members can read apartments"
 on public.apartments for select
@@ -424,6 +487,21 @@ create policy "members can manage notification events"
 on public.notification_events for all
 using (public.is_apartment_member(apartment_id))
 with check (public.is_apartment_member(apartment_id));
+
+create policy "members can manage telegram pairing codes"
+on public.telegram_pairing_codes for all
+using (public.is_apartment_manager(apartment_id))
+with check (public.is_apartment_manager(apartment_id));
+
+create policy "members can manage telegram accounts"
+on public.telegram_accounts for all
+using (public.is_apartment_manager(apartment_id))
+with check (public.is_apartment_manager(apartment_id));
+
+create policy "members can manage telegram conversations"
+on public.telegram_conversations for all
+using (public.is_apartment_manager(apartment_id))
+with check (public.is_apartment_manager(apartment_id));
 
 create policy "members can read media files"
 on storage.objects for select

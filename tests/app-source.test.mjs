@@ -22,6 +22,10 @@ const cleaningPhotoRouteSource = fs.readFileSync("app/api/cleanings/guest/[token
 const notificationsRouteSource = fs.readFileSync("app/api/notifications/route.ts", "utf8");
 const notificationRouteSource = fs.readFileSync("app/api/notifications/[id]/route.ts", "utf8");
 const notificationHelperSource = fs.readFileSync("lib/server/notifications.ts", "utf8");
+const telegramWebhookSource = fs.readFileSync("app/api/telegram/webhook/route.ts", "utf8");
+const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts", "utf8");
+const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
+const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
@@ -60,6 +64,10 @@ test("contains the production Supabase model", () => {
     "cleanings",
     "cleaning_media",
     "notification_events",
+    "telegram_pairing_codes",
+    "telegram_accounts",
+    "telegram_conversations",
+    "telegram_updates",
   ]) {
     assert.match(schemaSource, new RegExp(`create table public\\.${table}`));
   }
@@ -73,6 +81,19 @@ test("contains the production Supabase model", () => {
   assert.match(seedSource, /Шпалерная, 34Б/);
   assert.match(seedSource, /morochkovsky@gmail\.com/);
   assert.match(seedSource, /bill-aug-electricity/);
+});
+
+test("keeps Telegram actions behind pairing, idempotency, and confirmation", () => {
+  assert.match(telegramWebhookSource, /x-telegram-bot-api-secret-token/);
+  assert.match(telegramWebhookSource, /telegram_updates/);
+  assert.match(telegramWebhookSource, /23505/);
+  assert.match(telegramPairingSource, /code_hash/);
+  assert.match(telegramPairingSource, /15 \* 60 \* 1000/);
+  assert.match(telegramAssistantSource, /list_cleanings/);
+  assert.match(telegramAssistantSource, /prepare_cleaning/);
+  assert.match(telegramAssistantSource, /confirmationWords/);
+  assert.match(telegramAssistantSource, /createCleaningRecord/);
+  assert.match(telegramAssistantSource, /api\.openai\.com\/v1\/responses/);
 });
 
 test("supports cleaning as a first-class owner and guest workflow", () => {
@@ -108,7 +129,7 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningHelpersSource, /Europe\/Moscow/);
   assert.match(cleaningRouteSource, /nextOccurrence/);
   assert.match(cleaningRouteSource, /recurs_from_id/);
-  assert.match(cleaningsRouteSource, /cleaning\.offered/);
+  assert.match(cleaningServiceSource, /cleaning\.offered/);
   assert.match(cleaningRouteSource, /cleaning\.revision_requested/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.completed/);
   assert.match(notificationHelperSource, /telegram/);
