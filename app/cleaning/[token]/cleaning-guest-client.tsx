@@ -6,13 +6,23 @@ import { Camera, Check, ChevronLeft, ChevronRight, Loader2, X } from "lucide-rea
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   cleaningStatusLabels,
   cleaningTypeLabels,
   type Cleaning,
   type CleaningPhoto,
   type CleaningPhotoPhase,
+  type CleaningZoneResult,
+  type CleaningZoneStatus,
 } from "@/lib/cleanings";
+
+const zoneStatusLabels: Record<CleaningZoneStatus, string> = {
+  pending: "Не начато",
+  done: "Готово",
+  issue: "Есть проблема",
+};
 
 export function CleaningGuestClient({ token }: { token: string }) {
   const [cleaning, setCleaning] = useState<Cleaning | null>(null);
@@ -42,14 +52,14 @@ export function CleaningGuestClient({ token }: { token: string }) {
     return () => { cancelled = true; };
   }, [token]);
 
-  async function patch(completedItems: string[], status: "in_progress" | "completed") {
+  async function patch(completedItems: string[], status: "in_progress" | "completed", zoneResults = cleaning?.zoneResults ?? []) {
     setSaving(true);
     setError("");
     try {
       const response = await fetch(`/api/cleanings/guest/${token}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completedItems, status }),
+        body: JSON.stringify({ completedItems, status, zoneResults }),
       });
       const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; error?: string };
       if (!response.ok || !payload.cleaning) throw new Error(payload.error ?? "Не удалось сохранить прогресс.");
@@ -59,6 +69,20 @@ export function CleaningGuestClient({ token }: { token: string }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function updateZoneResult(zone: string, values: Partial<Omit<CleaningZoneResult, "zone">>) {
+    if (!cleaning) return [];
+    const nextResults = cleaning.zones.map((currentZone) => {
+      const current = cleaning.zoneResults.find((result) => result.zone === currentZone) ?? {
+        zone: currentZone,
+        status: "pending" as const,
+        comment: "",
+      };
+      return currentZone === zone ? { ...current, ...values } : current;
+    });
+    setCleaning({ ...cleaning, zoneResults: nextResults });
+    return nextResults;
   }
 
   async function uploadPhotos(files: FileList | null, phase: CleaningPhotoPhase) {
@@ -107,6 +131,10 @@ export function CleaningGuestClient({ token }: { token: string }) {
   const missingRequiredPhoto =
     (cleaning.requirePhotoBefore && beforePhotos.length === 0) ||
     (cleaning.requirePhotoAfter && afterPhotos.length === 0);
+  const missingZoneResult = cleaning.zones.some((zone) => {
+    const result = cleaning.zoneResults.find((item) => item.zone === zone);
+    return !result || result.status === "pending";
+  });
   return (
     <main className="min-h-screen bg-muted px-4 py-6 sm:py-10">
       <Card className="mx-auto w-full max-w-xl">
@@ -118,6 +146,21 @@ export function CleaningGuestClient({ token }: { token: string }) {
           {cleaning.zones.length > 0 && <section className="grid gap-2"><strong className="text-sm">Зоны</strong><div className="flex flex-wrap gap-2">{cleaning.zones.map((zone) => <Badge key={zone} variant="secondary">{zone}</Badge>)}</div></section>}
           {cleaning.supplies.length > 0 && <section className="grid gap-2"><strong className="text-sm">Средства и инвентарь</strong><ul className="m-0 grid gap-1 pl-5 text-muted-foreground text-sm">{cleaning.supplies.map((item) => <li key={item}>{item}</li>)}</ul></section>}
           {cleaning.notes && <div className="rounded-lg bg-muted p-3 text-sm">{cleaning.notes}</div>}
+          {cleaning.zones.length > 0 && <section className="grid gap-3">
+            <div className="grid gap-1"><strong>Результат по зонам</strong><span className="text-muted-foreground text-sm">Отметьте результат и оставьте комментарий, если обнаружили проблему.</span></div>
+            {cleaning.zones.map((zone) => {
+              const result = cleaning.zoneResults.find((item) => item.zone === zone) ?? { zone, status: "pending" as const, comment: "" };
+              return <div className="grid gap-3 rounded-lg border p-3" key={zone}>
+                <strong className="text-sm">{zone}</strong>
+                <Select disabled={done || saving} onValueChange={(value) => { const nextResults = updateZoneResult(zone, { status: value as CleaningZoneStatus }); void patch(cleaning.completedItems, "in_progress", nextResults); }} value={result.status}>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(zoneStatusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+                </Select>
+                <Textarea disabled={done || saving} onChange={(event) => { const comment = event.currentTarget.value; updateZoneResult(zone, { comment }); }} placeholder="Комментарий, если нужен" rows={2} value={result.comment} />
+              </div>;
+            })}
+            {!done && <Button disabled={saving} onClick={() => void patch(cleaning.completedItems, "in_progress", cleaning.zoneResults)} type="button" variant="outline">Сохранить комментарии</Button>}
+          </section>}
           {(cleaning.requirePhotoBefore || cleaning.requirePhotoAfter) && <section className="grid gap-3 sm:grid-cols-2">
             {cleaning.requirePhotoBefore && <PhotoSection
               disabled={done || uploadingPhase !== null}
@@ -140,8 +183,8 @@ export function CleaningGuestClient({ token }: { token: string }) {
           </section>}
           <section className="grid gap-2"><div className="flex items-center justify-between gap-3"><strong>Чек-лист</strong><span className="text-muted-foreground text-sm">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div>{cleaning.checklist.map((item) => { const checked = cleaning.completedItems.includes(item); return <button className={`flex min-h-12 items-center gap-3 rounded-lg border p-3 text-left ${checked ? "bg-muted text-muted-foreground" : "bg-background"}`} disabled={done || saving} key={item} onClick={() => { const completedItems = checked ? cleaning.completedItems.filter((value) => value !== item) : [...cleaning.completedItems, item]; void patch(completedItems, "in_progress"); }} type="button"><span className={`grid size-5 shrink-0 place-items-center rounded border ${checked ? "border-foreground bg-foreground text-background" : "bg-background"}`}>{checked && <Check size={14} />}</span><span className={checked ? "line-through" : ""}>{item}</span></button>; })}</section>
           {error && <p className="m-0 text-destructive text-sm">{error}</p>}
-          {missingRequiredPhoto && !done && <p className="m-0 text-center text-muted-foreground text-sm">Для завершения добавьте обязательные фотографии.</p>}
-          {done ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Уборка завершена</strong><p className="m-1 text-muted-foreground text-sm">Результат уже передан владельцу.</p></div> : <Button className="w-full" disabled={saving || uploadingPhase !== null || missingRequiredPhoto || cleaning.completedItems.length !== cleaning.checklist.length} onClick={() => void patch(cleaning.completedItems, "completed")} type="button">{saving ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}Завершить уборку</Button>}
+          {(missingRequiredPhoto || missingZoneResult) && !done && <p className="m-0 text-center text-muted-foreground text-sm">Для завершения заполните результаты по зонам и добавьте обязательные фотографии.</p>}
+          {done ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Уборка завершена</strong><p className="m-1 text-muted-foreground text-sm">Результат уже передан владельцу.</p></div> : <Button className="w-full" disabled={saving || uploadingPhase !== null || missingRequiredPhoto || missingZoneResult || cleaning.completedItems.length !== cleaning.checklist.length} onClick={() => void patch(cleaning.completedItems, "completed", cleaning.zoneResults)} type="button">{saving ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}Завершить уборку</Button>}
         </CardContent>
       </Card>
       {galleryIndex !== null && cleaning.photos[galleryIndex] && (

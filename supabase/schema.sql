@@ -231,6 +231,7 @@ create table public.cleanings (
   type public.cleaning_type not null default 'standard',
   mode public.cleaning_mode not null default 'managed',
   zones text[] not null default '{}',
+  zone_results jsonb not null default '[]'::jsonb,
   checklist text[] not null default '{}',
   completed_items text[] not null default '{}',
   supplies text[] not null default '{}',

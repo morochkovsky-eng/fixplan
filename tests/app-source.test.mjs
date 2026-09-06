@@ -82,6 +82,7 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(schemaSource, /create table public\.cleaning_media/);
   assert.match(schemaSource, /require_photo_before boolean not null default false/);
   assert.match(schemaSource, /require_photo_after boolean not null default false/);
+  assert.match(schemaSource, /zone_results jsonb not null default '\[\]'::jsonb/);
   assert.match(cleaningsRouteSource, /export async function POST/);
   assert.match(cleaningRouteSource, /export async function PATCH/);
   assert.match(cleaningRouteSource, /export async function DELETE/);
@@ -97,7 +98,12 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningGuestSource, /Завершить уборку/);
   assert.match(cleaningGuestSource, /missingRequiredPhoto/);
   assert.match(cleaningGuestSource, /Обязательно/);
+  assert.match(cleaningGuestSource, /Результат по зонам/);
+  assert.match(cleaningGuestSource, /Есть проблема/);
+  assert.match(cleaningGuestSource, /Сохранить комментарии/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /Добавьте обязательное фото до уборки/);
+  assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /Укажите результат по каждой зоне уборки/);
+  assert.match(cleaningsViewSource, /Проблемы:/);
   assert.match(cleaningPhotoRouteSource, /export async function POST/);
   assert.match(cleaningPhotoRouteSource, /15 \* 1024 \* 1024/);
   assert.match(cleaningPhotoRouteSource, /file\.type\.startsWith\("image\/"\)/);

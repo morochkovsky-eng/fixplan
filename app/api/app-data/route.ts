@@ -260,6 +260,7 @@ export async function GET() {
             type: cleaning.type,
             mode: cleaning.mode,
             zones: cleaning.zones ?? [],
+            zoneResults: cleaning.zone_results ?? [],
             checklist: cleaning.checklist ?? [],
             completedItems: cleaning.completed_items ?? [],
             supplies: cleaning.supplies ?? [],

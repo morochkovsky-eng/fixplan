@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-import type { CleaningPhoto } from "@/lib/cleanings";
+import type { CleaningPhoto, CleaningZoneResult } from "@/lib/cleanings";
 
 function serialize(row: Record<string, unknown>, photos: CleaningPhoto[]) {
   return {
@@ -9,6 +9,7 @@ function serialize(row: Record<string, unknown>, photos: CleaningPhoto[]) {
     title: row.title,
     type: row.type,
     zones: row.zones ?? [],
+    zoneResults: row.zone_results ?? [],
     checklist: row.checklist ?? [],
     completedItems: row.completed_items ?? [],
     supplies: row.supplies ?? [],
@@ -34,6 +35,18 @@ async function signedPhotos(
   }));
 }
 
+function normalizeZoneResults(value: unknown): CleaningZoneResult[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): CleaningZoneResult[] => {
+    if (!item || typeof item !== "object") return [];
+    const source = item as Record<string, unknown>;
+    const zone = String(source.zone ?? "").trim();
+    const zoneStatus = source.status === "done" || source.status === "issue" ? source.status : "pending";
+    if (!zone) return [];
+    return [{ zone, status: zoneStatus, comment: String(source.comment ?? "").trim() }];
+  });
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const admin = createAdminClient();
@@ -48,16 +61,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   const { token } = await params;
   const admin = createAdminClient();
   if (!admin) return NextResponse.json({ error: "Сервис временно недоступен." }, { status: 500 });
-  const body = (await request.json().catch(() => ({}))) as { completedItems?: unknown; status?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { completedItems?: unknown; status?: unknown; zoneResults?: unknown };
   const completedItems = Array.isArray(body.completedItems) ? body.completedItems.map(String) : [];
   const status = body.status === "completed" ? "completed" : body.status === "in_progress" ? "in_progress" : undefined;
+  const zoneResults = normalizeZoneResults(body.zoneResults);
   const { data: currentCleaning, error: currentError } = await admin
     .from("cleanings")
-    .select("apartment_id,id,require_photo_before,require_photo_after")
+    .select("apartment_id,id,zones,require_photo_before,require_photo_after")
     .eq("guest_token", token)
     .eq("mode", "managed")
     .maybeSingle();
   if (currentError || !currentCleaning) return NextResponse.json({ error: "Уборка не найдена или ссылка недействительна." }, { status: 404 });
+  if (status === "completed" && currentCleaning.zones.some((zone: string) => !zoneResults.some((result) => result.zone === zone && result.status !== "pending"))) {
+    return NextResponse.json({ error: "Укажите результат по каждой зоне уборки." }, { status: 400 });
+  }
   if (status === "completed" && (currentCleaning.require_photo_before || currentCleaning.require_photo_after)) {
     const { data: media, error: mediaError } = await admin
       .from("cleaning_media")
@@ -70,6 +87,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
     if (currentCleaning.require_photo_after && !phases.has("after")) return NextResponse.json({ error: "Добавьте обязательное фото после уборки." }, { status: 400 });
   }
   const patch: Record<string, unknown> = { completed_items: completedItems, updated_at: new Date().toISOString() };
+  if (Array.isArray(body.zoneResults)) {
+    const allowedZones = new Set(currentCleaning.zones);
+    patch.zone_results = zoneResults.filter((result) => allowedZones.has(result.zone));
+  }
   if (status) patch.status = status;
   if (status === "completed") patch.completed_at_label = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date());
   const { data, error } = await admin.from("cleanings").update(patch).eq("guest_token", token).eq("mode", "managed").select("*").single();

@@ -2,6 +2,13 @@ export type CleaningType = "standard" | "deep" | "post_renovation" | "turnover";
 export type CleaningMode = "managed" | "record_only";
 export type CleaningStatus = "draft" | "scheduled" | "in_progress" | "completed" | "accepted";
 export type CleaningPhotoPhase = "before" | "after";
+export type CleaningZoneStatus = "pending" | "done" | "issue";
+
+export type CleaningZoneResult = {
+  zone: string;
+  status: CleaningZoneStatus;
+  comment: string;
+};
 
 export type CleaningPhoto = {
   id: string;
@@ -17,6 +24,7 @@ export type Cleaning = {
   type: CleaningType;
   mode: CleaningMode;
   zones: string[];
+  zoneResults: CleaningZoneResult[];
   checklist: string[];
   completedItems: string[];
   supplies: string[];

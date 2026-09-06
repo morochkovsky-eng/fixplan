@@ -1413,6 +1413,7 @@ function withCatalogAssets(state: AppState): AppState {
       photos: cleaning.photos ?? [],
       requirePhotoBefore: cleaning.requirePhotoBefore ?? false,
       requirePhotoAfter: cleaning.requirePhotoAfter ?? false,
+      zoneResults: cleaning.zoneResults ?? [],
     })),
     contractorAccess: {
       ...state.contractorAccess,
