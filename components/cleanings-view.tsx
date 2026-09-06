@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Bell, Check, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck, ExternalLink, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,7 @@ import {
   type CleaningStatus,
   type CleaningType,
 } from "@/lib/cleanings";
+import type { AppNotification } from "@/lib/notifications";
 
 const zones = ["Вся квартира", "Гостиная", "Кухня", "Санузел", "Спальня", "Прихожая", "Кабинет", "Постирочная"];
 
@@ -101,10 +102,41 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
   const [saving, setSaving] = useState(false);
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, string>>({});
   const [gallery, setGallery] = useState<{ photos: CleaningPhoto[]; index: number } | null>(null);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const activeCount = cleanings.filter((item) => ["offered", "scheduled", "in_progress", "revision_requested"].includes(item.status)).length;
   const completedCount = cleanings.filter((item) => ["completed", "accepted"].includes(item.status)).length;
   const totalCost = cleanings.reduce((sum, item) => sum + (item.cost ?? 0), 0);
   const sorted = useMemo(() => [...cleanings], [cleanings]);
+  const unreadCount = notifications.filter((notification) => !notification.readAt).length;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const payload = (await response.json().catch(() => ({}))) as { notifications?: AppNotification[] };
+      if (!cancelled && response.ok) setNotifications(payload.notifications ?? []);
+    }
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function refreshNotifications() {
+    const response = await fetch("/api/notifications", { cache: "no-store" });
+    const payload = (await response.json().catch(() => ({}))) as { notifications?: AppNotification[] };
+    if (response.ok) setNotifications(payload.notifications ?? []);
+  }
+
+  async function markNotificationRead(notification: AppNotification) {
+    if (notification.readAt) return;
+    const response = await fetch(`/api/notifications/${notification.id}`, { method: "PATCH" });
+    if (response.ok) setNotifications((current) => current.map((item) => item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item));
+  }
+
+  async function markAllNotificationsRead() {
+    const response = await fetch("/api/notifications", { method: "PATCH" });
+    if (response.ok) setNotifications((current) => current.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() })));
+  }
 
   function openCreate() {
     setEditingId(null);
@@ -189,8 +221,10 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
           <strong className="text-lg">Уборки квартиры</strong>
           <span className="text-muted-foreground text-sm">Планируйте работу, передавайте чек-лист и принимайте результат.</span>
         </div>
-        <Button onClick={openCreate} type="button"><Plus size={16} />Новая уборка</Button>
+        <div className="flex gap-2"><Button aria-expanded={showNotifications} aria-label="Уведомления об уборках" onClick={() => { const next = !showNotifications; setShowNotifications(next); if (next) void refreshNotifications(); }} type="button" variant="outline"><Bell size={16} />{unreadCount > 0 && <Badge>{unreadCount}</Badge>}</Button><Button onClick={openCreate} type="button"><Plus size={16} />Новая уборка</Button></div>
       </div>
+
+      {showNotifications && <section className="grid gap-2 rounded-lg border bg-background p-3"><div className="flex items-center justify-between gap-3"><strong>События уборок</strong>{unreadCount > 0 && <Button onClick={() => void markAllNotificationsRead()} size="sm" type="button" variant="ghost"><CheckCheck size={14} />Прочитать все</Button>}</div>{notifications.length > 0 ? <div className="grid divide-y">{notifications.map((notification) => <button className={`grid gap-1 py-3 text-left ${notification.readAt ? "text-muted-foreground" : ""}`} key={notification.id} onClick={() => void markNotificationRead(notification)} type="button"><span className="flex items-center gap-2 text-sm"><span className={`size-2 rounded-full ${notification.readAt ? "bg-muted" : "bg-foreground"}`} /><strong>{notification.title}</strong></span><span className="pl-4 text-sm">{notification.body}</span><time className="pl-4 text-muted-foreground text-xs">{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(notification.createdAt))}</time></button>)}</div> : <span className="py-3 text-muted-foreground text-sm">Новых событий пока нет.</span>}</section>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Всего" value={cleanings.length} />

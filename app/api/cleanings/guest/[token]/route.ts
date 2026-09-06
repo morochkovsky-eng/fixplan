@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enqueueNotification } from "@/lib/server/notifications";
 
 import type { CleaningPhoto, CleaningZoneResult } from "@/lib/cleanings";
 
@@ -71,7 +72,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   const zoneResults = normalizeZoneResults(body.zoneResults);
   const { data: currentCleaning, error: currentError } = await admin
     .from("cleanings")
-    .select("apartment_id,id,zones,status,require_photo_before,require_photo_after")
+    .select("apartment_id,id,title,zones,status,updated_at,require_photo_before,require_photo_after")
     .eq("guest_token", token)
     .eq("mode", "managed")
     .maybeSingle();
@@ -110,6 +111,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   }
   const { data, error } = await admin.from("cleanings").update(patch).eq("guest_token", token).eq("mode", "managed").select("*").single();
   if (error) return NextResponse.json({ error: "Не удалось сохранить прогресс." }, { status: 500 });
+  if (status && status !== currentStatus) {
+    const event = status === "scheduled" ? { kind: "cleaning.offer_accepted", title: "Клинер принял уборку" } : status === "declined" ? { kind: "cleaning.offer_declined", title: "Клинер отказался от уборки" } : status === "completed" ? { kind: "cleaning.completed", title: "Уборка завершена" } : currentStatus === "revision_requested" ? { kind: "cleaning.revision_started", title: "Клинер начал доработку" } : { kind: "cleaning.started", title: "Уборка начата" };
+    await enqueueNotification(admin, { apartmentId: currentCleaning.apartment_id, kind: event.kind, recipient: "owner", entityId: currentCleaning.id, title: event.title, body: currentCleaning.title, actionUrl: "/", payload: { status, zones: currentCleaning.zones }, dedupeKey: `cleaning:${currentCleaning.id}:${currentStatus}:${status}:${currentCleaning.updated_at}` });
+  }
   const photos = await signedPhotos(admin, data.apartment_id, data.id);
   return NextResponse.json({ cleaning: serialize(data, photos) });
 }

@@ -19,6 +19,9 @@ const cleaningRouteSource = fs.readFileSync("app/api/cleanings/[id]/route.ts", "
 const cleaningHelpersSource = fs.readFileSync("app/api/cleanings/helpers.ts", "utf8");
 const cleaningGuestSource = fs.readFileSync("app/cleaning/[token]/cleaning-guest-client.tsx", "utf8");
 const cleaningPhotoRouteSource = fs.readFileSync("app/api/cleanings/guest/[token]/photos/route.ts", "utf8");
+const notificationsRouteSource = fs.readFileSync("app/api/notifications/route.ts", "utf8");
+const notificationRouteSource = fs.readFileSync("app/api/notifications/[id]/route.ts", "utf8");
+const notificationHelperSource = fs.readFileSync("lib/server/notifications.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
@@ -56,6 +59,7 @@ test("contains the production Supabase model", () => {
     "utility_readings",
     "cleanings",
     "cleaning_media",
+    "notification_events",
   ]) {
     assert.match(schemaSource, new RegExp(`create table public\\.${table}`));
   }
@@ -104,6 +108,15 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningHelpersSource, /Europe\/Moscow/);
   assert.match(cleaningRouteSource, /nextOccurrence/);
   assert.match(cleaningRouteSource, /recurs_from_id/);
+  assert.match(cleaningsRouteSource, /cleaning\.offered/);
+  assert.match(cleaningRouteSource, /cleaning\.revision_requested/);
+  assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.completed/);
+  assert.match(notificationHelperSource, /telegram/);
+  assert.match(notificationsRouteSource, /export async function GET/);
+  assert.match(notificationsRouteSource, /export async function PATCH/);
+  assert.match(notificationRouteSource, /export async function PATCH/);
+  assert.match(cleaningsViewSource, /События уборок/);
+  assert.match(cleaningsViewSource, /Прочитать все/);
   assert.match(cleaningGuestSource, /Чек-лист/);
   assert.match(cleaningGuestSource, /Фото до/);
   assert.match(cleaningGuestSource, /Фото после/);
