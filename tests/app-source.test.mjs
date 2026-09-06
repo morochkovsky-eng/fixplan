@@ -212,8 +212,9 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /Передать показание/);
   assert.doesNotMatch(
     pageSource,
-    /set(?:ReadingDraft|Draft|EditDraft)\(\(current\) =>[^\n]*event\.currentTarget/,
+    /(?:set[A-Za-z]+|onChange)\(\(current\) =>[^\n]*event\.currentTarget/,
   );
+  assert.match(pageSource, /setDraft\(emptyUtilityBillDraft\(selectedMonth\?\.period \?\? selectedPeriod\)\)/);
 });
 
 test("supports editing and deleting node comments without schema-cache fields", () => {

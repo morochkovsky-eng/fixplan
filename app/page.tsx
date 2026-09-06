@@ -1023,6 +1023,18 @@ function utilityReadingId() {
   return `reading-${Date.now()}-${Math.round(Math.random() * 1000)}`;
 }
 
+function emptyUtilityBillDraft(period: string): Omit<UtilityBill, "id"> {
+  return {
+    service: "",
+    period,
+    amount: 0,
+    dueDate: "",
+    status: "due",
+    receiptUrl: "",
+    note: "",
+  };
+}
+
 const utilityBillStatusLabels: Record<UtilityBillStatus, string> = {
   draft: "Черновик",
   due: "К оплате",
@@ -5330,15 +5342,9 @@ function UtilitiesView({
   const selectedBills = selectedMonth?.bills ?? [];
   const selectedReadings = selectedMonth?.readings ?? [];
   const readingByMeter = new Map(selectedReadings.map((reading) => [reading.meterId, reading]));
-  const [draft, setDraft] = useState<Omit<UtilityBill, "id">>({
-    service: "",
-    period: selectedMonth?.period ?? selectedPeriod,
-    amount: 0,
-    dueDate: "",
-    status: "due",
-    receiptUrl: "",
-    note: "",
-  });
+  const [draft, setDraft] = useState<Omit<UtilityBill, "id">>(() =>
+    emptyUtilityBillDraft(selectedMonth?.period ?? selectedPeriod),
+  );
   const [showBillForm, setShowBillForm] = useState(false);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Omit<UtilityBill, "id"> | null>(null);
@@ -5450,15 +5456,7 @@ function UtilitiesView({
       setBills([nextBill, ...bills]);
     }
 
-    setDraft({
-      service: "",
-      period,
-      amount: 0,
-      dueDate: "",
-      status: "due",
-      receiptUrl: "",
-      note: "",
-    });
+    setDraft(emptyUtilityBillDraft(period));
     setShowBillForm(false);
   }
 
@@ -5837,7 +5835,14 @@ function UtilitiesView({
                   />
                 </label>
                 <div className="flex flex-wrap justify-end gap-2">
-                  <Button onClick={() => setShowBillForm(false)} type="button" variant="outline">
+                  <Button
+                    onClick={() => {
+                      setDraft(emptyUtilityBillDraft(selectedMonth?.period ?? selectedPeriod));
+                      setShowBillForm(false);
+                    }}
+                    type="button"
+                    variant="outline"
+                  >
                     Отменить
                   </Button>
                   <Button onClick={createBill} type="button">
