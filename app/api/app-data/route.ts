@@ -12,6 +12,11 @@ function isMissingUtilityTable(
   return error.code === "PGRST205" || error.message?.includes(table);
 }
 
+function isMissingTable(error: { code?: string; message?: string } | null | undefined, table: string) {
+  if (!error) return false;
+  return error.code === "PGRST205" || Boolean(error.message?.includes(table));
+}
+
 export async function GET() {
   const supabase = await createServerSupabaseClient();
   const admin = createAdminClient();
@@ -50,6 +55,7 @@ export async function GET() {
     utilityBillsResult,
     utilityMetersResult,
     utilityReadingsResult,
+    cleaningsResult,
   ] = await Promise.all([
     admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).is("deleted_at", null).order("code"),
     admin.from("asset_categories").select("*").eq("apartment_id", APARTMENT_ID).order("sort_order"),
@@ -61,6 +67,7 @@ export async function GET() {
     admin.from("utility_bills").select("*").eq("apartment_id", APARTMENT_ID).order("due_date_label"),
     admin.from("utility_meters").select("*").eq("apartment_id", APARTMENT_ID).order("created_at"),
     admin.from("utility_readings").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
+    admin.from("cleanings").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
   ]);
 
   const error =
@@ -75,8 +82,10 @@ export async function GET() {
     (isMissingUtilityTable(utilityMetersResult.error, "utility_meters") ? null : utilityMetersResult.error) ??
     (isMissingUtilityTable(utilityReadingsResult.error, "utility_readings") ? null : utilityReadingsResult.error);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const effectiveError = error ?? (isMissingTable(cleaningsResult.error, "cleanings") ? null : cleaningsResult.error);
+
+  if (effectiveError) {
+    return NextResponse.json({ error: effectiveError.message }, { status: 500 });
   }
 
   const hasUtilityBillsTable = !isMissingUtilityTable(utilityBillsResult.error, "utility_bills");
@@ -220,6 +229,32 @@ export async function GET() {
             submittedAt: reading.submitted_at_label,
             source: reading.source,
             note: reading.note ?? undefined,
+          })),
+        }
+      : {}),
+    ...(!isMissingTable(cleaningsResult.error, "cleanings")
+      ? {
+          cleanings: (cleaningsResult.data ?? []).map((cleaning) => ({
+            id: cleaning.id,
+            title: cleaning.title,
+            type: cleaning.type,
+            mode: cleaning.mode,
+            zones: cleaning.zones ?? [],
+            checklist: cleaning.checklist ?? [],
+            completedItems: cleaning.completed_items ?? [],
+            supplies: cleaning.supplies ?? [],
+            scheduledFor: cleaning.scheduled_for_label,
+            cleaner: cleaning.cleaner,
+            cleanerPhone: cleaning.cleaner_phone ?? undefined,
+            status: cleaning.status,
+            cost: cleaning.cost == null ? undefined : Number(cleaning.cost),
+            notes: cleaning.notes ?? undefined,
+            link:
+              cleaning.mode === "managed"
+                ? `${appUrl.replace(/\/$/, "")}/cleaning/${cleaning.guest_token}`
+                : undefined,
+            createdAt: cleaning.created_at_label,
+            completedAt: cleaning.completed_at_label ?? undefined,
           })),
         }
       : {}),

@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CleaningsView } from "@/components/cleanings-view";
+import type { Cleaning } from "@/lib/cleanings";
 import {
   createClient as createSupabaseBrowserClient,
   createClientFromConfig as createSupabaseClientFromConfig,
@@ -57,6 +59,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Check,
+  ClipboardCheck,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
@@ -345,6 +348,7 @@ type AppState = {
   utilityBills: UtilityBill[];
   utilityMeters: UtilityMeter[];
   utilityReadings: UtilityReading[];
+  cleanings: Cleaning[];
 };
 
 type View =
@@ -354,6 +358,7 @@ type View =
   | "asset"
   | "documents"
   | "utilities"
+  | "cleanings"
   | "log"
   | "inspection"
   | "inspections"
@@ -995,6 +1000,7 @@ const initialState: AppState = {
       source: "owner",
     },
   ],
+  cleanings: [],
 };
 
 const storageKey = "shpalernaya-maintenance-mvp";
@@ -1402,6 +1408,7 @@ function withCatalogAssets(state: AppState): AppState {
     utilityBills: state.utilityBills ?? initialState.utilityBills,
     utilityMeters: state.utilityMeters ?? initialState.utilityMeters,
     utilityReadings: state.utilityReadings ?? initialState.utilityReadings,
+    cleanings: state.cleanings ?? initialState.cleanings,
     contractorAccess: {
       ...state.contractorAccess,
       inspectionId: state.contractorAccess.inspectionId ?? initialState.contractorAccess.inspectionId,
@@ -1542,6 +1549,7 @@ export default function Home() {
             utilityBills: remoteState.utilityBills ?? current.utilityBills,
             utilityMeters: remoteState.utilityMeters ?? current.utilityMeters,
             utilityReadings: remoteState.utilityReadings ?? current.utilityReadings,
+            cleanings: remoteState.cleanings ?? current.cleanings,
             categories: remoteState.categories ?? current.categories,
             deletedAssetIds: remoteState.deletedAssetIds ?? current.deletedAssetIds,
             contractorAccess: {
@@ -2785,6 +2793,15 @@ export default function Home() {
           />
         )}
 
+        {view === "cleanings" && (
+          <CleaningsView
+            cleanings={state.cleanings}
+            setCleanings={(cleanings) =>
+              setState((current) => ({ ...current, cleanings }))
+            }
+          />
+        )}
+
         {view === "inspection" && (
           <InspectionView
             asset={currentInspectionAsset}
@@ -2917,6 +2934,7 @@ function viewTitle(view: View, asset: Asset) {
     asset: `${asset.code} · ${asset.name}`,
     documents: "Документы",
     utilities: "Коммуналка и счета",
+    cleanings: "Уборки",
     log: "Журнал квартиры",
     inspection: "Обход квартиры",
     inspections: "Обходы и отчеты",
@@ -2936,6 +2954,7 @@ function viewSubtitle(view: View) {
     asset: "История, фото, паспорт узла и быстрые действия.",
     documents: "Паспорта, чеки, гарантии, инструкции и акты по узлам.",
     utilities: "Начисления, сроки оплаты, квитанции и история коммунальных платежей.",
+    cleanings: "Планирование, чек-листы и контроль работы клинеров.",
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
     inspections: "Выдача ссылок мастерам, все созданные обходы и сводки по узлам.",
@@ -2954,6 +2973,7 @@ function assetReturnLabel(view: View) {
     assets: "К списку",
     documents: "К документам",
     utilities: "К счетам",
+    cleanings: "К уборкам",
     log: "К журналу",
     inspection: "К обходу",
     inspections: "К обходам",
@@ -3090,6 +3110,10 @@ function AppNavigation({
       <NavButton active={activeView === "utilities"} onClick={() => navigate("utilities")}>
         <FileText size={16} />
         Счета
+      </NavButton>
+      <NavButton active={activeView === "cleanings"} onClick={() => navigate("cleanings")}>
+        <ClipboardCheck size={16} />
+        Уборки
       </NavButton>
       <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
         <History size={16} />

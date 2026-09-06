@@ -13,6 +13,10 @@ const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
 const utilityBillsRouteSource = fs.readFileSync("app/api/utility-bills/route.ts", "utf8");
 const utilityBillRouteSource = fs.readFileSync("app/api/utility-bills/[id]/route.ts", "utf8");
 const utilityReadingsRouteSource = fs.readFileSync("app/api/utility-readings/route.ts", "utf8");
+const cleaningsViewSource = fs.readFileSync("components/cleanings-view.tsx", "utf8");
+const cleaningsRouteSource = fs.readFileSync("app/api/cleanings/route.ts", "utf8");
+const cleaningRouteSource = fs.readFileSync("app/api/cleanings/[id]/route.ts", "utf8");
+const cleaningGuestSource = fs.readFileSync("app/cleaning/[token]/cleaning-guest-client.tsx", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
@@ -48,6 +52,7 @@ test("contains the production Supabase model", () => {
     "utility_bills",
     "utility_meters",
     "utility_readings",
+    "cleanings",
   ]) {
     assert.match(schemaSource, new RegExp(`create table public\\.${table}`));
   }
@@ -61,6 +66,26 @@ test("contains the production Supabase model", () => {
   assert.match(seedSource, /Шпалерная, 34Б/);
   assert.match(seedSource, /morochkovsky@gmail\.com/);
   assert.match(seedSource, /bill-aug-electricity/);
+});
+
+test("supports cleaning as a first-class owner and guest workflow", () => {
+  assert.match(pageSource, /cleanings: Cleaning\[\]/);
+  assert.match(pageSource, /view === "cleanings"/);
+  assert.match(pageSource, /remoteState\.cleanings \?\? current\.cleanings/);
+  assert.match(appDataRouteSource, /cleaningsResult/);
+  assert.match(schemaSource, /cleaning_type/);
+  assert.match(schemaSource, /create table public\.cleanings/);
+  assert.match(cleaningsRouteSource, /export async function POST/);
+  assert.match(cleaningRouteSource, /export async function PATCH/);
+  assert.match(cleaningRouteSource, /export async function DELETE/);
+  assert.match(cleaningsViewSource, /Новая уборка/);
+  assert.match(cleaningsViewSource, /Ссылка клинеру/);
+  assert.match(cleaningGuestSource, /Чек-лист/);
+  assert.match(cleaningGuestSource, /Завершить уборку/);
+  assert.doesNotMatch(
+    cleaningsViewSource,
+    /setDraft\(\(current\) => \(\{[^}]*event\.currentTarget/,
+  );
 });
 
 test("keeps new asset editing as a persisted temporary plan node", () => {

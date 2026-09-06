@@ -1,0 +1,201 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Check, ClipboardCheck, ExternalLink, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  cleaningModeLabels,
+  cleaningStatusLabels,
+  cleaningTypeLabels,
+  type Cleaning,
+  type CleaningMode,
+  type CleaningStatus,
+  type CleaningType,
+} from "@/lib/cleanings";
+
+const zones = ["Вся квартира", "Гостиная", "Кухня", "Санузел", "Спальня", "Прихожая", "Кабинет", "Постирочная"];
+
+type CleaningDraft = Omit<Cleaning, "id" | "link" | "createdAt" | "completedAt" | "completedItems"> & {
+  checklistText: string;
+  suppliesText: string;
+};
+
+function emptyDraft(): CleaningDraft {
+  return {
+    title: "Поддерживающая уборка",
+    type: "standard",
+    mode: "managed",
+    zones: ["Вся квартира"],
+    checklist: [],
+    checklistText: "Пропылесосить и вымыть полы\nПротереть доступные поверхности\nУбрать кухню и санузел\nВынести мусор",
+    supplies: [],
+    suppliesText: "",
+    scheduledFor: "",
+    cleaner: "",
+    cleanerPhone: "",
+    status: "scheduled",
+    cost: undefined,
+    notes: "",
+  };
+}
+
+function draftFromCleaning(cleaning: Cleaning): CleaningDraft {
+  return {
+    ...cleaning,
+    checklistText: cleaning.checklist.join("\n"),
+    suppliesText: cleaning.supplies.join("\n"),
+  };
+}
+
+function statusTone(status: CleaningStatus): "secondary" | "outline" | "destructive" {
+  if (status === "in_progress") return "outline";
+  if (status === "draft") return "destructive";
+  return "secondary";
+}
+
+export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning[]; setCleanings: (items: Cleaning[]) => void }) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<CleaningDraft>(emptyDraft);
+  const [saving, setSaving] = useState(false);
+  const activeCount = cleanings.filter((item) => ["scheduled", "in_progress"].includes(item.status)).length;
+  const completedCount = cleanings.filter((item) => ["completed", "accepted"].includes(item.status)).length;
+  const totalCost = cleanings.reduce((sum, item) => sum + (item.cost ?? 0), 0);
+  const sorted = useMemo(() => [...cleanings].sort((a, b) => b.id.localeCompare(a.id)), [cleanings]);
+
+  function openCreate() {
+    setEditingId(null);
+    setDraft(emptyDraft());
+    setShowForm(true);
+  }
+
+  function openEdit(cleaning: Cleaning) {
+    setEditingId(cleaning.id);
+    setDraft(draftFromCleaning(cleaning));
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setDraft(emptyDraft());
+  }
+
+  async function saveCleaning() {
+    const checklist = draft.checklistText.split("\n").map((item) => item.trim()).filter(Boolean);
+    const supplies = draft.suppliesText.split("\n").map((item) => item.trim()).filter(Boolean);
+    if (!draft.title.trim() || !checklist.length) {
+      window.alert("Укажите название и добавьте хотя бы один пункт чек-листа.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const body = { ...draft, title: draft.title.trim(), checklist, supplies };
+      const response = await fetch(editingId ? `/api/cleanings/${editingId}` : "/api/cleanings", {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; error?: string };
+      if (!response.ok || !payload.cleaning) throw new Error(payload.error ?? "Не удалось сохранить уборку.");
+      setCleanings(editingId ? cleanings.map((item) => item.id === editingId ? payload.cleaning! : item) : [payload.cleaning, ...cleanings]);
+      closeForm();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось сохранить уборку.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeCleaning(cleaning: Cleaning) {
+    if (!window.confirm(`Удалить «${cleaning.title}»?`)) return;
+    const response = await fetch(`/api/cleanings/${cleaning.id}`, { method: "DELETE" });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      window.alert(payload.error ?? "Не удалось удалить уборку.");
+      return;
+    }
+    setCleanings(cleanings.filter((item) => item.id !== cleaning.id));
+  }
+
+  async function acceptCleaning(cleaning: Cleaning) {
+    const response = await fetch(`/api/cleanings/${cleaning.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...cleaning, status: "accepted" }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; error?: string };
+    if (!response.ok || !payload.cleaning) {
+      window.alert(payload.error ?? "Не удалось принять уборку.");
+      return;
+    }
+    setCleanings(cleanings.map((item) => item.id === cleaning.id ? payload.cleaning! : item));
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="grid gap-1">
+          <strong className="text-lg">Уборки квартиры</strong>
+          <span className="text-muted-foreground text-sm">Планируйте работу, передавайте чек-лист и принимайте результат.</span>
+        </div>
+        <Button onClick={openCreate} type="button"><Plus size={16} />Новая уборка</Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Metric label="Всего" value={cleanings.length} />
+        <Metric label="Активные" value={activeCount} />
+        <Metric label="Завершены" value={completedCount} />
+        <Metric label="Расходы" value={`${totalCost.toLocaleString("ru-RU")} ₽`} />
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardHeader className="grid-cols-[1fr_auto] gap-3">
+            <div><CardTitle>{editingId ? "Редактировать уборку" : "Новая уборка"}</CardTitle><CardDescription>Клинер увидит только понятный чек-лист, зоны, средства и примечание.</CardDescription></div>
+            <Button aria-label="Закрыть форму" onClick={closeForm} size="icon" type="button" variant="ghost"><X size={16} /></Button>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Field label="Название"><Input onChange={(event) => { const title = event.currentTarget.value; setDraft((current) => ({ ...current, title })); }} value={draft.title} /></Field>
+              <Field label="Тип"><Select value={draft.type} onValueChange={(value) => setDraft((current) => ({ ...current, type: value as CleaningType }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningTypeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
+              <Field label="Сценарий"><Select value={draft.mode} onValueChange={(value) => setDraft((current) => ({ ...current, mode: value as CleaningMode }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningModeLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
+              <Field label="Статус"><Select value={draft.status} onValueChange={(value) => setDraft((current) => ({ ...current, status: value as CleaningStatus }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningStatusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
+              <Field label="Дата и время"><Input onChange={(event) => { const scheduledFor = event.currentTarget.value; setDraft((current) => ({ ...current, scheduledFor })); }} placeholder="12 сентября, 10:00" value={draft.scheduledFor} /></Field>
+              <Field label="Клинер"><Input onChange={(event) => { const cleaner = event.currentTarget.value; setDraft((current) => ({ ...current, cleaner })); }} placeholder="Имя" value={draft.cleaner} /></Field>
+              <Field label="Телефон"><Input onChange={(event) => { const cleanerPhone = event.currentTarget.value; setDraft((current) => ({ ...current, cleanerPhone })); }} placeholder="+7..." value={draft.cleanerPhone ?? ""} /></Field>
+              <Field label="Стоимость"><Input min="0" onChange={(event) => { const value = event.currentTarget.value; setDraft((current) => ({ ...current, cost: value === "" ? undefined : Number(value) })); }} placeholder="0" type="number" value={draft.cost ?? ""} /></Field>
+            </div>
+            <div className="grid gap-2"><span className="text-sm font-medium">Зоны</span><div className="flex flex-wrap gap-2">{zones.map((zone) => { const active = draft.zones.includes(zone); return <Button key={zone} onClick={() => setDraft((current) => ({ ...current, zones: active ? current.zones.filter((item) => item !== zone) : zone === "Вся квартира" ? [zone] : [...current.zones.filter((item) => item !== "Вся квартира"), zone] }))} size="sm" type="button" variant={active ? "default" : "secondary"}>{active && <Check size={14} />}{zone}</Button>; })}</div></div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Чек-лист, по одному пункту в строке"><Textarea onChange={(event) => { const checklistText = event.currentTarget.value; setDraft((current) => ({ ...current, checklistText })); }} rows={7} value={draft.checklistText} /></Field>
+              <div className="grid gap-3"><Field label="Средства и инвентарь, по одному в строке"><Textarea onChange={(event) => { const suppliesText = event.currentTarget.value; setDraft((current) => ({ ...current, suppliesText })); }} rows={3} value={draft.suppliesText} /></Field><Field label="Примечание клинеру"><Textarea onChange={(event) => { const notes = event.currentTarget.value; setDraft((current) => ({ ...current, notes })); }} rows={3} value={draft.notes ?? ""} /></Field></div>
+            </div>
+            <div className="flex justify-end gap-2"><Button onClick={closeForm} type="button" variant="outline">Отменить</Button><Button disabled={saving} onClick={() => void saveCleaning()} type="button"><Save size={16} />{saving ? "Сохраняем..." : "Сохранить"}</Button></div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-3">
+        {sorted.map((cleaning) => {
+          const progress = cleaning.checklist.length ? Math.round(cleaning.completedItems.length / cleaning.checklist.length * 100) : 0;
+          return <Card key={cleaning.id}><CardContent className="grid gap-4 pt-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"><div className="grid min-w-0 gap-2"><div className="flex flex-wrap items-center gap-2"><strong>{cleaning.title}</strong><Badge variant={statusTone(cleaning.status)}>{cleaningStatusLabels[cleaning.status]}</Badge><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge></div><div className="text-muted-foreground text-sm">{cleaning.scheduledFor || "Дата не указана"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : " · Клинер не назначен"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</div><div className="text-sm">{cleaning.zones.join(", ") || "Зоны не выбраны"}</div><div className="flex items-center gap-3"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"><div className="h-full bg-foreground" style={{ width: `${progress}%` }} /></div><span className="shrink-0 text-muted-foreground text-xs">{cleaning.completedItems.length}/{cleaning.checklist.length}</span></div></div><div className="flex flex-wrap gap-2 md:justify-end">{cleaning.link && <Button asChild size="sm" variant="secondary"><a href={cleaning.link} rel="noreferrer" target="_blank"><ExternalLink size={14} />Ссылка клинеру</a></Button>}{cleaning.status === "completed" && <Button onClick={() => void acceptCleaning(cleaning)} size="sm" type="button"><Check size={14} />Принять</Button>}<Button onClick={() => openEdit(cleaning)} size="sm" type="button" variant="outline"><Pencil size={14} />Редактировать</Button><Button aria-label="Удалить уборку" onClick={() => void removeCleaning(cleaning)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /></Button></div></CardContent></Card>;
+        })}
+        {!sorted.length && <Card><CardContent className="grid place-items-center gap-3 py-12 text-center"><span className="grid size-11 place-items-center rounded-lg bg-muted"><ClipboardCheck size={20} /></span><div><strong className="block">Уборок пока нет</strong><span className="text-muted-foreground text-sm">Создайте первую уборку и передайте клинеру простой чек-лист.</span></div><Button onClick={openCreate} type="button"><Plus size={16} />Новая уборка</Button></CardContent></Card>}
+      </div>
+    </div>
+  );
+}
+
+function Field({ children, label }: { children: React.ReactNode; label: string }) {
+  return <label className="grid content-start gap-1.5 text-sm font-medium"><span>{label}</span>{children}</label>;
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return <Card size="sm"><CardContent className="grid gap-1 pt-4"><span className="text-muted-foreground text-sm">{label}</span><strong className="text-2xl font-semibold">{value}</strong></CardContent></Card>;
+}
