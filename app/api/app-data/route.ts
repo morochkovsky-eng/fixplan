@@ -86,7 +86,7 @@ export async function GET() {
       const pathParts = String(item.storage_path).split("/");
       return {
         id: item.id,
-        assetId: item.asset_id,
+        assetId: item.asset_id ?? undefined,
         eventId: item.event_id,
         inspectionId: item.inspection_id ?? pathParts[2],
         url: data?.signedUrl ?? "",
@@ -95,6 +95,10 @@ export async function GET() {
         caption: item.caption,
         createdBy: item.created_by,
         createdAt: item.created_at,
+        documentType: item.document_type ?? undefined,
+        issuedAt: item.document_issued_at ?? undefined,
+        validUntil: item.document_valid_until ?? undefined,
+        note: item.document_note ?? undefined,
       };
     }),
   );

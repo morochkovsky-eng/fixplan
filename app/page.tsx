@@ -116,6 +116,8 @@ const documentTypes = [
   { id: "manual", label: "Инструкция" },
   { id: "warranty", label: "Гарантия" },
   { id: "receipt", label: "Чек" },
+  { id: "invoice", label: "Счёт / квитанция" },
+  { id: "estimate", label: "Смета" },
   { id: "act", label: "Акт" },
   { id: "contract", label: "Договор" },
   { id: "scheme", label: "Схема" },
@@ -192,7 +194,7 @@ type AssetEvent = {
 
 type AssetMedia = {
   id: string;
-  assetId: string;
+  assetId?: string;
   eventId?: string;
   inspectionId?: string;
   url: string;
@@ -201,6 +203,10 @@ type AssetMedia = {
   caption?: string;
   createdBy?: string;
   createdAt?: string;
+  documentType?: DocumentTypeId;
+  issuedAt?: string;
+  validUntil?: string;
+  note?: string;
 };
 
 type Asset = {
@@ -2849,12 +2855,12 @@ export default function Home() {
 
         {view === "documents" && (
           <DocumentsView
-            addEvent={addEvent}
             assets={state.assets}
             deleteEvent={deleteEvent}
             events={state.events}
             media={state.media}
             openAsset={openAsset}
+            setMedia={(media) => setState((current) => ({ ...current, media }))}
             updateEvent={updateEvent}
           />
         )}
@@ -5057,7 +5063,7 @@ function AssetDetail({
 }) {
   const assetMedia = media.filter((item) => item.assetId === asset.id);
   const documentEventIds = new Set(events.filter(isDocumentEvent).map((event) => event.id));
-  const isDocumentMedia = (item: AssetMedia) => !isImageMedia(item) || documentEventIds.has(item.eventId ?? "");
+  const isDocumentMedia = (item: AssetMedia) => item.documentType !== undefined || !isImageMedia(item) || documentEventIds.has(item.eventId ?? "");
   const assetImages = assetMedia.filter((item) => isImageMedia(item) && !isDocumentMedia(item));
   const assetDocuments = assetMedia.filter(isDocumentMedia);
   const [documentNote, setDocumentNote] = useState("");
@@ -6666,24 +6672,20 @@ function ActivityLog({
 }
 
 function DocumentsView({
-  addEvent,
   assets,
   deleteEvent,
   events,
   media,
   openAsset,
+  setMedia,
   updateEvent,
 }: {
-  addEvent: (
-    assetId: string,
-    patch?: Partial<AssetEvent>,
-    files?: PromptInputMessage["files"],
-  ) => void;
   assets: Asset[];
   deleteEvent: (assetId: string, eventId: string) => Promise<boolean>;
   events: AssetEvent[];
   media: AssetMedia[];
   openAsset: (id: string) => void;
+  setMedia: (media: AssetMedia[]) => void;
   updateEvent: (
     assetId: string,
     eventId: string,
@@ -6702,24 +6704,28 @@ function DocumentsView({
   const [editDocumentType, setEditDocumentType] = useState<DocumentTypeId>("passport");
   const [editDocumentValidUntil, setEditDocumentValidUntil] = useState("");
   const [savingDocumentId, setSavingDocumentId] = useState<string | null>(null);
-  const [selectedAssetId, setSelectedAssetId] = useState(() => assets[0]?.id ?? "");
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [selectedAssetId, setSelectedAssetId] = useState("apartment");
   const sortedAssets = useMemo(
     () => assets.slice().sort((left, right) => left.code.localeCompare(right.code, "ru")),
     [assets],
   );
-  const selectedAsset = assets.find((asset) => asset.id === selectedAssetId) ?? sortedAssets[0];
+  const selectedAsset = assets.find((asset) => asset.id === selectedAssetId);
 
   const documentEventIds = new Set(events.filter(isDocumentEvent).map((event) => event.id));
   const documentRows = media
-    .filter((item) => !isImageMedia(item) || documentEventIds.has(item.eventId ?? ""))
+    .filter((item) => item.documentType !== undefined || !isImageMedia(item) || documentEventIds.has(item.eventId ?? ""))
     .map((item) => {
       const event = events.find((candidate) => candidate.id === item.eventId);
       return {
         asset: assets.find((asset) => asset.id === item.assetId),
         event,
-        meta: documentMetaFromEvent(event),
+        meta: {
+          issuedAt: item.issuedAt ? formatDateInput(item.issuedAt) : documentMetaFromEvent(event).issuedAt,
+          validUntil: item.validUntil ? formatDateInput(item.validUntil) : documentMetaFromEvent(event).validUntil,
+        },
         media: item,
-        type: documentTypeFromEvent(event),
+        type: item.documentType ?? documentTypeFromEvent(event),
       };
     });
   const attentionDocumentsCount = documentRows.filter((item) => {
@@ -6764,14 +6770,17 @@ function DocumentsView({
       return haystack.includes(query.trim().toLowerCase());
     })
     .sort((left, right) => (right.media.createdAt ?? "").localeCompare(left.media.createdAt ?? ""));
-  const assetCount = new Set(documents.map((item) => item.media.assetId)).size;
+  const assetCount = new Set(documents.map((item) => item.media.assetId).filter(Boolean)).size;
 
   function startEditDocument(document: AssetMedia, event?: AssetEvent) {
-    const meta = documentMetaFromEvent(event);
+    const meta = {
+      issuedAt: document.issuedAt ? formatDateInput(document.issuedAt) : documentMetaFromEvent(event).issuedAt,
+      validUntil: document.validUntil ? formatDateInput(document.validUntil) : documentMetaFromEvent(event).validUntil,
+    };
     setEditingDocumentId(document.id);
     setEditDocumentIssuedAt(dateInputFromFormatted(meta.issuedAt));
-    setEditDocumentNote(documentNoteFromEvent(event));
-    setEditDocumentType(documentTypeFromEvent(event));
+    setEditDocumentNote(document.note ?? documentNoteFromEvent(event));
+    setEditDocumentType(document.documentType ?? documentTypeFromEvent(event));
     setEditDocumentValidUntil(dateInputFromFormatted(meta.validUntil));
   }
 
@@ -6783,19 +6792,82 @@ function DocumentsView({
     setEditDocumentValidUntil("");
   }
 
-  async function saveDocumentEdit(assetId: string, eventId: string) {
-    setSavingDocumentId(eventId);
-    const ok = await updateEvent(assetId, eventId, {
-      title: documentTitle(editDocumentType),
-      body: buildDocumentBody({
-        defaultBody: "Добавлен документ к архиву квартиры.",
-        issuedAt: editDocumentIssuedAt,
-        note: editDocumentNote.trim(),
-        validUntil: editDocumentValidUntil,
-      }),
-    });
+  async function saveDocumentEdit(document: AssetMedia, event?: AssetEvent) {
+    setSavingDocumentId(document.id);
+    let ok = false;
+    if (event) {
+      ok = await updateEvent(event.assetId, event.id, {
+        title: documentTitle(editDocumentType),
+        body: buildDocumentBody({
+          defaultBody: "Добавлен документ к архиву квартиры.",
+          issuedAt: editDocumentIssuedAt,
+          note: editDocumentNote.trim(),
+          validUntil: editDocumentValidUntil,
+        }),
+      });
+    } else {
+      const response = await fetch(`/api/documents/${document.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ documentType: editDocumentType, issuedAt: editDocumentIssuedAt, validUntil: editDocumentValidUntil, note: editDocumentNote.trim() }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      ok = response.ok;
+      if (!ok) window.alert(payload.error ?? "Не удалось обновить документ.");
+      if (ok) {
+        setMedia(media.map((item) => item.id === document.id ? { ...item, documentType: editDocumentType, issuedAt: editDocumentIssuedAt || undefined, validUntil: editDocumentValidUntil || undefined, note: editDocumentNote.trim() || undefined } : item));
+      }
+    }
     setSavingDocumentId(null);
     if (ok) cancelEditDocument();
+  }
+
+  async function deleteDocument(document: AssetMedia, event?: AssetEvent) {
+    if (!window.confirm(`Удалить «${document.caption ?? document.filename}»?`)) return;
+    if (event) {
+      await deleteEvent(event.assetId, event.id);
+      return;
+    }
+    const response = await fetch(`/api/documents/${document.id}`, { method: "DELETE" });
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) {
+      window.alert(payload.error ?? "Не удалось удалить документ.");
+      return;
+    }
+    setMedia(media.filter((item) => item.id !== document.id));
+  }
+
+  async function createDocuments(message: PromptInputMessage) {
+    if (!message.files.length) {
+      window.alert("Прикрепите хотя бы один файл.");
+      return;
+    }
+    setUploadingDocument(true);
+    try {
+      const formData = new FormData();
+      if (selectedAsset) formData.set("assetId", selectedAsset.id);
+      formData.set("documentType", documentType);
+      formData.set("issuedAt", documentIssuedAt);
+      formData.set("validUntil", documentValidUntil);
+      formData.set("note", message.text.trim() || documentNote.trim());
+      for (const file of message.files) {
+        if (!file.url) continue;
+        const response = await fetch(file.url);
+        const blob = await response.blob();
+        formData.append("files", new File([blob], file.filename ?? "document", { type: file.mediaType ?? blob.type ?? "application/octet-stream" }));
+      }
+      const response = await fetch("/api/documents", { method: "POST", body: formData });
+      const payload = (await response.json().catch(() => ({}))) as { documents?: AssetMedia[]; error?: string };
+      if (!response.ok || !payload.documents?.length) throw new Error(payload.error ?? "Не удалось добавить документ.");
+      setMedia([...payload.documents, ...media]);
+      setDocumentNote("");
+      setDocumentIssuedAt("");
+      setDocumentValidUntil("");
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось добавить документ.");
+    } finally {
+      setUploadingDocument(false);
+    }
   }
 
   return (
@@ -6820,17 +6892,18 @@ function DocumentsView({
         <CardHeader>
           <CardTitle>Добавить документ</CardTitle>
           <CardDescription>
-            Выберите узел, прикрепите файл и добавьте короткий комментарий к паспорту.
+            Сохраните документ для всей квартиры или привяжите его к конкретному узлу.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           <div className="grid gap-1.5">
-            <span className="text-sm font-medium">Узел</span>
-            <Select value={selectedAsset?.id ?? ""} onValueChange={setSelectedAssetId}>
+            <span className="text-sm font-medium">Относится к</span>
+            <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Выберите узел" />
+                <SelectValue placeholder="Выберите квартиру или узел" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="apartment">Вся квартира</SelectItem>
                 {sortedAssets.map((asset) => (
                   <SelectItem key={asset.id} value={asset.id}>
                     {asset.code} · {asset.name}
@@ -6878,22 +6951,7 @@ function DocumentsView({
             accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
             className="w-full"
             onSubmit={(message: PromptInputMessage) => {
-              const text = message.text.trim() || documentNote.trim();
-              if (!selectedAsset || message.files.length === 0) return;
-              void addEvent(selectedAsset.id, {
-                type: "comment",
-                title: documentTitle(documentType),
-                body: buildDocumentBody({
-                  defaultBody: "Добавлен документ к архиву квартиры.",
-                  issuedAt: documentIssuedAt,
-                  note: text,
-                  validUntil: documentValidUntil,
-                }),
-                photo: undefined,
-              }, message.files);
-              setDocumentNote("");
-              setDocumentIssuedAt("");
-              setDocumentValidUntil("");
+              void createDocuments(message);
             }}
           >
             <PromptInputBody>
@@ -6912,7 +6970,7 @@ function DocumentsView({
                   </PromptInputActionMenuContent>
                 </PromptInputActionMenu>
               </PromptInputTools>
-              <PromptInputSubmit aria-label="Добавить документ в архив" />
+              <PromptInputSubmit aria-label="Добавить документ в архив" disabled={uploadingDocument} />
             </PromptInputFooter>
           </PromptInput>
         </CardContent>
@@ -7044,7 +7102,7 @@ function DocumentsView({
                           ? `${asset.code} · ${asset.name} · ${roomName(asset.roomId)} · ${categoryLabel(asset.category)}`
                           : "Без привязки к узлу"}
                       </span>
-                      {event?.body && <span className="line-clamp-1 text-muted-foreground">{event.body}</span>}
+                      {(document.note || event?.body) && <span className="line-clamp-1 text-muted-foreground">{document.note ?? event?.body}</span>}
                     </span>
                   </a>
                   <div className="flex flex-wrap gap-2 md:justify-end">
@@ -7061,21 +7119,17 @@ function DocumentsView({
                         Открыть узел
                       </Button>
                     )}
-                    {event && (
-                      <>
-                        <Button onClick={() => startEditDocument(document, event)} size="sm" type="button" variant="secondary">
-                          <Pencil size={14} />
-                          Редактировать
-                        </Button>
-                        <Button onClick={() => void deleteEvent(document.assetId, event.id)} size="sm" type="button" variant="destructive">
-                          <Trash2 size={14} />
-                          Удалить
-                        </Button>
-                      </>
-                    )}
+                    <Button onClick={() => startEditDocument(document, event)} size="sm" type="button" variant="secondary">
+                      <Pencil size={14} />
+                      Редактировать
+                    </Button>
+                    <Button onClick={() => void deleteDocument(document, event)} size="sm" type="button" variant="destructive">
+                      <Trash2 size={14} />
+                      Удалить
+                    </Button>
                   </div>
                 </div>
-                {isEditing && event && (
+                {isEditing && (
                   <div className="grid gap-3 rounded-lg bg-muted p-3">
                     <div className="grid gap-3 md:grid-cols-3">
                       <div className="grid gap-1.5">
@@ -7126,8 +7180,8 @@ function DocumentsView({
                         Отменить
                       </Button>
                       <Button
-                        disabled={savingDocumentId === event.id}
-                        onClick={() => void saveDocumentEdit(document.assetId, event.id)}
+                        disabled={savingDocumentId === document.id}
+                        onClick={() => void saveDocumentEdit(document, event)}
                         size="sm"
                         type="button"
                       >
