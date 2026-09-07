@@ -32,16 +32,6 @@ function todayLabel() {
   }).format(new Date());
 }
 
-function statusTitle(status: Status) {
-  const labels: Record<Status, string> = {
-    ok: "Исправно",
-    attention: "Требует внимания",
-    in_progress: "В работе",
-    needs_master: "Нужен мастер",
-  };
-  return labels[status];
-}
-
 function normalizeCost(cost: GuestResultPayload["cost"]) {
   if (cost === "" || cost === null || typeof cost === "undefined") {
     return null;
@@ -111,7 +101,6 @@ async function saveGuestResult({
   final?: boolean;
 }) {
   const resultId = `res-${inspection.id}-${result.assetId}`;
-  const eventId = `evt-${inspection.id}-${result.assetId}`;
   const cost = normalizeCost(result.cost);
   const comment = result.comment?.trim() || (final
     ? "Мастер проверил узел без дополнительного комментария."
@@ -135,64 +124,6 @@ async function saveGuestResult({
 
   if (resultError) {
     return { error: resultError.message, resultId };
-  }
-
-  const { error: eventError } = await admin.from("events").upsert(
-    {
-      apartment_id: inspection.apartment_id,
-      id: eventId,
-      asset_id: result.assetId,
-      inspection_id: inspection.id,
-      type: "report",
-      date_label: date,
-      title: `${inspection.workflow === "work_order" ? "Задание мастера" : "Отчет мастера"}: ${statusTitle(result.statusAfter)}`,
-      body: comment || "Мастер начал заполнять результат по узлу.",
-      cost,
-      master: inspection.contractor,
-      status_after: result.statusAfter,
-      photo:
-        (result.photoCount ?? 0) > 0
-          ? {
-              label: "фото",
-              note: `${result.photoCount} фото из ${
-                inspection.workflow === "work_order" ? "задания" : "обхода"
-              }`,
-            }
-          : null,
-    },
-    { onConflict: "apartment_id,id" },
-  );
-
-  if (eventError) {
-    return { error: eventError.message, resultId };
-  }
-
-  if ((result.photoCount ?? 0) > 0) {
-    const { error: mediaError } = await admin
-      .from("asset_media")
-      .update({ event_id: eventId })
-      .eq("apartment_id", inspection.apartment_id)
-      .eq("inspection_id", inspection.id)
-      .eq("asset_id", result.assetId);
-
-    if (mediaError) {
-      return { error: mediaError.message, resultId };
-    }
-  }
-
-  const { error: assetError } = await admin
-    .from("assets")
-    .update({
-      status: result.statusAfter,
-      master: inspection.contractor,
-      last_checked: date,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("apartment_id", inspection.apartment_id)
-    .eq("id", result.assetId);
-
-  if (assetError) {
-    return { error: assetError.message, resultId };
   }
 
   return { resultId };

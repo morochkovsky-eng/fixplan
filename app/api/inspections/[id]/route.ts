@@ -26,6 +26,23 @@ type InspectionRow = {
   result_ids: string[];
 };
 
+type InspectionResultRow = {
+  asset_id: string;
+  status_after: "ok" | "attention" | "in_progress" | "needs_master";
+  comment: string;
+  date_label: string;
+  author: string;
+  cost?: number | string | null;
+  photo_count: number;
+};
+
+const statusLabels: Record<InspectionResultRow["status_after"], string> = {
+  ok: "Исправно",
+  attention: "Требует внимания",
+  in_progress: "В работе",
+  needs_master: "Нужен мастер",
+};
+
 function appUrlFromRequest(request: Request) {
   return (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
 }
@@ -81,6 +98,73 @@ function serializeInspection(inspection: InspectionRow, request: Request) {
   };
 }
 
+async function applyAcceptedResults({
+  admin,
+  apartmentId,
+  inspection,
+  results,
+}: {
+  admin: NonNullable<ReturnType<typeof createAdminClient>>;
+  apartmentId: string;
+  inspection: InspectionRow;
+  results: InspectionResultRow[];
+}) {
+  for (const result of results) {
+    const eventId = `evt-${inspection.id}-${result.asset_id}`;
+    const { error: eventError } = await admin.from("events").upsert(
+      {
+        apartment_id: apartmentId,
+        id: eventId,
+        asset_id: result.asset_id,
+        inspection_id: inspection.id,
+        type: "report",
+        date_label: result.date_label,
+        title: `${inspection.workflow === "work_order" ? "Задание мастера" : "Отчет мастера"}: ${statusLabels[result.status_after]}`,
+        body: result.comment || "Исполнитель завершил проверку без комментария.",
+        cost: result.cost ?? null,
+        master: result.author || inspection.contractor,
+        status_after: result.status_after,
+        photo:
+          result.photo_count > 0
+            ? {
+                label: "фото",
+                note: `${result.photo_count} фото из ${
+                  inspection.workflow === "work_order" ? "задания" : "обхода"
+                }`,
+              }
+            : null,
+      },
+      { onConflict: "apartment_id,id" },
+    );
+    if (eventError) return eventError.message;
+
+    if (result.photo_count > 0) {
+      const { error: mediaError } = await admin
+        .from("asset_media")
+        .update({ event_id: eventId })
+        .eq("apartment_id", apartmentId)
+        .eq("inspection_id", inspection.id)
+        .eq("asset_id", result.asset_id);
+      if (mediaError) return mediaError.message;
+    }
+
+    const { error: assetError } = await admin
+      .from("assets")
+      .update({
+        status: result.status_after,
+        master: result.author || inspection.contractor,
+        last_checked: result.date_label,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("apartment_id", apartmentId)
+      .eq("id", result.asset_id)
+      .is("deleted_at", null);
+    if (assetError) return assetError.message;
+  }
+
+  return null;
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -123,6 +207,46 @@ export async function PATCH(
       return NextResponse.json({ error: "Only completed results can be accepted" }, { status: 409 });
     }
 
+    const [{ data: results, error: resultsError }, { data: activeAssets, error: assetsError }] =
+      await Promise.all([
+        admin
+          .from("inspection_results")
+          .select("*")
+          .eq("apartment_id", apartmentId)
+          .eq("inspection_id", id),
+        admin
+          .from("assets")
+          .select("id")
+          .eq("apartment_id", apartmentId)
+          .in("id", currentInspection.allowed_asset_ids)
+          .is("deleted_at", null),
+      ]);
+
+    if (resultsError || assetsError) {
+      return NextResponse.json(
+        { error: resultsError?.message ?? assetsError?.message },
+        { status: 500 },
+      );
+    }
+
+    const resultAssetIds = new Set((results ?? []).map((result) => result.asset_id));
+    if ((activeAssets ?? []).some((asset) => !resultAssetIds.has(asset.id))) {
+      return NextResponse.json(
+        { error: "Нельзя принять неполный отчет." },
+        { status: 409 },
+      );
+    }
+
+    const applyError = await applyAcceptedResults({
+      admin,
+      apartmentId,
+      inspection: currentInspection,
+      results: (results ?? []) as InspectionResultRow[],
+    });
+    if (applyError) {
+      return NextResponse.json({ error: applyError }, { status: 500 });
+    }
+
     const { data: inspection, error: acceptError } = await admin
       .from("inspections")
       .update({
@@ -140,6 +264,30 @@ export async function PATCH(
 
     if (acceptError) {
       return NextResponse.json({ error: acceptError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ inspection: serializeInspection(inspection, request) });
+  }
+
+  if (body.status === "in_progress" && currentInspection.status === "completed") {
+    const { data: inspection, error: returnError } = await admin
+      .from("inspections")
+      .update({
+        status: "in_progress",
+        completed_at_label: null,
+        summary:
+          workflow === "work_order"
+            ? "Владелец вернул задание в работу. Исполнитель может уточнить результаты."
+            : "Владелец вернул отчет в работу. Исполнитель может уточнить результаты.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("apartment_id", apartmentId)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (returnError) {
+      return NextResponse.json({ error: returnError.message }, { status: 500 });
     }
 
     return NextResponse.json({ inspection: serializeInspection(inspection, request) });

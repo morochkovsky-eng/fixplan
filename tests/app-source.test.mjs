@@ -480,7 +480,13 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(inspectionsRouteSource, /\.eq\("workflow", workflow\)/);
   assert.match(inspectionRouteSource, /body\.status === "accepted"/);
   assert.match(inspectionRouteSource, /Only completed results can be accepted/);
+  assert.match(inspectionRouteSource, /function applyAcceptedResults/);
+  assert.match(inspectionRouteSource, /Нельзя принять неполный отчет/);
+  assert.match(inspectionRouteSource, /body\.status === "in_progress"/);
+  assert.doesNotMatch(guestRouteSource, /\.from\("events"\)/);
   assert.match(pageSource, /status: patch\.status/);
+  assert.match(pageSource, /patch\.status === "accepted"/);
+  assert.match(pageSource, /Вернуть в работу/);
   assert.match(guestRouteSource, /Заполните результат по каждому узлу перед отправкой/);
   assert.match(guestRouteSource, /inspection\.status === "completed" \|\| inspection\.status === "accepted"/);
   assert.match(guestRouteSource, /\.is\("deleted_at", null\)/);

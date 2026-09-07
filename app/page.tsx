@@ -2419,6 +2419,33 @@ export default function Home() {
           : current.contractorAccess,
     }));
     setSelectedInspectionId(inspectionId);
+
+    if (patch.status === "accepted") {
+      try {
+        const refreshResponse = await fetch("/api/app-data", { cache: "no-store" });
+        const remoteState = (await refreshResponse.json().catch(() => ({}))) as Partial<AppState> & {
+          error?: string;
+        };
+        if (refreshResponse.ok && !remoteState.error) {
+          setState((current) =>
+            withCatalogAssets(
+              {
+                ...current,
+                assets: remoteState.assets ?? current.assets,
+                events: remoteState.events ?? current.events,
+                media: remoteState.media ?? current.media,
+                inspections: remoteState.inspections ?? current.inspections,
+                inspectionResults: remoteState.inspectionResults ?? current.inspectionResults,
+                deletedAssetIds: remoteState.deletedAssetIds ?? current.deletedAssetIds,
+              },
+              false,
+            ),
+          );
+        }
+      } catch {
+        // The accepted status is already visible; a later refresh will load the updated node history.
+      }
+    }
     return true;
   }
 
@@ -7249,6 +7276,17 @@ function InspectionsView({
     }
   }
 
+  async function returnInspection(inspection: Inspection) {
+    const saved = await updateInspection(inspection.id, { status: "in_progress" });
+    if (!saved) {
+      window.alert(
+        isWorkOrder
+          ? "Не удалось вернуть задание в работу."
+          : "Не удалось вернуть отчет в работу.",
+      );
+    }
+  }
+
   return (
     <div className="grid gap-4">
       <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -7391,15 +7429,26 @@ function InspectionsView({
                       {isWorkOrder ? "Открыть результат" : "Открыть отчет"}
                     </Button>
                     {canAccept && (
-                      <Button
-                        className="w-fit"
-                        onClick={() => void acceptInspection(inspection)}
-                        size="sm"
-                        type="button"
-                      >
-                        <Check size={14} />
-                        {isWorkOrder ? "Принять задание" : "Принять отчет"}
-                      </Button>
+                      <>
+                        <Button
+                          className="w-fit"
+                          onClick={() => void acceptInspection(inspection)}
+                          size="sm"
+                          type="button"
+                        >
+                          <Check size={14} />
+                          {isWorkOrder ? "Принять задание" : "Принять отчет"}
+                        </Button>
+                        <Button
+                          className="w-fit"
+                          onClick={() => void returnInspection(inspection)}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          {isWorkOrder ? "Вернуть в работу" : "Вернуть отчет"}
+                        </Button>
+                      </>
                     )}
                     {canEdit && !isEditing && (
                       <Button
@@ -7902,6 +7951,18 @@ function ContractorReport({
     }
   }
 
+  async function returnCurrentInspection() {
+    if (!inspection) return;
+    const saved = await updateInspection(inspection.id, { status: "in_progress" });
+    if (!saved) {
+      window.alert(
+        isWorkOrder
+          ? "Не удалось вернуть задание в работу."
+          : "Не удалось вернуть отчет в работу.",
+      );
+    }
+  }
+
   return (
     <div className="grid gap-4">
       <Card size="sm">
@@ -7922,10 +7983,19 @@ function ContractorReport({
               </Badge>
             )}
             {isCompleted && (
-              <Button onClick={() => void acceptCurrentInspection()} type="button">
-                <Check size={16} />
-                {isWorkOrder ? "Принять задание" : "Принять отчет"}
-              </Button>
+              <>
+                <Button onClick={() => void acceptCurrentInspection()} type="button">
+                  <Check size={16} />
+                  {isWorkOrder ? "Принять задание" : "Принять отчет"}
+                </Button>
+                <Button
+                  onClick={() => void returnCurrentInspection()}
+                  type="button"
+                  variant="outline"
+                >
+                  {isWorkOrder ? "Вернуть в работу" : "Вернуть отчет"}
+                </Button>
+              </>
             )}
             <Button onClick={openInspections} type="button" variant="secondary">
               {isWorkOrder ? "Все задания" : "Все обходы"}
