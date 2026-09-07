@@ -126,13 +126,31 @@ export async function GET() {
       return formatUtilityBill(bill, signedReceiptUrl);
     }),
   );
-  const { data: apartment } = await admin.from("apartments").select("name,address").eq("id", apartmentId).single();
+  const { data: apartment } = await admin
+    .from("apartments")
+    .select("name,address,plan_storage_path,plan_media_type,plan_original_name")
+    .eq("id", apartmentId)
+    .single();
+  let planUrl = "";
+  if (apartment?.plan_storage_path) {
+    const { data: signedPlan } = await admin.storage
+      .from("asset-media")
+      .createSignedUrl(apartment.plan_storage_path, 60 * 60);
+    planUrl = signedPlan?.signedUrl ?? "";
+  }
 
   return NextResponse.json({
     config: {
       serviceName: "FixPlan",
       objectName: apartment?.address || apartment?.name || "Объект",
     },
+    plan: apartment?.plan_storage_path
+      ? {
+          url: planUrl,
+          mediaType: apartment.plan_media_type ?? "image/jpeg",
+          originalName: apartment.plan_original_name ?? "Схема квартиры",
+        }
+      : null,
     deletedAssetIds: (deletedAssetsResult.data ?? []).map((asset) => asset.id),
     categories: (categoriesResult.data ?? []).map((category) => ({
       id: category.id,

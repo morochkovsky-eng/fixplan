@@ -809,9 +809,40 @@ textarea {
 .plan-image {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
   user-select: none;
   pointer-events: none;
+}
+
+.plan-document {
+  position: absolute;
+  inset: 0;
+  border: 0;
+}
+
+.plan-empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.plan-empty-state strong {
+  color: var(--text);
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.plan-empty-state span {
+  max-width: 320px;
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .plan-image.layer {

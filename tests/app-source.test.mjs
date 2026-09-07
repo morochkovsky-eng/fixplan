@@ -12,6 +12,7 @@ const assetRouteSource = fs.readFileSync("app/api/assets/[id]/route.ts", "utf8")
 const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
 const apartmentAccessSource = fs.readFileSync("app/api/assets/access.ts", "utf8");
 const apartmentsRouteSource = fs.readFileSync("app/api/apartments/route.ts", "utf8");
+const planRouteSource = fs.readFileSync("app/api/plan/route.ts", "utf8");
 const assetEventsRouteSource = fs.readFileSync("app/api/assets/[id]/events/route.ts", "utf8");
 const inspectionsRouteSource = fs.readFileSync("app/api/inspections/route.ts", "utf8");
 const inspectionRouteSource = fs.readFileSync("app/api/inspections/[id]/route.ts", "utf8");
@@ -261,6 +262,25 @@ test("keeps every owner workflow scoped to the selected apartment", () => {
     assert.match(source, /apartmentId/);
     assert.doesNotMatch(source, /00000000-0000-4000-8000-000000000034/);
   }
+});
+
+test("supports an optional apartment plan without demo leakage", () => {
+  assert.match(schemaSource, /plan_storage_path text/);
+  assert.match(schemaSource, /plan_media_type text/);
+  assert.match(appDataRouteSource, /plan_storage_path,plan_media_type,plan_original_name/);
+  assert.match(appDataRouteSource, /plan: apartment\?\.plan_storage_path/);
+  assert.match(planRouteSource, /requireApartmentAccess/);
+  assert.match(planRouteSource, /application\/pdf/);
+  assert.match(planRouteSource, /image\/jpeg/);
+  assert.match(planRouteSource, /25 \* 1024 \* 1024/);
+  assert.match(planRouteSource, /export async function POST/);
+  assert.match(planRouteSource, /export async function DELETE/);
+  assert.match(planRouteSource, /plan_storage_path: storagePath/);
+  assert.match(pageSource, /Загрузить схему/);
+  assert.match(pageSource, /Заменить схему/);
+  assert.match(pageSource, /Схема не загружена/);
+  assert.match(pageSource, /plan === undefined/);
+  assert.match(pageSource, /remoteState\.plan !== undefined/);
 });
 
 test("supports custom asset categories from the UI", () => {

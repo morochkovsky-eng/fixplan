@@ -33,6 +33,13 @@ create table public.apartments (
   name text not null,
   address text not null,
   created_by uuid references auth.users(id) on delete set null,
+  plan_storage_path text,
+  plan_media_type text check (
+    plan_media_type is null
+    or plan_media_type in ('application/pdf', 'image/gif', 'image/heic', 'image/heif', 'image/jpeg', 'image/png', 'image/webp')
+  ),
+  plan_original_name text,
+  plan_updated_at timestamptz,
   created_at timestamptz not null default now()
 );
 

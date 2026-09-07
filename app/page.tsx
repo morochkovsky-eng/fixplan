@@ -90,6 +90,7 @@ import {
   Settings,
   Trash2,
   Unplug,
+  Upload,
   UserRoundCheck,
   X,
   Zap,
@@ -262,6 +263,12 @@ type PlanHotspot = {
   assetId?: string;
 };
 
+type ApartmentPlanFile = {
+  url: string;
+  mediaType: string;
+  originalName: string;
+};
+
 type ContractorAccess = {
   scope: "plumbing" | "electric" | "all" | "custom";
   expires: string;
@@ -349,6 +356,7 @@ type UtilityReading = {
 
 type AppState = {
   config: AppConfig;
+  plan?: ApartmentPlanFile | null;
   categories: AssetCategory[];
   assets: Asset[];
   deletedAssetIds?: string[];
@@ -727,6 +735,7 @@ const initialState: AppState = {
     serviceName: "FixPlan",
     objectName: "Шпалерная, 34Б",
   },
+  plan: undefined,
   categories: defaultAssetCategories,
   assets: [
     {
@@ -1541,6 +1550,7 @@ export default function Home() {
           withCatalogAssets({
             ...current,
             config: remoteState.config ?? current.config,
+            plan: remoteState.plan !== undefined ? remoteState.plan : current.plan,
             assets: remoteState.assets ?? current.assets,
             events: remoteState.events ?? current.events,
             media: remoteState.media ?? current.media,
@@ -2697,6 +2707,8 @@ export default function Home() {
             categories={state.categories}
             createCategory={createCategory}
             filter={planFilter}
+            plan={state.plan}
+            setPlan={(plan) => setState((current) => ({ ...current, plan }))}
             assetDraft={assetDraft}
             assetSaving={assetSaving}
             cancelPlanChanges={cancelPlanChanges}
@@ -3688,6 +3700,8 @@ function PlanView({
   categories,
   createCategory,
   filter,
+  plan,
+  setPlan,
   assetDraft,
   assetSaving,
   cancelPlanChanges,
@@ -3713,6 +3727,8 @@ function PlanView({
   categories: AssetCategory[];
   createCategory: (label: string) => Promise<boolean>;
   filter: AssetFilter;
+  plan?: ApartmentPlanFile | null;
+  setPlan: (plan: ApartmentPlanFile | null) => void;
   assetDraft: AssetDraft;
   assetSaving: boolean;
   cancelPlanChanges: () => void;
@@ -3734,6 +3750,8 @@ function PlanView({
 }) {
   const [planQuery, setPlanQuery] = useState("");
   const [sort, setSort] = useState<AssetSort>("status");
+  const [planFileSaving, setPlanFileSaving] = useState(false);
+  const [planFileError, setPlanFileError] = useState("");
   const activeMode = planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
   const activeHotspots = planHotspots[activeMode.id];
   const filterOptions = useMemo(() => assetFiltersForCategories(categories), [categories]);
@@ -3792,6 +3810,44 @@ function PlanView({
     const label = window.prompt("Название новой категории");
     if (!label?.trim()) return;
     await createCategory(label);
+  }
+
+  async function uploadPlan(file: File) {
+    setPlanFileSaving(true);
+    setPlanFileError("");
+    const formData = new FormData();
+    formData.set("file", file);
+    try {
+      const response = await fetch("/api/plan", { method: "POST", body: formData });
+      const result = (await response.json().catch(() => ({}))) as {
+        plan?: ApartmentPlanFile;
+        error?: string;
+      };
+      if (!response.ok || !result.plan) {
+        throw new Error(result.error || "Не удалось загрузить схему.");
+      }
+      setPlan(result.plan);
+    } catch (uploadError) {
+      setPlanFileError(uploadError instanceof Error ? uploadError.message : "Не удалось загрузить схему.");
+    } finally {
+      setPlanFileSaving(false);
+    }
+  }
+
+  async function deletePlan() {
+    if (!window.confirm("Удалить схему квартиры? Узлы и их данные останутся в системе.")) return;
+    setPlanFileSaving(true);
+    setPlanFileError("");
+    try {
+      const response = await fetch("/api/plan", { method: "DELETE" });
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Не удалось удалить схему.");
+      setPlan(null);
+    } catch (deleteError) {
+      setPlanFileError(deleteError instanceof Error ? deleteError.message : "Не удалось удалить схему.");
+    } finally {
+      setPlanFileSaving(false);
+    }
   }
 
   return (
@@ -3868,6 +3924,40 @@ function PlanView({
               </p>
             </div>
             <div className="asset-current-actions">
+              <Button asChild disabled={planFileSaving} size="sm" variant="outline">
+                <label>
+                  <Upload size={14} />
+                  {planFileSaving ? "Загрузка…" : plan ? "Заменить схему" : "Загрузить схему"}
+                  <input
+                    accept="application/pdf,image/*"
+                    className="sr-only"
+                    disabled={planFileSaving}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      if (file) void uploadPlan(file);
+                    }}
+                    type="file"
+                  />
+                </label>
+              </Button>
+              {plan ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      aria-label="Удалить схему"
+                      disabled={planFileSaving}
+                      onClick={() => void deletePlan()}
+                      size="icon-sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Удалить схему</TooltipContent>
+                </Tooltip>
+              ) : null}
               {editMode ? (
                 <>
                   <Button
@@ -3901,12 +3991,14 @@ function PlanView({
               )}
             </div>
           </div>
+          {planFileError ? <p className="text-sm text-destructive">{planFileError}</p> : null}
         </div>
 
         <Card className="plan-main-card">
           <CardContent className="plan-main-content">
             <ApartmentPlan
               activeMode={activeMode}
+              plan={plan}
               hotspots={activeHotspots}
               assets={filteredAssets}
               editMode={editMode}
@@ -4127,6 +4219,7 @@ function PlanAssetEditor({
 
 function ApartmentPlan({
   activeMode,
+  plan,
   hotspots,
   assets,
   editMode,
@@ -4136,6 +4229,7 @@ function ApartmentPlan({
   selectAssetForEditing,
 }: {
   activeMode: PlanMode;
+  plan?: ApartmentPlanFile | null;
   hotspots: PlanHotspot[];
   assets: Asset[];
   editMode: boolean;
@@ -4144,8 +4238,12 @@ function ApartmentPlan({
   openAsset: (id: string) => void;
   selectAssetForEditing: (asset: Asset) => void;
 }) {
+  const [planImageGeometry, setPlanImageGeometry] = useState<{ url: string; ratio: number } | null>(null);
   const visibleAssetIds = new Set(assets.map((asset) => asset.id));
   const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+  const planAspectRatio = planImageGeometry && planImageGeometry.url === plan?.url
+    ? planImageGeometry.ratio
+    : null;
 
   function updateFromPointer(asset: Asset, event: PointerEvent<HTMLButtonElement>) {
     const stage = event.currentTarget.closest(".plan-stage");
@@ -4159,8 +4257,55 @@ function ApartmentPlan({
 
   return (
     <div className="apartment-plan" aria-label="Схема квартиры">
-      <div className="plan-stage" role="img">
-        <img alt={activeMode.label} className="plan-image base" src={activeMode.src} />
+      <div
+        className="plan-stage"
+        role="img"
+        style={
+          plan
+            ? { aspectRatio: plan.mediaType === "application/pdf" ? "210 / 297" : planAspectRatio ?? undefined }
+            : undefined
+        }
+      >
+        {plan?.mediaType === "application/pdf" ? (
+          <object
+            aria-label={plan.originalName}
+            className="plan-image plan-document"
+            data={plan.url}
+            type="application/pdf"
+          />
+        ) : plan ? (
+          <Image
+            alt={plan.originalName}
+            className="plan-image base"
+            fill
+            onLoad={(event) => {
+              const image = event.currentTarget;
+              if (image.naturalWidth && image.naturalHeight) {
+                setPlanImageGeometry({
+                  url: plan.url,
+                  ratio: image.naturalWidth / image.naturalHeight,
+                });
+              }
+            }}
+            sizes="(max-width: 980px) 100vw, 70vw"
+            src={plan.url}
+            unoptimized
+          />
+        ) : plan === undefined ? (
+          <Image
+            alt={activeMode.label}
+            className="plan-image base"
+            fill
+            sizes="(max-width: 980px) 100vw, 70vw"
+            src={activeMode.src}
+          />
+        ) : (
+          <div className="plan-empty-state">
+            <MapIcon size={28} />
+            <strong>Схема не загружена</strong>
+            <span>Узлы доступны в каталоге. Добавить план можно в любой момент.</span>
+          </div>
+        )}
         {hotspots.map((hotspot) => {
           const markerAssetId = hotspot.assetId ?? hotspot.id;
           const isLinkedAsset = visibleAssetIds.has(markerAssetId);
