@@ -262,6 +262,8 @@ export async function GET() {
             status: meter.status,
             lastReading:
               meter.last_reading === null ? undefined : Number(meter.last_reading),
+            currentRate:
+              meter.current_rate === null ? undefined : Number(meter.current_rate),
           })),
         }
       : {}),
@@ -278,6 +280,11 @@ export async function GET() {
               source: reading.source,
               note: reading.note ?? undefined,
               photoUrl: photo?.url || undefined,
+              previousValue: reading.previous_value === null ? undefined : Number(reading.previous_value),
+              consumption: reading.consumption === null ? undefined : Number(reading.consumption),
+              rate: reading.rate === null ? undefined : Number(reading.rate),
+              calculatedAmount:
+                reading.calculated_amount === null ? undefined : Number(reading.calculated_amount),
             };
           }),
         }

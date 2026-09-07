@@ -16,6 +16,7 @@ type MeterPayload = {
   nextDue: string;
   status: string;
   lastReading?: number;
+  currentRate?: number;
 };
 
 function normalizeMeter(value: unknown): MeterPayload | null {
@@ -26,6 +27,7 @@ function normalizeMeter(value: unknown): MeterPayload | null {
   const service = String(meter.service ?? "other");
   const status = String(meter.status ?? "due");
   const lastReading = Number(meter.lastReading);
+  const currentRate = Number(meter.currentRate);
 
   if (!id || !label || !services.has(service) || !meterStatuses.has(status)) return null;
 
@@ -39,6 +41,7 @@ function normalizeMeter(value: unknown): MeterPayload | null {
     unit: String(meter.unit ?? "").trim(),
     nextDue: String(meter.nextDue ?? "").trim(),
     lastReading: Number.isFinite(lastReading) ? lastReading : undefined,
+    currentRate: Number.isFinite(currentRate) ? currentRate : undefined,
   };
 }
 
@@ -50,6 +53,10 @@ function formatReading(reading: {
   submitted_at_label: string;
   source: string;
   note: string | null;
+  previous_value: number | string | null;
+  consumption: number | string | null;
+  rate: number | string | null;
+  calculated_amount: number | string | null;
 }, photoUrl = "") {
   return {
     id: reading.id,
@@ -60,6 +67,10 @@ function formatReading(reading: {
     source: reading.source,
     note: reading.note ?? undefined,
     photoUrl: photoUrl || undefined,
+    previousValue: reading.previous_value === null ? undefined : Number(reading.previous_value),
+    consumption: reading.consumption === null ? undefined : Number(reading.consumption),
+    rate: reading.rate === null ? undefined : Number(reading.rate),
+    calculatedAmount: reading.calculated_amount === null ? undefined : Number(reading.calculated_amount),
   };
 }
 
@@ -104,13 +115,42 @@ export async function POST(request: Request) {
   }
 
   const id = String(body.id ?? "").trim() || `reading-${randomUUID().slice(0, 8)}`;
-  const { data: existingReading, error: existingError } = await admin
-    .from("utility_readings")
-    .select("photo_storage_path")
-    .eq("apartment_id", apartmentId)
-    .eq("id", id)
-    .maybeSingle();
-  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
+  const [existingResult, storedMeterResult, latestReadingResult] = await Promise.all([
+    admin
+      .from("utility_readings")
+      .select("photo_storage_path,previous_value,rate")
+      .eq("apartment_id", apartmentId)
+      .eq("id", id)
+      .maybeSingle(),
+    admin
+      .from("utility_meters")
+      .select("last_reading,current_rate")
+      .eq("apartment_id", apartmentId)
+      .eq("id", meterId)
+      .maybeSingle(),
+    admin
+      .from("utility_readings")
+      .select("id")
+      .eq("apartment_id", apartmentId)
+      .eq("meter_id", meterId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  if (existingResult.error) return NextResponse.json({ error: existingResult.error.message }, { status: 500 });
+  if (storedMeterResult.error) return NextResponse.json({ error: storedMeterResult.error.message }, { status: 500 });
+  if (latestReadingResult.error) return NextResponse.json({ error: latestReadingResult.error.message }, { status: 500 });
+  if (!storedMeterResult.data) return NextResponse.json({ error: "Счетчик не найден." }, { status: 404 });
+  const existingReading = existingResult.data;
+  const previousValueRaw = existingReading?.previous_value ?? storedMeterResult.data.last_reading;
+  const previousValue = previousValueRaw === null ? null : Number(previousValueRaw);
+  if (previousValue !== null && value < previousValue) {
+    return NextResponse.json({ error: "Новое показание не может быть меньше предыдущего." }, { status: 400 });
+  }
+  const rateRaw = existingReading?.rate ?? storedMeterResult.data.current_rate;
+  const rate = rateRaw === null ? null : Number(rateRaw);
+  const consumption = previousValue === null ? null : value - previousValue;
+  const calculatedAmount = consumption === null || rate === null ? null : consumption * rate;
 
   let photoStoragePath = existingReading?.photo_storage_path ?? "";
   if (photo) {
@@ -124,22 +164,17 @@ export async function POST(request: Request) {
     if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
   }
 
-  const { error: meterError } = await admin.from("utility_meters").upsert(
-    {
-      apartment_id: apartmentId,
-      id: meter.id,
-      service: meter.service,
-      label: meter.label,
-      serial: meter.serial,
-      location: meter.location,
-      unit: meter.unit,
-      next_due_label: meter.nextDue,
-      status: "submitted",
-      last_reading: value,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "apartment_id,id" },
-  );
+  const shouldUpdateLastReading = !existingReading || latestReadingResult.data?.id === id;
+  const meterPatch: Record<string, unknown> = {
+    status: "submitted",
+    updated_at: new Date().toISOString(),
+  };
+  if (shouldUpdateLastReading) meterPatch.last_reading = value;
+  const { error: meterError } = await admin
+    .from("utility_meters")
+    .update(meterPatch)
+    .eq("apartment_id", apartmentId)
+    .eq("id", meter.id);
 
   if (meterError) {
     if (photo) await admin.storage.from("asset-media").remove([photoStoragePath]);
@@ -155,6 +190,10 @@ export async function POST(request: Request) {
         meter_id: meterId,
         period,
         value,
+        previous_value: previousValue,
+        consumption,
+        rate,
+        calculated_amount: calculatedAmount,
         submitted_at_label: String(body.submittedAt ?? "").trim(),
         source,
         note: typeof body.note === "string" && body.note.trim() ? body.note.trim() : null,

@@ -357,8 +357,8 @@ async function executeTool(
 
   if (call.name === "get_utility_state") {
     const [metersResult, readingsResult, billsResult] = await Promise.all([
-      admin.from("utility_meters").select("id,service,label,serial,location,unit,next_due_label,status,last_reading").eq("apartment_id", account.apartment_id).order("created_at"),
-      admin.from("utility_readings").select("id,meter_id,period,value,submitted_at_label,source").eq("apartment_id", account.apartment_id).order("created_at", { ascending: false }).limit(30),
+      admin.from("utility_meters").select("id,service,label,serial,location,unit,next_due_label,status,last_reading,current_rate").eq("apartment_id", account.apartment_id).order("created_at"),
+      admin.from("utility_readings").select("id,meter_id,period,value,previous_value,consumption,rate,calculated_amount,submitted_at_label,source").eq("apartment_id", account.apartment_id).order("created_at", { ascending: false }).limit(30),
       admin.from("utility_bills").select("id,service,period,amount,due_date_label,status,allocation,tenant_amount,reimbursement_status").eq("apartment_id", account.apartment_id).neq("status", "paid").order("created_at", { ascending: false }).limit(20),
     ]);
     const error = metersResult.error ?? readingsResult.error ?? billsResult.error;
@@ -408,7 +408,7 @@ async function executeTool(
     const value = Number(args.value);
     const { data: meter, error } = await admin
       .from("utility_meters")
-      .select("id,service,label,serial,location,unit,last_reading")
+      .select("id,service,label,serial,location,unit,last_reading,current_rate")
       .eq("apartment_id", account.apartment_id)
       .eq("id", meterId)
       .maybeSingle();
@@ -684,7 +684,7 @@ export async function runTelegramAssistant(
       const period = String(payload.period ?? "").trim();
       const { data: meter, error: meterError } = await admin
         .from("utility_meters")
-        .select("id,label,last_reading,status")
+        .select("id,label,last_reading,current_rate,status")
         .eq("apartment_id", draftApartment.id)
         .eq("id", meterId)
         .maybeSingle();
@@ -693,6 +693,13 @@ export async function runTelegramAssistant(
         return "Счётчик или данные черновика изменились. Отмените черновик и соберите показание заново.";
       }
       const readingId = `reading-${randomUUID().slice(0, 8)}`;
+      const previousValue = meter.last_reading === null ? null : Number(meter.last_reading);
+      if (previousValue !== null && value < previousValue) {
+        return "Новое показание меньше предыдущего. Проверьте значение или исправьте начальное показание счётчика.";
+      }
+      const rate = meter.current_rate === null ? null : Number(meter.current_rate);
+      const consumption = previousValue === null ? null : value - previousValue;
+      const calculatedAmount = consumption === null || rate === null ? null : consumption * rate;
       const photoStoragePath = String(payload.photoStoragePath ?? "").trim();
       const submittedAt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: draftApartment.timezone }).format(new Date());
       const { error: readingError } = await admin.from("utility_readings").insert({
@@ -701,6 +708,10 @@ export async function runTelegramAssistant(
         meter_id: meterId,
         period,
         value,
+        previous_value: previousValue,
+        consumption,
+        rate,
+        calculated_amount: calculatedAmount,
         submitted_at_label: submittedAt,
         source: "telegram",
         note: String(payload.note ?? "").trim() || null,
@@ -737,7 +748,10 @@ export async function runTelegramAssistant(
         return `Не удалось обновить счётчик: ${updateMeterError.message}`;
       }
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
-      return `Показание «${meter.label}» за ${period} сохранено: ${value.toLocaleString("ru-RU")}.`;
+      const calculation = calculatedAmount === null
+        ? " Сумма пока не рассчитана: нет предыдущего показания или тарифа."
+        : ` Расход: ${consumption?.toLocaleString("ru-RU")}; расчет: ${calculatedAmount.toLocaleString("ru-RU")} руб. по тарифу ${rate?.toLocaleString("ru-RU")}.`;
+      return `Показание «${meter.label}» за ${period} сохранено: ${value.toLocaleString("ru-RU")}.${calculation}`;
     }
     if (pending.type === "create_asset_event") {
       const payload = pending.payload as Record<string, unknown>;

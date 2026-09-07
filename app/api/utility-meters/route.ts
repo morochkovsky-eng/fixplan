@@ -14,12 +14,18 @@ export async function POST(request: Request) {
   const lastReading = body.lastReading === "" || body.lastReading == null
     ? null
     : Number(body.lastReading);
+  const currentRate = body.currentRate === "" || body.currentRate == null
+    ? null
+    : Number(body.currentRate);
 
   if (!label || !services.has(service)) {
     return NextResponse.json({ error: "Укажите название и тип счетчика." }, { status: 400 });
   }
   if (lastReading !== null && (!Number.isFinite(lastReading) || lastReading < 0)) {
     return NextResponse.json({ error: "Начальное показание должно быть неотрицательным числом." }, { status: 400 });
+  }
+  if (currentRate !== null && (!Number.isFinite(currentRate) || currentRate < 0)) {
+    return NextResponse.json({ error: "Тариф должен быть неотрицательным числом." }, { status: 400 });
   }
 
   const { data, error: createError } = await admin
@@ -35,6 +41,7 @@ export async function POST(request: Request) {
       next_due_label: String(body.nextDue ?? "").trim(),
       status: "due",
       last_reading: lastReading,
+      current_rate: currentRate,
     })
     .select("*")
     .single();
@@ -51,6 +58,7 @@ export async function POST(request: Request) {
       nextDue: data.next_due_label,
       status: data.status,
       lastReading: data.last_reading === null ? undefined : Number(data.last_reading),
+      currentRate: data.current_rate === null ? undefined : Number(data.current_rate),
     },
   });
 }

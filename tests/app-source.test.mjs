@@ -481,13 +481,18 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityBillRouteSource, /export async function PATCH/);
   assert.match(utilityBillRouteSource, /export async function DELETE/);
   assert.match(utilityReadingsRouteSource, /export async function POST/);
-  assert.match(utilityReadingsRouteSource, /\.from\("utility_meters"\)\.upsert/);
+  assert.match(utilityReadingsRouteSource, /\.from\("utility_meters"\)\s+\.update\(meterPatch\)/);
   assert.match(utilityReadingsRouteSource, /\.from\("utility_readings"\)/);
   assert.match(schemaSource, /photo_storage_path text/);
   assert.match(schemaSource, /utility_reading_id text/);
+  assert.match(schemaSource, /current_rate numeric/);
+  assert.match(schemaSource, /previous_value numeric/);
+  assert.match(schemaSource, /calculated_amount numeric/);
   assert.match(utilityReadingsRouteSource, /utility_reading_id: id/);
   assert.match(utilityReadingsRouteSource, /document_type: "other"/);
   assert.match(utilityReadingsRouteSource, /15 \* 1024 \* 1024/);
+  assert.match(utilityReadingsRouteSource, /value - previousValue/);
+  assert.match(utilityReadingsRouteSource, /consumption \* rate/);
   assert.match(utilityMetersRouteSource, /export async function POST/);
   assert.match(utilityMeterRouteSource, /export async function DELETE/);
   assert.match(utilityMeterRouteSource, /deletedReadingIds/);
@@ -497,6 +502,8 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /счет или показания электричества/);
   assert.match(pageSource, /Добавить счетчик/);
   assert.match(pageSource, /Сохранить счетчик/);
+  assert.match(pageSource, /Тариф, руб\. за единицу/);
+  assert.match(pageSource, /Расчет по показаниям/);
   assert.match(documentRouteSource, /utility_bill_id \|\| data\.utility_reading_id/);
   assert.match(documentRouteSource, /является первоисточником/);
   assert.match(pageSource, /Коммуналка и счета/);

@@ -245,10 +245,12 @@ create table public.utility_meters (
   next_due_label text not null default '',
   status public.utility_meter_status not null default 'due',
   last_reading numeric,
+  current_rate numeric,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (apartment_id, id),
-  constraint utility_meters_label_not_blank check (length(trim(label)) > 0)
+  constraint utility_meters_label_not_blank check (length(trim(label)) > 0),
+  constraint utility_meters_current_rate_non_negative check (current_rate is null or current_rate >= 0)
 );
 
 create table public.utility_readings (
@@ -257,6 +259,10 @@ create table public.utility_readings (
   meter_id text not null,
   period text not null,
   value numeric not null,
+  previous_value numeric,
+  consumption numeric,
+  rate numeric,
+  calculated_amount numeric,
   submitted_at_label text not null default '',
   source public.utility_reading_source not null default 'manual',
   note text,
@@ -265,7 +271,10 @@ create table public.utility_readings (
   updated_at timestamptz not null default now(),
   primary key (apartment_id, id),
   foreign key (apartment_id, meter_id) references public.utility_meters(apartment_id, id) on delete cascade,
-  constraint utility_readings_period_not_blank check (length(trim(period)) > 0)
+  constraint utility_readings_period_not_blank check (length(trim(period)) > 0),
+  constraint utility_readings_consumption_non_negative check (consumption is null or consumption >= 0),
+  constraint utility_readings_rate_non_negative check (rate is null or rate >= 0),
+  constraint utility_readings_calculated_amount_non_negative check (calculated_amount is null or calculated_amount >= 0)
 );
 
 alter table public.asset_media

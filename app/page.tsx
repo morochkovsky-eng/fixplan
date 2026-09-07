@@ -381,6 +381,7 @@ type UtilityMeter = {
   nextDue: string;
   status: UtilityMeterStatus;
   lastReading?: number;
+  currentRate?: number;
 };
 
 type UtilityReading = {
@@ -392,6 +393,10 @@ type UtilityReading = {
   source: "owner" | "telegram" | "manual";
   note?: string;
   photoUrl?: string;
+  previousValue?: number;
+  consumption?: number;
+  rate?: number;
+  calculatedAmount?: number;
 };
 
 type UtilityMeterDraft = {
@@ -402,6 +407,7 @@ type UtilityMeterDraft = {
   unit: string;
   nextDue: string;
   lastReading: string;
+  currentRate: string;
 };
 
 type AppState = {
@@ -1227,6 +1233,7 @@ function emptyUtilityMeterDraft(): UtilityMeterDraft {
     unit: "кВт·ч",
     nextDue: "",
     lastReading: "",
+    currentRate: "",
   };
 }
 
@@ -6196,6 +6203,10 @@ function UtilitiesView({
     .filter((bill) => bill.tenantAmount > 0 && bill.reimbursementStatus !== "received")
     .reduce((sum, bill) => sum + bill.tenantAmount, 0);
   const activeMeters = meters.filter((meter) => !readingByMeter.has(meter.id)).length;
+  const calculatedReadingAmount = selectedReadings.reduce(
+    (sum, reading) => sum + (reading.calculatedAmount ?? 0),
+    0,
+  );
   const currentStatus = selectedMonth?.status ?? "awaiting_readings";
 
   function selectPeriod(period: string) {
@@ -6553,7 +6564,7 @@ function UtilitiesView({
               </div>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-lg bg-muted p-3">
                   <div className="text-muted-foreground text-sm">Показаний передано</div>
                   <div className="mt-1 text-2xl font-semibold">
@@ -6568,6 +6579,12 @@ function UtilitiesView({
                   <div className="text-muted-foreground text-sm">К возмещению</div>
                   <div className="mt-1 text-2xl font-semibold">
                     {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}
+                  </div>
+                </div>
+                <div className="rounded-lg bg-muted p-3">
+                  <div className="text-muted-foreground text-sm">Расчет по показаниям</div>
+                  <div className="mt-1 text-2xl font-semibold">
+                    {moneyLabel(calculatedReadingAmount)}
                   </div>
                 </div>
               </div>
@@ -6687,6 +6704,21 @@ function UtilitiesView({
                         value={meterDraft.lastReading}
                       />
                     </label>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-rate">
+                      Тариф, руб. за единицу
+                      <Input
+                        id="new-meter-rate"
+                        inputMode="decimal"
+                        min="0"
+                        onChange={(event) => {
+                          const currentRate = event.currentTarget.value;
+                          setMeterDraft((current) => ({ ...current, currentRate }));
+                        }}
+                        placeholder="Необязательно"
+                        type="number"
+                        value={meterDraft.currentRate}
+                      />
+                    </label>
                     <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-due">
                       Передать до
                       <Input
@@ -6745,6 +6777,14 @@ function UtilitiesView({
                         <div className="text-muted-foreground text-sm">
                           {reading ? `${utilityReadingSourceLabels[reading.source]} · ${reading.submittedAt}` : "Ожидаем показание"}
                         </div>
+                        {reading?.consumption !== undefined && (
+                          <div className="text-muted-foreground text-sm">
+                            Расход {reading.consumption.toLocaleString("ru-RU")} {meter.unit}
+                            {reading.calculatedAmount !== undefined
+                              ? ` · ${moneyLabel(reading.calculatedAmount)} по тарифу ${reading.rate?.toLocaleString("ru-RU")} руб.`
+                              : " · сумма не рассчитана, тариф не указан"}
+                          </div>
+                        )}
                         {reading?.photoUrl && (
                           <MediaGallery
                             items={media.filter((item) => item.utilityReadingId === reading.id)}
