@@ -115,9 +115,14 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(pageSource, /Подключить мой Telegram/);
   assert.doesNotMatch(pageSource, /Роль пользователя/);
   assert.match(telegramAssistantSource, /list_cleanings/);
+  assert.match(telegramAssistantSource, /list_assets/);
+  assert.match(telegramAssistantSource, /list_work_orders/);
+  assert.match(telegramAssistantSource, /get_utility_state/);
   assert.match(telegramAssistantSource, /list_apartments/);
   assert.match(telegramAssistantSource, /select_apartment/);
   assert.match(telegramAssistantSource, /active_apartment_id/);
+  assert.match(telegramAssistantSource, /apartment_timezone/);
+  assert.match(telegramAssistantSource, /apartment_currency/);
   assert.match(telegramAssistantSource, /apartmentId: account\.apartment_id/);
   assert.match(telegramAssistantSource, /prepare_cleaning/);
   assert.match(telegramAssistantSource, /prepare_utility_bill/);

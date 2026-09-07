@@ -13,6 +13,8 @@ type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_id: string;
   apartment_name: string;
   apartment_address: string;
+  apartment_currency: string;
+  apartment_timezone: string;
 };
 
 type Conversation = {
@@ -84,6 +86,47 @@ const tools = [
   },
   {
     type: "function",
+    name: "list_assets",
+    description: "Получить узлы текущей квартиры. Используй для поиска узла и вопросов о состоянии, комнате или категории.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Код, название, комната или категория; пустая строка для всех узлов" },
+        status: { type: "string", enum: ["all", "ok", "attention", "in_progress", "needs_master"] },
+      },
+      required: ["query", "status"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "list_work_orders",
+    description: "Получить задания мастерам по текущей квартире и их актуальные статусы.",
+    parameters: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["all", "draft", "sent", "in_progress", "completed", "accepted"] },
+      },
+      required: ["status"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "get_utility_state",
+    description: "Получить счётчики, последние показания и открытые коммунальные счета текущей квартиры.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
     name: "prepare_cleaning",
     description: "Подготовить черновик уборки. Это не создаёт уборку: после вызова обязательно попроси явное подтверждение.",
     parameters: {
@@ -135,13 +178,13 @@ function plainText(response: OpenAIResponse) {
 async function createResponse(input: unknown, previousResponseId: string | null, account: ActiveTelegramAccount) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
-  const today = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Moscow" }).format(new Date());
+  const today = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full", timeStyle: "short", timeZone: account.apartment_timezone }).format(new Date());
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс Europe/Moscow. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные получай только через инструменты. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
       input,
       tools,
       tool_choice: "auto",
@@ -193,6 +236,8 @@ async function executeTool(
     account.apartment_id = apartment.id;
     account.apartment_name = apartment.name;
     account.apartment_address = apartment.address;
+    account.apartment_currency = apartment.currency;
+    account.apartment_timezone = apartment.timezone;
     await saveConversation(admin, account, { active_apartment_id: apartment.id });
     return {
       ok: true,
@@ -208,6 +253,49 @@ async function executeTool(
     const { data, error } = await query;
     if (error) return { ok: false, error: error.message };
     return { ok: true, cleanings: data ?? [] };
+  }
+
+  if (call.name === "list_assets") {
+    let query = admin
+      .from("assets")
+      .select("id,code,name,room_id,category,status,last_checked")
+      .eq("apartment_id", account.apartment_id)
+      .is("deleted_at", null)
+      .order("code")
+      .limit(250);
+    if (args.status && args.status !== "all") query = query.eq("status", String(args.status));
+    const { data, error } = await query;
+    if (error) return { ok: false, error: error.message };
+    const search = String(args.query ?? "").trim().toLocaleLowerCase("ru-RU");
+    const assets = search
+      ? (data ?? []).filter((asset) => [asset.code, asset.name, asset.room_id, asset.category].some((value) => String(value ?? "").toLocaleLowerCase("ru-RU").includes(search)))
+      : data ?? [];
+    return { ok: true, assets: assets.slice(0, 40), total: assets.length, truncated: assets.length > 40 };
+  }
+
+  if (call.name === "list_work_orders") {
+    let query = admin
+      .from("inspections")
+      .select("id,number,title,contractor,contractor_phone,status,allowed_asset_ids,created_at_label,completed_at_label")
+      .eq("apartment_id", account.apartment_id)
+      .eq("workflow", "work_order")
+      .order("created_at", { ascending: false })
+      .limit(30);
+    if (args.status && args.status !== "all") query = query.eq("status", String(args.status));
+    const { data, error } = await query;
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, workOrders: data ?? [] };
+  }
+
+  if (call.name === "get_utility_state") {
+    const [metersResult, readingsResult, billsResult] = await Promise.all([
+      admin.from("utility_meters").select("id,service,label,serial,location,unit,next_due_label,status,last_reading").eq("apartment_id", account.apartment_id).order("created_at"),
+      admin.from("utility_readings").select("id,meter_id,period,value,submitted_at_label,source").eq("apartment_id", account.apartment_id).order("created_at", { ascending: false }).limit(30),
+      admin.from("utility_bills").select("id,service,period,amount,due_date_label,status,allocation,tenant_amount,reimbursement_status").eq("apartment_id", account.apartment_id).neq("status", "paid").order("created_at", { ascending: false }).limit(20),
+    ]);
+    const error = metersResult.error ?? readingsResult.error ?? billsResult.error;
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, meters: metersResult.data ?? [], readings: readingsResult.data ?? [], openBills: billsResult.data ?? [] };
   }
 
   if (call.name === "prepare_cleaning") {
@@ -301,6 +389,8 @@ export async function runTelegramAssistant(
     apartment_id: context.apartment.id,
     apartment_name: context.apartment.name,
     apartment_address: context.apartment.address,
+    apartment_currency: context.apartment.currency,
+    apartment_timezone: context.apartment.timezone,
   };
   const normalized = message.trim().toLocaleLowerCase("ru-RU");
 
@@ -351,7 +441,7 @@ export async function runTelegramAssistant(
         }
       }
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
-      return `Счёт «${result.row.service}» за ${result.row.period} создан для объекта «${draftApartment.name}». Сумма: ${Number(result.row.amount).toLocaleString("ru-RU")} ₽.`;
+      return `Счёт «${result.row.service}» за ${result.row.period} создан для объекта «${draftApartment.name}». Сумма: ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: draftApartment.currency }).format(Number(result.row.amount))}.`;
     }
     return "Черновик повреждён. Давайте соберём его заново.";
   }
