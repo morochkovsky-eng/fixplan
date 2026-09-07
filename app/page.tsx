@@ -197,6 +197,7 @@ type AssetMedia = {
   assetId?: string;
   eventId?: string;
   inspectionId?: string;
+  utilityBillId?: string;
   url: string;
   filename: string;
   mediaType: string;
@@ -1059,10 +1060,6 @@ function eventId() {
   return `event-${Date.now()}-${Math.round(Math.random() * 1000)}`;
 }
 
-function utilityBillId() {
-  return `bill-${Date.now()}-${Math.round(Math.random() * 1000)}`;
-}
-
 function utilityReadingId() {
   return `reading-${Date.now()}-${Math.round(Math.random() * 1000)}`;
 }
@@ -1158,7 +1155,8 @@ function buildUtilityMonths(
   return periods.map((period) => {
     const periodBills = bills.filter((bill) => bill.period === period);
     const periodReadings = readings.filter((reading) => reading.period === period);
-    const hasAllReadings = meters.length > 0 && periodReadings.length >= meters.length;
+    const readMeterIds = new Set(periodReadings.map((reading) => reading.meterId));
+    const hasAllReadings = meters.length > 0 && meters.every((meter) => readMeterIds.has(meter.id));
     const unpaidBills = periodBills.filter((bill) => bill.status !== "paid");
     const amount = periodBills.reduce((sum, bill) => sum + bill.amount, 0);
     let status: UtilityMonthStatus = "awaiting_readings";
@@ -2868,6 +2866,7 @@ export default function Home() {
         {view === "utilities" && (
           <UtilitiesView
             bills={state.utilityBills}
+            media={state.media}
             meters={state.utilityMeters}
             readings={state.utilityReadings}
             setBills={(utilityBills) =>
@@ -2879,6 +2878,7 @@ export default function Home() {
             setMeters={(utilityMeters) =>
               setState((current) => ({ ...current, utilityMeters }))
             }
+            setMedia={(media) => setState((current) => ({ ...current, media }))}
             setReadings={(utilityReadings) =>
               setState((current) => ({ ...current, utilityReadings }))
             }
@@ -5914,16 +5914,20 @@ function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: As
 
 function UtilitiesView({
   bills,
+  media,
   meters,
   readings,
   setBills,
+  setMedia,
   setMeters,
   setReadings,
 }: {
   bills: UtilityBill[];
+  media: AssetMedia[];
   meters: UtilityMeter[];
   readings: UtilityReading[];
   setBills: (bills: UtilityBill[]) => void;
+  setMedia: (media: AssetMedia[]) => void;
   setMeters: (meters: UtilityMeter[]) => void;
   setReadings: (readings: UtilityReading[]) => void;
 }) {
@@ -5941,13 +5945,15 @@ function UtilitiesView({
   const [editDraft, setEditDraft] = useState<Omit<UtilityBill, "id"> | null>(null);
   const [editingMeterId, setEditingMeterId] = useState<string | null>(null);
   const [readingDraft, setReadingDraft] = useState({ value: "", note: "" });
+  const [billReceipt, setBillReceipt] = useState<File | null>(null);
+  const [savingBill, setSavingBill] = useState(false);
   const sortedBills = [...selectedBills].sort(
     (left, right) => documentExpiryTime(left.dueDate) - documentExpiryTime(right.dueDate),
   );
   const unpaidBills = bills.filter((bill) => bill.status !== "paid");
   const overdueBills = bills.filter((bill) => bill.status === "overdue");
   const unpaidAmount = unpaidBills.reduce((sum, bill) => sum + bill.amount, 0);
-  const activeMeters = Math.max(0, meters.length - selectedReadings.length);
+  const activeMeters = meters.filter((meter) => !readingByMeter.has(meter.id)).length;
   const currentStatus = selectedMonth?.status ?? "awaiting_readings";
 
   function selectPeriod(period: string) {
@@ -5984,8 +5990,6 @@ function UtilitiesView({
       source: "owner",
       note: readingDraft.note.trim() || undefined,
     };
-    let savedReading = nextReading;
-
     try {
       const response = await fetch("/api/utility-readings", {
         method: "POST",
@@ -5996,28 +6000,24 @@ function UtilitiesView({
         reading?: UtilityReading;
         error?: string;
       };
-      if (response.ok && payload.reading) {
-        savedReading = payload.reading;
-      } else if (payload.error) {
-        window.alert("Показание сохранено на этом устройстве, но пока не синхронизировано.");
-      }
-    } catch {
-      // Keep the reading locally while the database is unavailable.
+      if (!response.ok || !payload.reading) throw new Error(payload.error ?? "Не удалось сохранить показание.");
+      const savedReading = payload.reading;
+      setReadings([
+        savedReading,
+        ...readings.filter((reading) => reading.id !== savedReading.id),
+      ]);
+      setMeters(
+        meters.map((item) =>
+          item.id === meter.id
+            ? { ...item, lastReading: savedReading.value, status: "submitted" }
+            : item,
+        ),
+      );
+      setEditingMeterId(null);
+      setReadingDraft({ value: "", note: "" });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось сохранить показание.");
     }
-
-    setReadings([
-      savedReading,
-      ...readings.filter((reading) => reading.id !== savedReading.id),
-    ]);
-    setMeters(
-      meters.map((item) =>
-        item.id === meter.id
-          ? { ...item, lastReading: savedReading.value, status: "submitted" }
-          : item,
-      ),
-    );
-    setEditingMeterId(null);
-    setReadingDraft({ value: "", note: "" });
   }
 
   async function createBill() {
@@ -6026,29 +6026,32 @@ function UtilitiesView({
       window.alert("Укажите услугу и период.");
       return;
     }
-    const nextBill: UtilityBill = {
-      ...draft,
-      id: utilityBillId(),
-      service: draft.service.trim(),
-      period: period.trim(),
-      note: draft.note?.trim(),
-      receiptUrl: draft.receiptUrl?.trim(),
-    };
-
+    setSavingBill(true);
     try {
+      const formData = new FormData();
+      formData.set("service", draft.service.trim());
+      formData.set("period", period.trim());
+      formData.set("amount", String(draft.amount));
+      formData.set("dueDate", draft.dueDate);
+      formData.set("status", "due");
+      formData.set("note", draft.note?.trim() ?? "");
+      if (billReceipt) formData.set("receipt", billReceipt);
       const response = await fetch("/api/utility-bills", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextBill),
+        body: formData,
       });
-      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill };
-      setBills([response.ok && payload.bill ? payload.bill : nextBill, ...bills]);
-    } catch {
-      setBills([nextBill, ...bills]);
+      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill; document?: AssetMedia; error?: string };
+      if (!response.ok || !payload.bill) throw new Error(payload.error ?? "Не удалось добавить счет.");
+      setBills([payload.bill, ...bills]);
+      if (payload.document) setMedia([payload.document, ...media]);
+      setDraft(emptyUtilityBillDraft(period));
+      setBillReceipt(null);
+      setShowBillForm(false);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось добавить счет.");
+    } finally {
+      setSavingBill(false);
     }
-
-    setDraft(emptyUtilityBillDraft(period));
-    setShowBillForm(false);
   }
 
   function startEditBill(bill: UtilityBill) {
@@ -6072,11 +6075,13 @@ function UtilitiesView({
       return;
     }
     const nextBill = {
-      ...editDraft,
       service: editDraft.service.trim(),
       period: editDraft.period.trim(),
+      amount: editDraft.amount,
+      dueDate: editDraft.dueDate,
+      paidAt: editDraft.paidAt,
+      status: editDraft.status,
       note: editDraft.note?.trim(),
-      receiptUrl: editDraft.receiptUrl?.trim(),
     };
 
     try {
@@ -6085,37 +6090,27 @@ function UtilitiesView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nextBill),
       });
-      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill };
-      setBills(
-        bills.map((bill) =>
-          bill.id === editingBillId
-            ? response.ok && payload.bill
-              ? payload.bill
-              : { ...bill, ...nextBill }
-            : bill,
-        ),
-      );
-    } catch {
-      setBills(
-        bills.map((bill) =>
-          bill.id === editingBillId ? { ...bill, ...nextBill } : bill,
-        ),
-      );
+      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill; error?: string };
+      if (!response.ok || !payload.bill) throw new Error(payload.error ?? "Не удалось сохранить счет.");
+      setBills(bills.map((bill) => bill.id === editingBillId ? payload.bill! : bill));
+      setEditingBillId(null);
+      setEditDraft(null);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось сохранить счет.");
     }
-
-    setEditingBillId(null);
-    setEditDraft(null);
   }
 
   async function deleteBill(billId: string) {
     const confirmed = window.confirm("Удалить этот счет?");
     if (!confirmed) return;
     try {
-      await fetch(`/api/utility-bills/${billId}`, { method: "DELETE" });
-    } catch {
-      // The bill still disappears locally if the database migration has not been applied yet.
+      const response = await fetch(`/api/utility-bills/${billId}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Не удалось удалить счет.");
+      setBills(bills.filter((bill) => bill.id !== billId));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось удалить счет.");
     }
-    setBills(bills.filter((bill) => bill.id !== billId));
   }
 
   async function markPaid(billId: string) {
@@ -6129,14 +6124,11 @@ function UtilitiesView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(paidBill),
       });
-      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill };
-      setBills(
-        bills.map((bill) =>
-          bill.id === billId ? response.ok && payload.bill ? payload.bill : paidBill : bill,
-        ),
-      );
-    } catch {
-      setBills(bills.map((bill) => (bill.id === billId ? paidBill : bill)));
+      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill; error?: string };
+      if (!response.ok || !payload.bill) throw new Error(payload.error ?? "Не удалось отметить счет оплаченным.");
+      setBills(bills.map((bill) => bill.id === billId ? payload.bill! : bill));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось отметить счет оплаченным.");
     }
   }
 
@@ -6145,7 +6137,7 @@ function UtilitiesView({
     if (!billIds.size) return;
 
     const paidAt = todayLabel();
-    await Promise.all(
+    const responses = await Promise.all(
       bills
         .filter((bill) => billIds.has(bill.id))
         .map((bill) =>
@@ -6153,14 +6145,16 @@ function UtilitiesView({
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...bill, status: "paid", paidAt }),
-          }).catch(() => null),
+          }),
         ),
-    );
-    setBills(
-      bills.map((bill) =>
-        billIds.has(bill.id) ? { ...bill, status: "paid", paidAt } : bill,
-      ),
-    );
+    ).catch(() => null);
+    if (!responses || responses.some((response) => !response.ok)) {
+      window.alert("Не все счета удалось отметить оплаченными. Обновите страницу и повторите действие.");
+      return;
+    }
+    const refreshed = await Promise.all(responses.map((response) => response.json() as Promise<{ bill: UtilityBill }>));
+    const savedBills = new Map(refreshed.map((item) => [item.bill.id, item.bill]));
+    setBills(bills.map((bill) => savedBills.get(bill.id) ?? bill));
   }
 
   return (
@@ -6335,14 +6329,9 @@ function UtilitiesView({
             <Card>
               <CardHeader>
                 <CardTitle>Выставление счета</CardTitle>
-                <CardDescription>Добавьте начисление за {selectedMonth?.period}; квитанцию позже подключим к документам.</CardDescription>
+                <CardDescription>Добавьте начисление за {selectedMonth?.period} и сохраните исходную квитанцию в архиве.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
-                <div className="rounded-lg border border-dashed p-6 text-center">
-                  <ReceiptText className="mx-auto mb-2 text-muted-foreground" size={28} />
-                  <div className="font-medium">Квитанция или фото счета</div>
-                  <div className="text-muted-foreground text-sm">Пока укажите ссылку ниже; затем заменим на загрузку файлов.</div>
-                </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-service">
                     Услуга
@@ -6382,36 +6371,18 @@ function UtilitiesView({
                     />
                   </label>
                 </div>
-                <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
-                  <div className="grid gap-1.5">
-                    <span className="text-sm font-medium">Статус</span>
-                    <Select
-                      value={draft.status}
-                      onValueChange={(value) => setDraft((current) => ({ ...current, status: value as UtilityBillStatus }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(utilityBillStatusLabels).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>{label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-receipt">
-                    Квитанция
-                    <Input
-                      id="utility-receipt"
-                      onChange={(event) => {
-                        const receiptUrl = event.currentTarget.value;
-                        setDraft((current) => ({ ...current, receiptUrl }));
-                      }}
-                      placeholder="Ссылка на файл или номер квитанции"
-                      value={draft.receiptUrl}
-                    />
-                  </label>
-                </div>
+                <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-receipt">
+                  Квитанция или фото счета
+                  <Input
+                    accept="application/pdf,image/*"
+                    id="utility-receipt"
+                    onChange={(event) => setBillReceipt(event.currentTarget.files?.[0] ?? null)}
+                    type="file"
+                  />
+                  <span className="text-muted-foreground text-xs">
+                    {billReceipt ? billReceipt.name : "PDF или изображение до 15 МБ. Файл сохранится в документах."}
+                  </span>
+                </label>
                 <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-note">
                   Комментарий
                   <Textarea
@@ -6429,6 +6400,7 @@ function UtilitiesView({
                   <Button
                     onClick={() => {
                       setDraft(emptyUtilityBillDraft(selectedMonth?.period ?? selectedPeriod));
+                      setBillReceipt(null);
                       setShowBillForm(false);
                     }}
                     type="button"
@@ -6436,9 +6408,9 @@ function UtilitiesView({
                   >
                     Отменить
                   </Button>
-                  <Button onClick={createBill} type="button">
+                  <Button disabled={savingBill} onClick={createBill} type="button">
                     <Plus size={14} />
-                    Добавить счет
+                    {savingBill ? "Сохраняем..." : "Добавить счет"}
                   </Button>
                 </div>
               </CardContent>
@@ -6541,35 +6513,6 @@ function UtilitiesView({
                               }}
                               type="date"
                               value={dateInputFromFormatted(editDraft.dueDate)}
-                            />
-                          </label>
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
-                          <div className="grid gap-1.5">
-                            <span className="text-sm font-medium">Статус</span>
-                            <Select
-                              value={editDraft.status}
-                              onValueChange={(value) => setEditDraft((current) => current ? { ...current, status: value as UtilityBillStatus } : current)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Object.entries(utilityBillStatusLabels).map(([value, label]) => (
-                                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-receipt`}>
-                            Квитанция
-                            <Input
-                              id={`edit-${bill.id}-receipt`}
-                              onChange={(event) => {
-                                const receiptUrl = event.currentTarget.value;
-                                setEditDraft((current) => current ? { ...current, receiptUrl } : current);
-                              }}
-                              value={editDraft.receiptUrl ?? ""}
                             />
                           </label>
                         </div>

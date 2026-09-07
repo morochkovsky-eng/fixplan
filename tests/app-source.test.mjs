@@ -433,6 +433,7 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityBillServiceSource, /\.from\("utility_bills"\)/);
   assert.match(utilityBillServiceSource, /receipt_storage_path/);
   assert.match(schemaSource, /receipt_storage_path text/);
+  assert.match(schemaSource, /utility_bill_id text/);
   assert.match(appDataRouteSource, /createSignedUrl\(bill\.receipt_storage_path/);
   assert.match(utilityBillRouteSource, /export async function PATCH/);
   assert.match(utilityBillRouteSource, /export async function DELETE/);
@@ -450,6 +451,12 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /Уже оплачено/);
   assert.match(pageSource, /Оплатить до/);
   assert.match(pageSource, /Квитанция/);
+  assert.match(pageSource, /accept="application\/pdf,image\/\*"/);
+  assert.match(pageSource, /Файл сохранится в документах/);
+  assert.doesNotMatch(pageSource, /Пока укажите ссылку ниже/);
+  assert.match(utilityBillsRouteSource, /document_type: "invoice"/);
+  assert.match(utilityBillsRouteSource, /utility_bill_id: result\.row\.id/);
+  assert.match(utilityBillRouteSource, /update\(\{ utility_bill_id: null \}\)/);
   assert.match(pageSource, /utilityBillStatusLabels/);
   assert.match(pageSource, /markPaid/);
   assert.match(pageSource, /deleteBill/);

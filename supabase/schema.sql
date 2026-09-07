@@ -176,7 +176,7 @@ create table public.inspection_results (
 create table public.asset_media (
   apartment_id uuid not null references public.apartments(id) on delete cascade,
   id uuid primary key default gen_random_uuid(),
-  asset_id text not null,
+  asset_id text,
   event_id text,
   inspection_id text,
   storage_path text not null,
@@ -187,6 +187,7 @@ create table public.asset_media (
   document_issued_at date,
   document_valid_until date,
   document_note text,
+  utility_bill_id text,
   created_at timestamptz not null default now(),
   foreign key (apartment_id, asset_id) references public.assets(apartment_id, id),
   foreign key (apartment_id, inspection_id) references public.inspections(apartment_id, id) on delete set null,
@@ -212,6 +213,15 @@ create table public.utility_bills (
   constraint utility_bills_period_not_blank check (length(trim(period)) > 0),
   constraint utility_bills_amount_non_negative check (amount >= 0)
 );
+
+alter table public.asset_media
+  add constraint asset_media_apartment_id_utility_bill_id_fkey
+  foreign key (apartment_id, utility_bill_id)
+  references public.utility_bills(apartment_id, id);
+
+create unique index asset_media_utility_bill_id_unique
+  on public.asset_media (apartment_id, utility_bill_id)
+  where utility_bill_id is not null;
 
 create table public.utility_meters (
   apartment_id uuid not null references public.apartments(id) on delete cascade,

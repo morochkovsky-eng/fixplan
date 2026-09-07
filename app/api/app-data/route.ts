@@ -89,6 +89,7 @@ export async function GET() {
         assetId: item.asset_id ?? undefined,
         eventId: item.event_id,
         inspectionId: item.inspection_id ?? pathParts[2],
+        utilityBillId: item.utility_bill_id ?? undefined,
         url: data?.signedUrl ?? "",
         filename: pathParts.at(-1) ?? "Фото узла",
         mediaType: item.media_type ?? "image/jpeg",
