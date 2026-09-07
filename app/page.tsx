@@ -293,6 +293,10 @@ type InspectionResult = {
   id: string;
   inspectionId: string;
   assetId: string;
+  assetCode?: string;
+  assetName?: string;
+  roomId?: string;
+  category?: Category;
   statusAfter: Status;
   comment: string;
   date: string;
@@ -2959,6 +2963,7 @@ export default function Home() {
         {view === "report" && (
           <ContractorReport
             assets={state.assets}
+            createWorkOrderFromAssets={createWorkOrderFromAssets}
             events={state.events}
             inspection={selectedInspection}
             media={state.media}
@@ -7909,6 +7914,7 @@ function ContractorAccessView({
 
 function ContractorReport({
   assets,
+  createWorkOrderFromAssets,
   events,
   inspection,
   media,
@@ -7918,6 +7924,7 @@ function ContractorReport({
   updateInspection,
 }: {
   assets: Asset[];
+  createWorkOrderFromAssets: (assetIds: string[]) => void;
   events: AssetEvent[];
   inspection?: Inspection;
   media: AssetMedia[];
@@ -7935,7 +7942,11 @@ function ContractorReport({
   const reportAssets = inspection
     ? assets.filter((asset) => inspection.allowedAssetIds.includes(asset.id))
     : assets;
+  const reportAssetCount = inspection?.allowedAssetIds.length ?? reportAssets.length;
   const issueResults = reportResults.filter((result) => result.statusAfter !== "ok");
+  const actionableIssueAssetIds = issueResults
+    .map((result) => result.assetId)
+    .filter((assetId) => assets.some((asset) => asset.id === assetId));
   const totalCost = reportResults.reduce((sum, result) => sum + (result.cost ?? 0), 0);
   const photoCount = reportResults.reduce((sum, result) => sum + result.photoCount, 0);
   const isWorkOrder = inspection?.workflow === "work_order";
@@ -8010,7 +8021,7 @@ function ContractorReport({
       </Card>
 
       <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <StatCard label="В задании" value={`${reportAssets.length} узла`} />
+        <StatCard label="В задании" value={`${reportAssetCount} узла`} />
         <StatCard label="Проверено" value={`${reportResults.length} узла`} />
         <StatCard label="Замечания" value={`${issueResults.length}`} tone="negative" />
         <StatCard label="Стоимость" value={`${totalCost.toLocaleString("ru-RU")} руб.`} />
@@ -8037,13 +8048,29 @@ function ContractorReport({
             {hasFinalResult &&
               reportResults.map((result) => {
                 const asset = assets.find((item) => item.id === result.assetId);
-                if (!asset) return null;
+                const assetCode = result.assetCode || asset?.code || "Без номера";
+                const assetName = result.assetName || asset?.name || "Удаленный узел";
+                const assetRoom = result.roomId || asset?.roomId;
+                const assetCategory = result.category || asset?.category;
                 const resultMedia = media.filter(
                   (item) => item.assetId === result.assetId && item.inspectionId === result.inspectionId,
                 );
                 return (
                   <div className="grid gap-2 rounded-xl bg-muted/60 p-3" key={result.id}>
-                    <AssetRow asset={asset} onClick={() => openAsset(asset.id)} />
+                    <button
+                      className="grid min-w-0 gap-1 text-left disabled:cursor-default"
+                      disabled={!asset}
+                      onClick={() => asset && openAsset(asset.id)}
+                      type="button"
+                    >
+                      <strong className="truncate font-medium">{assetCode} · {assetName}</strong>
+                      {(assetRoom || assetCategory) && (
+                        <span className="truncate text-muted-foreground text-sm">
+                          {assetRoom ? roomName(assetRoom) : "Помещение не указано"}
+                          {assetCategory ? ` · ${categoryLabel(assetCategory)}` : ""}
+                        </span>
+                      )}
+                    </button>
                     <p className="m-0 text-muted-foreground text-sm">{result.comment}</p>
                     <MediaGallery items={resultMedia} variant="grid" />
                     <div className="flex flex-wrap gap-2">
@@ -8077,8 +8104,8 @@ function ContractorReport({
           <CardContent className="grid gap-3">
             <div className="rounded-lg bg-muted p-3 text-sm">
               {hasFinalResult
-                ? `Проверено ${reportResults.length} из ${reportAssets.length}. Замечаний: ${issueResults.length}.`
-                : `Отправлено ${reportAssets.length} узлов. Мастер еще не прислал результаты.`}
+                ? `Проверено ${reportResults.length} из ${reportAssetCount}. Замечаний: ${issueResults.length}.`
+                : `Отправлено ${reportAssetCount} узлов. Мастер еще не прислал результаты.`}
             </div>
             {hasFinalResult && inspection?.conclusion && (
               <div className="rounded-lg bg-muted p-3 text-sm">
@@ -8088,20 +8115,50 @@ function ContractorReport({
             )}
             {issueResults.length > 0 && (
               <div className="grid gap-2">
-                <strong className="text-sm">Требуют внимания</strong>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong className="text-sm">Требуют внимания</strong>
+                  <Button
+                    disabled={!actionableIssueAssetIds.length}
+                    onClick={() => createWorkOrderFromAssets(actionableIssueAssetIds)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Plus size={14} />
+                    Задание по всем
+                  </Button>
+                </div>
                 {issueResults.map((result) => {
                   const asset = assets.find((item) => item.id === result.assetId);
-                  if (!asset) return null;
+                  const assetCode = result.assetCode || asset?.code || "Без номера";
+                  const assetName = result.assetName || asset?.name || "Удаленный узел";
                   return (
-                    <button
-                      className="rounded-lg bg-muted p-3 text-left transition-colors hover:bg-secondary"
+                    <div
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-muted p-2"
                       key={result.id}
-                      onClick={() => openAsset(asset.id)}
-                      type="button"
                     >
-                      <span className="block font-medium">{asset.code} · {asset.name}</span>
-                      <span className="block text-muted-foreground text-sm">{result.comment}</span>
-                    </button>
+                      <button
+                        className="min-w-0 p-1 text-left"
+                        disabled={!asset}
+                        onClick={() => asset && openAsset(asset.id)}
+                        type="button"
+                      >
+                        <span className="block truncate font-medium">{assetCode} · {assetName}</span>
+                        <span className="block truncate text-muted-foreground text-sm">{result.comment}</span>
+                      </button>
+                      {asset && (
+                        <Button
+                          aria-label={`Создать задание по узлу ${asset.code}`}
+                          onClick={() => createWorkOrderFromAssets([asset.id])}
+                          size="icon-sm"
+                          title="Создать задание"
+                          type="button"
+                          variant="outline"
+                        >
+                          <Plus size={14} />
+                        </Button>
+                      )}
+                    </div>
                   );
                 })}
               </div>

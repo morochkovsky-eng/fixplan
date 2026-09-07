@@ -106,12 +106,28 @@ async function saveGuestResult({
     ? "Мастер проверил узел без дополнительного комментария."
     : "");
 
+  const { data: asset, error: assetError } = await admin
+    .from("assets")
+    .select("code,name,room_id,category")
+    .eq("apartment_id", inspection.apartment_id)
+    .eq("id", result.assetId)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  if (assetError || !asset) {
+    return { error: assetError?.message ?? "Узел больше недоступен.", resultId };
+  }
+
   const { error: resultError } = await admin.from("inspection_results").upsert(
     {
       apartment_id: inspection.apartment_id,
       id: resultId,
       inspection_id: inspection.id,
       asset_id: result.assetId,
+      asset_code: asset.code,
+      asset_name: asset.name,
+      room_id: asset.room_id,
+      category: asset.category,
       status_after: result.statusAfter,
       comment,
       date_label: date,
@@ -207,6 +223,10 @@ export async function GET(
     results: (existingResults ?? []).map((result) => ({
       id: result.id,
       assetId: result.asset_id,
+      assetCode: result.asset_code,
+      assetName: result.asset_name,
+      roomId: result.room_id,
+      category: result.category,
       statusAfter: result.status_after,
       comment: result.comment,
       cost: result.cost,

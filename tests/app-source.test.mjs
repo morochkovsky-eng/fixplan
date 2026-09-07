@@ -491,6 +491,10 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(guestRouteSource, /inspection\.status === "completed" \|\| inspection\.status === "accepted"/);
   assert.match(guestRouteSource, /\.is\("deleted_at", null\)/);
   assert.match(guestRouteSource, /function validateResult/);
+  assert.match(guestRouteSource, /asset_code: asset\.code/);
+  assert.match(appDataRouteSource, /assetCode: result\.asset_code/);
+  assert.match(schemaSource, /asset_code text/);
+  assert.match(pageSource, /result\.assetCode \|\| asset\?\.code/);
   assert.match(pageSource, /Принять задание/);
   assert.match(pageSource, /Открыть результат/);
   assert.match(pageSource, /function createContractorFlowFromAssets/);
@@ -505,6 +509,8 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(pageSource, /createWorkOrder=\{\(\) => createWorkOrderFromAsset\(selectedAsset\.id\)\}/);
   assert.match(pageSource, /setContractorWorkflow\("work_order"\)/);
   assert.match(pageSource, /Создать задание/);
+  assert.match(pageSource, /Задание по всем/);
+  assert.match(pageSource, /Создать задание по узлу/);
   assert.match(pageSource, /acceptCurrentInspection/);
   assert.match(pageSource, /updateInspection=\{updateInspection\}/);
   assert.match(pageSource, /selectedInspection\?\.workflow === "work_order" \? "work_orders" : "inspections"/);
