@@ -36,6 +36,7 @@ const cleaningPhotoRouteSource = fs.readFileSync("app/api/cleanings/guest/[token
 const notificationsRouteSource = fs.readFileSync("app/api/notifications/route.ts", "utf8");
 const notificationRouteSource = fs.readFileSync("app/api/notifications/[id]/route.ts", "utf8");
 const notificationHelperSource = fs.readFileSync("lib/server/notifications.ts", "utf8");
+const telegramNotificationBaselineSource = fs.readFileSync("supabase/migrations/20260907173000_baseline_telegram_notifications.sql", "utf8");
 const telegramWebhookSource = fs.readFileSync("app/api/telegram/webhook/route.ts", "utf8");
 const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts", "utf8");
 const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
@@ -163,6 +164,16 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramClientSource, /downloadTelegramFile/);
   assert.match(telegramClientSource, /gpt-4o-mini-transcribe/);
   assert.match(telegramClientSource, /api\.openai\.com\/v1\/audio\/transcriptions/);
+  assert.match(notificationHelperSource, /deliverPendingOwnerTelegramNotifications/);
+  assert.match(notificationHelperSource, /sendTelegramMessage/);
+  assert.match(notificationHelperSource, /telegram_delivered_at/);
+  assert.match(notificationHelperSource, /\["cleaning\.completed", "inspection\.completed", "work_order\.completed"\]/);
+  assert.match(notificationHelperSource, /Открыть FixPlan/);
+  assert.match(telegramNotificationBaselineSource, /telegram_delivered_at = coalesce/);
+  assert.match(guestRouteSource, /work_order\.completed/);
+  assert.match(guestRouteSource, /inspection\.completed/);
+  assert.match(guestRouteSource, /Задание мастера выполнено/);
+  assert.match(guestRouteSource, /Обход завершён/);
   assert.match(telegramContextSource, /apartment_members/);
   assert.match(telegramContextSource, /owner_user_id/);
   assert.match(telegramContextSource, /owner_email/);
@@ -212,6 +223,7 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.doesNotMatch(cleaningServiceSource, /recipient: "cleaner"/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.revision_started/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.completed/);
+  assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /channels: status === "completed" \? \["in_app", "telegram"\]/);
   assert.match(notificationHelperSource, /telegram/);
   assert.match(notificationsRouteSource, /export async function GET/);
   assert.match(notificationsRouteSource, /export async function PATCH/);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { enqueueNotification } from "@/lib/server/notifications";
 
 type Status = "ok" | "attention" | "in_progress" | "needs_master";
 type Workflow = "inspection" | "work_order";
@@ -16,6 +17,8 @@ type GuestResultPayload = {
 type InspectionRow = {
   apartment_id: string;
   id: string;
+  number: string;
+  title: string;
   contractor: string;
   contractor_phone?: string | null;
   workflow?: Workflow | null;
@@ -331,6 +334,23 @@ export async function POST(
   if (inspectionError) {
     return NextResponse.json({ error: inspectionError.message }, { status: 500 });
   }
+
+  const issueCount = completeResults.filter((result) =>
+    result.statusAfter === "attention" || result.statusAfter === "needs_master"
+  ).length;
+  const isWorkOrder = inspection.workflow === "work_order";
+  await enqueueNotification(admin, {
+    apartmentId: inspection.apartment_id,
+    kind: isWorkOrder ? "work_order.completed" : "inspection.completed",
+    recipient: "owner",
+    entityType: isWorkOrder ? "work_order" : "inspection",
+    entityId: inspection.id,
+    title: isWorkOrder ? "Задание мастера выполнено" : "Обход завершён",
+    body: `${inspection.number} · ${inspection.contractor}\n${isWorkOrder ? "Выполнено" : "Проверено"} узлов: ${completeResults.length}. ${issueCount ? `Требуют внимания: ${issueCount}.` : "Проблем не отмечено."}`,
+    actionUrl: "/",
+    payload: { resultCount: completeResults.length, issueCount },
+    dedupeKey: `${isWorkOrder ? "work-order" : "inspection"}:${inspection.id}:completed`,
+  });
 
   return NextResponse.json({ ok: true, inspectionId: inspection.id });
 }

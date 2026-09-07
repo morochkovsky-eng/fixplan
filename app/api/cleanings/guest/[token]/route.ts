@@ -113,7 +113,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   if (error) return NextResponse.json({ error: "Не удалось сохранить прогресс." }, { status: 500 });
   if (status && status !== currentStatus) {
     const event = status === "scheduled" ? { kind: "cleaning.offer_accepted", title: "Клинер принял уборку" } : status === "declined" ? { kind: "cleaning.offer_declined", title: "Клинер отказался от уборки" } : status === "completed" ? { kind: "cleaning.completed", title: "Уборка завершена" } : currentStatus === "revision_requested" ? { kind: "cleaning.revision_started", title: "Клинер начал доработку" } : { kind: "cleaning.started", title: "Уборка начата" };
-    await enqueueNotification(admin, { apartmentId: currentCleaning.apartment_id, kind: event.kind, recipient: "owner", entityId: currentCleaning.id, title: event.title, body: currentCleaning.title, actionUrl: "/", payload: { status, zones: currentCleaning.zones }, dedupeKey: `cleaning:${currentCleaning.id}:${currentStatus}:${status}:${currentCleaning.updated_at}` });
+    const issueCount = zoneResults.filter((result) => result.status === "issue").length;
+    const completionDetails = status === "completed"
+      ? `${currentCleaning.title}\nЗон: ${currentCleaning.zones.length}. ${issueCount ? `С замечаниями: ${issueCount}.` : "Без замечаний."}`
+      : currentCleaning.title;
+    await enqueueNotification(admin, { apartmentId: currentCleaning.apartment_id, kind: event.kind, recipient: "owner", entityType: "cleaning", entityId: currentCleaning.id, title: event.title, body: completionDetails, actionUrl: "/", payload: { status, zones: currentCleaning.zones }, channels: status === "completed" ? ["in_app", "telegram"] : ["in_app"], dedupeKey: `cleaning:${currentCleaning.id}:${currentStatus}:${status}:${currentCleaning.updated_at}` });
   }
   const photos = await signedPhotos(admin, data.apartment_id, data.id);
   return NextResponse.json({ cleaning: serialize(data, photos) });
