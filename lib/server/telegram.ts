@@ -53,6 +53,11 @@ export function cleanTelegramText(text: string) {
     .replace(/__([\s\S]*?)__/g, "$1")
     .replace(/^#{1,6}\s+/gm, "")
     .replace(/^[ \t]*[-*][ \t]+/gm, "• ")
+    .replace(/\bmaster_needed\b/gi, "нужен мастер")
+    .replace(/\bin_progress\b/gi, "в работе")
+    .replace(/\battention\b/gi, "требует внимания")
+    .replace(/\bok\b/gi, "исправно")
+    .replace(/\*/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

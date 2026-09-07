@@ -152,6 +152,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /callback_query/);
   assert.match(telegramWebhookSource, /pending_action \? draftKeyboard/);
   assert.match(telegramClientSource, /cleanTelegramText/);
+  assert.match(telegramClientSource, /требует внимания/);
+  assert.match(telegramClientSource, /replace\(\/\\\*\/g, ""\)/);
   assert.match(telegramClientSource, /answerCallbackQuery/);
   assert.match(telegramClientSource, /editMessageReplyMarkup/);
   assert.match(telegramClientSource, /getFile/);
