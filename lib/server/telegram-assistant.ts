@@ -251,15 +251,15 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
-      model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
+      model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи короткое резюме с названием объекта; кнопки подтверждения интерфейс добавит сам. Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий. Форматируй ответ как обычный текст Telegram: без Markdown, звёздочек и решёток. Для списка используй короткие строки с маркером «•». Никогда не показывай технические идентификаторы или английские значения статусов: переводи их на понятный русский язык. Не повторяй одну и ту же просьбу или вывод.`,
       input,
       tools,
       tool_choice: "auto",
       parallel_tool_calls: false,
       previous_response_id: previousResponseId ?? undefined,
       safety_identifier: createHash("sha256").update(String(account.telegram_user_id)).digest("hex").slice(0, 64),
-      max_output_tokens: 700,
+      max_output_tokens: 450,
     }),
   });
   if (!response.ok) throw new Error(`OpenAI Responses API failed with ${response.status}`);
@@ -398,7 +398,7 @@ async function executeTool(
     return {
       ok: true,
       draft: { ...payload, assets },
-      instruction: "Покажи мастера, выбранные узлы и поручения, затем попроси написать «Создавай».",
+      instruction: "Покажи кратко мастера, выбранные узлы и поручения. Не проси вводить команду: интерфейс добавит кнопки.",
     };
   }
 
@@ -432,7 +432,7 @@ async function executeTool(
       ok: true,
       draft: { ...payload, meter },
       attachmentClaimed: Boolean(attachment),
-      instruction: "Покажи счётчик, период, значение и наличие фото, затем попроси написать «Создавай».",
+      instruction: "Покажи кратко счётчик, период, значение и наличие фото. Не проси вводить команду: интерфейс добавит кнопки.",
     };
   }
 
@@ -476,7 +476,7 @@ async function executeTool(
       ok: true,
       draft: { ...payload, asset },
       attachmentClaimed: Boolean(attachment),
-      instruction: "Покажи узел, запись, изменение статуса и наличие фото, затем попроси написать «Создавай».",
+      instruction: "Покажи кратко узел, запись, изменение статуса и наличие фото. Не проси вводить команду: интерфейс добавит кнопки.",
     };
   }
 
@@ -491,7 +491,7 @@ async function executeTool(
       await admin.storage.from("asset-media").remove([existingReceiptStoragePath]);
     }
     await saveConversation(admin, account, { pending_action: { type: "create_cleaning", apartmentId: account.apartment_id, payload } });
-    return { ok: true, draft: payload, instruction: "Покажи понятное резюме и попроси написать «Создавай»." };
+    return { ok: true, draft: payload, instruction: "Покажи понятное краткое резюме. Не проси вводить команду: интерфейс добавит кнопки." };
   }
 
   if (call.name === "prepare_utility_bill") {
@@ -512,7 +512,7 @@ async function executeTool(
       ok: true,
       draft: payload,
       attachmentClaimed: Boolean(attachment),
-      instruction: "Покажи услугу, период, сумму, срок оплаты и распределение расхода, затем попроси написать «Создавай».",
+      instruction: "Покажи кратко услугу, период, сумму, срок оплаты и распределение расхода. Не проси вводить команду: интерфейс добавит кнопки.",
     };
   }
 

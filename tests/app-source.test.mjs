@@ -143,6 +143,17 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /removePendingAttachment/);
   assert.match(telegramAssistantSource, /api\.openai\.com\/v1\/responses/);
   assert.match(telegramAssistantSource, /личный ассистент владельца/);
+  assert.match(telegramAssistantSource, /gpt-5\.4-nano/);
+  assert.match(telegramAssistantSource, /max_output_tokens: 450/);
+  assert.match(telegramAssistantSource, /без Markdown, звёздочек и решёток/);
+  assert.match(telegramWebhookSource, /fixplan:pending:confirm/);
+  assert.match(telegramWebhookSource, /fixplan:pending:edit/);
+  assert.match(telegramWebhookSource, /fixplan:pending:cancel/);
+  assert.match(telegramWebhookSource, /callback_query/);
+  assert.match(telegramWebhookSource, /pending_action \? draftKeyboard/);
+  assert.match(telegramClientSource, /cleanTelegramText/);
+  assert.match(telegramClientSource, /answerCallbackQuery/);
+  assert.match(telegramClientSource, /editMessageReplyMarkup/);
   assert.match(telegramClientSource, /getFile/);
   assert.match(telegramClientSource, /downloadTelegramFile/);
   assert.match(telegramClientSource, /gpt-4o-mini-transcribe/);

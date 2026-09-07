@@ -24,6 +24,15 @@ export type TelegramUpdate = {
       file_size?: number;
     };
   };
+  callback_query?: {
+    id: string;
+    from: TelegramUser;
+    message?: {
+      message_id: number;
+      chat: { id: number; type: string };
+    };
+    data?: string;
+  };
 };
 
 export type TelegramFile = {
@@ -32,16 +41,65 @@ export type TelegramFile = {
   mimeType: string;
 };
 
-export async function sendTelegramMessage(chatId: number | string, text: string) {
+export type TelegramInlineButton = {
+  text: string;
+  callback_data?: string;
+  url?: string;
+};
+
+export function cleanTelegramText(text: string) {
+  return text
+    .replace(/\*\*([\s\S]*?)\*\*/g, "$1")
+    .replace(/__([\s\S]*?)__/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[ \t]*[-*][ \t]+/gm, "• ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export async function sendTelegramMessage(
+  chatId: number | string,
+  text: string,
+  options: { inlineKeyboard?: TelegramInlineButton[][] } = {},
+) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
 
   const response = await fetch(`${telegramApi}/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, link_preview_options: { is_disabled: true } }),
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: cleanTelegramText(text),
+      link_preview_options: { is_disabled: true },
+      reply_markup: options.inlineKeyboard
+        ? { inline_keyboard: options.inlineKeyboard }
+        : undefined,
+    }),
   });
   if (!response.ok) throw new Error(`Telegram sendMessage failed with ${response.status}`);
+}
+
+export async function answerTelegramCallbackQuery(callbackQueryId: string, text?: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
+  const response = await fetch(`${telegramApi}/bot${token}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
+  });
+  if (!response.ok) throw new Error(`Telegram answerCallbackQuery failed with ${response.status}`);
+}
+
+export async function clearTelegramInlineKeyboard(chatId: number | string, messageId: number) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
+  const response = await fetch(`${telegramApi}/bot${token}/editMessageReplyMarkup`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: [] } }),
+  });
+  if (!response.ok) throw new Error(`Telegram editMessageReplyMarkup failed with ${response.status}`);
 }
 
 export async function downloadTelegramFile(
