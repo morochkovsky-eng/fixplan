@@ -118,6 +118,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /list_assets/);
   assert.match(telegramAssistantSource, /list_work_orders/);
   assert.match(telegramAssistantSource, /get_utility_state/);
+  assert.match(telegramAssistantSource, /prepare_work_order/);
   assert.match(telegramAssistantSource, /list_apartments/);
   assert.match(telegramAssistantSource, /select_apartment/);
   assert.match(telegramAssistantSource, /active_apartment_id/);
@@ -129,6 +130,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /confirmationWords/);
   assert.match(telegramAssistantSource, /createCleaningRecord/);
   assert.match(telegramAssistantSource, /createUtilityBillRecord/);
+  assert.match(telegramAssistantSource, /type === "create_work_order"/);
+  assert.match(telegramAssistantSource, /guest_token: guestToken/);
   assert.match(telegramAssistantSource, /input_image/);
   assert.match(telegramAssistantSource, /input_file/);
   assert.match(telegramAssistantSource, /removePendingAttachment/);

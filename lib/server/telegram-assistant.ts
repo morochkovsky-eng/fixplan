@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleaningPayload } from "@/app/api/cleanings/helpers";
 import { createCleaningRecord } from "@/lib/server/cleanings";
@@ -127,6 +127,33 @@ const tools = [
   },
   {
     type: "function",
+    name: "prepare_work_order",
+    description: "Подготовить задание мастеру по одному или нескольким найденным узлам. Ничего не создаёт до явного подтверждения владельца.",
+    parameters: {
+      type: "object",
+      properties: {
+        contractor: { type: "string", description: "Имя мастера или название компании" },
+        contractorPhone: { type: "string", description: "Телефон мастера, пустая строка если не указан" },
+        assets: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              assetId: { type: "string", description: "Точный id из list_assets" },
+              instruction: { type: "string", description: "Что нужно сделать с этим узлом" },
+            },
+            required: ["assetId", "instruction"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["contractor", "contractorPhone", "assets"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
     name: "prepare_cleaning",
     description: "Подготовить черновик уборки. Это не создаёт уборку: после вызова обязательно попроси явное подтверждение.",
     parameters: {
@@ -184,7 +211,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
       input,
       tools,
       tool_choice: "auto",
@@ -296,6 +323,42 @@ async function executeTool(
     const error = metersResult.error ?? readingsResult.error ?? billsResult.error;
     if (error) return { ok: false, error: error.message };
     return { ok: true, meters: metersResult.data ?? [], readings: readingsResult.data ?? [], openBills: billsResult.data ?? [] };
+  }
+
+  if (call.name === "prepare_work_order") {
+    const contractor = String(args.contractor ?? "").trim();
+    const requestedAssets = Array.isArray(args.assets)
+      ? args.assets.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"))
+      : [];
+    const assetIds = [...new Set(requestedAssets.map((item) => String(item.assetId ?? "").trim()).filter(Boolean))];
+    if (!contractor || !assetIds.length) {
+      return { ok: false, error: "Для задания нужны мастер и хотя бы один узел." };
+    }
+    const { data: assets, error } = await admin
+      .from("assets")
+      .select("id,code,name")
+      .eq("apartment_id", account.apartment_id)
+      .is("deleted_at", null)
+      .in("id", assetIds);
+    if (error) return { ok: false, error: error.message };
+    if ((assets ?? []).length !== assetIds.length) {
+      return { ok: false, error: "Один или несколько узлов не найдены в текущей квартире. Обновите список узлов." };
+    }
+    const assetInstructions = Object.fromEntries(requestedAssets.map((item) => [String(item.assetId), String(item.instruction ?? "").trim()]));
+    const payload = {
+      contractor,
+      contractorPhone: String(args.contractorPhone ?? "").trim(),
+      allowedAssetIds: assetIds,
+      assetInstructions,
+    };
+    await saveConversation(admin, account, {
+      pending_action: { type: "create_work_order", apartmentId: account.apartment_id, payload },
+    });
+    return {
+      ok: true,
+      draft: { ...payload, assets },
+      instruction: "Покажи мастера, выбранные узлы и поручения, затем попроси написать «Создавай».",
+    };
   }
 
   if (call.name === "prepare_cleaning") {
@@ -442,6 +505,54 @@ export async function runTelegramAssistant(
       }
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
       return `Счёт «${result.row.service}» за ${result.row.period} создан для объекта «${draftApartment.name}». Сумма: ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: draftApartment.currency }).format(Number(result.row.amount))}.`;
+    }
+    if (pending.type === "create_work_order") {
+      const payload = pending.payload as Record<string, unknown>;
+      const requestedIds = Array.isArray(payload.allowedAssetIds)
+        ? payload.allowedAssetIds.map(String).filter(Boolean)
+        : [];
+      const { data: assets, error: assetsError } = await admin
+        .from("assets")
+        .select("id,code,name")
+        .eq("apartment_id", draftApartment.id)
+        .is("deleted_at", null)
+        .in("id", requestedIds);
+      if (assetsError) return `Не удалось проверить узлы задания: ${assetsError.message}`;
+      if (!requestedIds.length || (assets ?? []).length !== requestedIds.length) {
+        return "Состав узлов изменился. Отмените черновик и соберите задание заново.";
+      }
+      const { count } = await admin
+        .from("inspections")
+        .select("id", { count: "exact", head: true })
+        .eq("apartment_id", draftApartment.id)
+        .eq("workflow", "work_order");
+      const contractor = String(payload.contractor ?? "").trim();
+      const contractorPhone = String(payload.contractorPhone ?? "").trim();
+      const guestToken = randomBytes(24).toString("hex");
+      const id = `work-${Date.now()}-${Math.round(Math.random() * 1000)}`;
+      const createdAt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: draftApartment.timezone }).format(new Date());
+      const { error: insertError } = await admin.from("inspections").insert({
+        apartment_id: draftApartment.id,
+        id,
+        number: `Задание #${(count ?? 0) + 1}`,
+        title: contractorPhone ? `${contractor} · ${contractorPhone}` : contractor,
+        created_at_label: createdAt,
+        created_by: `telegram:${account.telegram_user_id}`,
+        contractor,
+        contractor_phone: contractorPhone || null,
+        workflow: "work_order",
+        scope: "custom",
+        status: "sent",
+        allowed_asset_ids: requestedIds,
+        asset_instructions: payload.assetInstructions ?? {},
+        summary: "Задание создано. Ожидаем результат работы мастера по выбранным узлам.",
+        guest_token: guestToken,
+        result_ids: [],
+      });
+      if (insertError) return `Не удалось создать задание: ${insertError.message}`;
+      await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
+      const link = `${appOrigin.replace(/\/$/, "")}/guest/${guestToken}`;
+      return `Задание #${(count ?? 0) + 1} создано для объекта «${draftApartment.name}». Мастер: ${contractor}. Узлов: ${requestedIds.length}.\n${link}`;
     }
     return "Черновик повреждён. Давайте соберём его заново.";
   }
