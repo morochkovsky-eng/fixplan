@@ -10,6 +10,11 @@ const eventRouteSource = fs.readFileSync("app/api/assets/[id]/events/[eventId]/r
 const assetsRouteSource = fs.readFileSync("app/api/assets/route.ts", "utf8");
 const assetRouteSource = fs.readFileSync("app/api/assets/[id]/route.ts", "utf8");
 const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
+const apartmentAccessSource = fs.readFileSync("app/api/assets/access.ts", "utf8");
+const apartmentsRouteSource = fs.readFileSync("app/api/apartments/route.ts", "utf8");
+const assetEventsRouteSource = fs.readFileSync("app/api/assets/[id]/events/route.ts", "utf8");
+const inspectionsRouteSource = fs.readFileSync("app/api/inspections/route.ts", "utf8");
+const inspectionRouteSource = fs.readFileSync("app/api/inspections/[id]/route.ts", "utf8");
 const utilityBillsRouteSource = fs.readFileSync("app/api/utility-bills/route.ts", "utf8");
 const utilityBillRouteSource = fs.readFileSync("app/api/utility-bills/[id]/route.ts", "utf8");
 const utilityReadingsRouteSource = fs.readFileSync("app/api/utility-readings/route.ts", "utf8");
@@ -222,6 +227,40 @@ test("keeps new asset editing as a persisted temporary plan node", () => {
 test("keeps server deleted nodes authoritative over browser storage", () => {
   assert.match(appDataRouteSource, /deletedAssetIds/);
   assert.match(pageSource, /deletedAssetIds: remoteState\.deletedAssetIds \?\? current\.deletedAssetIds/);
+});
+
+test("keeps every owner workflow scoped to the selected apartment", () => {
+  assert.match(apartmentAccessSource, /fixplan_apartment_id/);
+  assert.match(apartmentAccessSource, /getSelectedApartmentId/);
+  assert.match(apartmentsRouteSource, /export async function GET/);
+  assert.match(apartmentsRouteSource, /export async function POST/);
+  assert.match(apartmentsRouteSource, /export async function PATCH/);
+  assert.match(apartmentsRouteSource, /apartment_members/);
+  assert.match(apartmentsRouteSource, /defaultRooms/);
+  assert.match(apartmentsRouteSource, /defaultCategories/);
+  assert.match(pageSource, /function ApartmentSwitcher/);
+  assert.match(pageSource, /withCatalogAssets\(\{[\s\S]*?remoteState\.assets[\s\S]*?\}, false\)/);
+  assert.doesNotMatch(pageSource, /shpalernaya-maintenance-mvp/);
+  assert.doesNotMatch(pageSource, /window\.localStorage/);
+  for (const source of [
+    appDataRouteSource,
+    assetsRouteSource,
+    assetRouteSource,
+    assetEventsRouteSource,
+    eventRouteSource,
+    inspectionsRouteSource,
+    inspectionRouteSource,
+    utilityBillsRouteSource,
+    utilityBillRouteSource,
+    utilityReadingsRouteSource,
+    cleaningsRouteSource,
+    cleaningRouteSource,
+    notificationsRouteSource,
+    notificationRouteSource,
+  ]) {
+    assert.match(source, /apartmentId/);
+    assert.doesNotMatch(source, /00000000-0000-4000-8000-000000000034/);
+  }
 });
 
 test("supports custom asset categories from the UI", () => {

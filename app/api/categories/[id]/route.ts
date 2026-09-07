@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { APARTMENT_ID, requireApartmentAccess } from "../../assets/access";
+import { requireApartmentAccess } from "../../assets/access";
 
 function formatCategory(category: {
   id: string;
@@ -23,7 +23,7 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -48,7 +48,7 @@ export async function PATCH(
   const { data, error: updateError } = await admin
     .from("asset_categories")
     .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .select("*")
     .single();
@@ -64,7 +64,7 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -74,7 +74,7 @@ export async function DELETE(
   const { count, error: countError } = await admin
     .from("assets")
     .select("id", { count: "exact", head: true })
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("category", id)
     .is("deleted_at", null);
 
@@ -92,7 +92,7 @@ export async function DELETE(
   const { error: deleteError } = await admin
     .from("asset_categories")
     .delete()
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id);
 
   if (deleteError) {

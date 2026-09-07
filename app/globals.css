@@ -156,6 +156,33 @@ button {
   outline-offset: 2px;
 }
 
+.apartment-switcher {
+  display: flex;
+  position: relative;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.apartment-switcher [data-slot="select-trigger"] {
+  min-width: 0;
+}
+
+.apartment-switcher-error {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 10px;
+  z-index: 5;
+  margin: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--negative-tint);
+  border-radius: 6px;
+  background: var(--content);
+  color: var(--negative);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .brand-mark,
 .guest-brand-mark {
   display: grid;
@@ -2379,6 +2406,10 @@ select:focus-visible {
     background: var(--content);
     padding: 12px;
     box-shadow: 0 18px 30px rgba(29, 32, 35, 0.08);
+  }
+
+  .mobile-menu .apartment-switcher {
+    padding: 0;
   }
 
   .mobile-menu .nav-list {

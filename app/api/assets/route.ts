@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { APARTMENT_ID, requireApartmentAccess } from "./access";
+import { requireApartmentAccess } from "./access";
 
 const kinds = new Set([
   "socket",
@@ -96,7 +96,7 @@ function formatAsset(asset: {
 }
 
 export async function POST(request: Request) {
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
   const { data, error: insertError } = await admin
     .from("assets")
     .insert({
-      apartment_id: APARTMENT_ID,
+      apartment_id: apartmentId,
       id: `asset-${randomUUID().slice(0, 8)}`,
       ...normalized.asset,
       last_checked: "не проверялось",

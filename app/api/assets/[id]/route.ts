@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { APARTMENT_ID, requireApartmentAccess } from "../access";
+import { requireApartmentAccess } from "../access";
 
 const kinds = new Set([
   "socket",
@@ -60,7 +60,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -97,7 +97,7 @@ export async function PATCH(
   const { data, error: updateError } = await admin
     .from("assets")
     .update(patch)
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .is("deleted_at", null)
     .select("*")
@@ -115,7 +115,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -124,7 +124,7 @@ export async function DELETE(
   const { error: updateError } = await admin
     .from("assets")
     .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id);
 
   if (updateError) {

@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { formatUtilityBill } from "@/lib/server/utility-bills";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
-
-const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
+import { requireApartmentAccess } from "../assets/access";
 
 function isMissingUtilityTable(
   error: { code?: string; message?: string } | null | undefined,
@@ -19,31 +16,8 @@ function isMissingTable(error: { code?: string; message?: string } | null | unde
 }
 
 export async function GET() {
-  const supabase = await createServerSupabaseClient();
-  const admin = createAdminClient();
-
-  if (!supabase || !admin) {
-    return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { data: membership } = await admin
-    .from("apartment_members")
-    .select("role")
-    .eq("apartment_id", APARTMENT_ID)
-    .or(`user_id.eq.${user.id},email.eq.${user.email}`)
-    .maybeSingle();
-
-  if (!membership) {
-    return NextResponse.json({ error: "Apartment access denied" }, { status: 403 });
-  }
+  const { admin, apartmentId, error: accessError, status } = await requireApartmentAccess();
+  if (!admin) return NextResponse.json({ error: accessError }, { status });
 
   const [
     assetsResult,
@@ -59,18 +33,18 @@ export async function GET() {
     cleaningsResult,
     cleaningMediaResult,
   ] = await Promise.all([
-    admin.from("assets").select("*").eq("apartment_id", APARTMENT_ID).is("deleted_at", null).order("code"),
-    admin.from("asset_categories").select("*").eq("apartment_id", APARTMENT_ID).order("sort_order"),
-    admin.from("assets").select("id").eq("apartment_id", APARTMENT_ID).not("deleted_at", "is", null),
-    admin.from("events").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
-    admin.from("inspections").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
-    admin.from("inspection_results").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
-    admin.from("asset_media").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
-    admin.from("utility_bills").select("*").eq("apartment_id", APARTMENT_ID).order("due_date_label"),
-    admin.from("utility_meters").select("*").eq("apartment_id", APARTMENT_ID).order("created_at"),
-    admin.from("utility_readings").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
-    admin.from("cleanings").select("*").eq("apartment_id", APARTMENT_ID).order("created_at", { ascending: false }),
-    admin.from("cleaning_media").select("*").eq("apartment_id", APARTMENT_ID).order("created_at"),
+    admin.from("assets").select("*").eq("apartment_id", apartmentId).is("deleted_at", null).order("code"),
+    admin.from("asset_categories").select("*").eq("apartment_id", apartmentId).order("sort_order"),
+    admin.from("assets").select("id").eq("apartment_id", apartmentId).not("deleted_at", "is", null),
+    admin.from("events").select("*").eq("apartment_id", apartmentId).order("created_at", { ascending: false }),
+    admin.from("inspections").select("*").eq("apartment_id", apartmentId).order("created_at", { ascending: false }),
+    admin.from("inspection_results").select("*").eq("apartment_id", apartmentId).order("created_at", { ascending: false }),
+    admin.from("asset_media").select("*").eq("apartment_id", apartmentId).order("created_at", { ascending: false }),
+    admin.from("utility_bills").select("*").eq("apartment_id", apartmentId).order("due_date_label"),
+    admin.from("utility_meters").select("*").eq("apartment_id", apartmentId).order("created_at"),
+    admin.from("utility_readings").select("*").eq("apartment_id", apartmentId).order("created_at", { ascending: false }),
+    admin.from("cleanings").select("*").eq("apartment_id", apartmentId).order("created_at", { ascending: false }),
+    admin.from("cleaning_media").select("*").eq("apartment_id", apartmentId).order("created_at"),
   ]);
 
   const error =
@@ -152,8 +126,13 @@ export async function GET() {
       return formatUtilityBill(bill, signedReceiptUrl);
     }),
   );
+  const { data: apartment } = await admin.from("apartments").select("name,address").eq("id", apartmentId).single();
 
   return NextResponse.json({
+    config: {
+      serviceName: "FixPlan",
+      objectName: apartment?.address || apartment?.name || "Объект",
+    },
     deletedAssetIds: (deletedAssetsResult.data ?? []).map((asset) => asset.id),
     categories: (categoriesResult.data ?? []).map((category) => ({
       id: category.id,

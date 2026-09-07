@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { APARTMENT_ID, requireApartmentAccess } from "../assets/access";
+import { requireApartmentAccess } from "../assets/access";
 
 const services = new Set(["cold_water", "hot_water", "electricity", "heating", "other"]);
 const sources = new Set(["owner", "telegram", "manual"]);
@@ -63,7 +63,7 @@ function formatReading(reading: {
 }
 
 export async function POST(request: Request) {
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
 
   const { error: meterError } = await admin.from("utility_meters").upsert(
     {
-      apartment_id: APARTMENT_ID,
+      apartment_id: apartmentId,
       id: meter.id,
       service: meter.service,
       label: meter.label,
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     .from("utility_readings")
     .upsert(
       {
-        apartment_id: APARTMENT_ID,
+        apartment_id: apartmentId,
         id,
         meter_id: meterId,
         period,

@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { APARTMENT_ID, requireApartmentAccess } from "../../assets/access";
+import { requireApartmentAccess } from "../../assets/access";
 import type { CleaningRecurrence } from "@/lib/cleanings";
 import { cleaningPayload, formatCleaningSchedule, serializeCleaning } from "../helpers";
 
@@ -20,7 +20,7 @@ function nextOccurrence(value: string, recurrence: CleaningRecurrence) {
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { admin, error, status, userEmail } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status, userEmail } = await requireApartmentAccess();
   if (!admin) return NextResponse.json({ error }, { status });
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
@@ -30,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { data: currentCleaning, error: currentError } = await admin
     .from("cleanings")
     .select("status")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .maybeSingle();
   if (currentError || !currentCleaning) return NextResponse.json({ error: currentError?.message ?? "Уборка не найдена." }, { status: currentError ? 500 : 404 });
@@ -41,7 +41,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const { data, error: updateError } = await admin
     .from("cleanings")
     .update({ ...normalized.row, completed_at_label: completedAt, updated_at: new Date().toISOString() })
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .select("*")
     .single();
@@ -63,7 +63,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       scheduled_for_label: formatCleaningSchedule(nextDate),
       completed_at_label: null,
       recurs_from_id: id,
-      apartment_id: APARTMENT_ID,
+      apartment_id: apartmentId,
       created_by: userEmail,
       created_at_label: new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date()),
     };
@@ -78,14 +78,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
   if (!admin) return NextResponse.json({ error }, { status });
   const { data: media } = await admin
     .from("cleaning_media")
     .select("storage_path")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("cleaning_id", id);
-  const { error: deleteError } = await admin.from("cleanings").delete().eq("apartment_id", APARTMENT_ID).eq("id", id);
+  const { error: deleteError } = await admin.from("cleanings").delete().eq("apartment_id", apartmentId).eq("id", id);
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
   if (media?.length) {
     await admin.storage.from("asset-media").remove(media.map((item) => item.storage_path));

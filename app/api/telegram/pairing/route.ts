@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { APARTMENT_ID, requireApartmentAccess } from "../../assets/access";
+import { requireApartmentAccess } from "../../assets/access";
 
 async function requireManager() {
   const access = await requireApartmentAccess();
@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST() {
-  const { admin, error, status, userId, userEmail, role: memberRole } = await requireManager();
+  const { admin, apartmentId, error, status, userId, userEmail, role: memberRole } = await requireManager();
   if (!admin) return NextResponse.json({ error }, { status });
   if (memberRole !== "owner" && memberRole !== "admin") return NextResponse.json({ error: "Только владелец или администратор может подключать Telegram." }, { status: 403 });
   const code = randomBytes(12).toString("base64url");
@@ -26,7 +26,7 @@ export async function POST() {
   const { error: insertError } = await admin.from("telegram_pairing_codes").insert({
     owner_user_id: userId,
     owner_email: userEmail,
-    default_apartment_id: APARTMENT_ID,
+    default_apartment_id: apartmentId,
     code_hash: createHash("sha256").update(code).digest("hex"),
     created_by: userEmail,
     expires_at: expiresAt,

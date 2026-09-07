@@ -1,9 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
-
-const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
+import { requireApartmentAccess } from "../../access";
 
 function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", {
@@ -13,42 +10,12 @@ function todayLabel() {
   }).format(new Date());
 }
 
-async function requireApartmentAccess() {
-  const supabase = await createServerSupabaseClient();
-  const admin = createAdminClient();
-
-  if (!supabase || !admin) {
-    return { admin: null, userEmail: "", error: "Supabase is not configured", status: 500 };
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return { admin, userEmail: "", error: "Unauthorized", status: 401 };
-  }
-
-  const { data: membership, error: membershipError } = await admin
-    .from("apartment_members")
-    .select("role")
-    .eq("apartment_id", APARTMENT_ID)
-    .or(`user_id.eq.${user.id},email.ilike.${user.email}`)
-    .maybeSingle();
-
-  if (membershipError || !membership) {
-    return { admin, userEmail: user.email, error: "Apartment access denied", status: 403 };
-  }
-
-  return { admin, userEmail: user.email, error: "", status: 200 };
-}
-
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: assetId } = await params;
-  const { admin, userEmail, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, userEmail, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -64,7 +31,7 @@ export async function POST(
   const { data: asset, error: assetError } = await admin
     .from("assets")
     .select("id")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", assetId)
     .maybeSingle();
 
@@ -80,7 +47,7 @@ export async function POST(
     .from("events")
     .upsert(
       {
-        apartment_id: APARTMENT_ID,
+        apartment_id: apartmentId,
         id: eventId,
         asset_id: assetId,
         inspection_id: null,
@@ -104,7 +71,7 @@ export async function POST(
 
   for (const file of files) {
     const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-    const storagePath = `${APARTMENT_ID}/${assetId}/manual/${eventId}/${randomUUID()}.${extension}`;
+    const storagePath = `${apartmentId}/${assetId}/manual/${eventId}/${randomUUID()}.${extension}`;
     const bytes = await file.arrayBuffer();
 
     const { error: uploadError } = await admin.storage
@@ -121,7 +88,7 @@ export async function POST(
     const { data: media, error: mediaError } = await admin
       .from("asset_media")
       .insert({
-        apartment_id: APARTMENT_ID,
+        apartment_id: apartmentId,
         asset_id: assetId,
         event_id: eventId,
         inspection_id: null,

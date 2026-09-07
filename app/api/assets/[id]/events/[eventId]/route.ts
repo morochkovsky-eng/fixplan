@@ -1,45 +1,12 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
-
-const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
-
-async function requireApartmentAccess() {
-  const supabase = await createServerSupabaseClient();
-  const admin = createAdminClient();
-
-  if (!supabase || !admin) {
-    return { admin: null, error: "Supabase is not configured", status: 500 };
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return { admin, error: "Unauthorized", status: 401 };
-  }
-
-  const { data: membership, error: membershipError } = await admin
-    .from("apartment_members")
-    .select("role")
-    .eq("apartment_id", APARTMENT_ID)
-    .or(`user_id.eq.${user.id},email.ilike.${user.email}`)
-    .maybeSingle();
-
-  if (membershipError || !membership) {
-    return { admin, error: "Apartment access denied", status: 403 };
-  }
-
-  return { admin, error: "", status: 200 };
-}
+import { requireApartmentAccess } from "../../../access";
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; eventId: string }> },
 ) {
   const { id: assetId, eventId } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -64,7 +31,7 @@ export async function PATCH(
   const { data: event, error: eventError } = await admin
     .from("events")
     .update(patch)
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("asset_id", assetId)
     .eq("id", eventId)
     .select("*")
@@ -96,7 +63,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; eventId: string }> },
 ) {
   const { id: assetId, eventId } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -105,7 +72,7 @@ export async function DELETE(
   const { data: mediaRows, error: mediaReadError } = await admin
     .from("asset_media")
     .select("id,storage_path")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("asset_id", assetId)
     .eq("event_id", eventId);
 
@@ -124,7 +91,7 @@ export async function DELETE(
   const { error: mediaDeleteError } = await admin
     .from("asset_media")
     .delete()
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("asset_id", assetId)
     .eq("event_id", eventId);
 
@@ -135,7 +102,7 @@ export async function DELETE(
   const { error: eventDeleteError } = await admin
     .from("events")
     .delete()
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("asset_id", assetId)
     .eq("id", eventId);
 

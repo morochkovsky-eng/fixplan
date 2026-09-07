@@ -1,9 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
-
-const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
+import { requireApartmentAccess } from "../assets/access";
 
 type ContractorScope = "plumbing" | "electric" | "all" | "custom";
 type Workflow = "inspection" | "work_order";
@@ -17,20 +14,8 @@ function todayLabel() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabaseClient();
-  const admin = createAdminClient();
-
-  if (!supabase || !admin) {
-    return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const { admin, apartmentId, userEmail, error: accessError, status } = await requireApartmentAccess();
+  if (!admin) return NextResponse.json({ error: accessError }, { status });
 
   const body = (await request.json().catch(() => ({}))) as {
     workflow?: Workflow;
@@ -50,21 +35,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Contractor name is required" }, { status: 400 });
   }
 
-  const { data: membership, error: membershipError } = await admin
-    .from("apartment_members")
-    .select("role")
-    .eq("apartment_id", APARTMENT_ID)
-    .or(`user_id.eq.${user.id},email.ilike.${user.email}`)
-    .maybeSingle();
-
-  if (membershipError || !membership) {
-    return NextResponse.json({ error: "Apartment access denied" }, { status: 403 });
-  }
-
   let assetsQuery = admin
     .from("assets")
     .select("id")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .order("code", { ascending: true });
 
   if (scope === "plumbing") {
@@ -90,7 +64,7 @@ export async function POST(request: Request) {
   const { count } = await admin
     .from("inspections")
     .select("id", { count: "exact", head: true })
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("workflow", workflow);
 
   const id = `insp-${Date.now()}-${Math.round(Math.random() * 1000)}`;
@@ -102,12 +76,12 @@ export async function POST(request: Request) {
   const { data: inspection, error } = await admin
     .from("inspections")
     .insert({
-      apartment_id: APARTMENT_ID,
+      apartment_id: apartmentId,
       id,
       number: `${workflow === "work_order" ? "Задание" : "Обход"} #${(count ?? 0) + 1}`,
       title: contractorPhone ? `${contractor} · ${contractorPhone}` : contractor,
       created_at_label: createdAt,
-      created_by: user.email,
+      created_by: userEmail,
       contractor,
       contractor_phone: contractorPhone,
       workflow,

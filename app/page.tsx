@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState, type PointerEvent } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type PointerEvent } from "react";
 import {
   type AttachmentData,
 } from "@/components/ai-elements/attachments";
@@ -44,6 +44,14 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { CleaningsView } from "@/components/cleanings-view";
 import type { Cleaning } from "@/lib/cleanings";
 import {
@@ -1007,8 +1015,6 @@ const initialState: AppState = {
   cleanings: [],
 };
 
-const storageKey = "shpalernaya-maintenance-mvp";
-
 function todayLabel() {
   return new Intl.DateTimeFormat("ru-RU", {
     day: "numeric",
@@ -1390,12 +1396,14 @@ function buildCatalogAssets(existingAssets: Asset[]) {
   );
 }
 
-function withCatalogAssets(state: AppState): AppState {
+function withCatalogAssets(state: AppState, includeCatalogFallback = true): AppState {
   const deletedAssetIds = state.deletedAssetIds ?? [];
   const categories = categoryOptions(state.categories ?? initialState.categories);
   const deletedIds = new Set(deletedAssetIds);
   const activeAssets = state.assets.filter((asset) => !deletedIds.has(asset.id));
-  const catalogAssets = buildCatalogAssets(activeAssets).filter((asset) => !deletedIds.has(asset.id));
+  const catalogAssets = includeCatalogFallback
+    ? buildCatalogAssets(activeAssets).filter((asset) => !deletedIds.has(asset.id))
+    : [];
   const knownIds = new Set(activeAssets.map((asset) => asset.id));
   return {
     ...state,
@@ -1444,7 +1452,6 @@ export default function Home() {
     return defaultState;
   });
   const [authStatus, setAuthStatus] = useState<"checking" | "ready" | "signed_out">("checking");
-  const [storageReady, setStorageReady] = useState(false);
   const [view, setView] = useState<View>("dashboard");
   const [selectedAssetId, setSelectedAssetId] = useState("r07");
   const [selectedInspectionId, setSelectedInspectionId] = useState(
@@ -1519,26 +1526,6 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const id = window.setTimeout(() => {
-      const saved = window.localStorage.getItem(storageKey);
-      if (saved) {
-        try {
-          setState(withCatalogAssets(JSON.parse(saved) as AppState));
-        } catch {
-          setState(defaultState);
-        }
-      }
-      setStorageReady(true);
-    }, 0);
-    return () => window.clearTimeout(id);
-  }, []);
-
-  useEffect(() => {
-    if (!storageReady) return;
-    window.localStorage.setItem(storageKey, JSON.stringify(state));
-  }, [state, storageReady]);
-
-  useEffect(() => {
     if (authStatus !== "ready") return;
 
     let cancelled = false;
@@ -1553,6 +1540,7 @@ export default function Home() {
         setState((current) =>
           withCatalogAssets({
             ...current,
+            config: remoteState.config ?? current.config,
             assets: remoteState.assets ?? current.assets,
             events: remoteState.events ?? current.events,
             media: remoteState.media ?? current.media,
@@ -1570,7 +1558,7 @@ export default function Home() {
                 remoteState.inspections?.[0]?.id ??
                 current.contractorAccess.inspectionId,
             },
-          }),
+          }, false),
         );
         if (remoteState.inspections?.[0]?.id) {
           setSelectedInspectionId(remoteState.inspections[0].id);
@@ -1603,9 +1591,9 @@ export default function Home() {
   const selectedEvents = useMemo(
     () =>
       state.events
-        .filter((event) => event.assetId === selectedAsset.id)
+        .filter((event) => event.assetId === selectedAsset?.id)
         .slice(),
-    [selectedAsset.id, state.events],
+    [selectedAsset?.id, state.events],
   );
 
   const activePlan =
@@ -1622,7 +1610,9 @@ export default function Home() {
   const dirtyPlanAssetCount =
     new Set([...dirtyPlanAssetIds, ...deletedPlanAssetIds]).size +
     (!editingAssetId && assetDraft.code.trim() && assetDraft.name.trim() ? 1 : 0);
-  const currentInspectionAsset = state.assets[inspectionIndex % state.assets.length];
+  const currentInspectionAsset = state.assets.length
+    ? state.assets[inspectionIndex % state.assets.length]
+    : undefined;
 
   function openAsset(id: string) {
     setSelectedAssetId(id);
@@ -2280,6 +2270,7 @@ export default function Home() {
   }
 
   function completeInspection(status: Status) {
+    if (!currentInspectionAsset) return;
     setAssetStatus(
       currentInspectionAsset.id,
       status,
@@ -2642,6 +2633,7 @@ export default function Home() {
       </header>
       {mobileMenuOpen && (
         <div className="mobile-menu">
+          <ApartmentSwitcher compact />
           <nav className="nav-list" aria-label="Мобильная навигация">
             <AppNavigation activeView={view} navigate={navigate} />
           </nav>
@@ -2656,6 +2648,7 @@ export default function Home() {
         >
           <BrandMark objectName={state.config.objectName} />
         </button>
+        <ApartmentSwitcher />
         <SidebarSearch assets={state.assets} openAsset={openAsset} />
         <nav className="nav-list" aria-label="Главная навигация">
           <AppNavigation activeView={view} navigate={navigate} />
@@ -2744,7 +2737,7 @@ export default function Home() {
           />
         )}
 
-        {view === "asset" && (
+        {view === "asset" && selectedAsset && (
           <AssetDetail
             asset={selectedAsset}
             events={selectedEvents}
@@ -2814,7 +2807,7 @@ export default function Home() {
           />
         )}
 
-        {view === "inspection" && (
+        {view === "inspection" && currentInspectionAsset && (
           <InspectionView
             asset={currentInspectionAsset}
             index={inspectionIndex}
@@ -2822,6 +2815,22 @@ export default function Home() {
             completeInspection={completeInspection}
             openAsset={openAsset}
           />
+        )}
+
+        {view === "inspection" && !currentInspectionAsset && (
+          <Card>
+            <CardHeader>
+              <CardTitle>В квартире пока нет узлов</CardTitle>
+              <CardDescription>
+                Сначала добавьте узлы на плане или в разделе «Узлы».
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => navigate("assets")} type="button">
+                <Plus /> Новый узел
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {view === "inspections" && (
@@ -2938,12 +2947,12 @@ function LockedApp() {
   );
 }
 
-function viewTitle(view: View, asset: Asset) {
+function viewTitle(view: View, asset?: Asset) {
   const titles: Record<View, string> = {
     dashboard: "Дашборд квартиры",
     plan: "План квартиры",
     assets: "Список узлов",
-    asset: `${asset.code} · ${asset.name}`,
+    asset: asset ? `${asset.code} · ${asset.name}` : "Узел",
     documents: "Документы",
     utilities: "Коммуналка и счета",
     cleanings: "Уборки",
@@ -3014,6 +3023,158 @@ function BrandMark({ objectName }: { objectName: string }) {
         {objectName}
       </span>
     </span>
+  );
+}
+
+type ApartmentSummary = {
+  id: string;
+  name: string;
+  address: string;
+};
+
+function ApartmentSwitcher({ compact = false }: { compact?: boolean }) {
+  const nameId = useId();
+  const addressId = useId();
+  const [apartments, setApartments] = useState<ApartmentSummary[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadApartments() {
+      try {
+        const response = await fetch("/api/apartments", { cache: "no-store" });
+        const result = (await response.json()) as {
+          apartments?: ApartmentSummary[];
+          selectedId?: string;
+          error?: string;
+        };
+        if (!response.ok) throw new Error(result.error || "Не удалось загрузить объекты.");
+        if (cancelled) return;
+        const nextApartments = result.apartments ?? [];
+        setApartments(nextApartments);
+        setSelectedId(result.selectedId ?? nextApartments[0]?.id ?? "");
+        setCreateOpen(nextApartments.length === 0);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить объекты.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadApartments();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function switchApartment(apartmentId: string) {
+    if (!apartmentId || apartmentId === selectedId) return;
+    setSelectedId(apartmentId);
+    setError("");
+    const response = await fetch("/api/apartments", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ apartmentId }),
+    });
+    const result = (await response.json().catch(() => ({}))) as { error?: string };
+    if (!response.ok) {
+      setError(result.error || "Не удалось переключить объект.");
+      return;
+    }
+    window.location.reload();
+  }
+
+  async function createApartment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!name.trim() && !address.trim()) {
+      setError("Укажите название или адрес объекта.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const response = await fetch("/api/apartments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, address }),
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "Не удалось создать объект.");
+      window.location.reload();
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "Не удалось создать объект.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={`apartment-switcher${compact ? " apartment-switcher-compact" : ""}`}>
+      <Select disabled={loading || !apartments.length} onValueChange={switchApartment} value={selectedId}>
+        <SelectTrigger aria-label="Выбрать объект" className="min-w-0 flex-1">
+          <SelectValue placeholder={loading ? "Загрузка…" : "Нет объектов"} />
+        </SelectTrigger>
+        <SelectContent>
+          {apartments.map((apartment) => (
+            <SelectItem key={apartment.id} value={apartment.id}>
+              {apartment.name || apartment.address}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button aria-label="Добавить объект" onClick={() => setCreateOpen(true)} size="icon" type="button" variant="outline">
+            <Plus />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Добавить объект</TooltipContent>
+      </Tooltip>
+      {error && !createOpen ? <p className="apartment-switcher-error">{error}</p> : null}
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          if (open || apartments.length) setCreateOpen(open);
+        }}
+      >
+        <DialogContent>
+          <form className="grid gap-4" onSubmit={createApartment}>
+            <DialogHeader>
+              <DialogTitle>Новый объект</DialogTitle>
+              <DialogDescription>Достаточно заполнить название или адрес.</DialogDescription>
+            </DialogHeader>
+            <label className="grid gap-2 text-sm font-medium" htmlFor={nameId}>
+              Название
+              <Input id={nameId} autoComplete="off" onChange={(event) => setName(event.target.value)} placeholder="Квартира на Шпалерной" value={name} />
+            </label>
+            <label className="grid gap-2 text-sm font-medium" htmlFor={addressId}>
+              Адрес
+              <Input id={addressId} autoComplete="street-address" onChange={(event) => setAddress(event.target.value)} placeholder="Шпалерная, 34Б" value={address} />
+            </label>
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <DialogFooter>
+              {apartments.length ? (
+                <Button onClick={() => setCreateOpen(false)} type="button" variant="outline">
+                  Отмена
+                </Button>
+              ) : null}
+              <Button disabled={saving} type="submit">
+                {saving ? "Создаём…" : "Создать объект"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

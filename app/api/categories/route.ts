@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { APARTMENT_ID, requireApartmentAccess } from "../assets/access";
+import { requireApartmentAccess } from "../assets/access";
 
 const planModes = new Set([
   "sockets",
@@ -63,7 +63,7 @@ function formatCategory(category: {
 }
 
 export async function POST(request: Request) {
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   const { data, error: insertError } = await admin
     .from("asset_categories")
     .insert({
-      apartment_id: APARTMENT_ID,
+      apartment_id: apartmentId,
       ...normalized.category,
     })
     .select("*")

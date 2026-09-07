@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
-
-const APARTMENT_ID = "00000000-0000-4000-8000-000000000034";
+import { requireApartmentAccess } from "../../assets/access";
 
 type ContractorScope = "plumbing" | "electric" | "all" | "custom";
 type Workflow = "inspection" | "work_order";
@@ -32,49 +30,21 @@ function appUrlFromRequest(request: Request) {
   return (process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin).replace(/\/$/, "");
 }
 
-async function requireApartmentAccess() {
-  const supabase = await createServerSupabaseClient();
-  const admin = createAdminClient();
-
-  if (!supabase || !admin) {
-    return { admin: null, userEmail: "", error: "Supabase is not configured", status: 500 };
-  }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user?.email) {
-    return { admin, userEmail: "", error: "Unauthorized", status: 401 };
-  }
-
-  const { data: membership, error: membershipError } = await admin
-    .from("apartment_members")
-    .select("role")
-    .eq("apartment_id", APARTMENT_ID)
-    .or(`user_id.eq.${user.id},email.ilike.${user.email}`)
-    .maybeSingle();
-
-  if (membershipError || !membership) {
-    return { admin, userEmail: user.email, error: "Apartment access denied", status: 403 };
-  }
-
-  return { admin, userEmail: user.email, error: "", status: 200 };
-}
-
 async function assetsForScope({
   admin,
+  apartmentId,
   allowedAssetIds,
   scope,
 }: {
   admin: NonNullable<ReturnType<typeof createAdminClient>>;
+  apartmentId: string;
   allowedAssetIds?: string[];
   scope: ContractorScope;
 }) {
   let query = admin
     .from("assets")
     .select("id")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .order("code", { ascending: true });
 
   if (scope === "plumbing") {
@@ -116,7 +86,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -134,7 +104,7 @@ export async function PATCH(
   const { data: currentInspection, error: inspectionError } = await admin
     .from("inspections")
     .select("*")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .maybeSingle();
 
@@ -163,7 +133,7 @@ export async function PATCH(
             : "Отчет принят владельцем. Результат сохранен в истории выбранных узлов.",
         updated_at: new Date().toISOString(),
       })
-      .eq("apartment_id", APARTMENT_ID)
+      .eq("apartment_id", apartmentId)
       .eq("id", id)
       .select("*")
       .single();
@@ -192,6 +162,7 @@ export async function PATCH(
 
   const scopedAssets = await assetsForScope({
     admin,
+    apartmentId,
     allowedAssetIds: body.allowedAssetIds,
     scope,
   });
@@ -203,7 +174,7 @@ export async function PATCH(
   const { data: existingResults, error: resultsError } = await admin
     .from("inspection_results")
     .select("asset_id")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("inspection_id", id);
 
   if (resultsError) {
@@ -237,7 +208,7 @@ export async function PATCH(
           : `Ссылка обновлена. В задании ${allowedAssetIds.length} узлов.`,
       updated_at: new Date().toISOString(),
     })
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .select("*")
     .single();
@@ -254,7 +225,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -263,7 +234,7 @@ export async function DELETE(
   const { error: unlinkError } = await admin
     .from("events")
     .update({ inspection_id: null })
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("inspection_id", id);
 
   if (unlinkError) {
@@ -273,7 +244,7 @@ export async function DELETE(
   const { error: deleteError } = await admin
     .from("inspections")
     .delete()
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id);
 
   if (deleteError) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { formatUtilityBill } from "@/lib/server/utility-bills";
-import { APARTMENT_ID, requireApartmentAccess } from "../../assets/access";
+import { requireApartmentAccess } from "../../assets/access";
 
 const statuses = new Set(["draft", "due", "paid", "overdue"]);
 
@@ -9,7 +9,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -40,7 +40,7 @@ export async function PATCH(
   const { data, error: updateError } = await admin
     .from("utility_bills")
     .update(patch)
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .select("*")
     .single();
@@ -57,7 +57,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { admin, error, status } = await requireApartmentAccess();
+  const { admin, apartmentId, error, status } = await requireApartmentAccess();
 
   if (!admin) {
     return NextResponse.json({ error }, { status });
@@ -66,14 +66,14 @@ export async function DELETE(
   const { data: existing } = await admin
     .from("utility_bills")
     .select("receipt_storage_path")
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id)
     .maybeSingle();
 
   const { error: deleteError } = await admin
     .from("utility_bills")
     .delete()
-    .eq("apartment_id", APARTMENT_ID)
+    .eq("apartment_id", apartmentId)
     .eq("id", id);
 
   if (deleteError) {
