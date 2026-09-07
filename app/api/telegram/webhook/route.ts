@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
+import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import { downloadTelegramFile, sendTelegramMessage, transcribeTelegramVoice, type TelegramUpdate, type TelegramUser } from "@/lib/server/telegram";
 
 const supportedBillTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -48,12 +49,37 @@ function displayName(user: TelegramUser) {
 
 async function connectAccount(admin: NonNullable<ReturnType<typeof createAdminClient>>, code: string, user: TelegramUser, chatId: number) {
   const now = new Date().toISOString();
-  const { data: pairing, error } = await admin.from("telegram_pairing_codes").select("id,apartment_id").eq("code_hash", createHash("sha256").update(code).digest("hex")).is("used_at", null).gt("expires_at", now).maybeSingle();
+  const { data: pairing, error } = await admin.from("telegram_pairing_codes").select("id,owner_user_id,owner_email,default_apartment_id").eq("code_hash", createHash("sha256").update(code).digest("hex")).is("used_at", null).gt("expires_at", now).maybeSingle();
   if (error || !pairing) return false;
+  const { data: claimedPairing, error: claimError } = await admin
+    .from("telegram_pairing_codes")
+    .update({ used_at: now })
+    .eq("id", pairing.id)
+    .is("used_at", null)
+    .select("id")
+    .maybeSingle();
+  if (claimError) throw new Error(claimError.message);
+  if (!claimedPairing) return false;
+
+  const { data: previousAccount, error: previousError } = await admin
+    .from("telegram_accounts")
+    .select("telegram_user_id")
+    .eq("owner_user_id", pairing.owner_user_id)
+    .maybeSingle();
+  if (previousError) throw new Error(previousError.message);
+  if (previousAccount && String(previousAccount.telegram_user_id) !== String(user.id)) {
+    const { error: deleteError } = await admin
+      .from("telegram_accounts")
+      .delete()
+      .eq("telegram_user_id", previousAccount.telegram_user_id);
+    if (deleteError) throw new Error(deleteError.message);
+  }
 
   const { error: accountError } = await admin.from("telegram_accounts").upsert({
     telegram_user_id: user.id,
-    apartment_id: pairing.apartment_id,
+    owner_user_id: pairing.owner_user_id,
+    owner_email: pairing.owner_email,
+    default_apartment_id: pairing.default_apartment_id,
     chat_id: chatId,
     display_name: displayName(user),
     username: user.username ?? null,
@@ -61,7 +87,6 @@ async function connectAccount(admin: NonNullable<ReturnType<typeof createAdminCl
     updated_at: now,
   }, { onConflict: "telegram_user_id" });
   if (accountError) throw new Error(accountError.message);
-  await admin.from("telegram_pairing_codes").update({ used_at: now }).eq("id", pairing.id).is("used_at", null);
   return true;
 }
 
@@ -74,6 +99,7 @@ export async function POST(request: Request) {
   const message = update?.message;
   const user = message?.from;
   if (!update || !message || !user) return NextResponse.json({ ok: true });
+  if (message.chat.type !== "private") return NextResponse.json({ ok: true, ignored: "group-mode-not-enabled" });
 
   const { error: updateError } = await admin.from("telegram_updates").insert({ update_id: update.update_id, telegram_user_id: user.id });
   if (updateError) {
@@ -91,15 +117,17 @@ export async function POST(request: Request) {
       const connected = await connectAccount(admin, startCode, user, message.chat.id);
       await sendTelegramMessage(message.chat.id, connected ? "FixPlan подключён. Можно управлять квартирой текстом и голосом, а также пересылать сюда счета и квитанции." : "Ссылка подключения недействительна или уже использована.");
     } else {
-      const { data: account } = await admin.from("telegram_accounts").select("telegram_user_id,apartment_id,display_name").eq("telegram_user_id", user.id).eq("active", true).maybeSingle();
+      const { data: account } = await admin.from("telegram_accounts").select("telegram_user_id,owner_user_id,owner_email,default_apartment_id,display_name").eq("telegram_user_id", user.id).eq("active", true).maybeSingle();
       if (!account) {
         await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
       } else if (message.voice || message.photo?.length || message.document || text) {
         const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
-        const attachment = await uploadBillAttachment(admin, account.apartment_id, message);
+        const active = await getActiveTelegramApartment(admin, account as TelegramOwnerAccount);
+        if ("error" in active) throw new Error(active.error);
+        const attachment = await uploadBillAttachment(admin, active.apartment.id, message);
         const answer = await runTelegramAssistant(
           admin,
-          account,
+          account as TelegramOwnerAccount,
           message.caption?.trim() || userMessage,
           new URL(request.url).origin,
           attachment,

@@ -301,7 +301,9 @@ create index notification_events_pending_telegram
 
 create table public.telegram_pairing_codes (
   id uuid primary key default gen_random_uuid(),
-  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  owner_user_id uuid not null references auth.users(id) on delete cascade,
+  owner_email text not null,
+  default_apartment_id uuid not null references public.apartments(id) on delete cascade,
   code_hash text not null unique,
   created_by text not null,
   expires_at timestamptz not null,
@@ -311,7 +313,9 @@ create table public.telegram_pairing_codes (
 
 create table public.telegram_accounts (
   telegram_user_id bigint primary key,
-  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  owner_user_id uuid not null unique references auth.users(id) on delete cascade,
+  owner_email text not null,
+  default_apartment_id uuid not null references public.apartments(id) on delete cascade,
   chat_id bigint not null,
   display_name text not null default '',
   username text,
@@ -322,7 +326,7 @@ create table public.telegram_accounts (
 
 create table public.telegram_conversations (
   telegram_user_id bigint primary key references public.telegram_accounts(telegram_user_id) on delete cascade,
-  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  active_apartment_id uuid not null references public.apartments(id) on delete cascade,
   previous_response_id text,
   pending_action jsonb,
   updated_at timestamptz not null default now()
@@ -487,20 +491,52 @@ on public.notification_events for all
 using (public.is_apartment_member(apartment_id))
 with check (public.is_apartment_member(apartment_id));
 
-create policy "members can manage telegram pairing codes"
+create policy "owners can manage their telegram pairing codes"
 on public.telegram_pairing_codes for all
-using (public.is_apartment_manager(apartment_id))
-with check (public.is_apartment_manager(apartment_id));
+using (
+  owner_user_id = auth.uid()
+  or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+)
+with check (
+  owner_user_id = auth.uid()
+  or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+);
 
-create policy "members can manage telegram accounts"
+create policy "owners can manage their telegram account"
 on public.telegram_accounts for all
-using (public.is_apartment_manager(apartment_id))
-with check (public.is_apartment_manager(apartment_id));
+using (
+  owner_user_id = auth.uid()
+  or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+)
+with check (
+  owner_user_id = auth.uid()
+  or lower(owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+);
 
-create policy "members can manage telegram conversations"
+create policy "owners can manage their telegram conversation"
 on public.telegram_conversations for all
-using (public.is_apartment_manager(apartment_id))
-with check (public.is_apartment_manager(apartment_id));
+using (
+  exists (
+    select 1
+    from public.telegram_accounts account
+    where account.telegram_user_id = telegram_conversations.telegram_user_id
+      and (
+        account.owner_user_id = auth.uid()
+        or lower(account.owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.telegram_accounts account
+    where account.telegram_user_id = telegram_conversations.telegram_user_id
+      and (
+        account.owner_user_id = auth.uid()
+        or lower(account.owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+      )
+  )
+);
 
 create policy "members can read media files"
 on storage.objects for select

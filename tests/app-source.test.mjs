@@ -25,6 +25,7 @@ const notificationHelperSource = fs.readFileSync("lib/server/notifications.ts", 
 const telegramWebhookSource = fs.readFileSync("app/api/telegram/webhook/route.ts", "utf8");
 const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts", "utf8");
 const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
+const telegramContextSource = fs.readFileSync("lib/server/telegram-context.ts", "utf8");
 const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
 const utilityBillServiceSource = fs.readFileSync("lib/server/utility-bills.ts", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
@@ -89,6 +90,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /x-telegram-bot-api-secret-token/);
   assert.match(telegramWebhookSource, /telegram_updates/);
   assert.match(telegramWebhookSource, /23505/);
+  assert.match(telegramWebhookSource, /claimedPairing/);
   assert.match(telegramWebhookSource, /message\.photo/);
   assert.match(telegramWebhookSource, /message\.document/);
   assert.match(telegramWebhookSource, /utility-bills/);
@@ -96,10 +98,16 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramPairingSource, /15 \* 60 \* 1000/);
   assert.match(telegramPairingSource, /export async function GET/);
   assert.match(telegramPairingSource, /export async function DELETE/);
+  assert.match(telegramPairingSource, /owner_user_id/);
+  assert.match(telegramPairingSource, /default_apartment_id/);
   assert.match(pageSource, /Telegram-ассистент/);
   assert.match(pageSource, /Подключить мой Telegram/);
   assert.doesNotMatch(pageSource, /Роль пользователя/);
   assert.match(telegramAssistantSource, /list_cleanings/);
+  assert.match(telegramAssistantSource, /list_apartments/);
+  assert.match(telegramAssistantSource, /select_apartment/);
+  assert.match(telegramAssistantSource, /active_apartment_id/);
+  assert.match(telegramAssistantSource, /apartmentId: account\.apartment_id/);
   assert.match(telegramAssistantSource, /prepare_cleaning/);
   assert.match(telegramAssistantSource, /prepare_utility_bill/);
   assert.match(telegramAssistantSource, /confirmationWords/);
@@ -114,6 +122,11 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramClientSource, /downloadTelegramFile/);
   assert.match(telegramClientSource, /gpt-4o-mini-transcribe/);
   assert.match(telegramClientSource, /api\.openai\.com\/v1\/audio\/transcriptions/);
+  assert.match(telegramContextSource, /apartment_members/);
+  assert.match(telegramContextSource, /owner_user_id/);
+  assert.match(telegramContextSource, /owner_email/);
+  assert.match(schemaSource, /owner_user_id uuid not null unique/);
+  assert.match(schemaSource, /active_apartment_id uuid not null/);
 });
 
 test("supports cleaning as a first-class owner and guest workflow", () => {

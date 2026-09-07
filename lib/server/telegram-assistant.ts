@@ -2,15 +2,21 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleaningPayload } from "@/app/api/cleanings/helpers";
 import { createCleaningRecord } from "@/lib/server/cleanings";
+import {
+  listTelegramApartments,
+  resolveTelegramApartment,
+  type TelegramOwnerAccount,
+} from "@/lib/server/telegram-context";
 import { createUtilityBillRecord, normalizeBillPayload } from "@/lib/server/utility-bills";
 
-type TelegramAccount = {
-  telegram_user_id: number | string;
+type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_id: string;
-  display_name: string;
+  apartment_name: string;
+  apartment_address: string;
 };
 
 type Conversation = {
+  active_apartment_id: string | null;
   previous_response_id: string | null;
   pending_action: Record<string, unknown> | null;
 };
@@ -40,6 +46,30 @@ const confirmationWords = new Set(["да", "подтверждаю", "созда
 const cancellationWords = new Set(["нет", "отмена", "отмени", "не создавай"]);
 
 const tools = [
+  {
+    type: "function",
+    name: "list_apartments",
+    description: "Получить список объектов владельца и увидеть, какой объект сейчас выбран в диалоге.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "select_apartment",
+    description: "Выбрать объект, с которым продолжится диалог. Используй только идентификатор из list_apartments.",
+    parameters: {
+      type: "object",
+      properties: { apartmentId: { type: "string" } },
+      required: ["apartmentId"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
   {
     type: "function",
     name: "list_cleanings",
@@ -100,7 +130,7 @@ function plainText(response: OpenAIResponse) {
   return (response.output ?? []).flatMap((item) => item.content ?? []).filter((item) => item.type === "output_text").map((item) => item.text ?? "").join("\n").trim();
 }
 
-async function createResponse(input: unknown, previousResponseId: string | null, account: TelegramAccount) {
+async function createResponse(input: unknown, previousResponseId: string | null, account: ActiveTelegramAccount) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
   const today = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Moscow" }).format(new Date());
@@ -109,7 +139,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-      instructions: `Ты личный ассистент владельца квартиры в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс квартиры Europe/Moscow. Данные о квартире получай только через инструменты. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс Europe/Moscow. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные получай только через инструменты. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
       input,
       tools,
       tool_choice: "auto",
@@ -123,10 +153,10 @@ async function createResponse(input: unknown, previousResponseId: string | null,
   return response.json() as Promise<OpenAIResponse>;
 }
 
-async function saveConversation(admin: SupabaseClient, account: TelegramAccount, patch: Partial<Conversation>) {
+async function saveConversation(admin: SupabaseClient, account: ActiveTelegramAccount, patch: Partial<Conversation>) {
   const { error } = await admin.from("telegram_conversations").upsert({
     telegram_user_id: account.telegram_user_id,
-    apartment_id: account.apartment_id,
+    active_apartment_id: patch.active_apartment_id ?? account.apartment_id,
     ...patch,
     updated_at: new Date().toISOString(),
   }, { onConflict: "telegram_user_id" });
@@ -135,12 +165,41 @@ async function saveConversation(admin: SupabaseClient, account: TelegramAccount,
 
 async function executeTool(
   admin: SupabaseClient,
-  account: TelegramAccount,
+  account: ActiveTelegramAccount,
   call: ResponseItem,
   attachment?: TelegramAssistantAttachment,
   existingReceiptStoragePath?: string,
 ) {
   const args = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
+  if (call.name === "list_apartments") {
+    const result = await listTelegramApartments(admin, account);
+    if ("error" in result) return { ok: false, error: result.error };
+    return {
+      ok: true,
+      apartments: result.apartments.map((apartment) => ({
+        ...apartment,
+        current: apartment.id === account.apartment_id,
+      })),
+    };
+  }
+
+  if (call.name === "select_apartment") {
+    const result = await listTelegramApartments(admin, account);
+    if ("error" in result) return { ok: false, error: result.error };
+    const apartment = result.apartments.find((item) => item.id === String(args.apartmentId ?? ""));
+    if (!apartment) return { ok: false, error: "Объект не найден или недоступен владельцу." };
+    account.apartment_id = apartment.id;
+    account.apartment_name = apartment.name;
+    account.apartment_address = apartment.address;
+    await saveConversation(admin, account, { active_apartment_id: apartment.id });
+    return {
+      ok: true,
+      apartment,
+      pendingDraftPreserved: true,
+      instruction: "Подтверди выбор объекта. Если есть черновик, поясни, что он остался привязан к исходному объекту.",
+    };
+  }
+
   if (call.name === "list_cleanings") {
     let query = admin.from("cleanings").select("id,title,status,scheduled_for_label,cleaner,zones").eq("apartment_id", account.apartment_id).order("scheduled_for_at", { ascending: true, nullsFirst: false }).limit(20);
     if (args.status && args.status !== "all") query = query.eq("status", String(args.status));
@@ -159,7 +218,7 @@ async function executeTool(
     if (existingReceiptStoragePath) {
       await admin.storage.from("asset-media").remove([existingReceiptStoragePath]);
     }
-    await saveConversation(admin, account, { pending_action: { type: "create_cleaning", payload } });
+    await saveConversation(admin, account, { pending_action: { type: "create_cleaning", apartmentId: account.apartment_id, payload } });
     return { ok: true, draft: payload, instruction: "Покажи понятное резюме и попроси написать «Создавай»." };
   }
 
@@ -172,7 +231,7 @@ async function executeTool(
     const validation = normalizeBillPayload(payload);
     if ("error" in validation) return { ok: false, error: validation.error };
     await saveConversation(admin, account, {
-      pending_action: { type: "create_utility_bill", payload },
+      pending_action: { type: "create_utility_bill", apartmentId: account.apartment_id, payload },
     });
     return {
       ok: true,
@@ -222,13 +281,22 @@ function attachmentInput(message: string, attachment: TelegramAssistantAttachmen
 
 export async function runTelegramAssistant(
   admin: SupabaseClient,
-  account: TelegramAccount,
+  ownerAccount: TelegramOwnerAccount,
   message: string,
   appOrigin: string,
   attachment?: TelegramAssistantAttachment,
 ) {
-  const { data } = await admin.from("telegram_conversations").select("previous_response_id,pending_action").eq("telegram_user_id", account.telegram_user_id).maybeSingle();
-  const conversation = (data ?? { previous_response_id: null, pending_action: null }) as Conversation;
+  const { data, error: conversationError } = await admin.from("telegram_conversations").select("active_apartment_id,previous_response_id,pending_action").eq("telegram_user_id", ownerAccount.telegram_user_id).maybeSingle();
+  if (conversationError) throw new Error(conversationError.message);
+  const conversation = (data ?? { active_apartment_id: null, previous_response_id: null, pending_action: null }) as Conversation;
+  const context = await resolveTelegramApartment(admin, ownerAccount, conversation.active_apartment_id);
+  if ("error" in context) return context.error;
+  const account: ActiveTelegramAccount = {
+    ...ownerAccount,
+    apartment_id: context.apartment.id,
+    apartment_name: context.apartment.name,
+    apartment_address: context.apartment.address,
+  };
   const normalized = message.trim().toLocaleLowerCase("ru-RU");
 
   if (!attachment && conversation.pending_action && confirmationWords.has(normalized)) {
@@ -236,20 +304,25 @@ export async function runTelegramAssistant(
     if (!pending.payload || typeof pending.payload !== "object") {
       return "Черновик повреждён. Давайте соберём его заново.";
     }
+    const apartmentId = typeof pending.apartmentId === "string" ? pending.apartmentId : "";
+    const apartmentResult = await listTelegramApartments(admin, account);
+    if ("error" in apartmentResult) return `Не удалось проверить объект: ${apartmentResult.error}`;
+    const draftApartment = apartmentResult.apartments.find((item) => item.id === apartmentId);
+    if (!draftApartment) return "Объект черновика больше недоступен. Отмените черновик и создайте новый.";
     if (pending.type === "create_cleaning") {
-      const result = await createCleaningRecord(admin, { apartmentId: account.apartment_id, createdBy: `telegram:${account.telegram_user_id}`, appOrigin, payload: pending.payload as Record<string, unknown> });
+      const result = await createCleaningRecord(admin, { apartmentId: draftApartment.id, createdBy: `telegram:${account.telegram_user_id}`, appOrigin, payload: pending.payload as Record<string, unknown> });
       if ("error" in result) return `Не удалось создать уборку: ${result.error}`;
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
-      return `Уборка «${result.row.title}» создана. ${result.row.scheduled_for_label}${result.cleaning.link ? `\n${result.cleaning.link}` : ""}`;
+      return `Уборка «${result.row.title}» создана для объекта «${draftApartment.name}». ${result.row.scheduled_for_label}${result.cleaning.link ? `\n${result.cleaning.link}` : ""}`;
     }
     if (pending.type === "create_utility_bill") {
       const result = await createUtilityBillRecord(admin, {
-        apartmentId: account.apartment_id,
+        apartmentId: draftApartment.id,
         payload: pending.payload as Record<string, unknown>,
       });
       if ("error" in result || !result.row) return `Не удалось создать счёт: ${result.error ?? "неизвестная ошибка"}`;
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
-      return `Счёт «${result.row.service}» за ${result.row.period} создан. Сумма: ${Number(result.row.amount).toLocaleString("ru-RU")} ₽.`;
+      return `Счёт «${result.row.service}» за ${result.row.period} создан для объекта «${draftApartment.name}». Сумма: ${Number(result.row.amount).toLocaleString("ru-RU")} ₽.`;
     }
     return "Черновик повреждён. Давайте соберём его заново.";
   }
