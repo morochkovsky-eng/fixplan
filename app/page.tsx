@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useId, useMemo, useState, type FormEvent, type PointerEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
 import {
   type AttachmentData,
 } from "@/components/ai-elements/attachments";
@@ -5946,6 +5946,7 @@ function MediaGallery({
   const currentPhotoNumber = activeIndex === null ? 0 : activeIndex + 1;
   const hasManyPhotos = photos.length > 1;
   const activeSlideIndex = activeIndex ?? 0;
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!activePhoto) return undefined;
@@ -5995,6 +5996,29 @@ function MediaGallery({
     });
   }
 
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0];
+    touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  }
+
+  function handleTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    const start = touchStart.current;
+    const touch = event.changedTouches[0];
+    touchStart.current = null;
+
+    if (!start || !touch || !hasManyPhotos) return;
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 48 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    if (deltaX < 0) {
+      showNext();
+    } else {
+      showPrevious();
+    }
+  }
+
   return (
     <>
       <div className={`media-gallery ${variant}`}>
@@ -6041,7 +6065,12 @@ function MediaGallery({
               <X size={16} />
             </Button>
           </div>
-          <div className="media-lightbox-stage">
+          <div
+            className="media-lightbox-stage"
+            onTouchCancel={() => { touchStart.current = null; }}
+            onTouchEnd={handleTouchEnd}
+            onTouchStart={handleTouchStart}
+          >
             {hasManyPhotos && (
               <Button
                 aria-label="Предыдущее фото"

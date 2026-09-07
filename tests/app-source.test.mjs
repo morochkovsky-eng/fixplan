@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const pageSource = fs.readFileSync("app/page.tsx", "utf8");
+const globalCssSource = fs.readFileSync("app/globals.css", "utf8");
 const guestSource = fs.readFileSync("app/guest/[token]/guest-inspection-client.tsx", "utf8");
 const guestRouteSource = fs.readFileSync("app/api/guest/[token]/route.ts", "utf8");
 const schemaSource = fs.readFileSync("supabase/schema.sql", "utf8");
@@ -557,6 +558,13 @@ test("supports editing and deleting node comments without schema-cache fields", 
   assert.match(pageSource, /media-lightbox-open/);
   assert.match(pageSource, /showPrevious/);
   assert.match(pageSource, /showNext/);
+  assert.match(pageSource, /event\.key === "ArrowLeft"/);
+  assert.match(pageSource, /event\.key === "ArrowRight"/);
+  assert.match(pageSource, /onTouchStart=\{handleTouchStart\}/);
+  assert.match(pageSource, /onTouchEnd=\{handleTouchEnd\}/);
+  assert.match(globalCssSource, /\.media-lightbox[\s\S]*height: 100dvh;/);
+  assert.match(globalCssSource, /\.media-lightbox-slide img[\s\S]*object-fit: contain;/);
+  assert.doesNotMatch(globalCssSource, /\.media-lightbox-stage\s*\{[^}]*min-height:\s*60vh/);
 
   assert.match(eventRouteSource, /export async function PATCH/);
   assert.match(eventRouteSource, /export async function DELETE/);
