@@ -5,13 +5,13 @@ import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/se
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import { downloadTelegramFile, sendTelegramMessage, transcribeTelegramVoice, type TelegramUpdate, type TelegramUser } from "@/lib/server/telegram";
 
-const supportedBillTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"]);
+const supportedAttachmentTypes = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 function safeFilename(filename: string) {
   return filename.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "bill";
 }
 
-async function uploadBillAttachment(
+async function uploadTelegramAttachment(
   admin: NonNullable<ReturnType<typeof createAdminClient>>,
   apartmentId: string,
   message: NonNullable<TelegramUpdate["message"]>,
@@ -23,13 +23,13 @@ async function uploadBillAttachment(
     filename: largestPhoto ? "telegram-photo.jpg" : document?.file_name,
     mimeType: largestPhoto ? "image/jpeg" : document?.mime_type,
   });
-  if (!supportedBillTypes.has(file.mimeType)) {
-    throw new Error("Unsupported bill attachment type");
+  if (!supportedAttachmentTypes.has(file.mimeType)) {
+    throw new Error("Unsupported Telegram attachment type");
   }
   if (file.bytes.byteLength > 20 * 1024 * 1024) {
-    throw new Error("Bill attachment is too large");
+    throw new Error("Telegram attachment is too large");
   }
-  const storagePath = `${apartmentId}/telegram/utility-bills/${randomUUID()}-${safeFilename(file.filename)}`;
+  const storagePath = `${apartmentId}/telegram/inbox/${randomUUID()}-${safeFilename(file.filename)}`;
   const { error } = await admin.storage.from("asset-media").upload(storagePath, file.bytes, {
     contentType: file.mimeType,
     upsert: false,
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
         const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
         const active = await getActiveTelegramApartment(admin, account as TelegramOwnerAccount);
         if ("error" in active) throw new Error(active.error);
-        const attachment = await uploadBillAttachment(admin, active.apartment.id, message);
+        const attachment = await uploadTelegramAttachment(admin, active.apartment.id, message);
         const answer = await runTelegramAssistant(
           admin,
           account as TelegramOwnerAccount,

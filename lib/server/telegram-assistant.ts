@@ -46,6 +46,12 @@ export type TelegramAssistantAttachment = {
 
 const confirmationWords = new Set(["да", "подтверждаю", "создавай", "создать", "да, создавай", "ок, создавай"]);
 const cancellationWords = new Set(["нет", "отмена", "отмени", "не создавай"]);
+const assetStatusLabels: Record<string, string> = {
+  ok: "Исправно",
+  attention: "Требует внимания",
+  in_progress: "В работе",
+  needs_master: "Нужен мастер",
+};
 
 const tools = [
   {
@@ -171,6 +177,24 @@ const tools = [
   },
   {
     type: "function",
+    name: "prepare_asset_event",
+    description: "Подготовить запись в истории конкретного узла, при необходимости со сменой статуса и фотографией. Ничего не сохраняет до подтверждения.",
+    parameters: {
+      type: "object",
+      properties: {
+        assetId: { type: "string", description: "Точный id узла из list_assets" },
+        eventType: { type: "string", enum: ["comment", "status", "repair"] },
+        title: { type: "string" },
+        body: { type: "string" },
+        statusAfter: { type: "string", enum: ["unchanged", "ok", "attention", "in_progress", "needs_master"] },
+      },
+      required: ["assetId", "eventType", "title", "body", "statusAfter"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
     name: "prepare_cleaning",
     description: "Подготовить черновик уборки. Это не создаёт уборку: после вызова обязательно попроси явное подтверждение.",
     parameters: {
@@ -228,7 +252,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
       input,
       tools,
       tool_choice: "auto",
@@ -409,6 +433,50 @@ async function executeTool(
       draft: { ...payload, meter },
       attachmentClaimed: Boolean(attachment),
       instruction: "Покажи счётчик, период, значение и наличие фото, затем попроси написать «Создавай».",
+    };
+  }
+
+  if (call.name === "prepare_asset_event") {
+    const assetId = String(args.assetId ?? "").trim();
+    const title = String(args.title ?? "").trim();
+    const body = String(args.body ?? "").trim();
+    const eventType = String(args.eventType ?? "comment");
+    const statusAfter = String(args.statusAfter ?? "unchanged");
+    const eventTypes = new Set(["comment", "status", "repair"]);
+    const statuses = new Set(["unchanged", "ok", "attention", "in_progress", "needs_master"]);
+    if (!assetId || !title || !body || !eventTypes.has(eventType) || !statuses.has(statusAfter)) {
+      return { ok: false, error: "Проверьте узел, описание события и новый статус." };
+    }
+    if (attachment && !attachment.mimeType.startsWith("image/")) {
+      return { ok: false, error: "К событию узла можно приложить только фотографию." };
+    }
+    const { data: asset, error } = await admin
+      .from("assets")
+      .select("id,code,name,room_id,category,status")
+      .eq("apartment_id", account.apartment_id)
+      .eq("id", assetId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!asset) return { ok: false, error: "Узел не найден в текущей квартире." };
+    const payload = {
+      assetId,
+      eventType,
+      title,
+      body,
+      statusAfter,
+      photoStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
+      photoFilename: attachment?.filename,
+      photoMediaType: attachment?.mimeType,
+    };
+    await saveConversation(admin, account, {
+      pending_action: { type: "create_asset_event", apartmentId: account.apartment_id, payload },
+    });
+    return {
+      ok: true,
+      draft: { ...payload, asset },
+      attachmentClaimed: Boolean(attachment),
+      instruction: "Покажи узел, запись, изменение статуса и наличие фото, затем попроси написать «Создавай».",
     };
   }
 
@@ -671,6 +739,65 @@ export async function runTelegramAssistant(
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
       return `Показание «${meter.label}» за ${period} сохранено: ${value.toLocaleString("ru-RU")}.`;
     }
+    if (pending.type === "create_asset_event") {
+      const payload = pending.payload as Record<string, unknown>;
+      const assetId = String(payload.assetId ?? "").trim();
+      const statusAfter = String(payload.statusAfter ?? "unchanged");
+      const { data: asset, error: assetError } = await admin
+        .from("assets")
+        .select("id,code,name,status")
+        .eq("apartment_id", draftApartment.id)
+        .eq("id", assetId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (assetError) return `Не удалось проверить узел: ${assetError.message}`;
+      if (!asset) return "Узел больше не существует. Отмените черновик и выберите другой.";
+      const eventId = `evt-${Date.now()}-${randomUUID()}`;
+      const photoStoragePath = String(payload.photoStoragePath ?? "").trim();
+      const eventType = String(payload.eventType ?? "comment");
+      const dateLabel = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: draftApartment.timezone }).format(new Date());
+      const { error: eventError } = await admin.from("events").insert({
+        apartment_id: draftApartment.id,
+        id: eventId,
+        asset_id: assetId,
+        inspection_id: null,
+        type: eventType,
+        date_label: dateLabel,
+        title: String(payload.title ?? "Комментарий"),
+        body: String(payload.body ?? ""),
+        master: `telegram:${account.telegram_user_id}`,
+        status_after: statusAfter === "unchanged" ? null : statusAfter,
+        photo: photoStoragePath ? { label: "фото", note: "Фото из Telegram" } : null,
+      });
+      if (eventError) return `Не удалось сохранить запись: ${eventError.message}`;
+      if (photoStoragePath) {
+        const { error: mediaError } = await admin.from("asset_media").insert({
+          apartment_id: draftApartment.id,
+          asset_id: assetId,
+          event_id: eventId,
+          inspection_id: null,
+          storage_path: photoStoragePath,
+          media_type: String(payload.photoMediaType ?? "image/jpeg"),
+          caption: String(payload.photoFilename ?? "Фото узла из Telegram"),
+          created_by: `telegram:${account.telegram_user_id}`,
+        });
+        if (mediaError) {
+          await admin.from("events").delete().eq("apartment_id", draftApartment.id).eq("id", eventId);
+          return `Не удалось сохранить фотографию: ${mediaError.message}`;
+        }
+      }
+      if (statusAfter !== "unchanged" && statusAfter !== asset.status) {
+        const { error: statusError } = await admin.from("assets").update({ status: statusAfter, updated_at: new Date().toISOString() }).eq("apartment_id", draftApartment.id).eq("id", assetId);
+        if (statusError) {
+          if (photoStoragePath) await admin.from("asset_media").delete().eq("apartment_id", draftApartment.id).eq("event_id", eventId);
+          await admin.from("events").delete().eq("apartment_id", draftApartment.id).eq("id", eventId);
+          return `Не удалось изменить статус узла: ${statusError.message}`;
+        }
+      }
+      await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
+      const statusNote = statusAfter === "unchanged" ? "Статус не изменён." : `Новый статус: ${assetStatusLabels[statusAfter] ?? statusAfter}.`;
+      return `Запись добавлена в узел ${asset.code} · ${asset.name}. ${statusNote}`;
+    }
     return "Черновик повреждён. Давайте соберём его заново.";
   }
 
@@ -713,7 +840,7 @@ export async function runTelegramAssistant(
           attachment,
           typeof existingAttachmentStoragePath === "string" ? existingAttachmentStoragePath : undefined,
         );
-        if ((call.name === "prepare_utility_bill" || call.name === "prepare_utility_reading") && result.ok && attachment) {
+        if ((call.name === "prepare_utility_bill" || call.name === "prepare_utility_reading" || call.name === "prepare_asset_event") && result.ok && attachment) {
           attachmentClaimed = true;
         }
         outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });

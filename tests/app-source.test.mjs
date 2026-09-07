@@ -104,7 +104,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /claimedPairing/);
   assert.match(telegramWebhookSource, /message\.photo/);
   assert.match(telegramWebhookSource, /message\.document/);
-  assert.match(telegramWebhookSource, /utility-bills/);
+  assert.match(telegramWebhookSource, /telegram\/inbox/);
   assert.match(telegramPairingSource, /code_hash/);
   assert.match(telegramPairingSource, /15 \* 60 \* 1000/);
   assert.match(telegramPairingSource, /export async function GET/);
@@ -120,6 +120,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /get_utility_state/);
   assert.match(telegramAssistantSource, /prepare_work_order/);
   assert.match(telegramAssistantSource, /prepare_utility_reading/);
+  assert.match(telegramAssistantSource, /prepare_asset_event/);
   assert.match(telegramAssistantSource, /list_apartments/);
   assert.match(telegramAssistantSource, /select_apartment/);
   assert.match(telegramAssistantSource, /active_apartment_id/);
@@ -135,6 +136,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /guest_token: guestToken/);
   assert.match(telegramAssistantSource, /type === "create_utility_reading"/);
   assert.match(telegramAssistantSource, /source: "telegram"/);
+  assert.match(telegramAssistantSource, /type === "create_asset_event"/);
+  assert.match(telegramAssistantSource, /status_after: statusAfter === "unchanged"/);
   assert.match(telegramAssistantSource, /input_image/);
   assert.match(telegramAssistantSource, /input_file/);
   assert.match(telegramAssistantSource, /removePendingAttachment/);
