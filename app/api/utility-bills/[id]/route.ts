@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { formatUtilityBill } from "@/lib/server/utility-bills";
+import { formatUtilityBill, normalizeBillPayload } from "@/lib/server/utility-bills";
 import { requireApartmentAccess } from "../../assets/access";
 
-const statuses = new Set(["draft", "due", "paid", "overdue"]);
+const allowedStatusTransitions: Record<string, Set<string>> = {
+  draft: new Set(["draft", "due"]),
+  due: new Set(["due", "paid", "overdue"]),
+  overdue: new Set(["overdue", "paid"]),
+  paid: new Set(["paid"]),
+};
 
 export async function PATCH(
   request: Request,
@@ -16,26 +21,45 @@ export async function PATCH(
   }
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const { data: current, error: findError } = await admin
+    .from("utility_bills")
+    .select("*")
+    .eq("apartment_id", apartmentId)
+    .eq("id", id)
+    .maybeSingle();
 
-  if (typeof body.service === "string") patch.service = body.service.trim();
-  if (typeof body.period === "string") patch.period = body.period.trim();
-  if (typeof body.amount !== "undefined") {
-    const amount = Number(body.amount);
-    if (!Number.isFinite(amount) || amount < 0) {
-      return NextResponse.json({ error: "Некорректная сумма счета." }, { status: 400 });
-    }
-    patch.amount = amount;
-  }
-  if (typeof body.dueDate === "string") patch.due_date_label = body.dueDate.trim();
-  if (typeof body.paidAt === "string") patch.paid_at_label = body.paidAt.trim() || null;
-  if (typeof body.receiptUrl === "string") patch.receipt_url = body.receiptUrl.trim() || null;
-  if (typeof body.note === "string") patch.note = body.note.trim() || null;
-  if (typeof body.status === "string" && statuses.has(body.status)) patch.status = body.status;
+  if (findError) return NextResponse.json({ error: findError.message }, { status: 500 });
+  if (!current) return NextResponse.json({ error: "Счет не найден." }, { status: 404 });
 
-  if (patch.service === "" || patch.period === "") {
-    return NextResponse.json({ error: "Укажите услугу и период." }, { status: 400 });
+  const requestedStatus = typeof body.status === "string" ? body.status : current.status;
+  if (!allowedStatusTransitions[current.status]?.has(requestedStatus)) {
+    return NextResponse.json({ error: "Недопустимый переход статуса счета." }, { status: 409 });
   }
+
+  const normalized = normalizeBillPayload({
+    service: current.service,
+    period: current.period,
+    amount: current.amount,
+    dueDate: current.due_date_label,
+    paidAt: current.paid_at_label,
+    status: current.status,
+    receiptUrl: current.receipt_url,
+    receiptStoragePath: current.receipt_storage_path,
+    note: current.note,
+    allocation: current.allocation,
+    tenantAmount: current.tenant_amount,
+    reimbursementStatus: current.reimbursement_status,
+    reimbursedAt: current.reimbursed_at_label,
+    source: current.source,
+    ownerConfirmedAt: current.owner_confirmed_at,
+    publishedAt: current.published_at,
+    ...body,
+  });
+  if ("error" in normalized) {
+    return NextResponse.json({ error: normalized.error }, { status: 400 });
+  }
+
+  const patch = { ...normalized.bill, updated_at: new Date().toISOString() };
 
   const { data, error: updateError } = await admin
     .from("utility_bills")

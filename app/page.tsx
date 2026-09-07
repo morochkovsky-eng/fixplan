@@ -333,10 +333,13 @@ type Inspection = {
 };
 
 type UtilityBillStatus = "draft" | "due" | "paid" | "overdue";
+type UtilityBillAllocation = "owner" | "tenant" | "split";
+type UtilityReimbursementStatus = "not_required" | "awaiting" | "received";
 type UtilityMonthStatus =
   | "awaiting_readings"
   | "needs_bill"
   | "awaiting_payment"
+  | "awaiting_reimbursement"
   | "closed";
 type UtilityMeterStatus = "due" | "submitted" | "overdue";
 type UtilityServiceId = "cold_water" | "hot_water" | "electricity" | "heating" | "other";
@@ -351,6 +354,13 @@ type UtilityBill = {
   status: UtilityBillStatus;
   receiptUrl?: string;
   note?: string;
+  allocation: UtilityBillAllocation;
+  tenantAmount: number;
+  reimbursementStatus: UtilityReimbursementStatus;
+  reimbursedAt?: string;
+  source: "web" | "telegram_private" | "telegram_group";
+  ownerConfirmedAt?: string;
+  publishedAt?: string;
 };
 
 type UtilityMeter = {
@@ -966,6 +976,10 @@ const initialState: AppState = {
       amount: 4860,
       dueDate: "10.09.2026",
       status: "due",
+      allocation: "tenant",
+      tenantAmount: 4860,
+      reimbursementStatus: "awaiting",
+      source: "web",
       note: "Перед оплатой сверить показания счетчика.",
     },
     {
@@ -976,6 +990,10 @@ const initialState: AppState = {
       dueDate: "05.09.2026",
       status: "paid",
       paidAt: "28.08.2026",
+      allocation: "owner",
+      tenantAmount: 0,
+      reimbursementStatus: "not_required",
+      source: "web",
       note: "Оплачено по квитанции УК.",
     },
   ],
@@ -1073,6 +1091,10 @@ function emptyUtilityBillDraft(period: string): Omit<UtilityBill, "id"> {
     status: "due",
     receiptUrl: "",
     note: "",
+    allocation: "owner",
+    tenantAmount: 0,
+    reimbursementStatus: "not_required",
+    source: "web",
   };
 }
 
@@ -1082,6 +1104,24 @@ const utilityBillStatusLabels: Record<UtilityBillStatus, string> = {
   paid: "Оплачен",
   overdue: "Просрочен",
 };
+
+const utilityBillAllocationLabels: Record<UtilityBillAllocation, string> = {
+  owner: "Расход владельца",
+  tenant: "Расход жильца",
+  split: "Разделить",
+};
+
+const utilityReimbursementStatusLabels: Record<UtilityReimbursementStatus, string> = {
+  not_required: "Возмещение не требуется",
+  awaiting: "Ждем возмещение",
+  received: "Возмещение получено",
+};
+
+function tenantShareFor(allocation: UtilityBillAllocation, amount: number, current: number) {
+  if (allocation === "owner") return 0;
+  if (allocation === "tenant") return amount;
+  return Math.min(current, amount);
+}
 
 function moneyLabel(value: number) {
   return `${value.toLocaleString("ru-RU")} руб.`;
@@ -1109,6 +1149,7 @@ const utilityMonthStatusLabels: Record<UtilityMonthStatus, string> = {
   awaiting_readings: "Ждем показания",
   needs_bill: "Нужен счет",
   awaiting_payment: "Ждем оплату",
+  awaiting_reimbursement: "Ждем возмещение",
   closed: "Закрыто",
 };
 
@@ -1116,6 +1157,7 @@ const utilityMonthStatusDescriptions: Record<UtilityMonthStatus, string> = {
   awaiting_readings: "Нужно передать показания счетчиков.",
   needs_bill: "Показания есть, счет еще не добавлен.",
   awaiting_payment: "Счет создан, ожидаем оплату.",
+  awaiting_reimbursement: "Счета оплачены, ожидаем возмещение от жильца.",
   closed: "Все данные месяца закрыты.",
 };
 
@@ -1133,7 +1175,7 @@ const utilityReadingSourceLabels: Record<UtilityReading["source"], string> = {
 
 function utilityMonthTone(status: UtilityMonthStatus): "secondary" | "destructive" | "outline" {
   if (status === "awaiting_readings") return "destructive";
-  if (status === "awaiting_payment") return "outline";
+  if (status === "awaiting_payment" || status === "awaiting_reimbursement") return "outline";
   return "secondary";
 }
 
@@ -1158,6 +1200,9 @@ function buildUtilityMonths(
     const readMeterIds = new Set(periodReadings.map((reading) => reading.meterId));
     const hasAllReadings = meters.length > 0 && meters.every((meter) => readMeterIds.has(meter.id));
     const unpaidBills = periodBills.filter((bill) => bill.status !== "paid");
+    const pendingReimbursements = periodBills.filter(
+      (bill) => bill.tenantAmount > 0 && bill.reimbursementStatus !== "received",
+    );
     const amount = periodBills.reduce((sum, bill) => sum + bill.amount, 0);
     let status: UtilityMonthStatus = "awaiting_readings";
 
@@ -1165,6 +1210,8 @@ function buildUtilityMonths(
       status = "needs_bill";
     } else if (periodBills.length && unpaidBills.length) {
       status = "awaiting_payment";
+    } else if (periodBills.length && !unpaidBills.length && pendingReimbursements.length) {
+      status = "awaiting_reimbursement";
     } else if (periodBills.length && !unpaidBills.length) {
       status = "closed";
     }
@@ -1176,6 +1223,7 @@ function buildUtilityMonths(
       readings: periodReadings,
       amount,
       unpaidAmount: unpaidBills.reduce((sum, bill) => sum + bill.amount, 0),
+      reimbursementAmount: pendingReimbursements.reduce((sum, bill) => sum + bill.tenantAmount, 0),
     };
   });
 }
@@ -5953,6 +6001,9 @@ function UtilitiesView({
   const unpaidBills = bills.filter((bill) => bill.status !== "paid");
   const overdueBills = bills.filter((bill) => bill.status === "overdue");
   const unpaidAmount = unpaidBills.reduce((sum, bill) => sum + bill.amount, 0);
+  const pendingReimbursementAmount = bills
+    .filter((bill) => bill.tenantAmount > 0 && bill.reimbursementStatus !== "received")
+    .reduce((sum, bill) => sum + bill.tenantAmount, 0);
   const activeMeters = meters.filter((meter) => !readingByMeter.has(meter.id)).length;
   const currentStatus = selectedMonth?.status ?? "awaiting_readings";
 
@@ -6035,6 +6086,8 @@ function UtilitiesView({
       formData.set("dueDate", draft.dueDate);
       formData.set("status", "due");
       formData.set("note", draft.note?.trim() ?? "");
+      formData.set("allocation", draft.allocation);
+      formData.set("tenantAmount", String(draft.tenantAmount));
       if (billReceipt) formData.set("receipt", billReceipt);
       const response = await fetch("/api/utility-bills", {
         method: "POST",
@@ -6065,6 +6118,13 @@ function UtilitiesView({
       status: bill.status,
       receiptUrl: bill.receiptUrl,
       note: bill.note,
+      allocation: bill.allocation,
+      tenantAmount: bill.tenantAmount,
+      reimbursementStatus: bill.reimbursementStatus,
+      reimbursedAt: bill.reimbursedAt,
+      source: bill.source,
+      ownerConfirmedAt: bill.ownerConfirmedAt,
+      publishedAt: bill.publishedAt,
     });
   }
 
@@ -6082,6 +6142,13 @@ function UtilitiesView({
       paidAt: editDraft.paidAt,
       status: editDraft.status,
       note: editDraft.note?.trim(),
+      allocation: editDraft.allocation,
+      tenantAmount: editDraft.tenantAmount,
+      reimbursementStatus: editDraft.reimbursementStatus,
+      reimbursedAt: editDraft.reimbursedAt,
+      source: editDraft.source,
+      ownerConfirmedAt: editDraft.ownerConfirmedAt,
+      publishedAt: editDraft.publishedAt,
     };
 
     try {
@@ -6132,6 +6199,28 @@ function UtilitiesView({
     }
   }
 
+  async function markReimbursementReceived(billId: string) {
+    const bill = bills.find((item) => item.id === billId);
+    if (!bill || bill.tenantAmount <= 0) return;
+
+    try {
+      const response = await fetch(`/api/utility-bills/${billId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...bill,
+          reimbursementStatus: "received",
+          reimbursedAt: todayLabel(),
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill; error?: string };
+      if (!response.ok || !payload.bill) throw new Error(payload.error ?? "Не удалось подтвердить возмещение.");
+      setBills(bills.map((item) => item.id === billId ? payload.bill! : item));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось подтвердить возмещение.");
+    }
+  }
+
   async function markMonthPaid() {
     const billIds = new Set(sortedBills.filter((bill) => bill.status !== "paid").map((bill) => bill.id));
     if (!billIds.size) return;
@@ -6159,8 +6248,9 @@ function UtilitiesView({
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="К оплате" value={moneyLabel(unpaidAmount)} tone={unpaidAmount ? "warning" : undefined} />
+        <StatCard label="К возмещению" value={moneyLabel(pendingReimbursementAmount)} tone={pendingReimbursementAmount ? "warning" : undefined} />
         <StatCard label="Счетчиков к передаче" value={activeMeters.toString()} tone={activeMeters ? "negative" : undefined} />
         <StatCard label="Просрочено счетов" value={overdueBills.length.toString()} tone={overdueBills.length ? "negative" : undefined} />
       </div>
@@ -6212,7 +6302,7 @@ function UtilitiesView({
               </div>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-lg bg-muted p-3">
                   <div className="text-muted-foreground text-sm">Показаний передано</div>
                   <div className="mt-1 text-2xl font-semibold">
@@ -6222,6 +6312,12 @@ function UtilitiesView({
                 <div className="rounded-lg bg-muted p-3">
                   <div className="text-muted-foreground text-sm">Счетов за месяц</div>
                   <div className="mt-1 text-2xl font-semibold">{selectedBills.length}</div>
+                </div>
+                <div className="rounded-lg bg-muted p-3">
+                  <div className="text-muted-foreground text-sm">К возмещению</div>
+                  <div className="mt-1 text-2xl font-semibold">
+                    {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}
+                  </div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -6352,7 +6448,11 @@ function UtilitiesView({
                       min="0"
                       onChange={(event) => {
                         const amount = Number(event.currentTarget.value);
-                        setDraft((current) => ({ ...current, amount }));
+                        setDraft((current) => ({
+                          ...current,
+                          amount,
+                          tenantAmount: tenantShareFor(current.allocation, amount, current.tenantAmount),
+                        }));
                       }}
                       type="number"
                       value={draft.amount}
@@ -6370,6 +6470,46 @@ function UtilitiesView({
                       value={dateInputFromFormatted(draft.dueDate)}
                     />
                   </label>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-1.5">
+                    <span className="text-sm font-medium">Распределение расхода</span>
+                    <Select
+                      value={draft.allocation}
+                      onValueChange={(value) => setDraft((current) => {
+                        const allocation = value as UtilityBillAllocation;
+                        return {
+                          ...current,
+                          allocation,
+                          tenantAmount: tenantShareFor(allocation, current.amount, current.tenantAmount),
+                          reimbursementStatus: allocation === "owner" ? "not_required" : "awaiting",
+                        };
+                      })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(utilityBillAllocationLabels).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {draft.allocation === "split" && (
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-tenant-amount">
+                      Доля жильца
+                      <Input
+                        id="utility-tenant-amount"
+                        max={draft.amount}
+                        min="0"
+                        onChange={(event) => {
+                          const tenantAmount = Number(event.currentTarget.value);
+                          setDraft((current) => ({ ...current, tenantAmount }));
+                        }}
+                        type="number"
+                        value={draft.tenantAmount}
+                      />
+                    </label>
+                  )}
                 </div>
                 <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-receipt">
                   Квитанция или фото счета
@@ -6439,6 +6579,17 @@ function UtilitiesView({
                           {bill.dueDate ? ` · оплатить до ${bill.dueDate}` : ""}
                           {bill.paidAt ? ` · оплачено ${bill.paidAt}` : ""}
                         </div>
+                        <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
+                          <span>{utilityBillAllocationLabels[bill.allocation]}</span>
+                          {bill.tenantAmount > 0 && (
+                            <>
+                              <span>· доля жильца {moneyLabel(bill.tenantAmount)}</span>
+                              <Badge variant="outline">
+                                {utilityReimbursementStatusLabels[bill.reimbursementStatus]}
+                              </Badge>
+                            </>
+                          )}
+                        </div>
                         {bill.note && <div className="line-clamp-1 text-muted-foreground text-sm">{bill.note}</div>}
                       </div>
                       <div className="flex flex-wrap gap-2 md:justify-end">
@@ -6452,6 +6603,16 @@ function UtilitiesView({
                         {bill.status !== "paid" && (
                           <Button onClick={() => markPaid(bill.id)} size="sm" type="button" variant="secondary">
                             Оплачено
+                          </Button>
+                        )}
+                        {bill.tenantAmount > 0 && bill.reimbursementStatus !== "received" && (
+                          <Button
+                            onClick={() => void markReimbursementReceived(bill.id)}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
+                            Возмещение получено
                           </Button>
                         )}
                         <Button onClick={() => startEditBill(bill)} size="sm" type="button" variant="secondary">
@@ -6497,7 +6658,11 @@ function UtilitiesView({
                               min="0"
                               onChange={(event) => {
                                 const amount = Number(event.currentTarget.value);
-                                setEditDraft((current) => current ? { ...current, amount } : current);
+                                setEditDraft((current) => current ? {
+                                  ...current,
+                                  amount,
+                                  tenantAmount: tenantShareFor(current.allocation, amount, current.tenantAmount),
+                                } : current);
                               }}
                               type="number"
                               value={editDraft.amount}
@@ -6515,6 +6680,47 @@ function UtilitiesView({
                               value={dateInputFromFormatted(editDraft.dueDate)}
                             />
                           </label>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="grid gap-1.5">
+                            <span className="text-sm font-medium">Распределение расхода</span>
+                            <Select
+                              value={editDraft.allocation}
+                              onValueChange={(value) => setEditDraft((current) => {
+                                if (!current) return current;
+                                const allocation = value as UtilityBillAllocation;
+                                return {
+                                  ...current,
+                                  allocation,
+                                  tenantAmount: tenantShareFor(allocation, current.amount, current.tenantAmount),
+                                  reimbursementStatus: allocation === "owner" ? "not_required" : current.reimbursementStatus === "received" ? "received" : "awaiting",
+                                };
+                              })}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(utilityBillAllocationLabels).map(([value, label]) => (
+                                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {editDraft.allocation === "split" && (
+                            <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-tenant-amount`}>
+                              Доля жильца
+                              <Input
+                                id={`edit-${bill.id}-tenant-amount`}
+                                max={editDraft.amount}
+                                min="0"
+                                onChange={(event) => {
+                                  const tenantAmount = Number(event.currentTarget.value);
+                                  setEditDraft((current) => current ? { ...current, tenantAmount } : current);
+                                }}
+                                type="number"
+                                value={editDraft.tenantAmount}
+                              />
+                            </label>
+                          )}
                         </div>
                         <label className="grid gap-1.5 text-sm font-medium" htmlFor={`edit-${bill.id}-note`}>
                           Комментарий

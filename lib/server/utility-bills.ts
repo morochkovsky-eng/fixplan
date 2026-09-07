@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const statuses = new Set(["draft", "due", "paid", "overdue"]);
+const allocations = new Set(["owner", "tenant", "split"]);
+const reimbursementStatuses = new Set(["not_required", "awaiting", "received"]);
+const sources = new Set(["web", "telegram_private", "telegram_group"]);
 
 export type UtilityBillRow = {
   id: string;
@@ -14,6 +17,13 @@ export type UtilityBillRow = {
   receipt_url: string | null;
   receipt_storage_path?: string | null;
   note: string | null;
+  allocation: string;
+  tenant_amount: number | string;
+  reimbursement_status: string;
+  reimbursed_at_label: string | null;
+  source: string;
+  owner_confirmed_at: string | null;
+  published_at: string | null;
 };
 
 export function normalizeBillPayload(body: Record<string, unknown>) {
@@ -21,12 +31,30 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
   const period = String(body.period ?? "").trim();
   const status = String(body.status ?? "due");
   const amount = Number(body.amount ?? 0);
+  const allocation = String(body.allocation ?? "owner");
+  const requestedTenantAmount = Number(body.tenantAmount ?? 0);
+  const tenantAmount = allocation === "owner" ? 0 : allocation === "tenant" ? amount : requestedTenantAmount;
+  const requestedReimbursementStatus = String(
+    body.reimbursementStatus ?? (tenantAmount > 0 ? "awaiting" : "not_required"),
+  );
+  const reimbursementStatus = tenantAmount > 0 ? requestedReimbursementStatus : "not_required";
+  const source = String(body.source ?? "web");
 
   if (!service || !period) {
     return { error: "Укажите услугу и период." } as const;
   }
 
-  if (!statuses.has(status) || !Number.isFinite(amount) || amount < 0) {
+  if (
+    !statuses.has(status) ||
+    !allocations.has(allocation) ||
+    !reimbursementStatuses.has(reimbursementStatus) ||
+    !sources.has(source) ||
+    !Number.isFinite(amount) ||
+    amount < 0 ||
+    !Number.isFinite(tenantAmount) ||
+    tenantAmount < 0 ||
+    tenantAmount > amount
+  ) {
     return { error: "Некорректные параметры счета." } as const;
   }
 
@@ -48,6 +76,22 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
           ? body.receiptStoragePath.trim()
           : null,
       note: typeof body.note === "string" && body.note.trim() ? body.note.trim() : null,
+      allocation,
+      tenant_amount: tenantAmount,
+      reimbursement_status: reimbursementStatus,
+      reimbursed_at_label:
+        typeof body.reimbursedAt === "string" && body.reimbursedAt.trim()
+          ? body.reimbursedAt.trim()
+          : null,
+      source,
+      owner_confirmed_at:
+        typeof body.ownerConfirmedAt === "string" && body.ownerConfirmedAt.trim()
+          ? body.ownerConfirmedAt.trim()
+          : null,
+      published_at:
+        typeof body.publishedAt === "string" && body.publishedAt.trim()
+          ? body.publishedAt.trim()
+          : null,
     },
   } as const;
 }
@@ -63,6 +107,13 @@ export function formatUtilityBill(bill: UtilityBillRow, signedReceiptUrl?: strin
     status: bill.status,
     receiptUrl: signedReceiptUrl || bill.receipt_url || undefined,
     note: bill.note ?? undefined,
+    allocation: bill.allocation,
+    tenantAmount: Number(bill.tenant_amount),
+    reimbursementStatus: bill.reimbursement_status,
+    reimbursedAt: bill.reimbursed_at_label ?? undefined,
+    source: bill.source,
+    ownerConfirmedAt: bill.owner_confirmed_at ?? undefined,
+    publishedAt: bill.published_at ?? undefined,
   };
 }
 

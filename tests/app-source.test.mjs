@@ -434,6 +434,10 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityBillServiceSource, /receipt_storage_path/);
   assert.match(schemaSource, /receipt_storage_path text/);
   assert.match(schemaSource, /utility_bill_id text/);
+  assert.match(schemaSource, /allocation text not null default 'owner'/);
+  assert.match(schemaSource, /tenant_amount numeric not null default 0/);
+  assert.match(schemaSource, /reimbursement_status text not null default 'not_required'/);
+  assert.match(schemaSource, /owner_confirmed_at timestamptz/);
   assert.match(appDataRouteSource, /createSignedUrl\(bill\.receipt_storage_path/);
   assert.match(utilityBillRouteSource, /export async function PATCH/);
   assert.match(utilityBillRouteSource, /export async function DELETE/);
@@ -458,6 +462,15 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityBillsRouteSource, /utility_bill_id: result\.row\.id/);
   assert.match(utilityBillRouteSource, /update\(\{ utility_bill_id: null \}\)/);
   assert.match(pageSource, /utilityBillStatusLabels/);
+  assert.match(pageSource, /utilityBillAllocationLabels/);
+  assert.match(pageSource, /utilityReimbursementStatusLabels/);
+  assert.match(pageSource, /markReimbursementReceived/);
+  assert.match(pageSource, /awaiting_reimbursement/);
+  assert.match(pageSource, /К возмещению/);
+  assert.match(utilityBillServiceSource, /tenant_amount: tenantAmount/);
+  assert.match(utilityBillRouteSource, /allowedStatusTransitions/);
+  assert.match(telegramAssistantSource, /source: "telegram_private"/);
+  assert.match(telegramAssistantSource, /utility_bill_id: result\.row\.id/);
   assert.match(pageSource, /markPaid/);
   assert.match(pageSource, /deleteBill/);
   assert.match(pageSource, /saveBill/);

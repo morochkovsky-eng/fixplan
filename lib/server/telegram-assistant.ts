@@ -116,9 +116,11 @@ const tools = [
         period: { type: "string", description: "Расчётный период в понятном пользователю виде" },
         amount: { type: "number", description: "Сумма к оплате" },
         dueDate: { type: "string", description: "Срок оплаты в понятном пользователю виде, пустая строка если не указан" },
+        allocation: { type: "string", enum: ["owner", "tenant", "split"], description: "На кого относится расход. По умолчанию owner, если пользователь не уточнил другое" },
+        tenantAmount: { type: "number", description: "Доля жильца: 0 для owner, полная сумма для tenant, указанная доля для split" },
         note: { type: "string", description: "Короткие важные детали квитанции, пустая строка если их нет" },
       },
-      required: ["service", "period", "amount", "dueDate", "note"],
+      required: ["service", "period", "amount", "dueDate", "allocation", "tenantAmount", "note"],
       additionalProperties: false,
     },
     strict: true,
@@ -226,7 +228,10 @@ async function executeTool(
     const payload = {
       ...args,
       status: "due",
+      source: "telegram_private",
       receiptStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
+      receiptFilename: attachment?.filename,
+      receiptMediaType: attachment?.mimeType,
     };
     const validation = normalizeBillPayload(payload);
     if ("error" in validation) return { ok: false, error: validation.error };
@@ -237,7 +242,7 @@ async function executeTool(
       ok: true,
       draft: payload,
       attachmentClaimed: Boolean(attachment),
-      instruction: "Покажи услугу, период, сумму и срок оплаты, затем попроси написать «Создавай».",
+      instruction: "Покажи услугу, период, сумму, срок оплаты и распределение расхода, затем попроси написать «Создавай».",
     };
   }
 
@@ -316,11 +321,35 @@ export async function runTelegramAssistant(
       return `Уборка «${result.row.title}» создана для объекта «${draftApartment.name}». ${result.row.scheduled_for_label}${result.cleaning.link ? `\n${result.cleaning.link}` : ""}`;
     }
     if (pending.type === "create_utility_bill") {
+      const billPayload = pending.payload as Record<string, unknown>;
       const result = await createUtilityBillRecord(admin, {
         apartmentId: draftApartment.id,
-        payload: pending.payload as Record<string, unknown>,
+        payload: {
+          ...billPayload,
+          ownerConfirmedAt: new Date().toISOString(),
+        },
       });
       if ("error" in result || !result.row) return `Не удалось создать счёт: ${result.error ?? "неизвестная ошибка"}`;
+      const receiptStoragePath = String(billPayload.receiptStoragePath ?? "").trim();
+      if (receiptStoragePath) {
+        const { error: mediaError } = await admin.from("asset_media").insert({
+          apartment_id: draftApartment.id,
+          asset_id: null,
+          event_id: null,
+          inspection_id: null,
+          utility_bill_id: result.row.id,
+          storage_path: receiptStoragePath,
+          media_type: String(billPayload.receiptMediaType ?? "application/octet-stream"),
+          caption: String(billPayload.receiptFilename ?? "Квитанция из Telegram"),
+          created_by: `telegram:${account.telegram_user_id}`,
+          document_type: "invoice",
+          document_note: `Квитанция: ${result.row.service}, ${result.row.period}`,
+        });
+        if (mediaError) {
+          await admin.from("utility_bills").delete().eq("apartment_id", draftApartment.id).eq("id", result.row.id);
+          return `Не удалось сохранить квитанцию в архиве: ${mediaError.message}`;
+        }
+      }
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
       return `Счёт «${result.row.service}» за ${result.row.period} создан для объекта «${draftApartment.name}». Сумма: ${Number(result.row.amount).toLocaleString("ru-RU")} ₽.`;
     }

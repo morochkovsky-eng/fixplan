@@ -22,6 +22,10 @@ export async function POST(request: Request) {
       dueDate: formData.get("dueDate"),
       status: "due",
       note: formData.get("note"),
+      allocation: formData.get("allocation"),
+      tenantAmount: formData.get("tenantAmount"),
+      source: "web",
+      ownerConfirmedAt: new Date().toISOString(),
     };
     const candidate = formData.get("receipt");
     receipt = candidate instanceof File && candidate.size ? candidate : undefined;
