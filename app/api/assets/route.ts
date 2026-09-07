@@ -24,6 +24,23 @@ function clampCoordinate(value: unknown) {
   return Math.min(100, Math.max(0, number));
 }
 
+function optionalText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function optionalCost(value: unknown) {
+  if (value === "" || value === null || value === undefined) return null;
+  const cost = Number(value);
+  return Number.isFinite(cost) && cost >= 0 ? cost : undefined;
+}
+
+function nextAssetCode(codes: string[]) {
+  const used = new Set(codes.map((code) => code.trim().toLowerCase()));
+  let number = 1;
+  while (used.has(String(number))) number += 1;
+  return String(number);
+}
+
 function normalizeAssetPayload(body: Record<string, unknown>) {
   const code = String(body.code ?? "").trim();
   const name = String(body.name ?? "").trim();
@@ -32,8 +49,8 @@ function normalizeAssetPayload(body: Record<string, unknown>) {
   const kind = String(body.kind ?? "socket");
   const status = String(body.status ?? "ok");
 
-  if (!code || !name) {
-    return { error: "Укажите код и название узла." };
+  if (!name) {
+    return { error: "Укажите название узла." };
   }
 
   if (!/^[a-z0-9_-]+$/i.test(category) || !kinds.has(kind) || !statuses.has(status)) {
@@ -50,14 +67,13 @@ function normalizeAssetPayload(body: Record<string, unknown>) {
       status,
       x: clampCoordinate(body.x),
       y: clampCoordinate(body.y),
-      warranty_until:
-        typeof body.warrantyUntil === "string" && body.warrantyUntil.trim()
-          ? body.warrantyUntil.trim()
-          : null,
-      master:
-        typeof body.master === "string" && body.master.trim()
-          ? body.master.trim()
-          : null,
+      warranty_until: optionalText(body.warrantyUntil),
+      master: optionalText(body.master),
+      manufacturer: optionalText(body.manufacturer),
+      model: optionalText(body.model),
+      serial_number: optionalText(body.serialNumber),
+      installed_at: optionalText(body.installedAt),
+      purchase_cost: optionalCost(body.purchaseCost),
       photo_note: String(body.photoNote ?? "").trim(),
     },
   };
@@ -76,6 +92,11 @@ function formatAsset(asset: {
   last_checked: string;
   warranty_until: string | null;
   master: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serial_number: string | null;
+  installed_at: string | null;
+  purchase_cost: number | string | null;
   photo_note: string;
 }) {
   return {
@@ -91,6 +112,11 @@ function formatAsset(asset: {
     lastChecked: asset.last_checked,
     warrantyUntil: asset.warranty_until,
     master: asset.master,
+    manufacturer: asset.manufacturer,
+    model: asset.model,
+    serialNumber: asset.serial_number,
+    installedAt: asset.installed_at,
+    purchaseCost: asset.purchase_cost === null ? undefined : Number(asset.purchase_cost),
     photoNote: asset.photo_note,
   };
 }
@@ -107,6 +133,34 @@ export async function POST(request: Request) {
 
   if ("error" in normalized) {
     return NextResponse.json({ error: normalized.error }, { status: 400 });
+  }
+
+  if (normalized.asset.purchase_cost === undefined) {
+    return NextResponse.json(
+      { error: "Стоимость должна быть положительным числом." },
+      { status: 400 },
+    );
+  }
+
+  const { data: existingAssets, error: codesError } = await admin
+    .from("assets")
+    .select("code")
+    .eq("apartment_id", apartmentId)
+    .is("deleted_at", null);
+
+  if (codesError) {
+    return NextResponse.json({ error: codesError.message }, { status: 500 });
+  }
+
+  const existingCodes = (existingAssets ?? []).map((asset) => asset.code);
+  if (!normalized.asset.code) {
+    normalized.asset.code = nextAssetCode(existingCodes);
+  } else if (
+    existingCodes.some(
+      (code) => code.trim().toLowerCase() === normalized.asset.code.toLowerCase(),
+    )
+  ) {
+    return NextResponse.json({ error: `Номер ${normalized.asset.code} уже занят.` }, { status: 409 });
   }
 
   const { data, error: insertError } = await admin

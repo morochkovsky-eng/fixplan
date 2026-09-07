@@ -173,6 +173,11 @@ export async function GET() {
       lastChecked: asset.last_checked,
       warrantyUntil: asset.warranty_until,
       master: asset.master,
+      manufacturer: asset.manufacturer,
+      model: asset.model,
+      serialNumber: asset.serial_number,
+      installedAt: asset.installed_at,
+      purchaseCost: asset.purchase_cost === null ? undefined : Number(asset.purchase_cost),
       photoNote: asset.photo_note,
     })),
     events: (eventsResult.data ?? []).map((event) => ({

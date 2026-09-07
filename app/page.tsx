@@ -216,6 +216,11 @@ type Asset = {
   lastChecked: string;
   warrantyUntil?: string;
   master?: string;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  installedAt?: string;
+  purchaseCost?: number;
   photoNote: string;
 };
 
@@ -231,6 +236,11 @@ type AssetDraft = Pick<
   | "y"
   | "warrantyUntil"
   | "master"
+  | "manufacturer"
+  | "model"
+  | "serialNumber"
+  | "installedAt"
+  | "purchaseCost"
   | "photoNote"
 >;
 
@@ -1333,6 +1343,11 @@ function catalogAssetFromHotspot(mode: PlanMode, hotspot: PlanHotspot): Asset {
     lastChecked: "не проверялось",
     warrantyUntil: undefined,
     master: undefined,
+    manufacturer: undefined,
+    model: undefined,
+    serialNumber: undefined,
+    installedAt: undefined,
+    purchaseCost: undefined,
     photoNote: hotspot.note,
   };
 }
@@ -1349,6 +1364,11 @@ function assetDraftFromAsset(asset: Asset): AssetDraft {
     y: asset.y,
     warrantyUntil: asset.warrantyUntil ?? "",
     master: asset.master ?? "",
+    manufacturer: asset.manufacturer ?? "",
+    model: asset.model ?? "",
+    serialNumber: asset.serialNumber ?? "",
+    installedAt: asset.installedAt ?? "",
+    purchaseCost: asset.purchaseCost,
     photoNote: asset.photoNote,
   };
 }
@@ -1369,20 +1389,8 @@ function newAssetDraft(mode: PlanMode): AssetDraft {
               : mode.id === "furniture"
                 ? "furniture"
                 : "socket";
-  const prefixByMode: Record<PlanModeId, string> = {
-    sockets: "R-",
-    lighting: "L-",
-    plumbing: "W-",
-    ventilation: "V-",
-    furniture: "F-",
-    windows: "WIN-",
-    flooring: "FL-",
-    radiators: "RAD-",
-    warmFloor: "TP-",
-  };
-
   return {
-    code: prefixByMode[mode.id],
+    code: "",
     name: "",
     roomId: "living",
     category: categoryFromPlan(mode, kind),
@@ -1392,6 +1400,11 @@ function newAssetDraft(mode: PlanMode): AssetDraft {
     y: 50,
     warrantyUntil: "",
     master: "",
+    manufacturer: "",
+    model: "",
+    serialNumber: "",
+    installedAt: "",
+    purchaseCost: undefined,
     photoNote: "",
   };
 }
@@ -1619,7 +1632,7 @@ export default function Home() {
   );
   const dirtyPlanAssetCount =
     new Set([...dirtyPlanAssetIds, ...deletedPlanAssetIds]).size +
-    (!editingAssetId && assetDraft.code.trim() && assetDraft.name.trim() ? 1 : 0);
+    (!editingAssetId && assetDraft.name.trim() ? 1 : 0);
   const currentInspectionAsset = state.assets.length
     ? state.assets[inspectionIndex % state.assets.length]
     : undefined;
@@ -1739,7 +1752,6 @@ export default function Home() {
     const draft = category
       ? {
           ...newAssetDraft(mode),
-          code: category.prefix,
           category: category.id,
         }
       : newAssetDraft(mode);
@@ -1755,6 +1767,13 @@ export default function Home() {
       x: draft.x,
       y: draft.y,
       lastChecked: "не проверялось",
+      warrantyUntil: draft.warrantyUntil,
+      master: draft.master,
+      manufacturer: draft.manufacturer,
+      model: draft.model,
+      serialNumber: draft.serialNumber,
+      installedAt: draft.installedAt,
+      purchaseCost: draft.purchaseCost,
       photoNote: draft.photoNote,
     };
     setActivePlanMode(mode.id);
@@ -1797,6 +1816,13 @@ export default function Home() {
               status: nextDraft.status,
               x: nextDraft.x,
               y: nextDraft.y,
+              warrantyUntil: nextDraft.warrantyUntil,
+              master: nextDraft.master,
+              manufacturer: nextDraft.manufacturer,
+              model: nextDraft.model,
+              serialNumber: nextDraft.serialNumber,
+              installedAt: nextDraft.installedAt,
+              purchaseCost: nextDraft.purchaseCost,
               photoNote: nextDraft.photoNote,
             }
           : asset,
@@ -1824,19 +1850,25 @@ export default function Home() {
       name: assetDraft.name.trim(),
       warrantyUntil: assetDraft.warrantyUntil?.trim(),
       master: assetDraft.master?.trim(),
+      manufacturer: assetDraft.manufacturer?.trim(),
+      model: assetDraft.model?.trim(),
+      serialNumber: assetDraft.serialNumber?.trim(),
+      installedAt: assetDraft.installedAt?.trim(),
       photoNote: assetDraft.photoNote.trim(),
     };
 
-    if (!normalizedDraft.code || !normalizedDraft.name) {
-      window.alert("Укажите код и название узла.");
+    if (!normalizedDraft.name) {
+      window.alert("Укажите название узла.");
       return;
     }
 
-    const duplicate = state.assets.find(
-      (asset) =>
-        asset.id !== editingAssetId &&
-        asset.code.trim().toLowerCase() === normalizedDraft.code.toLowerCase(),
-    );
+    const duplicate = normalizedDraft.code
+      ? state.assets.find(
+          (asset) =>
+            asset.id !== editingAssetId &&
+            asset.code.trim().toLowerCase() === normalizedDraft.code.toLowerCase(),
+        )
+      : undefined;
     if (duplicate) {
       window.alert(`Код ${normalizedDraft.code} уже занят узлом ${duplicate.name}.`);
       return;
@@ -1922,9 +1954,15 @@ export default function Home() {
       ...assetDraft,
       code: assetDraft.code.trim(),
       name: assetDraft.name.trim(),
+      warrantyUntil: assetDraft.warrantyUntil?.trim(),
+      master: assetDraft.master?.trim(),
+      manufacturer: assetDraft.manufacturer?.trim(),
+      model: assetDraft.model?.trim(),
+      serialNumber: assetDraft.serialNumber?.trim(),
+      installedAt: assetDraft.installedAt?.trim(),
       photoNote: assetDraft.photoNote.trim(),
     };
-    const shouldCreateDraft = !editingAssetId && Boolean(newDraft.code && newDraft.name);
+    const shouldCreateDraft = !editingAssetId && Boolean(newDraft.name);
 
     if (!changedIds.length && !deleteIds.length && !shouldCreateDraft) {
       setPlanEditMode(false);
@@ -1997,8 +2035,8 @@ export default function Home() {
           photoNote: asset.photoNote.trim(),
         });
 
-        if (!normalizedAssetDraft.code || !normalizedAssetDraft.name) {
-          window.alert("Укажите код и название узла.");
+        if (!normalizedAssetDraft.name) {
+          window.alert("Укажите название узла.");
           return;
         }
 
@@ -4077,13 +4115,14 @@ function PlanAssetEditor({
 
       <div className="plan-editor-grid">
         <div className="grid gap-1.5">
-          <label className="plan-editor-label" htmlFor="plan-asset-code">Код</label>
+          <label className="plan-editor-label" htmlFor="plan-asset-code">Номер</label>
           <Input
             id="plan-asset-code"
             onChange={(event) => {
               const code = event.currentTarget.value;
               onChange((current) => ({ ...current, code }));
             }}
+            placeholder="Присвоится автоматически"
             value={draft.code}
           />
         </div>
@@ -4184,6 +4223,71 @@ function PlanAssetEditor({
             }}
             placeholder="мастер, сервис или подрядчик"
             value={draft.master ?? ""}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-manufacturer">Производитель</label>
+          <Input
+            id="plan-asset-manufacturer"
+            onChange={(event) => {
+              const manufacturer = event.currentTarget.value;
+              onChange((current) => ({ ...current, manufacturer }));
+            }}
+            placeholder="необязательно"
+            value={draft.manufacturer ?? ""}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-model">Модель</label>
+          <Input
+            id="plan-asset-model"
+            onChange={(event) => {
+              const model = event.currentTarget.value;
+              onChange((current) => ({ ...current, model }));
+            }}
+            placeholder="необязательно"
+            value={draft.model ?? ""}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-serial">Серийный номер</label>
+          <Input
+            id="plan-asset-serial"
+            onChange={(event) => {
+              const serialNumber = event.currentTarget.value;
+              onChange((current) => ({ ...current, serialNumber }));
+            }}
+            placeholder="необязательно"
+            value={draft.serialNumber ?? ""}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-installed">Покупка или установка</label>
+          <Input
+            id="plan-asset-installed"
+            onChange={(event) => {
+              const installedAt = event.currentTarget.value;
+              onChange((current) => ({ ...current, installedAt }));
+            }}
+            placeholder="например, август 2026"
+            value={draft.installedAt ?? ""}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <label className="plan-editor-label" htmlFor="plan-asset-cost">Стоимость</label>
+          <Input
+            id="plan-asset-cost"
+            min="0"
+            onChange={(event) => {
+              const value = event.currentTarget.value;
+              onChange((current) => ({
+                ...current,
+                purchaseCost: value === "" ? undefined : Number(value),
+              }));
+            }}
+            placeholder="необязательно"
+            type="number"
+            value={draft.purchaseCost ?? ""}
           />
         </div>
       </div>
@@ -4947,9 +5051,20 @@ function AssetDetail({
   );
   const passportContent = (
     <dl className="grid grid-cols-[128px_1fr] gap-x-3 gap-y-2 text-sm">
-      <dt className="text-muted-foreground">ID</dt><dd className="font-medium">{asset.code}</dd>
+      <dt className="text-muted-foreground">Номер</dt><dd className="font-medium">{asset.code}</dd>
       <dt className="text-muted-foreground">Комната</dt><dd className="font-medium">{roomName(asset.roomId)}</dd>
       <dt className="text-muted-foreground">Категория</dt><dd className="font-medium">{categoryLabel(asset.category)}</dd>
+      <dt className="text-muted-foreground">Тип</dt><dd className="font-medium">{assetKindLabels[assetKind(asset)]}</dd>
+      <dt className="text-muted-foreground">Производитель</dt><dd className="font-medium">{asset.manufacturer || "не указан"}</dd>
+      <dt className="text-muted-foreground">Модель</dt><dd className="font-medium">{asset.model || "не указана"}</dd>
+      <dt className="text-muted-foreground">Серийный номер</dt><dd className="font-medium">{asset.serialNumber || "не указан"}</dd>
+      <dt className="text-muted-foreground">Покупка / установка</dt><dd className="font-medium">{asset.installedAt || "не указана"}</dd>
+      <dt className="text-muted-foreground">Стоимость</dt>
+      <dd className="font-medium">
+        {asset.purchaseCost === undefined
+          ? "не указана"
+          : `${asset.purchaseCost.toLocaleString("ru-RU")} ₽`}
+      </dd>
       <dt className="text-muted-foreground">Последняя проверка</dt><dd className="font-medium">{asset.lastChecked}</dd>
       <dt className="text-muted-foreground">Гарантия</dt><dd className="font-medium">{asset.warrantyUntil ?? "не указана"}</dd>
       <dt className="text-muted-foreground">Мастер</dt><dd className="font-medium">{asset.master ?? "не назначен"}</dd>
@@ -5102,7 +5217,7 @@ function AssetDetail({
               <div>
                 <CardTitle className="text-xl">{asset.code} · {asset.name}</CardTitle>
                 <CardDescription>
-                  {roomName(asset.roomId)} · {categoryLabel(asset.category)} · 220 В
+                  {roomName(asset.roomId)} · {categoryLabel(asset.category)} · {assetKindLabels[assetKind(asset)]}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">

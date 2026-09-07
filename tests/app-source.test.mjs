@@ -305,6 +305,25 @@ test("keeps asset passport fields editable and persisted", () => {
   assert.match(assetsRouteSource, /master:/);
   assert.match(assetRouteSource, /patch\.warranty_until/);
   assert.match(assetRouteSource, /patch\.master/);
+  assert.match(pageSource, /plan-asset-manufacturer/);
+  assert.match(pageSource, /plan-asset-model/);
+  assert.match(pageSource, /plan-asset-serial/);
+  assert.match(pageSource, /plan-asset-installed/);
+  assert.match(pageSource, /plan-asset-cost/);
+  assert.match(pageSource, /Присвоится автоматически/);
+  assert.match(assetsRouteSource, /function nextAssetCode/);
+  assert.match(assetsRouteSource, /manufacturer:/);
+  assert.match(assetsRouteSource, /serial_number:/);
+  assert.match(assetsRouteSource, /purchase_cost:/);
+  assert.match(assetRouteSource, /patch\.manufacturer/);
+  assert.match(assetRouteSource, /patch\.serial_number/);
+  assert.match(assetRouteSource, /patch\.purchase_cost/);
+  assert.match(appDataRouteSource, /manufacturer: asset\.manufacturer/);
+  assert.match(appDataRouteSource, /serialNumber: asset\.serial_number/);
+  assert.match(schemaSource, /manufacturer text/);
+  assert.match(schemaSource, /purchase_cost numeric/);
+  assert.doesNotMatch(assetsRouteSource, /Укажите код и название узла/);
+  assert.doesNotMatch(assetRouteSource, /Укажите код и название узла/);
 });
 
 test("keeps asset documents separate from photo galleries", () => {

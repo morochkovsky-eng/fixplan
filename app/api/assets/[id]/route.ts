@@ -23,6 +23,12 @@ function clampCoordinate(value: unknown) {
   return Math.min(100, Math.max(0, number));
 }
 
+function optionalCost(value: unknown) {
+  if (value === "" || value === null || value === undefined) return null;
+  const cost = Number(value);
+  return Number.isFinite(cost) && cost >= 0 ? cost : undefined;
+}
+
 function formatAsset(asset: {
   id: string;
   code: string;
@@ -36,6 +42,11 @@ function formatAsset(asset: {
   last_checked: string;
   warranty_until: string | null;
   master: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serial_number: string | null;
+  installed_at: string | null;
+  purchase_cost: number | string | null;
   photo_note: string;
 }) {
   return {
@@ -51,6 +62,11 @@ function formatAsset(asset: {
     lastChecked: asset.last_checked,
     warrantyUntil: asset.warranty_until,
     master: asset.master,
+    manufacturer: asset.manufacturer,
+    model: asset.model,
+    serialNumber: asset.serial_number,
+    installedAt: asset.installed_at,
+    purchaseCost: asset.purchase_cost === null ? undefined : Number(asset.purchase_cost),
     photoNote: asset.photo_note,
   };
 }
@@ -69,7 +85,7 @@ export async function PATCH(
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
-  if (typeof body.code === "string") patch.code = body.code.trim();
+  if (typeof body.code === "string" && body.code.trim()) patch.code = body.code.trim();
   if (typeof body.name === "string") patch.name = body.name.trim();
   if (typeof body.roomId === "string") patch.room_id = body.roomId.trim();
   if (typeof body.photoNote === "string") patch.photo_note = body.photoNote.trim();
@@ -78,6 +94,26 @@ export async function PATCH(
   }
   if (typeof body.master === "string") {
     patch.master = body.master.trim() || null;
+  }
+  if (typeof body.manufacturer === "string") {
+    patch.manufacturer = body.manufacturer.trim() || null;
+  }
+  if (typeof body.model === "string") patch.model = body.model.trim() || null;
+  if (typeof body.serialNumber === "string") {
+    patch.serial_number = body.serialNumber.trim() || null;
+  }
+  if (typeof body.installedAt === "string") {
+    patch.installed_at = body.installedAt.trim() || null;
+  }
+  if ("purchaseCost" in body) {
+    const purchaseCost = optionalCost(body.purchaseCost);
+    if (purchaseCost === undefined) {
+      return NextResponse.json(
+        { error: "Стоимость должна быть положительным числом." },
+        { status: 400 },
+      );
+    }
+    patch.purchase_cost = purchaseCost;
   }
   if (typeof body.category === "string" && /^[a-z0-9_-]+$/i.test(body.category)) {
     patch.category = body.category;
@@ -90,8 +126,30 @@ export async function PATCH(
   if (x !== undefined) patch.x = x;
   if (y !== undefined) patch.y = y;
 
-  if (patch.code === "" || patch.name === "") {
-    return NextResponse.json({ error: "Укажите код и название узла." }, { status: 400 });
+  if (patch.name === "") {
+    return NextResponse.json({ error: "Укажите название узла." }, { status: 400 });
+  }
+
+  if (typeof patch.code === "string") {
+    const patchCode = patch.code;
+    const { data: existingAssets, error: codesError } = await admin
+      .from("assets")
+      .select("code")
+      .eq("apartment_id", apartmentId)
+      .neq("id", id)
+      .is("deleted_at", null);
+
+    if (codesError) {
+      return NextResponse.json({ error: codesError.message }, { status: 500 });
+    }
+
+    if (
+      (existingAssets ?? []).some(
+        (asset) => asset.code.trim().toLowerCase() === patchCode.toLowerCase(),
+      )
+    ) {
+      return NextResponse.json({ error: `Номер ${patchCode} уже занят.` }, { status: 409 });
+    }
   }
 
   const { data, error: updateError } = await admin
