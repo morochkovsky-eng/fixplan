@@ -138,7 +138,7 @@ export async function GET() {
   );
   const { data: apartment } = await admin
     .from("apartments")
-    .select("name,address,plan_storage_path,plan_media_type,plan_original_name")
+    .select("name,address,usage_mode,currency,timezone,plan_storage_path,plan_media_type,plan_original_name")
     .eq("id", apartmentId)
     .single();
   let planUrl = "";
@@ -153,6 +153,11 @@ export async function GET() {
     config: {
       serviceName: "FixPlan",
       objectName: apartment?.address || apartment?.name || "Объект",
+      apartmentName: apartment?.name || apartment?.address || "Объект",
+      address: apartment?.address || apartment?.name || "Объект",
+      usageMode: apartment?.usage_mode ?? "living",
+      currency: apartment?.currency ?? "RUB",
+      timezone: apartment?.timezone ?? "Europe/Moscow",
     },
     plan: apartment?.plan_storage_path
       ? {

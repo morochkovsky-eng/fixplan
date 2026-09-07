@@ -152,6 +152,11 @@ type AssetSort = "status" | "room" | "code" | "checked";
 type AppConfig = {
   serviceName: string;
   objectName: string;
+  apartmentName: string;
+  address: string;
+  usageMode: "living" | "rented";
+  currency: "RUB" | "EUR" | "USD";
+  timezone: string;
 };
 
 type EventType =
@@ -767,6 +772,11 @@ const initialState: AppState = {
   config: {
     serviceName: "FixPlan",
     objectName: "Шпалерная, 34Б",
+    apartmentName: "Квартира",
+    address: "Шпалерная, 34Б",
+    usageMode: "living",
+    currency: "RUB",
+    timezone: "Europe/Moscow",
   },
   plan: undefined,
   categories: defaultAssetCategories,
@@ -4947,46 +4957,126 @@ function SettingsView({
   config: AppConfig;
   setConfig: (config: Partial<AppConfig>) => void;
 }) {
+  const [draft, setDraft] = useState(config);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage("");
+    setError("");
+    const response = await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: draft.apartmentName,
+        address: draft.address,
+        usageMode: draft.usageMode,
+        currency: draft.currency,
+        timezone: draft.timezone,
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      config?: Partial<AppConfig>;
+      error?: string;
+    };
+    if (!response.ok || !payload.config) {
+      setError(payload.error ?? "Не удалось сохранить настройки.");
+    } else {
+      const nextConfig = { ...draft, ...payload.config };
+      setDraft(nextConfig);
+      setConfig(nextConfig);
+      setMessage("Изменения сохранены.");
+    }
+    setSaving(false);
+  }
+
+  const hasChanges =
+    draft.apartmentName !== config.apartmentName ||
+    draft.address !== config.address ||
+    draft.usageMode !== config.usageMode ||
+    draft.currency !== config.currency ||
+    draft.timezone !== config.timezone;
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <Card>
+      <Card className="lg:col-span-2">
         <CardHeader>
-          <CardTitle>Основные настройки</CardTitle>
+          <CardTitle>Объект</CardTitle>
           <CardDescription>
-            Эти названия используются в мобильной шапке, меню и дальнейшем интерфейсе объекта.
+            Основные данные квартиры и параметры, которые используются в счетах, документах и уведомлениях.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
-          <label className="grid gap-2" htmlFor="service-name">
-            <span className="text-sm font-medium">Название сервиса</span>
-            <Input
-              id="service-name"
-              value={config.serviceName}
-              onChange={(event) => setConfig({ serviceName: event.currentTarget.value })}
-              placeholder="Например, FixPlan"
-            />
-          </label>
-          <label className="grid gap-2" htmlFor="object-name">
-            <span className="text-sm font-medium">Название объекта</span>
-            <Input
-              id="object-name"
-              value={config.objectName}
-              onChange={(event) => setConfig({ objectName: event.currentTarget.value })}
-              placeholder="Например, Шпалерная, 34Б"
-            />
-          </label>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Мобильное меню</CardTitle>
-          <CardDescription>В бургер-меню доступны основные рабочие разделы.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2 text-muted-foreground text-sm">
-          {["Дашборд", "План", "Узлы", "Обходы и отчеты", "Задания", "Документы", "Счета", "Журнал", "Настройки"].map((item) => (
-            <div className="rounded-lg bg-muted p-3" key={item}>{item}</div>
-          ))}
+        <CardContent>
+          <form className="grid gap-5" onSubmit={saveSettings}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2" htmlFor="apartment-name">
+                <span className="text-sm font-medium">Название объекта</span>
+                <Input
+                  id="apartment-name"
+                  value={draft.apartmentName}
+                  onChange={(event) => {
+                    const apartmentName = event.currentTarget.value;
+                    setDraft((current) => ({ ...current, apartmentName }));
+                  }}
+                  placeholder="Например, Квартира на Шпалерной"
+                />
+              </label>
+              <label className="grid gap-2" htmlFor="apartment-address">
+                <span className="text-sm font-medium">Адрес</span>
+                <Input
+                  id="apartment-address"
+                  value={draft.address}
+                  onChange={(event) => {
+                    const address = event.currentTarget.value;
+                    setDraft((current) => ({ ...current, address }));
+                  }}
+                  placeholder="Например, Шпалерная, 34Б"
+                />
+              </label>
+              <label className="grid gap-2" htmlFor="usage-mode">
+                <span className="text-sm font-medium">Как используется квартира</span>
+                <Select value={draft.usageMode} onValueChange={(value: AppConfig["usageMode"]) => setDraft((current) => ({ ...current, usageMode: value }))}>
+                  <SelectTrigger className="w-full" id="usage-mode"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="living">Живу сам</SelectItem>
+                    <SelectItem value="rented">Сдаю</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid gap-2" htmlFor="currency">
+                <span className="text-sm font-medium">Валюта</span>
+                <Select value={draft.currency} onValueChange={(value: AppConfig["currency"]) => setDraft((current) => ({ ...current, currency: value }))}>
+                  <SelectTrigger className="w-full" id="currency"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RUB">Российский рубль (₽)</SelectItem>
+                    <SelectItem value="EUR">Евро (€)</SelectItem>
+                    <SelectItem value="USD">Доллар США ($)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid gap-2" htmlFor="timezone">
+                <span className="text-sm font-medium">Часовой пояс</span>
+                <Select value={draft.timezone} onValueChange={(timezone) => setDraft((current) => ({ ...current, timezone }))}>
+                  <SelectTrigger className="w-full" id="timezone"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Europe/Moscow">Москва</SelectItem>
+                    <SelectItem value="Europe/Madrid">Мадрид</SelectItem>
+                    <SelectItem value="Europe/Berlin">Берлин</SelectItem>
+                    <SelectItem value="Asia/Dubai">Дубай</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+            </div>
+            {error && <div className="rounded-lg bg-destructive/10 p-3 text-destructive text-sm">{error}</div>}
+            {message && <div className="rounded-lg bg-muted p-3 text-sm">{message}</div>}
+            <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+              <Button disabled={!hasChanges || saving} onClick={() => { setDraft(config); setError(""); setMessage(""); }} type="button" variant="secondary">Отменить</Button>
+              <Button disabled={!hasChanges || saving || !draft.apartmentName.trim() || !draft.address.trim()} type="submit"><Save size={16} />{saving ? "Сохраняем…" : "Сохранить изменения"}</Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
 

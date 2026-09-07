@@ -13,6 +13,7 @@ const assetRouteSource = fs.readFileSync("app/api/assets/[id]/route.ts", "utf8")
 const appDataRouteSource = fs.readFileSync("app/api/app-data/route.ts", "utf8");
 const apartmentAccessSource = fs.readFileSync("app/api/assets/access.ts", "utf8");
 const apartmentsRouteSource = fs.readFileSync("app/api/apartments/route.ts", "utf8");
+const settingsRouteSource = fs.readFileSync("app/api/settings/route.ts", "utf8");
 const planRouteSource = fs.readFileSync("app/api/plan/route.ts", "utf8");
 const assetEventsRouteSource = fs.readFileSync("app/api/assets/[id]/events/route.ts", "utf8");
 const inspectionsRouteSource = fs.readFileSync("app/api/inspections/route.ts", "utf8");
@@ -272,6 +273,15 @@ test("keeps every owner workflow scoped to the selected apartment", () => {
     assert.match(source, /apartmentId/);
     assert.doesNotMatch(source, /00000000-0000-4000-8000-000000000034/);
   }
+});
+
+test("persists apartment settings through an explicit save", () => {
+  assert.match(settingsRouteSource, /export async function PATCH/);
+  assert.match(settingsRouteSource, /role !== "owner" && role !== "admin"/);
+  assert.match(settingsRouteSource, /usage_mode: usageMode/);
+  assert.match(pageSource, /onSubmit=\{saveSettings\}/);
+  assert.match(pageSource, /Сохранить изменения/);
+  assert.match(appDataRouteSource, /usage_mode,currency,timezone/);
 });
 
 test("supports an optional apartment plan without demo leakage", () => {
