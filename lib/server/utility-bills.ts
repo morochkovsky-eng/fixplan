@@ -24,6 +24,7 @@ export type UtilityBillRow = {
   source: string;
   owner_confirmed_at: string | null;
   published_at: string | null;
+  created_at: string;
 };
 
 export function normalizeBillPayload(body: Record<string, unknown>) {
@@ -114,6 +115,7 @@ export function formatUtilityBill(bill: UtilityBillRow, signedReceiptUrl?: strin
     source: bill.source,
     ownerConfirmedAt: bill.owner_confirmed_at ?? undefined,
     publishedAt: bill.published_at ?? undefined,
+    createdAt: bill.created_at,
   };
 }
 

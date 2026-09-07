@@ -53,7 +53,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { CleaningsView } from "@/components/cleanings-view";
-import type { Cleaning } from "@/lib/cleanings";
+import { cleaningStatusLabels, cleaningTypeLabels, type Cleaning } from "@/lib/cleanings";
 import {
   createClient as createSupabaseBrowserClient,
   createClientFromConfig as createSupabaseClientFromConfig,
@@ -362,6 +362,7 @@ type UtilityBill = {
   source: "web" | "telegram_private" | "telegram_group";
   ownerConfirmedAt?: string;
   publishedAt?: string;
+  createdAt: string;
 };
 
 type UtilityMeter = {
@@ -982,6 +983,7 @@ const initialState: AppState = {
       tenantAmount: 4860,
       reimbursementStatus: "awaiting",
       source: "web",
+      createdAt: "2026-08-25T10:00:00.000Z",
       note: "Перед оплатой сверить показания счетчика.",
     },
     {
@@ -996,6 +998,7 @@ const initialState: AppState = {
       tenantAmount: 0,
       reimbursementStatus: "not_required",
       source: "web",
+      createdAt: "2026-08-24T10:00:00.000Z",
       note: "Оплачено по квитанции УК.",
     },
   ],
@@ -1097,6 +1100,7 @@ function emptyUtilityBillDraft(period: string): Omit<UtilityBill, "id"> {
     tenantAmount: 0,
     reimbursementStatus: "not_required",
     source: "web",
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -2893,10 +2897,17 @@ export default function Home() {
         {view === "log" && (
           <ActivityLog
             assets={state.assets}
+            bills={state.utilityBills}
+            cleanings={state.cleanings}
             deleteEvent={deleteEvent}
             events={state.events}
+            inspections={state.inspections}
             media={state.media}
+            meters={state.utilityMeters}
             openAsset={openAsset}
+            openReport={openReport}
+            openSection={(nextView) => setView(nextView)}
+            readings={state.utilityReadings}
             updateEvent={updateEvent}
           />
         )}
@@ -6136,6 +6147,7 @@ function UtilitiesView({
       source: bill.source,
       ownerConfirmedAt: bill.ownerConfirmedAt,
       publishedAt: bill.publishedAt,
+      createdAt: bill.createdAt,
     });
   }
 
@@ -6803,50 +6815,241 @@ function UtilitiesView({
   );
 }
 
+type JournalKind = "nodes" | "inspections" | "tasks" | "utilities" | "documents";
+
+type JournalEntry = {
+  id: string;
+  kind: JournalKind;
+  title: string;
+  body: string;
+  date: string;
+  amount?: number;
+  event?: AssetEvent;
+  assetId?: string;
+  inspectionId?: string;
+  targetView?: View;
+};
+
+const journalKindLabels: Record<"all" | JournalKind, string> = {
+  all: "Все",
+  nodes: "Узлы",
+  inspections: "Обходы",
+  tasks: "Задания",
+  utilities: "Коммуналка",
+  documents: "Документы",
+};
+
+function journalTimestamp(value: string) {
+  const formatted = parseFormattedDate(value)?.getTime();
+  if (formatted) return formatted;
+  const direct = Date.parse(value);
+  if (Number.isFinite(direct)) return direct;
+  const months: Record<string, number> = {
+    января: 0,
+    февраля: 1,
+    марта: 2,
+    апреля: 3,
+    мая: 4,
+    июня: 5,
+    июля: 6,
+    августа: 7,
+    сентября: 8,
+    октября: 9,
+    ноября: 10,
+    декабря: 11,
+  };
+  const match = value.toLowerCase().match(/(\d{1,2})\s+([а-яё]+)\s+(\d{4})/);
+  if (!match || months[match[2]] === undefined) return 0;
+  return new Date(Number(match[3]), months[match[2]], Number(match[1])).getTime();
+}
+
+function journalDateLabel(value: string) {
+  if (!value.includes("T")) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(date);
+}
+
 function ActivityLog({
   assets,
+  bills,
+  cleanings,
   deleteEvent,
   events,
+  inspections,
   media,
+  meters,
   openAsset,
+  openReport,
+  openSection,
+  readings,
   updateEvent,
 }: {
   assets: Asset[];
+  bills: UtilityBill[];
+  cleanings: Cleaning[];
   deleteEvent: (assetId: string, eventId: string) => Promise<boolean>;
   events: AssetEvent[];
+  inspections: Inspection[];
   media: AssetMedia[];
+  meters: UtilityMeter[];
   openAsset: (id: string) => void;
+  openReport: (id: string) => void;
+  openSection: (view: View) => void;
+  readings: UtilityReading[];
   updateEvent: (
     assetId: string,
     eventId: string,
     patch: Pick<AssetEvent, "title" | "body">,
   ) => Promise<boolean>;
 }) {
-  const sortedEvents = [...events].sort((a, b) => b.id.localeCompare(a.id));
+  const [filter, setFilter] = useState<"all" | JournalKind>("all");
+  const [query, setQuery] = useState("");
+  const entries = useMemo<JournalEntry[]>(() => {
+    const assetEntries: JournalEntry[] = events.map((event) => {
+      const asset = assets.find((item) => item.id === event.assetId);
+      return {
+        id: `event-${event.id}`,
+        kind: "nodes",
+        title: asset ? `${asset.code} · ${event.title}` : event.title,
+        body: event.body,
+        date: event.date,
+        amount: event.cost,
+        event,
+        assetId: event.assetId,
+      };
+    });
+    const inspectionEntries: JournalEntry[] = inspections.map((inspection) => ({
+      id: `inspection-${inspection.id}`,
+      kind: inspection.workflow === "work_order" ? "tasks" : "inspections",
+      title: `${inspection.number} · ${inspection.title}`,
+      body: `${inspection.contractor || "Исполнитель не назначен"} · ${inspectionStatusLabels[inspection.status]}`,
+      date: inspection.completedAt ?? inspection.createdAt,
+      inspectionId: inspection.id,
+    }));
+    const cleaningEntries: JournalEntry[] = cleanings.map((cleaning) => ({
+      id: `cleaning-${cleaning.id}`,
+      kind: "tasks",
+      title: cleaning.title,
+      body: `${cleaningTypeLabels[cleaning.type]} · ${cleaningStatusLabels[cleaning.status]}${cleaning.cleaner ? ` · ${cleaning.cleaner}` : ""}`,
+      date: cleaning.completedAt ?? cleaning.createdAt,
+      amount: cleaning.cost,
+      targetView: "work_orders",
+    }));
+    const billEntries: JournalEntry[] = bills.map((bill) => ({
+      id: `bill-${bill.id}`,
+      kind: "utilities",
+      title: `${bill.service} · ${bill.period}`,
+      body: `${utilityBillStatusLabels[bill.status]} · ${utilityBillAllocationLabels[bill.allocation]}`,
+      date: bill.paidAt ?? bill.createdAt,
+      amount: bill.amount,
+      targetView: "utilities",
+    }));
+    const readingEntries: JournalEntry[] = readings.map((reading) => {
+      const meter = meters.find((item) => item.id === reading.meterId);
+      return {
+        id: `reading-${reading.id}`,
+        kind: "utilities",
+        title: `Показание · ${meter?.label ?? "Счетчик"}`,
+        body: `${reading.value} ${meter?.unit ?? ""} · ${reading.period} · ${utilityReadingSourceLabels[reading.source]}`,
+        date: reading.submittedAt,
+        targetView: "utilities",
+      };
+    });
+    const documentEntries: JournalEntry[] = media
+      .filter((item) => item.documentType && !item.utilityBillId && !item.utilityReadingId)
+      .map((item) => ({
+        id: `document-${item.id}`,
+        kind: "documents",
+        title: item.caption ?? item.filename,
+        body: `${documentTypeLabel(item.documentType!)}${item.note ? ` · ${item.note}` : ""}`,
+        date: item.createdAt ?? "Дата не указана",
+        assetId: item.assetId,
+        targetView: "documents",
+      }));
+    return [...assetEntries, ...inspectionEntries, ...cleaningEntries, ...billEntries, ...readingEntries, ...documentEntries]
+      .sort((left, right) => journalTimestamp(right.date) - journalTimestamp(left.date));
+  }, [assets, bills, cleanings, events, inspections, media, meters, readings]);
+  const normalizedQuery = query.trim().toLocaleLowerCase("ru-RU");
+  const visibleEntries = entries.filter((entry) => {
+    if (filter !== "all" && entry.kind !== filter) return false;
+    return !normalizedQuery || `${entry.title} ${entry.body}`.toLocaleLowerCase("ru-RU").includes(normalizedQuery);
+  });
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Лента событий</CardTitle>
-        <CardDescription>Все изменения по квартире в одном журнале.</CardDescription>
+        <CardDescription>Подтвержденные изменения, работы, документы и расчеты по квартире.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="grid gap-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <Input
+            className="pl-9"
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            placeholder="Найти событие, узел или исполнителя"
+            value={query}
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {Object.entries(journalKindLabels).map(([value, label]) => (
+            <Button
+              className="shrink-0"
+              key={value}
+              onClick={() => setFilter(value as "all" | JournalKind)}
+              size="sm"
+              type="button"
+              variant={filter === value ? "default" : "secondary"}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
         <ScrollArea className="h-[640px] pr-4 max-[980px]:h-auto">
-          <div className="space-y-5">
-        {sortedEvents.map((event) => {
-          const asset = assets.find((item) => item.id === event.assetId);
-          return (
-            <EditableEventTask
-              asset={asset}
-              assetId={event.assetId}
-              deleteEvent={deleteEvent}
-              event={event}
-              key={event.id}
-              media={mediaForEvent(event, media.filter((item) => item.assetId === event.assetId))}
-              onOpen={() => openAsset(event.assetId)}
-              updateEvent={updateEvent}
-            />
-          );
-        })}
+          <div className="space-y-3">
+            {visibleEntries.map((entry) => {
+              if (entry.event && entry.assetId) {
+                const asset = assets.find((item) => item.id === entry.assetId);
+                return (
+                  <EditableEventTask
+                    asset={asset}
+                    assetId={entry.assetId}
+                    deleteEvent={deleteEvent}
+                    event={entry.event}
+                    key={entry.id}
+                    media={mediaForEvent(entry.event, media.filter((item) => item.assetId === entry.assetId))}
+                    onOpen={() => openAsset(entry.assetId!)}
+                    updateEvent={updateEvent}
+                  />
+                );
+              }
+              return (
+                <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={entry.id}>
+                  <div className="grid min-w-0 gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="font-medium">{entry.title}</strong>
+                      <Badge variant="outline">{journalKindLabels[entry.kind]}</Badge>
+                    </div>
+                    <div className="text-muted-foreground text-sm">{entry.body}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {journalDateLabel(entry.date)}{entry.amount !== undefined ? ` · ${moneyLabel(entry.amount)}` : ""}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => entry.inspectionId ? openReport(entry.inspectionId) : entry.targetView ? openSection(entry.targetView) : undefined}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Открыть
+                  </Button>
+                </div>
+              );
+            })}
+            {!visibleEntries.length && (
+              <div className="rounded-lg bg-muted p-4 text-muted-foreground text-sm">По этому фильтру событий нет.</div>
+            )}
           </div>
         </ScrollArea>
       </CardContent>

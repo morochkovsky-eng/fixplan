@@ -510,6 +510,20 @@ test("supports editing and deleting node comments without schema-cache fields", 
   assert.doesNotMatch(eventRouteSource, /updated_at/);
 });
 
+test("shows one searchable journal across apartment workflows", () => {
+  assert.match(pageSource, /type JournalKind/);
+  assert.match(pageSource, /journalKindLabels/);
+  assert.match(pageSource, /bills=\{state\.utilityBills\}/);
+  assert.match(pageSource, /cleanings=\{state\.cleanings\}/);
+  assert.match(pageSource, /inspections=\{state\.inspections\}/);
+  assert.match(pageSource, /readings=\{state\.utilityReadings\}/);
+  assert.match(pageSource, /Найти событие, узел или исполнителя/);
+  assert.match(pageSource, /Подтвержденные изменения, работы, документы и расчеты/);
+  assert.match(pageSource, /utilityBillStatusLabels\[bill\.status\]/);
+  assert.match(pageSource, /cleaningStatusLabels\[cleaning\.status\]/);
+  assert.match(pageSource, /documentTypeLabel\(item\.documentType!\)/);
+});
+
 test("uses the Figma FixPlan logo and compact menu glyph in headers", () => {
   assert.match(logoSource, /<svg width="133" height="18"/);
   assert.match(pageSource, /function BrandMark/);
