@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cleaningPayload } from "@/app/api/cleanings/helpers";
 import { createCleaningRecord } from "@/lib/server/cleanings";
@@ -154,6 +154,23 @@ const tools = [
   },
   {
     type: "function",
+    name: "prepare_utility_reading",
+    description: "Подготовить показание существующего счётчика. Ничего не сохраняет до явного подтверждения владельца.",
+    parameters: {
+      type: "object",
+      properties: {
+        meterId: { type: "string", description: "Точный id счётчика из get_utility_state" },
+        period: { type: "string", description: "Расчётный период в понятном пользователю виде" },
+        value: { type: "number", description: "Новое показание счётчика" },
+        note: { type: "string", description: "Комментарий, пустая строка если его нет" },
+      },
+      required: ["meterId", "period", "value", "note"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
     name: "prepare_cleaning",
     description: "Подготовить черновик уборки. Это не создаёт уборку: после вызова обязательно попроси явное подтверждение.",
     parameters: {
@@ -211,7 +228,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-mini",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи краткое резюме с названием объекта и попроси написать «Создавай». Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий.`,
       input,
       tools,
       tool_choice: "auto",
@@ -361,6 +378,40 @@ async function executeTool(
     };
   }
 
+  if (call.name === "prepare_utility_reading") {
+    const meterId = String(args.meterId ?? "").trim();
+    const period = String(args.period ?? "").trim();
+    const value = Number(args.value);
+    const { data: meter, error } = await admin
+      .from("utility_meters")
+      .select("id,service,label,serial,location,unit,last_reading")
+      .eq("apartment_id", account.apartment_id)
+      .eq("id", meterId)
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!meter || !period || !Number.isFinite(value) || value < 0) {
+      return { ok: false, error: "Проверьте счётчик, период и значение показания." };
+    }
+    const payload = {
+      meterId,
+      period,
+      value,
+      note: String(args.note ?? "").trim(),
+      photoStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
+      photoFilename: attachment?.filename,
+      photoMediaType: attachment?.mimeType,
+    };
+    await saveConversation(admin, account, {
+      pending_action: { type: "create_utility_reading", apartmentId: account.apartment_id, payload },
+    });
+    return {
+      ok: true,
+      draft: { ...payload, meter },
+      attachmentClaimed: Boolean(attachment),
+      instruction: "Покажи счётчик, период, значение и наличие фото, затем попроси написать «Создавай».",
+    };
+  }
+
   if (call.name === "prepare_cleaning") {
     if (!String(args.scheduledAt ?? "").trim() || !String(args.cleaner ?? "").trim() || !Array.isArray(args.zones) || !args.zones.length) {
       return { ok: false, error: "Для черновика нужны дата и время, клинер и хотя бы одна зона." };
@@ -407,8 +458,12 @@ async function removePendingAttachment(
   const payload = pending?.payload;
   if (!payload || typeof payload !== "object") return;
   const storagePath = (payload as Record<string, unknown>).receiptStoragePath;
-  if (typeof storagePath === "string" && storagePath) {
-    await admin.storage.from("asset-media").remove([storagePath]);
+  const photoStoragePath = (payload as Record<string, unknown>).photoStoragePath;
+  const pendingStoragePath = typeof storagePath === "string" && storagePath
+    ? storagePath
+    : typeof photoStoragePath === "string" ? photoStoragePath : "";
+  if (pendingStoragePath) {
+    await admin.storage.from("asset-media").remove([pendingStoragePath]);
   }
 }
 
@@ -427,7 +482,7 @@ function attachmentInput(message: string, attachment: TelegramAssistantAttachmen
       content: [
         {
           type: "input_text",
-          text: message || "Это коммунальный счёт. Распознай его и подготовь черновик.",
+          text: message || "Определи, что изображено, и подготовь подходящий черновик для FixPlan. Не сохраняй данные без подтверждения.",
         },
         fileContent,
       ],
@@ -554,6 +609,68 @@ export async function runTelegramAssistant(
       const link = `${appOrigin.replace(/\/$/, "")}/guest/${guestToken}`;
       return `Задание #${(count ?? 0) + 1} создано для объекта «${draftApartment.name}». Мастер: ${contractor}. Узлов: ${requestedIds.length}.\n${link}`;
     }
+    if (pending.type === "create_utility_reading") {
+      const payload = pending.payload as Record<string, unknown>;
+      const meterId = String(payload.meterId ?? "").trim();
+      const value = Number(payload.value);
+      const period = String(payload.period ?? "").trim();
+      const { data: meter, error: meterError } = await admin
+        .from("utility_meters")
+        .select("id,label,last_reading,status")
+        .eq("apartment_id", draftApartment.id)
+        .eq("id", meterId)
+        .maybeSingle();
+      if (meterError) return `Не удалось проверить счётчик: ${meterError.message}`;
+      if (!meter || !period || !Number.isFinite(value) || value < 0) {
+        return "Счётчик или данные черновика изменились. Отмените черновик и соберите показание заново.";
+      }
+      const readingId = `reading-${randomUUID().slice(0, 8)}`;
+      const photoStoragePath = String(payload.photoStoragePath ?? "").trim();
+      const submittedAt = new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric", timeZone: draftApartment.timezone }).format(new Date());
+      const { error: readingError } = await admin.from("utility_readings").insert({
+        apartment_id: draftApartment.id,
+        id: readingId,
+        meter_id: meterId,
+        period,
+        value,
+        submitted_at_label: submittedAt,
+        source: "telegram",
+        note: String(payload.note ?? "").trim() || null,
+        photo_storage_path: photoStoragePath || null,
+      });
+      if (readingError) return `Не удалось сохранить показание: ${readingError.message}`;
+      if (photoStoragePath) {
+        const { error: mediaError } = await admin.from("asset_media").insert({
+          apartment_id: draftApartment.id,
+          asset_id: null,
+          event_id: null,
+          inspection_id: null,
+          utility_reading_id: readingId,
+          storage_path: photoStoragePath,
+          media_type: String(payload.photoMediaType ?? "image/jpeg"),
+          caption: String(payload.photoFilename ?? "Фото счётчика из Telegram"),
+          created_by: `telegram:${account.telegram_user_id}`,
+          document_type: "other",
+          document_note: `Показание: ${meter.label}, ${period}`,
+        });
+        if (mediaError) {
+          await admin.from("utility_readings").delete().eq("apartment_id", draftApartment.id).eq("id", readingId);
+          return `Не удалось сохранить фото показания: ${mediaError.message}`;
+        }
+      }
+      const { error: updateMeterError } = await admin.from("utility_meters").update({
+        status: "submitted",
+        last_reading: value,
+        updated_at: new Date().toISOString(),
+      }).eq("apartment_id", draftApartment.id).eq("id", meterId);
+      if (updateMeterError) {
+        if (photoStoragePath) await admin.from("asset_media").delete().eq("apartment_id", draftApartment.id).eq("utility_reading_id", readingId);
+        await admin.from("utility_readings").delete().eq("apartment_id", draftApartment.id).eq("id", readingId);
+        return `Не удалось обновить счётчик: ${updateMeterError.message}`;
+      }
+      await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
+      return `Показание «${meter.label}» за ${period} сохранено: ${value.toLocaleString("ru-RU")}.`;
+    }
     return "Черновик повреждён. Давайте соберём его заново.";
   }
 
@@ -573,9 +690,10 @@ export async function runTelegramAssistant(
     : message;
   let attachmentClaimed = false;
   const pendingPayload = conversation.pending_action?.payload;
-  const existingReceiptStoragePath =
+  const existingAttachmentStoragePath =
     pendingPayload && typeof pendingPayload === "object"
-      ? (pendingPayload as Record<string, unknown>).receiptStoragePath
+      ? (pendingPayload as Record<string, unknown>).receiptStoragePath ??
+        (pendingPayload as Record<string, unknown>).photoStoragePath
       : undefined;
   try {
     let response = await createResponse(
@@ -593,9 +711,9 @@ export async function runTelegramAssistant(
           account,
           call,
           attachment,
-          typeof existingReceiptStoragePath === "string" ? existingReceiptStoragePath : undefined,
+          typeof existingAttachmentStoragePath === "string" ? existingAttachmentStoragePath : undefined,
         );
-        if (call.name === "prepare_utility_bill" && result.ok && attachment) {
+        if ((call.name === "prepare_utility_bill" || call.name === "prepare_utility_reading") && result.ok && attachment) {
           attachmentClaimed = true;
         }
         outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
