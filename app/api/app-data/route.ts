@@ -69,9 +69,10 @@ export async function GET() {
   }
 
   const hasUtilityBillsTable = !isMissingUtilityTable(utilityBillsResult.error, "utility_bills");
-  const hasUtilityMeters =
-    !isMissingUtilityTable(utilityMetersResult.error, "utility_meters") &&
-    Boolean(utilityMetersResult.data?.length);
+  const hasUtilityMetersTable = !isMissingUtilityTable(
+    utilityMetersResult.error,
+    "utility_meters",
+  );
   const hasUtilityReadingsTable = !isMissingUtilityTable(
     utilityReadingsResult.error,
     "utility_readings",
@@ -248,7 +249,7 @@ export async function GET() {
           utilityBills: signedUtilityBills,
         }
       : {}),
-    ...(hasUtilityMeters
+    ...(hasUtilityMetersTable
       ? {
           utilityMeters: (utilityMetersResult.data ?? []).map((meter) => ({
             id: meter.id,

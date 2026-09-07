@@ -21,6 +21,8 @@ const inspectionRouteSource = fs.readFileSync("app/api/inspections/[id]/route.ts
 const utilityBillsRouteSource = fs.readFileSync("app/api/utility-bills/route.ts", "utf8");
 const utilityBillRouteSource = fs.readFileSync("app/api/utility-bills/[id]/route.ts", "utf8");
 const utilityReadingsRouteSource = fs.readFileSync("app/api/utility-readings/route.ts", "utf8");
+const utilityMetersRouteSource = fs.readFileSync("app/api/utility-meters/route.ts", "utf8");
+const utilityMeterRouteSource = fs.readFileSync("app/api/utility-meters/[id]/route.ts", "utf8");
 const documentsRouteSource = fs.readFileSync("app/api/documents/route.ts", "utf8");
 const documentRouteSource = fs.readFileSync("app/api/documents/[id]/route.ts", "utf8");
 const apartmentDocumentsMigrationSource = fs.readFileSync("supabase/migrations/20260907130000_add_apartment_documents.sql", "utf8");
@@ -486,6 +488,15 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityReadingsRouteSource, /utility_reading_id: id/);
   assert.match(utilityReadingsRouteSource, /document_type: "other"/);
   assert.match(utilityReadingsRouteSource, /15 \* 1024 \* 1024/);
+  assert.match(utilityMetersRouteSource, /export async function POST/);
+  assert.match(utilityMeterRouteSource, /export async function DELETE/);
+  assert.match(utilityMeterRouteSource, /deletedReadingIds/);
+  assert.match(appDataRouteSource, /hasUtilityMetersTable/);
+  assert.match(pageSource, /Получено частично/);
+  assert.match(pageSource, /квитанция ЖКХ/);
+  assert.match(pageSource, /счет или показания электричества/);
+  assert.match(pageSource, /Добавить счетчик/);
+  assert.match(pageSource, /Сохранить счетчик/);
   assert.match(documentRouteSource, /utility_bill_id \|\| data\.utility_reading_id/);
   assert.match(documentRouteSource, /является первоисточником/);
   assert.match(pageSource, /Коммуналка и счета/);
@@ -614,7 +625,9 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(pageSource, /Создать задание по узлу/);
   assert.match(pageSource, /acceptCurrentInspection/);
   assert.match(pageSource, /updateInspection=\{updateInspection\}/);
-  assert.match(pageSource, /selectedInspection\?\.workflow === "work_order" \? "work_orders" : "inspections"/);
+  assert.match(pageSource, /setTaskTab\(selectedInspection\?\.workflow === "work_order" \? "master-work" : "inspection"\)/);
+  assert.match(pageSource, /<TabsTrigger value="inspection">/);
+  assert.doesNotMatch(pageSource, />\s*Обходы и отчеты\s*<\/NavButton>/);
   assert.match(pageSource, /const hasFinalResult = isCompleted \|\| isAccepted/);
   assert.match(pageSource, /!\["completed", "accepted"\]\.includes\(inspection\.status\)/);
   assert.match(guestSource, /const workOrderStatusLabels/);

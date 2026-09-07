@@ -343,6 +343,7 @@ type UtilityBillAllocation = "owner" | "tenant" | "split";
 type UtilityReimbursementStatus = "not_required" | "awaiting" | "received";
 type UtilityMonthStatus =
   | "awaiting_readings"
+  | "partial"
   | "needs_bill"
   | "awaiting_payment"
   | "awaiting_reimbursement"
@@ -391,6 +392,16 @@ type UtilityReading = {
   source: "owner" | "telegram" | "manual";
   note?: string;
   photoUrl?: string;
+};
+
+type UtilityMeterDraft = {
+  service: UtilityServiceId;
+  label: string;
+  serial: string;
+  location: string;
+  unit: string;
+  nextDue: string;
+  lastReading: string;
 };
 
 type AppState = {
@@ -1163,6 +1174,7 @@ const utilityPeriods = [
 
 const utilityMonthStatusLabels: Record<UtilityMonthStatus, string> = {
   awaiting_readings: "Ждем показания",
+  partial: "Получено частично",
   needs_bill: "Нужен счет",
   awaiting_payment: "Ждем оплату",
   awaiting_reimbursement: "Ждем возмещение",
@@ -1170,8 +1182,9 @@ const utilityMonthStatusLabels: Record<UtilityMonthStatus, string> = {
 };
 
 const utilityMonthStatusDescriptions: Record<UtilityMonthStatus, string> = {
-  awaiting_readings: "Нужно передать показания счетчиков.",
-  needs_bill: "Показания есть, счет еще не добавлен.",
+  awaiting_readings: "Пока нет данных за месяц.",
+  partial: "Часть данных получена, комплект за месяц еще не собран.",
+  needs_bill: "Показания есть, нужно рассчитать или добавить счет.",
   awaiting_payment: "Счет создан, ожидаем оплату.",
   awaiting_reimbursement: "Счета оплачены, ожидаем возмещение от жильца.",
   closed: "Все данные месяца закрыты.",
@@ -1189,8 +1202,36 @@ const utilityReadingSourceLabels: Record<UtilityReading["source"], string> = {
   manual: "Вручную",
 };
 
+const utilityServiceLabels: Record<UtilityServiceId, string> = {
+  cold_water: "Холодная вода",
+  hot_water: "Горячая вода",
+  electricity: "Электричество",
+  heating: "Отопление",
+  other: "Другой",
+};
+
+const utilityServiceUnits: Record<UtilityServiceId, string> = {
+  cold_water: "м3",
+  hot_water: "м3",
+  electricity: "кВт·ч",
+  heating: "Гкал",
+  other: "",
+};
+
+function emptyUtilityMeterDraft(): UtilityMeterDraft {
+  return {
+    service: "electricity",
+    label: "Электричество",
+    serial: "",
+    location: "",
+    unit: "кВт·ч",
+    nextDue: "",
+    lastReading: "",
+  };
+}
+
 function utilityMonthTone(status: UtilityMonthStatus): "secondary" | "destructive" | "outline" {
-  if (status === "awaiting_readings") return "destructive";
+  if (status === "awaiting_readings" || status === "partial") return "destructive";
   if (status === "awaiting_payment" || status === "awaiting_reimbursement") return "outline";
   return "secondary";
 }
@@ -1214,21 +1255,36 @@ function buildUtilityMonths(
     const periodBills = bills.filter((bill) => bill.period === period);
     const periodReadings = readings.filter((reading) => reading.period === period);
     const readMeterIds = new Set(periodReadings.map((reading) => reading.meterId));
-    const hasAllReadings = meters.length > 0 && meters.every((meter) => readMeterIds.has(meter.id));
+    const electricityMeters = meters.filter((meter) => meter.service === "electricity");
+    const hasElectricityBill = periodBills.some((bill) => /элект|свет/i.test(bill.service));
+    const hasHousingBill = periodBills.some((bill) => !/элект|свет/i.test(bill.service));
+    const hasAllElectricityReadings =
+      electricityMeters.length > 0 && electricityMeters.every((meter) => readMeterIds.has(meter.id));
+    const hasElectricityData = hasElectricityBill || hasAllElectricityReadings;
+    const hasAnyData = periodBills.length > 0 || periodReadings.length > 0;
+    const missing: string[] = [];
+    if (!hasHousingBill) missing.push("квитанция ЖКХ");
+    if (!hasElectricityData) {
+      missing.push(electricityMeters.length ? "счет или показания электричества" : "счет или счетчик электричества");
+    }
+    const received: string[] = [];
+    if (hasHousingBill) received.push("квитанция ЖКХ");
+    if (hasElectricityBill) received.push("счет за электричество");
+    else if (hasAllElectricityReadings) received.push("показания электричества");
     const unpaidBills = periodBills.filter((bill) => bill.status !== "paid");
     const pendingReimbursements = periodBills.filter(
       (bill) => bill.tenantAmount > 0 && bill.reimbursementStatus !== "received",
     );
     const amount = periodBills.reduce((sum, bill) => sum + bill.amount, 0);
-    let status: UtilityMonthStatus = "awaiting_readings";
+    let status: UtilityMonthStatus = hasAnyData ? "partial" : "awaiting_readings";
 
-    if (hasAllReadings && !periodBills.length) {
+    if (hasHousingBill && hasAllElectricityReadings && !hasElectricityBill) {
       status = "needs_bill";
-    } else if (periodBills.length && unpaidBills.length) {
+    } else if (!missing.length && periodBills.length && unpaidBills.length) {
       status = "awaiting_payment";
-    } else if (periodBills.length && !unpaidBills.length && pendingReimbursements.length) {
+    } else if (!missing.length && periodBills.length && !unpaidBills.length && pendingReimbursements.length) {
       status = "awaiting_reimbursement";
-    } else if (periodBills.length && !unpaidBills.length) {
+    } else if (!missing.length && periodBills.length && !unpaidBills.length) {
       status = "closed";
     }
 
@@ -1240,6 +1296,8 @@ function buildUtilityMonths(
       amount,
       unpaidAmount: unpaidBills.reduce((sum, bill) => sum + bill.amount, 0),
       reimbursementAmount: pendingReimbursements.reduce((sum, bill) => sum + bill.tenantAmount, 0),
+      missing,
+      received,
     };
   });
 }
@@ -1555,6 +1613,7 @@ export default function Home() {
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
   const [activePlanCategory, setActivePlanCategory] = useState<Category>("electric");
   const [contractorWorkflow, setContractorWorkflow] = useState<Workflow>("inspection");
+  const [taskTab, setTaskTab] = useState<"master-work" | "cleaning" | "inspection">("master-work");
   const [planFilter, setPlanFilter] = useState<AssetFilter>("all");
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
@@ -2445,7 +2504,8 @@ export default function Home() {
       },
     }));
     setSelectedInspectionId(inspection.id);
-    setView(workflow === "work_order" ? "work_orders" : "inspections");
+    setTaskTab(workflow === "work_order" ? "master-work" : "inspection");
+    setView("work_orders");
   }
 
   async function updateInspection(inspectionId: string, patch: Partial<Inspection>) {
@@ -2564,7 +2624,8 @@ export default function Home() {
 
     if (selectedInspectionId === inspectionId) {
       setSelectedInspectionId(state.inspections.find((item) => item.id !== inspectionId)?.id ?? "");
-      setView("inspections");
+      setTaskTab("inspection");
+      setView("work_orders");
     }
   }
 
@@ -2828,7 +2889,10 @@ export default function Home() {
               setContractorWorkflow(workflow);
               setView("contractor");
             }}
-            openInspections={() => setView("inspections")}
+            openInspections={() => {
+              setTaskTab("inspection");
+              setView("work_orders");
+            }}
             openLog={() => setView("log")}
             openReport={openReport}
             openWorkOrders={() => setView("work_orders")}
@@ -3000,13 +3064,20 @@ export default function Home() {
         )}
 
         {view === "work_orders" && (
-          <Tabs className="gap-4" defaultValue="master-work">
+          <Tabs
+            className="gap-4"
+            onValueChange={(value) => setTaskTab(value as typeof taskTab)}
+            value={taskTab}
+          >
             <TabsList aria-label="Тип задания" className="w-full sm:w-fit">
               <TabsTrigger value="master-work">
                 <Check /> Работы мастеров
               </TabsTrigger>
               <TabsTrigger value="cleaning">
                 <ClipboardCheck /> Уборка
+              </TabsTrigger>
+              <TabsTrigger value="inspection">
+                <History /> Обходы
               </TabsTrigger>
             </TabsList>
             <TabsContent value="master-work">
@@ -3033,6 +3104,22 @@ export default function Home() {
                 }
               />
             </TabsContent>
+            <TabsContent value="inspection">
+              <InspectionsView
+                assets={state.assets}
+                deleteInspection={deleteInspection}
+                inspections={inspectionFlows}
+                results={state.inspectionResults}
+                updateInspection={updateInspection}
+                openAsset={openAsset}
+                openReport={openReport}
+                openContractor={() => {
+                  setContractorWorkflow("inspection");
+                  setView("contractor");
+                }}
+                workflow="inspection"
+              />
+            </TabsContent>
           </Tabs>
         )}
 
@@ -3056,9 +3143,10 @@ export default function Home() {
             media={state.media}
             results={state.inspectionResults}
             openAsset={openAsset}
-            openInspections={() =>
-              setView(selectedInspection?.workflow === "work_order" ? "work_orders" : "inspections")
-            }
+            openInspections={() => {
+              setTaskTab(selectedInspection?.workflow === "work_order" ? "master-work" : "inspection");
+              setView("work_orders");
+            }}
             updateInspection={updateInspection}
           />
         )}
@@ -3147,7 +3235,7 @@ function viewSubtitle(view: View) {
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
     inspections: "Выдача ссылок мастерам, все созданные обходы и сводки по узлам.",
-    work_orders: "Работы мастеров и уборка: постановка задачи, доступ по ссылке и приемка результата.",
+    work_orders: "Работы мастеров, уборка и обходы квартиры в одном рабочем разделе.",
     contractor: "Создание гостевой ссылки на выбранные узлы и чек-лист мастера.",
     report: "Сводка, которая вернулась после проверки по ссылке.",
     settings: "Название сервиса, объект и базовые параметры интерфейса.",
@@ -3433,13 +3521,9 @@ function AppNavigation({
         Узлы
       </NavButton>
       <NavButton
-        active={["inspections", "contractor", "report", "inspection"].includes(activeView)}
-        onClick={() => navigate("inspections")}
+        active={["work_orders", "inspections", "contractor", "report", "inspection"].includes(activeView)}
+        onClick={() => navigate("work_orders")}
       >
-        <History size={16} />
-        Обходы и отчеты
-      </NavButton>
-      <NavButton active={activeView === "work_orders"} onClick={() => navigate("work_orders")}>
         <Check size={16} />
         Задания
       </NavButton>
@@ -6099,6 +6183,9 @@ function UtilitiesView({
   const [readingPhoto, setReadingPhoto] = useState<File | null>(null);
   const [billReceipt, setBillReceipt] = useState<File | null>(null);
   const [savingBill, setSavingBill] = useState(false);
+  const [showMeterForm, setShowMeterForm] = useState(false);
+  const [meterDraft, setMeterDraft] = useState<UtilityMeterDraft>(() => emptyUtilityMeterDraft());
+  const [savingMeter, setSavingMeter] = useState(false);
   const sortedBills = [...selectedBills].sort(
     (left, right) => documentExpiryTime(left.dueDate) - documentExpiryTime(right.dueDate),
   );
@@ -6180,6 +6267,51 @@ function UtilitiesView({
       setReadingPhoto(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Не удалось сохранить показание.");
+    }
+  }
+
+  async function createMeter() {
+    if (!meterDraft.label.trim()) {
+      window.alert("Укажите название счетчика.");
+      return;
+    }
+    setSavingMeter(true);
+    try {
+      const response = await fetch("/api/utility-meters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(meterDraft),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { meter?: UtilityMeter; error?: string };
+      if (!response.ok || !payload.meter) throw new Error(payload.error ?? "Не удалось добавить счетчик.");
+      setMeters([...meters, payload.meter]);
+      setMeterDraft(emptyUtilityMeterDraft());
+      setShowMeterForm(false);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось добавить счетчик.");
+    } finally {
+      setSavingMeter(false);
+    }
+  }
+
+  async function deleteMeter(meter: UtilityMeter) {
+    const confirmed = window.confirm(
+      `Удалить счетчик «${meter.label}» и всю историю его показаний?`,
+    );
+    if (!confirmed) return;
+    try {
+      const response = await fetch(`/api/utility-meters/${meter.id}`, { method: "DELETE" });
+      const payload = (await response.json().catch(() => ({}))) as {
+        deletedReadingIds?: string[];
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error ?? "Не удалось удалить счетчик.");
+      const deletedReadingIds = new Set(payload.deletedReadingIds ?? []);
+      setMeters(meters.filter((item) => item.id !== meter.id));
+      setReadings(readings.filter((reading) => reading.meterId !== meter.id));
+      setMedia(media.filter((item) => !item.utilityReadingId || !deletedReadingIds.has(item.utilityReadingId)));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Не удалось удалить счетчик.");
     }
   }
 
@@ -6389,7 +6521,11 @@ function UtilitiesView({
                   <ChevronRight className="text-muted-foreground" size={16} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-                  <span>{utilityMonthStatusDescriptions[month.status]}</span>
+                  <span>
+                    {month.missing.length
+                      ? `Не хватает: ${month.missing.join(", ")}.`
+                      : utilityMonthStatusDescriptions[month.status]}
+                  </span>
                   <Badge variant={utilityMonthTone(month.status)}>
                     {utilityMonthStatusLabels[month.status]}
                   </Badge>
@@ -6406,7 +6542,9 @@ function UtilitiesView({
                 <div>
                   <CardTitle>Данные за {selectedMonth?.period}</CardTitle>
                   <CardDescription>
-                    {utilityMonthStatusDescriptions[currentStatus]} Бот сможет запросить эти же действия в Telegram.
+                    {selectedMonth?.missing.length
+                      ? `Получено: ${selectedMonth.received.join(", ") || "пока ничего"}. Не хватает: ${selectedMonth.missing.join(", ")}.`
+                      : utilityMonthStatusDescriptions[currentStatus]}
                   </CardDescription>
                 </div>
                 <Badge variant={utilityMonthTone(currentStatus)}>
@@ -6452,10 +6590,134 @@ function UtilitiesView({
 
           <Card>
             <CardHeader>
-              <CardTitle>Счетчики</CardTitle>
-              <CardDescription>То, что позже будет запрашивать Telegram-бот по выбранному месяцу.</CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Счетчики</CardTitle>
+                  <CardDescription>Настройте реальные счетчики квартиры и сохраняйте показания по месяцам.</CardDescription>
+                </div>
+                <Button onClick={() => setShowMeterForm(true)} size="sm" type="button" variant="outline">
+                  <Plus size={14} /> Добавить счетчик
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="grid gap-2">
+              {showMeterForm && (
+                <div className="grid gap-3 rounded-lg border bg-muted p-3">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="grid gap-1.5">
+                      <span className="text-sm font-medium">Тип</span>
+                      <Select
+                        onValueChange={(value) => {
+                          const service = value as UtilityServiceId;
+                          setMeterDraft((current) => ({
+                            ...current,
+                            service,
+                            label: utilityServiceLabels[service],
+                            unit: utilityServiceUnits[service],
+                          }));
+                        }}
+                        value={meterDraft.service}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(utilityServiceLabels).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-label">
+                      Название
+                      <Input
+                        id="new-meter-label"
+                        onChange={(event) => {
+                          const label = event.currentTarget.value;
+                          setMeterDraft((current) => ({ ...current, label }));
+                        }}
+                        value={meterDraft.label}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-serial">
+                      Номер счетчика
+                      <Input
+                        id="new-meter-serial"
+                        onChange={(event) => {
+                          const serial = event.currentTarget.value;
+                          setMeterDraft((current) => ({ ...current, serial }));
+                        }}
+                        placeholder="Необязательно"
+                        value={meterDraft.serial}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-location">
+                      Расположение
+                      <Input
+                        id="new-meter-location"
+                        onChange={(event) => {
+                          const location = event.currentTarget.value;
+                          setMeterDraft((current) => ({ ...current, location }));
+                        }}
+                        placeholder="Например, прихожая"
+                        value={meterDraft.location}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-unit">
+                      Единица измерения
+                      <Input
+                        id="new-meter-unit"
+                        onChange={(event) => {
+                          const unit = event.currentTarget.value;
+                          setMeterDraft((current) => ({ ...current, unit }));
+                        }}
+                        value={meterDraft.unit}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-reading">
+                      Начальное показание
+                      <Input
+                        id="new-meter-reading"
+                        inputMode="decimal"
+                        min="0"
+                        onChange={(event) => {
+                          const lastReading = event.currentTarget.value;
+                          setMeterDraft((current) => ({ ...current, lastReading }));
+                        }}
+                        placeholder="Необязательно"
+                        type="number"
+                        value={meterDraft.lastReading}
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-due">
+                      Передать до
+                      <Input
+                        id="new-meter-due"
+                        onChange={(event) => {
+                          const nextDue = formatDateInput(event.currentTarget.value);
+                          setMeterDraft((current) => ({ ...current, nextDue }));
+                        }}
+                        type="date"
+                        value={dateInputFromFormatted(meterDraft.nextDue)}
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      onClick={() => {
+                        setShowMeterForm(false);
+                        setMeterDraft(emptyUtilityMeterDraft());
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Отмена
+                    </Button>
+                    <Button disabled={savingMeter} onClick={() => void createMeter()} size="sm" type="button">
+                      <Save size={14} /> {savingMeter ? "Сохраняем..." : "Сохранить счетчик"}
+                    </Button>
+                  </div>
+                </div>
+              )}
               {meters.map((meter) => {
                 const reading = readingByMeter.get(meter.id);
                 const isEditingReading = editingMeterId === meter.id;
@@ -6490,9 +6752,20 @@ function UtilitiesView({
                           />
                         )}
                       </div>
-                      <Button onClick={() => startReading(meter, reading)} size="sm" type="button" variant="outline">
-                        {reading ? "Изменить" : "Передать показание"}
-                      </Button>
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        <Button onClick={() => startReading(meter, reading)} size="sm" type="button" variant="outline">
+                          {reading ? "Изменить" : "Передать показание"}
+                        </Button>
+                        <Button
+                          aria-label={`Удалить счетчик ${meter.label}`}
+                          onClick={() => void deleteMeter(meter)}
+                          size="icon-sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
                     </div>
                     {isEditingReading && (
                       <div className="grid gap-3 rounded-lg bg-muted p-3 md:grid-cols-2 md:items-end">
@@ -6554,6 +6827,11 @@ function UtilitiesView({
                   </div>
                 );
               })}
+              {!meters.length && !showMeterForm && (
+                <div className="rounded-lg bg-muted p-4 text-muted-foreground text-sm">
+                  Счетчиков пока нет. Добавьте реальные счетчики квартиры или загрузите готовую квитанцию.
+                </div>
+              )}
             </CardContent>
           </Card>
 
