@@ -392,7 +392,6 @@ type View =
   | "asset"
   | "documents"
   | "utilities"
-  | "cleanings"
   | "log"
   | "inspection"
   | "inspections"
@@ -2880,15 +2879,6 @@ export default function Home() {
           />
         )}
 
-        {view === "cleanings" && (
-          <CleaningsView
-            cleanings={state.cleanings}
-            setCleanings={(cleanings) =>
-              setState((current) => ({ ...current, cleanings }))
-            }
-          />
-        )}
-
         {view === "inspection" && currentInspectionAsset && (
           <InspectionView
             asset={currentInspectionAsset}
@@ -2933,20 +2923,40 @@ export default function Home() {
         )}
 
         {view === "work_orders" && (
-          <InspectionsView
-            assets={state.assets}
-            deleteInspection={deleteInspection}
-            inspections={workOrderFlows}
-            results={state.inspectionResults}
-            updateInspection={updateInspection}
-            openAsset={openAsset}
-            openReport={openReport}
-            openContractor={() => {
-              setContractorWorkflow("work_order");
-              setView("contractor");
-            }}
-            workflow="work_order"
-          />
+          <Tabs className="gap-4" defaultValue="master-work">
+            <TabsList aria-label="Тип задания" className="w-full sm:w-fit">
+              <TabsTrigger value="master-work">
+                <Check /> Работы мастеров
+              </TabsTrigger>
+              <TabsTrigger value="cleaning">
+                <ClipboardCheck /> Уборка
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="master-work">
+              <InspectionsView
+                assets={state.assets}
+                deleteInspection={deleteInspection}
+                inspections={workOrderFlows}
+                results={state.inspectionResults}
+                updateInspection={updateInspection}
+                openAsset={openAsset}
+                openReport={openReport}
+                openContractor={() => {
+                  setContractorWorkflow("work_order");
+                  setView("contractor");
+                }}
+                workflow="work_order"
+              />
+            </TabsContent>
+            <TabsContent value="cleaning">
+              <CleaningsView
+                cleanings={state.cleanings}
+                setCleanings={(cleanings) =>
+                  setState((current) => ({ ...current, cleanings }))
+                }
+              />
+            </TabsContent>
+          </Tabs>
         )}
 
         {view === "contractor" && (
@@ -3038,7 +3048,6 @@ function viewTitle(view: View, asset?: Asset) {
     asset: asset ? `${asset.code} · ${asset.name}` : "Узел",
     documents: "Документы",
     utilities: "Коммуналка и счета",
-    cleanings: "Уборки",
     log: "Журнал квартиры",
     inspection: "Обход квартиры",
     inspections: "Обходы и отчеты",
@@ -3058,11 +3067,10 @@ function viewSubtitle(view: View) {
     asset: "История, фото, паспорт узла и быстрые действия.",
     documents: "Паспорта, чеки, гарантии, инструкции и акты по узлам.",
     utilities: "Начисления, сроки оплаты, квитанции и история коммунальных платежей.",
-    cleanings: "Планирование, чек-листы и контроль работы клинеров.",
     log: "Все события квартиры в одной ленте.",
     inspection: "Пошаговая проверка узлов с телефона или ноутбука.",
     inspections: "Выдача ссылок мастерам, все созданные обходы и сводки по узлам.",
-    work_orders: "Работы по конкретным узлам: что сделать, кому отправлено и что вернулось.",
+    work_orders: "Работы мастеров и уборка: постановка задачи, доступ по ссылке и приемка результата.",
     contractor: "Создание гостевой ссылки на выбранные узлы и чек-лист мастера.",
     report: "Сводка, которая вернулась после проверки по ссылке.",
     settings: "Название сервиса, объект и базовые параметры интерфейса.",
@@ -3077,7 +3085,6 @@ function assetReturnLabel(view: View) {
     assets: "К списку",
     documents: "К документам",
     utilities: "К счетам",
-    cleanings: "К уборкам",
     log: "К журналу",
     inspection: "К обходу",
     inspections: "К обходам",
@@ -3366,10 +3373,6 @@ function AppNavigation({
       <NavButton active={activeView === "utilities"} onClick={() => navigate("utilities")}>
         <FileText size={16} />
         Счета
-      </NavButton>
-      <NavButton active={activeView === "cleanings"} onClick={() => navigate("cleanings")}>
-        <ClipboardCheck size={16} />
-        Уборки
       </NavButton>
       <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
         <History size={16} />

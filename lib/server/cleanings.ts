@@ -13,6 +13,11 @@ export async function createCleaningRecord(admin: SupabaseClient, input: CreateC
   const normalized = cleaningPayload(input.payload);
   if ("error" in normalized) return { error: normalized.error, status: 400 as const };
 
+  normalized.row.status = normalized.row.mode === "record_only" ? "accepted" : "offered";
+  const completedAt = normalized.row.mode === "record_only"
+    ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date())
+    : null;
+
   const { data, error } = await admin
     .from("cleanings")
     .insert({
@@ -22,6 +27,7 @@ export async function createCleaningRecord(admin: SupabaseClient, input: CreateC
       created_at_label: new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date()),
       guest_token: randomBytes(24).toString("hex"),
       ...normalized.row,
+      completed_at_label: completedAt,
     })
     .select("*")
     .single();

@@ -138,7 +138,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
 
 test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(pageSource, /cleanings: Cleaning\[\]/);
-  assert.match(pageSource, /view === "cleanings"/);
+  assert.match(pageSource, /<TabsTrigger value="cleaning">/);
+  assert.doesNotMatch(pageSource, /navigate\("cleanings"\)/);
   assert.match(pageSource, /remoteState\.cleanings \?\? current\.cleanings/);
   assert.match(appDataRouteSource, /cleaningsResult/);
   assert.match(appDataRouteSource, /cleaningMediaResult/);
@@ -166,9 +167,14 @@ test("supports cleaning as a first-class owner and guest workflow", () => {
   assert.match(cleaningsViewSource, /Нужно фото после/);
   assert.match(cleaningsViewSource, /type="datetime-local"/);
   assert.match(cleaningsViewSource, /cleaningRecurrenceLabels/);
+  assert.doesNotMatch(cleaningsViewSource, /Field label="Статус"/);
+  assert.match(cleaningsViewSource, /disabled=\{editingId !== null\}/);
   assert.match(cleaningHelpersSource, /Europe\/Moscow/);
   assert.match(cleaningRouteSource, /nextOccurrence/);
   assert.match(cleaningRouteSource, /recurs_from_id/);
+  assert.match(cleaningRouteSource, /Статус уборки меняется автоматически/);
+  assert.match(cleaningRouteSource, /Сценарий уборки нельзя изменить после создания/);
+  assert.match(cleaningServiceSource, /normalized\.row\.mode === "record_only" \? "accepted" : "offered"/);
   assert.doesNotMatch(cleaningServiceSource, /recipient: "cleaner"/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.revision_started/);
   assert.match(fs.readFileSync("app/api/cleanings/guest/[token]/route.ts", "utf8"), /cleaning\.completed/);

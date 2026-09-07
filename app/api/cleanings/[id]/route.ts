@@ -29,13 +29,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const { data: currentCleaning, error: currentError } = await admin
     .from("cleanings")
-    .select("status")
+    .select("mode,status")
     .eq("apartment_id", apartmentId)
     .eq("id", id)
     .maybeSingle();
   if (currentError || !currentCleaning) return NextResponse.json({ error: currentError?.message ?? "Уборка не найдена." }, { status: currentError ? 500 : 404 });
 
-  const completedAt = ["completed", "accepted"].includes(normalized.row.status)
+  if (normalized.row.mode !== currentCleaning.mode) {
+    return NextResponse.json({ error: "Сценарий уборки нельзя изменить после создания." }, { status: 409 });
+  }
+
+  const currentStatus = currentCleaning.status as string;
+  const requestedStatus = normalized.row.status;
+  const statusUnchanged = requestedStatus === currentStatus;
+  const ownerReview = currentStatus === "completed" && ["accepted", "revision_requested"].includes(requestedStatus);
+  if (!statusUnchanged && !ownerReview) {
+    return NextResponse.json({ error: "Статус уборки меняется автоматически по ходу задания." }, { status: 409 });
+  }
+
+  const completedAt = ["completed", "accepted"].includes(requestedStatus)
     ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", year: "numeric" }).format(new Date())
     : null;
   const { data, error: updateError } = await admin
