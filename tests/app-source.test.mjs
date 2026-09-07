@@ -4,6 +4,7 @@ import test from "node:test";
 
 const pageSource = fs.readFileSync("app/page.tsx", "utf8");
 const guestSource = fs.readFileSync("app/guest/[token]/guest-inspection-client.tsx", "utf8");
+const guestRouteSource = fs.readFileSync("app/api/guest/[token]/route.ts", "utf8");
 const schemaSource = fs.readFileSync("supabase/schema.sql", "utf8");
 const seedSource = fs.readFileSync("supabase/seed.sql", "utf8");
 const eventRouteSource = fs.readFileSync("app/api/assets/[id]/events/[eventId]/route.ts", "utf8");
@@ -479,6 +480,11 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(inspectionsRouteSource, /\.eq\("workflow", workflow\)/);
   assert.match(inspectionRouteSource, /body\.status === "accepted"/);
   assert.match(inspectionRouteSource, /Only completed results can be accepted/);
+  assert.match(pageSource, /status: patch\.status/);
+  assert.match(guestRouteSource, /Заполните результат по каждому узлу перед отправкой/);
+  assert.match(guestRouteSource, /inspection\.status === "completed" \|\| inspection\.status === "accepted"/);
+  assert.match(guestRouteSource, /\.is\("deleted_at", null\)/);
+  assert.match(guestRouteSource, /function validateResult/);
   assert.match(pageSource, /Принять задание/);
   assert.match(pageSource, /Открыть результат/);
   assert.match(pageSource, /function createContractorFlowFromAssets/);

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type Status = "ok" | "attention" | "in_progress" | "needs_master";
 type Workflow = "inspection" | "work_order";
+const statuses = new Set<Status>(["ok", "attention", "in_progress", "needs_master"]);
 
 type GuestResultPayload = {
   assetId: string;
@@ -18,6 +19,7 @@ type InspectionRow = {
   contractor: string;
   contractor_phone?: string | null;
   workflow?: Workflow | null;
+  status: "draft" | "sent" | "in_progress" | "completed" | "accepted";
   allowed_asset_ids?: string[];
   asset_instructions?: Record<string, string> | null;
 };
@@ -46,7 +48,28 @@ function normalizeCost(cost: GuestResultPayload["cost"]) {
   }
 
   const value = Number(cost);
-  return Number.isFinite(value) ? value : null;
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function validateResult(result: GuestResultPayload) {
+  if (!result.assetId || !statuses.has(result.statusAfter)) {
+    return "Выберите результат по узлу.";
+  }
+  if (
+    result.cost !== "" &&
+    result.cost !== null &&
+    result.cost !== undefined &&
+    normalizeCost(result.cost) === null
+  ) {
+    return "Стоимость должна быть положительным числом.";
+  }
+  if (
+    result.photoCount !== undefined &&
+    (!Number.isInteger(result.photoCount) || result.photoCount < 0)
+  ) {
+    return "Некорректное количество фотографий.";
+  }
+  return null;
 }
 
 async function findInspection(token: string) {
@@ -204,6 +227,7 @@ export async function GET(
     .select("*")
     .eq("apartment_id", inspection.apartment_id)
     .in("id", inspection.allowed_asset_ids)
+    .is("deleted_at", null)
     .order("code", { ascending: true });
 
   if (assetsError) {
@@ -275,21 +299,60 @@ export async function POST(
     return NextResponse.json({ error }, { status: 404 });
   }
 
+  if (inspection.status === "completed" || inspection.status === "accepted") {
+    return NextResponse.json({ error: "Отчет уже отправлен и закрыт." }, { status: 409 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     conclusion?: string;
     results?: GuestResultPayload[];
   };
   const date = todayLabel();
   const allowed = new Set<string>(inspection.allowed_asset_ids ?? []);
-  const results = (body.results ?? []).filter((result) => allowed.has(result.assetId));
+  if (!allowed.size) {
+    return NextResponse.json({ error: "В обходе нет доступных узлов." }, { status: 409 });
+  }
+  const { data: activeAssets, error: assetsError } = await admin
+    .from("assets")
+    .select("id")
+    .eq("apartment_id", inspection.apartment_id)
+    .in("id", Array.from(allowed))
+    .is("deleted_at", null);
 
-  if (!results.length) {
-    return NextResponse.json({ error: "No results submitted" }, { status: 400 });
+  if (assetsError) {
+    return NextResponse.json({ error: assetsError.message }, { status: 500 });
+  }
+
+  const requiredAssetIds = new Set((activeAssets ?? []).map((asset) => asset.id));
+  const resultsByAsset = new Map(
+    (body.results ?? [])
+      .filter((result) => requiredAssetIds.has(result.assetId))
+      .map((result) => [result.assetId, result]),
+  );
+  const results = Array.from(requiredAssetIds).map((assetId) => resultsByAsset.get(assetId));
+
+  if (!requiredAssetIds.size) {
+    return NextResponse.json({ error: "В обходе не осталось доступных узлов." }, { status: 409 });
+  }
+
+  if (results.some((result) => !result)) {
+    return NextResponse.json(
+      { error: "Заполните результат по каждому узлу перед отправкой." },
+      { status: 400 },
+    );
+  }
+
+  const completeResults = results.filter((result): result is GuestResultPayload => Boolean(result));
+  for (const result of completeResults) {
+    const validationError = validateResult(result);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
+    }
   }
 
   const resultIds: string[] = [];
 
-  for (const result of results) {
+  for (const result of completeResults) {
     const saved = await saveGuestResult({ admin, inspection, result, date, final: true });
     resultIds.push(saved.resultId);
 
@@ -306,8 +369,8 @@ export async function POST(
       conclusion: body.conclusion?.trim() ?? "",
       summary:
         inspection.workflow === "work_order"
-          ? `Мастер завершил задание: выполнено ${results.length} из ${allowed.size} узлов.`
-          : `Мастер отправил отчет: проверено ${results.length} из ${allowed.size} узлов.`,
+          ? `Мастер завершил задание: выполнено ${completeResults.length} из ${requiredAssetIds.size} узлов.`
+          : `Мастер отправил отчет: проверено ${completeResults.length} из ${requiredAssetIds.size} узлов.`,
       result_ids: resultIds,
       updated_at: new Date().toISOString(),
     })
@@ -336,6 +399,10 @@ export async function PATCH(
     return NextResponse.json({ error }, { status: 404 });
   }
 
+  if (inspection.status === "completed" || inspection.status === "accepted") {
+    return NextResponse.json({ error: "Отчет уже отправлен и закрыт." }, { status: 409 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as {
     result?: GuestResultPayload;
   };
@@ -344,6 +411,11 @@ export async function PATCH(
 
   if (!result?.assetId || !allowed.has(result.assetId)) {
     return NextResponse.json({ error: "Asset is not included in this inspection" }, { status: 400 });
+  }
+
+  const validationError = validateResult(result);
+  if (validationError) {
+    return NextResponse.json({ error: validationError }, { status: 400 });
   }
 
   const saved = await saveGuestResult({

@@ -2385,6 +2385,7 @@ export default function Home() {
         contractor: patch.contractor,
         contractorPhone: patch.contractorPhone,
         scope: patch.scope,
+        status: patch.status,
         allowedAssetIds: patch.allowedAssetIds,
         assetInstructions: patch.assetInstructions,
       }),
