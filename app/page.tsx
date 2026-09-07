@@ -198,6 +198,7 @@ type AssetMedia = {
   eventId?: string;
   inspectionId?: string;
   utilityBillId?: string;
+  utilityReadingId?: string;
   url: string;
   filename: string;
   mediaType: string;
@@ -383,6 +384,7 @@ type UtilityReading = {
   submittedAt: string;
   source: "owner" | "telegram" | "manual";
   note?: string;
+  photoUrl?: string;
 };
 
 type AppState = {
@@ -5993,6 +5995,7 @@ function UtilitiesView({
   const [editDraft, setEditDraft] = useState<Omit<UtilityBill, "id"> | null>(null);
   const [editingMeterId, setEditingMeterId] = useState<string | null>(null);
   const [readingDraft, setReadingDraft] = useState({ value: "", note: "" });
+  const [readingPhoto, setReadingPhoto] = useState<File | null>(null);
   const [billReceipt, setBillReceipt] = useState<File | null>(null);
   const [savingBill, setSavingBill] = useState(false);
   const sortedBills = [...selectedBills].sort(
@@ -6018,6 +6021,7 @@ function UtilitiesView({
 
   function startReading(meter: UtilityMeter, reading?: UtilityReading) {
     setEditingMeterId(meter.id);
+    setReadingPhoto(null);
     setReadingDraft({
       value: reading ? String(reading.value) : "",
       note: reading?.note ?? "",
@@ -6042,17 +6046,23 @@ function UtilitiesView({
       note: readingDraft.note.trim() || undefined,
     };
     try {
+      const formData = new FormData();
+      formData.set("payload", JSON.stringify({ ...nextReading, meter }));
+      if (readingPhoto) formData.set("photo", readingPhoto);
       const response = await fetch("/api/utility-readings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...nextReading, meter }),
+        body: formData,
       });
       const payload = (await response.json().catch(() => ({}))) as {
         reading?: UtilityReading;
+        document?: AssetMedia;
         error?: string;
       };
       if (!response.ok || !payload.reading) throw new Error(payload.error ?? "Не удалось сохранить показание.");
       const savedReading = payload.reading;
+      if (payload.document) {
+        setMedia([payload.document, ...media.filter((item) => item.utilityReadingId !== savedReading.id)]);
+      }
       setReadings([
         savedReading,
         ...readings.filter((reading) => reading.id !== savedReading.id),
@@ -6066,6 +6076,7 @@ function UtilitiesView({
       );
       setEditingMeterId(null);
       setReadingDraft({ value: "", note: "" });
+      setReadingPhoto(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Не удалось сохранить показание.");
     }
@@ -6370,13 +6381,19 @@ function UtilitiesView({
                         <div className="text-muted-foreground text-sm">
                           {reading ? `${utilityReadingSourceLabels[reading.source]} · ${reading.submittedAt}` : "Ожидаем показание"}
                         </div>
+                        {reading?.photoUrl && (
+                          <MediaGallery
+                            items={media.filter((item) => item.utilityReadingId === reading.id)}
+                            variant="list"
+                          />
+                        )}
                       </div>
                       <Button onClick={() => startReading(meter, reading)} size="sm" type="button" variant="outline">
                         {reading ? "Изменить" : "Передать показание"}
                       </Button>
                     </div>
                     {isEditingReading && (
-                      <div className="grid gap-3 rounded-lg bg-muted p-3 md:grid-cols-[minmax(0,220px)_minmax(0,1fr)_auto] md:items-end">
+                      <div className="grid gap-3 rounded-lg bg-muted p-3 md:grid-cols-2 md:items-end">
                         <label className="grid gap-1.5 text-sm font-medium" htmlFor={`reading-${meter.id}`}>
                           Показание, {meter.unit}
                           <Input
@@ -6404,8 +6421,25 @@ function UtilitiesView({
                             value={readingDraft.note}
                           />
                         </label>
+                        <label className="grid gap-1.5 text-sm font-medium" htmlFor={`reading-${meter.id}-photo`}>
+                          Фото счетчика
+                          <Input
+                            accept="image/*"
+                            id={`reading-${meter.id}-photo`}
+                            onChange={(event) => setReadingPhoto(event.currentTarget.files?.[0] ?? null)}
+                            type="file"
+                          />
+                        </label>
                         <div className="flex gap-2">
-                          <Button onClick={() => setEditingMeterId(null)} size="sm" type="button" variant="outline">
+                          <Button
+                            onClick={() => {
+                              setEditingMeterId(null);
+                              setReadingPhoto(null);
+                            }}
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                          >
                             Отменить
                           </Button>
                           <Button onClick={() => void saveReading(meter)} size="sm" type="button">

@@ -88,8 +88,13 @@ export async function GET() {
         id: item.id,
         assetId: item.asset_id ?? undefined,
         eventId: item.event_id,
-        inspectionId: item.inspection_id ?? pathParts[2],
+        inspectionId:
+          item.inspection_id ??
+          (item.utility_bill_id || item.utility_reading_id || item.document_type
+            ? undefined
+            : pathParts[2]),
         utilityBillId: item.utility_bill_id ?? undefined,
+        utilityReadingId: item.utility_reading_id ?? undefined,
         url: data?.signedUrl ?? "",
         filename: pathParts.at(-1) ?? "Фото узла",
         mediaType: item.media_type ?? "image/jpeg",
@@ -256,15 +261,19 @@ export async function GET() {
       : {}),
     ...(hasUtilityReadingsTable
       ? {
-          utilityReadings: (utilityReadingsResult.data ?? []).map((reading) => ({
-            id: reading.id,
-            meterId: reading.meter_id,
-            period: reading.period,
-            value: Number(reading.value),
-            submittedAt: reading.submitted_at_label,
-            source: reading.source,
-            note: reading.note ?? undefined,
-          })),
+          utilityReadings: (utilityReadingsResult.data ?? []).map((reading) => {
+            const photo = signedMedia.find((item) => item.utilityReadingId === reading.id);
+            return {
+              id: reading.id,
+              meterId: reading.meter_id,
+              period: reading.period,
+              value: Number(reading.value),
+              submittedAt: reading.submitted_at_label,
+              source: reading.source,
+              note: reading.note ?? undefined,
+              photoUrl: photo?.url || undefined,
+            };
+          }),
         }
       : {}),
     ...(!isMissingTable(cleaningsResult.error, "cleanings")

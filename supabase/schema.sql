@@ -188,6 +188,7 @@ create table public.asset_media (
   document_valid_until date,
   document_note text,
   utility_bill_id text,
+  utility_reading_id text,
   created_at timestamptz not null default now(),
   foreign key (apartment_id, asset_id) references public.assets(apartment_id, id),
   foreign key (apartment_id, inspection_id) references public.inspections(apartment_id, id) on delete set null,
@@ -256,12 +257,22 @@ create table public.utility_readings (
   submitted_at_label text not null default '',
   source public.utility_reading_source not null default 'manual',
   note text,
+  photo_storage_path text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (apartment_id, id),
   foreign key (apartment_id, meter_id) references public.utility_meters(apartment_id, id) on delete cascade,
   constraint utility_readings_period_not_blank check (length(trim(period)) > 0)
 );
+
+alter table public.asset_media
+  add constraint asset_media_apartment_id_utility_reading_id_fkey
+  foreign key (apartment_id, utility_reading_id)
+  references public.utility_readings(apartment_id, id);
+
+create unique index asset_media_utility_reading_id_unique
+  on public.asset_media (apartment_id, utility_reading_id)
+  where utility_reading_id is not null;
 
 create table public.cleanings (
   apartment_id uuid not null references public.apartments(id) on delete cascade,

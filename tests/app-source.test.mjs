@@ -444,6 +444,13 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityReadingsRouteSource, /export async function POST/);
   assert.match(utilityReadingsRouteSource, /\.from\("utility_meters"\)\.upsert/);
   assert.match(utilityReadingsRouteSource, /\.from\("utility_readings"\)/);
+  assert.match(schemaSource, /photo_storage_path text/);
+  assert.match(schemaSource, /utility_reading_id text/);
+  assert.match(utilityReadingsRouteSource, /utility_reading_id: id/);
+  assert.match(utilityReadingsRouteSource, /document_type: "other"/);
+  assert.match(utilityReadingsRouteSource, /15 \* 1024 \* 1024/);
+  assert.match(documentRouteSource, /utility_bill_id \|\| data\.utility_reading_id/);
+  assert.match(documentRouteSource, /является первоисточником/);
   assert.match(pageSource, /Коммуналка и счета/);
   assert.match(pageSource, /Месяцы, счета, счетчики и статусы передачи/);
   assert.match(pageSource, /Данные за/);
@@ -476,6 +483,8 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /saveBill/);
   assert.match(pageSource, /saveReading/);
   assert.match(pageSource, /Передать показание/);
+  assert.match(pageSource, /Фото счетчика/);
+  assert.match(pageSource, /utilityReadingId === reading\.id/);
   assert.doesNotMatch(
     pageSource,
     /(?:set[A-Za-z]+|onChange)\(\(current\) =>[^\n]*event\.currentTarget/,

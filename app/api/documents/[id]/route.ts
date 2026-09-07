@@ -34,9 +34,21 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const { id } = await params;
   const { admin, apartmentId, error, status } = await requireApartmentAccess();
   if (!admin) return NextResponse.json({ error }, { status });
-  const { data, error: findError } = await admin.from("asset_media").select("storage_path").eq("apartment_id", apartmentId).eq("id", id).is("event_id", null).maybeSingle();
+  const { data, error: findError } = await admin
+    .from("asset_media")
+    .select("storage_path,utility_bill_id,utility_reading_id")
+    .eq("apartment_id", apartmentId)
+    .eq("id", id)
+    .is("event_id", null)
+    .maybeSingle();
   if (findError) return NextResponse.json({ error: findError.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "Документ не найден." }, { status: 404 });
+  if (data.utility_bill_id || data.utility_reading_id) {
+    return NextResponse.json(
+      { error: "Этот файл является первоисточником счета или показания и удаляется из соответствующей записи." },
+      { status: 409 },
+    );
+  }
   const { error: deleteError } = await admin.from("asset_media").delete().eq("apartment_id", apartmentId).eq("id", id).is("event_id", null);
   if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
   await admin.storage.from("asset-media").remove([data.storage_path]);

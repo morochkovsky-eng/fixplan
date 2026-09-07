@@ -33,6 +33,7 @@ function serializeDocument(row: Record<string, unknown>, url: string) {
     id: row.id,
     assetId: row.asset_id ?? undefined,
     utilityBillId: row.utility_bill_id ?? undefined,
+    utilityReadingId: row.utility_reading_id ?? undefined,
     url,
     filename: String(row.storage_path ?? "").split("/").at(-1) ?? "Документ",
     mediaType: row.media_type ?? "application/octet-stream",
