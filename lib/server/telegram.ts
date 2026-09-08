@@ -11,6 +11,7 @@ export type TelegramUpdate = {
   update_id: number;
   message?: {
     message_id: number;
+    media_group_id?: string;
     chat: { id: number; type: string };
     from?: TelegramUser;
     text?: string;

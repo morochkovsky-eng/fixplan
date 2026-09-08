@@ -65,6 +65,33 @@ function displayName(user: TelegramUser) {
   return [user.first_name, user.last_name].filter(Boolean).join(" ");
 }
 
+function utilityDraftReply(pendingAction: Record<string, unknown>, currency: string) {
+  if (pendingAction.type !== "create_utility_bill") return null;
+  const payload = pendingAction.payload;
+  if (!payload || typeof payload !== "object") return null;
+  const bill = payload as Record<string, unknown>;
+  const service = typeof bill.service === "string" ? bill.service.trim() : "";
+  const period = typeof bill.period === "string" ? bill.period.trim() : "";
+  const amount = Number(bill.amount);
+  if (!service || !period || !Number.isFinite(amount) || amount <= 0) return null;
+  let formattedAmount = `${amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  try {
+    formattedAmount = new Intl.NumberFormat("ru-RU", { style: "currency", currency }).format(amount);
+  } catch {
+    // Keep the plain currency format for an unknown apartment currency code.
+  }
+  const dueDate = typeof bill.dueDate === "string" ? bill.dueDate.trim() : "";
+  return [
+    `Вижу квитанцию «${service}». Подготовил черновик счёта.`,
+    "",
+    `Период: ${period}`,
+    `Сумма: ${formattedAmount}`,
+    ...(dueDate ? [`Оплатить до: ${dueDate}`] : []),
+    "",
+    "Другие услуги можно прислать отдельной квитанцией или показаниями.",
+  ].join("\n");
+}
+
 async function connectAccount(admin: NonNullable<ReturnType<typeof createAdminClient>>, code: string, user: TelegramUser, chatId: number) {
   const now = new Date().toISOString();
   const { data: pairing, error } = await admin.from("telegram_pairing_codes").select("id,owner_user_id,owner_email,default_apartment_id").eq("code_hash", createHash("sha256").update(code).digest("hex")).is("used_at", null).gt("expires_at", now).maybeSingle();
@@ -134,8 +161,19 @@ async function sendAssistantReply(
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  const hasReadyDraft = Boolean(data?.pending_action?.type?.startsWith("create_"));
-  await sendTelegramMessage(chatId, hasReadyDraft ? cleanTelegramDraftText(text) : text, {
+  const pendingAction = data?.pending_action as Record<string, unknown> | null;
+  const hasReadyDraft = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
+  let reply = hasReadyDraft ? cleanTelegramDraftText(text) : text;
+  if (pendingAction?.type === "create_utility_bill") {
+    const apartmentId = typeof pendingAction.apartmentId === "string" ? pendingAction.apartmentId : "";
+    let currency = "RUB";
+    if (apartmentId) {
+      const { data: apartment } = await admin.from("apartments").select("currency").eq("id", apartmentId).maybeSingle();
+      if (typeof apartment?.currency === "string" && apartment.currency) currency = apartment.currency;
+    }
+    reply = utilityDraftReply(pendingAction, currency) ?? reply;
+  }
+  await sendTelegramMessage(chatId, reply, {
     inlineKeyboard: hasReadyDraft ? draftKeyboard : undefined,
   });
 }
@@ -160,6 +198,11 @@ export async function POST(request: Request) {
     if (existing?.status !== "failed") return NextResponse.json({ ok: true, duplicate: true });
     const { error: retryError } = await admin.from("telegram_updates").update({ status: "processing", error: null, processed_at: null }).eq("update_id", update.update_id);
     if (retryError) return NextResponse.json({ error: retryError.message }, { status: 500 });
+  }
+
+  if (message?.media_group_id && !message.caption?.trim()) {
+    await admin.from("telegram_updates").update({ status: "processed", processed_at: new Date().toISOString() }).eq("update_id", update.update_id);
+    return NextResponse.json({ ok: true, ignored: "media-group-companion" });
   }
 
   try {
