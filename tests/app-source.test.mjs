@@ -655,7 +655,7 @@ test("shows one searchable journal across apartment workflows", () => {
   assert.match(pageSource, /inspections=\{state\.inspections\}/);
   assert.match(pageSource, /readings=\{state\.utilityReadings\}/);
   assert.match(pageSource, /Найти событие, узел или исполнителя/);
-  assert.match(pageSource, /Подтвержденные изменения, работы, документы и расчеты/);
+  assert.doesNotMatch(pageSource, /Подтвержденные изменения, работы, документы и расчеты/);
   assert.match(pageSource, /utilityBillStatusLabels\[bill\.status\]/);
   assert.match(pageSource, /cleaningStatusLabels\[cleaning\.status\]/);
   assert.match(pageSource, /documentTypeLabel\(item\.documentType!\)/);

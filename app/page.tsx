@@ -2892,7 +2892,7 @@ export default function Home() {
         <header className="topbar">
           <div>
             <h1>{viewTitle(view, selectedAsset)}</h1>
-            <p>{viewSubtitle(view)}</p>
+            {!(["plan", "assets", "utilities"] as View[]).includes(view) && <p>{viewSubtitle(view)}</p>}
           </div>
         </header>
 
@@ -3525,9 +3525,6 @@ function BrandMark({ objectName }: { objectName: string }) {
         style={{ height: 18, width: 133 }}
         width={133}
       />
-      <span className="text-muted-foreground" style={{ fontSize: 14, lineHeight: "20px" }}>
-        {objectName}
-      </span>
     </span>
   );
 }
@@ -4460,9 +4457,6 @@ function PlanView({
             />
           ) : (
             <>
-              <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
-                {activeMode.summary}
-              </div>
               {filteredAssets.map((asset) => (
                 <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
               ))}
@@ -7610,10 +7604,6 @@ function ActivityLog({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Лента событий</CardTitle>
-        <CardDescription>Подтвержденные изменения, работы, документы и расчеты по квартире.</CardDescription>
-      </CardHeader>
       <CardContent className="grid gap-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
