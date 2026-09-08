@@ -5,7 +5,7 @@ import { recordAssistantMessage } from "@/lib/server/assistant-messages";
 import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
 import type { TelegramOwnerAccount } from "@/lib/server/telegram-context";
-import { cleanTelegramDraftText, transcribeAudioFile } from "@/lib/server/telegram";
+import { cleanTelegramDraftText, cleanTelegramText, transcribeAudioFile } from "@/lib/server/telegram";
 
 const supportedAttachmentTypes = new Set([
   "application/pdf",
@@ -126,7 +126,8 @@ export async function POST(request: Request) {
   });
 
   try {
-    const contextualText = webContext
+    const isPendingCommand = /^(?:(?:да|ок),?\s*)?(?:создавай|создать|подтверждаю)$|^(?:отмена|отменить|удалить черновик)$/iu.test(assistantText);
+    const contextualText = webContext && !isPendingCommand
       ? `${assistantText}\n\nКонтекст открытого экрана веб-интерфейса: ${webContext}`
       : assistantText;
     const answer = await runTelegramAssistant(access.admin, account, contextualText, new URL(request.url).origin, attachment);
@@ -154,5 +155,61 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: conciseAnswer, pendingAction: pending });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось обработать запрос." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  const access = await requireApartmentAccess();
+  if (!access.admin) return NextResponse.json({ error: access.error }, { status: access.status });
+
+  try {
+    const body = await request.json() as { action?: unknown };
+    if (body.action !== "confirm" && body.action !== "cancel") {
+      return NextResponse.json({ error: "Неизвестное действие." }, { status: 400 });
+    }
+
+    const account = await connectedAccount(access.admin, access.userId);
+    if (!account) {
+      return NextResponse.json({ error: "Сначала подключите Telegram в настройках, чтобы веб и бот продолжали один диалог." }, { status: 409 });
+    }
+
+    const { data: conversation, error: conversationError } = await access.admin
+      .from("telegram_conversations")
+      .select("pending_action")
+      .eq("telegram_user_id", account.telegram_user_id)
+      .maybeSingle();
+    if (conversationError) throw new Error(conversationError.message);
+    const pending = conversation?.pending_action as Record<string, unknown> | null;
+    if (!pending || typeof pending.type !== "string" || !pending.type.startsWith("create_")) {
+      return NextResponse.json({ error: "Черновик уже неактуален. Обновите диалог и попробуйте снова." }, { status: 409 });
+    }
+
+    const answer = await runTelegramAssistant(
+      access.admin,
+      account,
+      body.action === "confirm" ? "создавай" : "отмена",
+      new URL(request.url).origin,
+    );
+    const conciseAnswer = cleanTelegramText(answer);
+    await recordAssistantMessage(access.admin, {
+      ownerUserId: access.userId,
+      apartmentId: access.apartmentId,
+      role: "assistant",
+      channel: "web",
+      content: conciseAnswer,
+    });
+
+    const { data: updatedConversation, error: updatedConversationError } = await access.admin
+      .from("telegram_conversations")
+      .select("pending_action")
+      .eq("telegram_user_id", account.telegram_user_id)
+      .maybeSingle();
+    if (updatedConversationError) throw new Error(updatedConversationError.message);
+    return NextResponse.json({
+      message: conciseAnswer,
+      pendingAction: updatedConversation?.pending_action ?? null,
+    });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось выполнить действие." }, { status: 500 });
   }
 }

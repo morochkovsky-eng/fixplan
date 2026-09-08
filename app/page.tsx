@@ -41,6 +41,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -1632,6 +1633,7 @@ export default function Home() {
   const [inspectionIndex, setInspectionIndex] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [planEditMode, setPlanEditMode] = useState(false);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [assetDraft, setAssetDraft] = useState<AssetDraft>(() =>
@@ -1744,7 +1746,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [authStatus]);
+  }, [authStatus, dataRefreshKey]);
 
   const selectedAsset =
     state.assets.find((asset) => asset.id === selectedAssetId) ??
@@ -3184,7 +3186,11 @@ export default function Home() {
           />
         )}
       </section>
-      <WebAssistant selectedAsset={selectedAsset} view={view} />
+      <WebAssistant
+        onMutation={() => setDataRefreshKey((current) => current + 1)}
+        selectedAsset={selectedAsset}
+        view={view}
+      />
       </main>
     </TooltipProvider>
   );
@@ -3215,7 +3221,15 @@ function ComposerAttachments() {
   );
 }
 
-function WebAssistant({ selectedAsset, view }: { selectedAsset?: Asset; view: View }) {
+function WebAssistant({
+  onMutation,
+  selectedAsset,
+  view,
+}: {
+  onMutation: () => void;
+  selectedAsset?: Asset;
+  view: View;
+}) {
   const [messages, setMessages] = useState<WebAssistantMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"ready" | "submitted" | "error">("ready");
@@ -3266,9 +3280,19 @@ function WebAssistant({ selectedAsset, view }: { selectedAsset?: Asset; view: Vi
   async function send(text: string, file?: PromptInputMessage["files"][number]) {
     const normalizedText = text.trim();
     if (!normalizedText && !file) return;
+    const optimisticMessage: WebAssistantMessage = {
+      id: `optimistic-${crypto.randomUUID()}`,
+      role: "user",
+      channel: "web",
+      content: normalizedText || file?.filename || "Вложение",
+      attachments: file ? [{ filename: file.filename }] : [],
+      created_at: new Date().toISOString(),
+    };
+    setMessages((current) => [...current, optimisticMessage]);
     setStatus("submitted");
     setError("");
     setMobileExpanded(true);
+    setDraft("");
     const form = new FormData();
     form.set("text", normalizedText);
     form.set("context", screenContext);
@@ -3276,17 +3300,49 @@ function WebAssistant({ selectedAsset, view }: { selectedAsset?: Asset; view: Vi
       const blob = await fetch(file.url).then((response) => response.blob());
       form.set("file", new File([blob], file.filename || "attachment", { type: file.mediaType }));
     }
-    const response = await fetch("/api/assistant", { method: "POST", body: form });
-    const payload = await response.json().catch(() => ({ error: "Не удалось обработать ответ сервера." })) as { error?: string; pendingAction?: Record<string, unknown> | null };
-    if (!response.ok) {
-      setError(payload.error ?? "Не удалось отправить сообщение.");
+    try {
+      const response = await fetch("/api/assistant", { method: "POST", body: form });
+      const payload = await response.json().catch(() => ({ error: "Не удалось обработать ответ сервера." })) as { error?: string; pendingAction?: Record<string, unknown> | null };
+      if (!response.ok) {
+        setError(payload.error ?? "Не удалось отправить сообщение.");
+        setStatus("error");
+        return;
+      }
+      setPendingAction(payload.pendingAction ?? null);
+      setStatus("ready");
+      await loadMessages();
+    } catch {
+      setError("Не удалось отправить сообщение. Проверьте соединение и попробуйте ещё раз.");
       setStatus("error");
-      throw new Error(payload.error ?? "Assistant request failed");
     }
-    setPendingAction(payload.pendingAction ?? null);
-    setDraft("");
-    setStatus("ready");
-    await loadMessages();
+  }
+
+  async function resolvePendingAction(action: "confirm" | "cancel") {
+    setStatus("submitted");
+    setError("");
+    try {
+      const response = await fetch("/api/assistant", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const payload = await response.json().catch(() => ({ error: "Не удалось обработать ответ сервера." })) as {
+        error?: string;
+        pendingAction?: Record<string, unknown> | null;
+      };
+      if (!response.ok) {
+        setError(payload.error ?? "Не удалось выполнить действие.");
+        setStatus("error");
+        return;
+      }
+      setPendingAction(payload.pendingAction ?? null);
+      setStatus("ready");
+      await loadMessages();
+      if (action === "confirm") onMutation();
+    } catch {
+      setError("Не удалось выполнить действие. Проверьте соединение и попробуйте ещё раз.");
+      setStatus("error");
+    }
   }
 
   async function toggleRecording() {
@@ -3364,6 +3420,12 @@ function WebAssistant({ selectedAsset, view }: { selectedAsset?: Asset; view: Vi
                 <p className="whitespace-pre-line text-sm">{message.content}</p>
               </div>
             ))}
+            {status === "submitted" && (
+              <div className="assistant-message flex items-center gap-2 text-muted-foreground">
+                <Spinner />
+                <span className="text-sm">FixPlan обрабатывает запрос</span>
+              </div>
+            )}
             {!messages.length && <p className="py-8 text-center text-muted-foreground text-sm">Начните диалог с FixPlan.</p>}
             <div ref={messageEndRef} />
           </div>
@@ -3372,8 +3434,8 @@ function WebAssistant({ selectedAsset, view }: { selectedAsset?: Asset; view: Vi
         {error && <div className="border-t px-3 py-2 text-destructive text-sm">{error}</div>}
         {hasPendingCreate && (
           <div className="flex flex-wrap gap-2 border-t bg-background px-3 py-2">
-            <Button disabled={status === "submitted"} onClick={() => void send("создавай")} size="sm" type="button">Создать</Button>
-            <Button disabled={status === "submitted"} onClick={() => void send("отмена")} size="sm" type="button" variant="outline">Удалить черновик</Button>
+            <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("confirm")} size="sm" type="button">Создать</Button>
+            <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("cancel")} size="sm" type="button" variant="outline">Удалить черновик</Button>
           </div>
         )}
         <div className="assistant-composer">

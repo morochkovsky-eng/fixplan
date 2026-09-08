@@ -737,9 +737,13 @@ test("keeps inspection and work order cards compact on mobile", () => {
 });
 
 test("keeps the owner assistant persistent across web and Telegram", () => {
-  assert.match(pageSource, /<WebAssistant selectedAsset=\{selectedAsset\} view=\{view\} \/>/);
+  assert.match(pageSource, /<WebAssistant[\s\S]*?onMutation=\{\(\) => setDataRefreshKey/);
   assert.match(pageSource, /<PromptInput/);
   assert.match(pageSource, /assistant-message-list/);
+  assert.match(pageSource, /optimistic-\$\{crypto\.randomUUID\(\)\}/);
+  assert.match(pageSource, /FixPlan обрабатывает запрос/);
+  assert.match(pageSource, /method: "PATCH"/);
+  assert.doesNotMatch(pageSource, /send\("создавай"\)/);
   assert.match(pageSource, /MediaRecorder/);
   assert.match(pageSource, /Голосовой ввод/);
   assert.match(pageSource, /sidebar-collapsed/);
@@ -749,6 +753,8 @@ test("keeps the owner assistant persistent across web and Telegram", () => {
   assert.match(assistantRouteSource, /runTelegramAssistant/);
   assert.match(assistantRouteSource, /transcribeAudioFile/);
   assert.match(assistantRouteSource, /pendingAction/);
+  assert.match(assistantRouteSource, /export async function PATCH/);
+  assert.match(assistantRouteSource, /body\.action === "confirm" \? "создавай" : "отмена"/);
   assert.match(telegramWebhookSource, /recordAssistantMessage/);
   assert.match(assistantMessagesMigrationSource, /channel in \('web', 'telegram'\)/);
   assert.match(assistantMessagesMigrationSource, /owners can read their assistant messages/);
