@@ -5,7 +5,7 @@ import { recordAssistantMessage } from "@/lib/server/assistant-messages";
 import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
 import type { TelegramOwnerAccount } from "@/lib/server/telegram-context";
-import { cleanTelegramDraftText } from "@/lib/server/telegram";
+import { cleanTelegramDraftText, transcribeAudioFile } from "@/lib/server/telegram";
 
 const supportedAttachmentTypes = new Set([
   "application/pdf",
@@ -13,6 +13,10 @@ const supportedAttachmentTypes = new Set([
   "image/png",
   "image/webp",
   "image/gif",
+  "audio/webm",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/ogg",
 ]);
 
 function safeFilename(filename: string) {
@@ -64,6 +68,7 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const text = String(form.get("text") ?? "").trim();
+  const webContext = String(form.get("context") ?? "").trim().slice(0, 300);
   const file = form.get("file");
   if (!text && !(file instanceof File && file.size)) {
     return NextResponse.json({ error: "Напишите сообщение или прикрепите файл." }, { status: 400 });
@@ -74,10 +79,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Сначала подключите Telegram в настройках, чтобы веб и бот продолжали один диалог." }, { status: 409 });
   }
 
+  let assistantText = text;
   let attachment: TelegramAssistantAttachment | undefined;
+  let storedAttachment: { filename: string; mimeType: string; storagePath: string } | undefined;
   if (file instanceof File && file.size) {
-    if (!supportedAttachmentTypes.has(file.type)) {
-      return NextResponse.json({ error: "Поддерживаются изображения и PDF." }, { status: 415 });
+    const mimeType = file.type.split(";", 1)[0];
+    if (!supportedAttachmentTypes.has(mimeType)) {
+      return NextResponse.json({ error: "Поддерживаются изображения, PDF и голосовые сообщения." }, { status: 415 });
     }
     if (file.size > 20 * 1024 * 1024) {
       return NextResponse.json({ error: "Файл должен быть не больше 20 МБ." }, { status: 413 });
@@ -85,16 +93,27 @@ export async function POST(request: Request) {
     const bytes = Buffer.from(await file.arrayBuffer());
     const storagePath = `${access.apartmentId}/web/inbox/${randomUUID()}-${safeFilename(file.name)}`;
     const { error: uploadError } = await access.admin.storage.from("asset-media").upload(storagePath, bytes, {
-      contentType: file.type,
+      contentType: mimeType,
       upsert: false,
     });
     if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 });
-    attachment = {
-      dataUrl: `data:${file.type};base64,${bytes.toString("base64")}`,
-      filename: file.name,
-      mimeType: file.type,
-      storagePath,
-    };
+    storedAttachment = { filename: file.name, mimeType, storagePath };
+    if (mimeType.startsWith("audio/")) {
+      try {
+        const transcript = await transcribeAudioFile(bytes, file.name || "web-voice.webm", mimeType);
+        assistantText = [text, transcript].filter(Boolean).join("\n");
+      } catch {
+        await access.admin.storage.from("asset-media").remove([storagePath]);
+        return NextResponse.json({ error: "Не удалось распознать голосовое сообщение." }, { status: 502 });
+      }
+    } else {
+      attachment = {
+        dataUrl: `data:${mimeType};base64,${bytes.toString("base64")}`,
+        filename: file.name,
+        mimeType,
+        storagePath,
+      };
+    }
   }
 
   await recordAssistantMessage(access.admin, {
@@ -102,12 +121,15 @@ export async function POST(request: Request) {
     apartmentId: access.apartmentId,
     role: "user",
     channel: "web",
-    content: text || attachment?.filename || "Вложение",
-    attachments: attachment ? [{ filename: attachment.filename, mimeType: attachment.mimeType, storagePath: attachment.storagePath }] : [],
+    content: assistantText || storedAttachment?.filename || "Вложение",
+    attachments: storedAttachment ? [storedAttachment] : [],
   });
 
   try {
-    const answer = await runTelegramAssistant(access.admin, account, text, new URL(request.url).origin, attachment);
+    const contextualText = webContext
+      ? `${assistantText}\n\nКонтекст открытого экрана веб-интерфейса: ${webContext}`
+      : assistantText;
+    const answer = await runTelegramAssistant(access.admin, account, contextualText, new URL(request.url).origin, attachment);
     const [conversationResult, apartmentResult] = await Promise.all([
       access.admin.from("telegram_conversations").select("pending_action").eq("telegram_user_id", account.telegram_user_id).maybeSingle(),
       access.admin.from("apartments").select("currency,timezone").eq("id", access.apartmentId).maybeSingle(),

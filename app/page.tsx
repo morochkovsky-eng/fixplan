@@ -82,8 +82,10 @@ import {
   Bot,
   Check,
   ClipboardCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   CircleAlert,
   Copy,
   Droplets,
@@ -93,8 +95,10 @@ import {
   History,
   LayoutDashboard,
   List,
-  MessageSquare,
   Map as MapIcon,
+  Mic,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ArrowLeft,
   Pencil,
@@ -102,6 +106,7 @@ import {
   Save,
   Search,
   Settings,
+  Square,
   Trash2,
   Unplug,
   Upload,
@@ -1626,6 +1631,7 @@ export default function Home() {
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [planEditMode, setPlanEditMode] = useState(false);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
   const [assetDraft, setAssetDraft] = useState<AssetDraft>(() =>
@@ -1635,6 +1641,10 @@ export default function Home() {
   const [planEditSnapshot, setPlanEditSnapshot] = useState<AppState | null>(null);
   const [dirtyPlanAssetIds, setDirtyPlanAssetIds] = useState<string[]>([]);
   const [deletedPlanAssetIds, setDeletedPlanAssetIds] = useState<string[]>([]);
+
+  function toggleSidebar() {
+    setSidebarCollapsed((current) => !current);
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -2814,7 +2824,7 @@ export default function Home() {
 
   return (
     <TooltipProvider>
-      <main className="app-shell">
+      <main className={`app-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <header className="mobile-header">
         <button
           aria-label="Открыть дашборд"
@@ -2843,18 +2853,38 @@ export default function Home() {
         </div>
       )}
       <aside className="sidebar">
-        <button
-          aria-label="Открыть дашборд"
-          className="brand"
-          onClick={() => navigate("dashboard")}
-          type="button"
-        >
-          <BrandMark objectName={state.config.objectName} />
-        </button>
-        <ApartmentSwitcher />
-        <SidebarSearch assets={state.assets} openAsset={openAsset} />
+        <div className="sidebar-heading">
+          <button
+            aria-label="Открыть дашборд"
+            className="brand"
+            onClick={() => navigate("dashboard")}
+            type="button"
+          >
+            {sidebarCollapsed ? (
+              <Image alt="FixPlan" height={32} src="/favicon.svg" width={32} />
+            ) : (
+              <BrandMark objectName={state.config.objectName} />
+            )}
+          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                aria-label={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
+                onClick={toggleSidebar}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                {sidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}</TooltipContent>
+          </Tooltip>
+        </div>
+        {!sidebarCollapsed && <ApartmentSwitcher />}
+        {!sidebarCollapsed && <SidebarSearch assets={state.assets} openAsset={openAsset} />}
         <nav className="nav-list" aria-label="Главная навигация">
-          <AppNavigation activeView={view} navigate={navigate} />
+          <AppNavigation activeView={view} compact={sidebarCollapsed} navigate={navigate} />
         </nav>
       </aside>
 
@@ -3153,8 +3183,8 @@ export default function Home() {
             }
           />
         )}
-        <WebAssistant />
       </section>
+      <WebAssistant selectedAsset={selectedAsset} view={view} />
       </main>
     </TooltipProvider>
   );
@@ -3185,14 +3215,21 @@ function ComposerAttachments() {
   );
 }
 
-function WebAssistant() {
+function WebAssistant({ selectedAsset, view }: { selectedAsset?: Asset; view: View }) {
   const [messages, setMessages] = useState<WebAssistantMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<"ready" | "submitted" | "error">("ready");
   const [error, setError] = useState("");
-  const [expanded, setExpanded] = useState(true);
-  const [historyOpen, setHistoryOpen] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [pendingAction, setPendingAction] = useState<Record<string, unknown> | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
+
+  const screenContext = selectedAsset && view === "asset"
+    ? `Открыт узел ${selectedAsset.code} · ${selectedAsset.name}, ${roomName(selectedAsset.roomId)}.`
+    : `Открыт раздел «${viewTitle(view, selectedAsset)}».`;
 
   async function loadMessages() {
     const response = await fetch("/api/assistant", { cache: "no-store" });
@@ -3217,20 +3254,30 @@ function WebAssistant() {
     };
   }, []);
 
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, mobileExpanded]);
+
+  useEffect(() => () => {
+    recorderRef.current?.stop();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
+
   async function send(text: string, file?: PromptInputMessage["files"][number]) {
     const normalizedText = text.trim();
     if (!normalizedText && !file) return;
     setStatus("submitted");
     setError("");
-    setExpanded(true);
+    setMobileExpanded(true);
     const form = new FormData();
     form.set("text", normalizedText);
+    form.set("context", screenContext);
     if (file) {
       const blob = await fetch(file.url).then((response) => response.blob());
       form.set("file", new File([blob], file.filename || "attachment", { type: file.mediaType }));
     }
     const response = await fetch("/api/assistant", { method: "POST", body: form });
-    const payload = await response.json() as { error?: string; pendingAction?: Record<string, unknown> | null };
+    const payload = await response.json().catch(() => ({ error: "Не удалось обработать ответ сервера." })) as { error?: string; pendingAction?: Record<string, unknown> | null };
     if (!response.ok) {
       setError(payload.error ?? "Не удалось отправить сообщение.");
       setStatus("error");
@@ -3242,28 +3289,95 @@ function WebAssistant() {
     await loadMessages();
   }
 
-  const latestAssistant = messages.findLast((message) => message.role === "assistant");
+  async function toggleRecording() {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("Голосовой ввод не поддерживается этим браузером.");
+      setMobileExpanded(true);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"]
+        .find((candidate) => MediaRecorder.isTypeSupported(candidate));
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) chunks.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+        setRecording(false);
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        if (!blob.size) return;
+        const url = URL.createObjectURL(blob);
+        const extension = blob.type.startsWith("audio/mp4") ? "m4a" : blob.type.startsWith("audio/ogg") ? "ogg" : "webm";
+        void send("", {
+          type: "file",
+          filename: `voice-${Date.now()}.${extension}`,
+          mediaType: blob.type,
+          url,
+        }).finally(() => URL.revokeObjectURL(url));
+      };
+      recorderRef.current = recorder;
+      recorder.start();
+      setError("");
+      setRecording(true);
+      setMobileExpanded(true);
+    } catch {
+      setError("Не удалось получить доступ к микрофону.");
+      setMobileExpanded(true);
+    }
+  }
+
   const hasPendingCreate = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
 
   return (
-    <>
-      <div className="web-assistant">
-        {expanded && latestAssistant && (
-          <div className="web-assistant-reply">
-            <div className="flex items-start gap-2">
-              <Bot className="mt-0.5 size-4 shrink-0" />
-              <p className="line-clamp-3 whitespace-pre-line text-sm">{latestAssistant.content}</p>
-            </div>
+    <aside className={`assistant-panel${mobileExpanded ? " mobile-expanded" : ""}`}>
+      <div className="assistant-desktop-header">
+        <div className="flex items-center gap-2">
+          <Bot className="size-4" />
+          <strong className="text-sm">FixPlan</strong>
+        </div>
+        <span className="text-muted-foreground text-xs">Веб и Telegram</span>
+      </div>
+      <Button className="assistant-mobile-toggle" onClick={() => setMobileExpanded((value) => !value)} type="button" variant="ghost">
+        <span className="flex items-center gap-2"><Bot className="size-4" /> FixPlan</span>
+        <span className="flex items-center gap-2 text-muted-foreground">{mobileExpanded ? "Свернуть" : "Написать"}{mobileExpanded ? <ChevronDown /> : <ChevronUp />}</span>
+      </Button>
+
+      <div className="assistant-panel-body">
+        <ScrollArea className="assistant-message-list">
+          <div className="grid gap-3 p-3">
+            {messages.map((message) => (
+              <div className={message.role === "user" ? "assistant-message user" : "assistant-message"} key={message.id}>
+                <div className="mb-1 flex items-center justify-between gap-3 text-muted-foreground text-xs">
+                  <span>{message.role === "user" ? "Вы" : "FixPlan"}</span>
+                  <span>{message.channel === "telegram" ? "Telegram" : "Веб"}</span>
+                </div>
+                <p className="whitespace-pre-line text-sm">{message.content}</p>
+              </div>
+            ))}
+            {!messages.length && <p className="py-8 text-center text-muted-foreground text-sm">Начните диалог с FixPlan.</p>}
+            <div ref={messageEndRef} />
           </div>
-        )}
-        {expanded && error && <div className="web-assistant-reply text-destructive text-sm">{error}</div>}
-        {expanded && hasPendingCreate && (
-          <div className="flex flex-wrap gap-2 bg-background px-2 pt-2">
+        </ScrollArea>
+
+        {error && <div className="border-t px-3 py-2 text-destructive text-sm">{error}</div>}
+        {hasPendingCreate && (
+          <div className="flex flex-wrap gap-2 border-t bg-background px-3 py-2">
             <Button disabled={status === "submitted"} onClick={() => void send("создавай")} size="sm" type="button">Создать</Button>
             <Button disabled={status === "submitted"} onClick={() => void send("отмена")} size="sm" type="button" variant="outline">Удалить черновик</Button>
           </div>
         )}
-        <PromptInput
+        <div className="assistant-composer">
+          <PromptInput
           accept="application/pdf,image/jpeg,image/png,image/webp,image/gif"
           maxFileSize={20 * 1024 * 1024}
           maxFiles={1}
@@ -3287,39 +3401,21 @@ function WebAssistant() {
                   <PromptInputActionAddAttachments label="Прикрепить файл" />
                 </PromptInputActionMenuContent>
               </PromptInputActionMenu>
-              <Button aria-label="История диалога" onClick={() => setHistoryOpen(true)} size="icon-sm" type="button" variant="ghost"><MessageSquare /></Button>
-              <Button aria-label={expanded ? "Свернуть ответ" : "Показать ответ"} onClick={() => setExpanded((value) => !value)} size="icon-sm" type="button" variant="ghost">
-                {expanded ? <ChevronRight className="rotate-90" /> : <ChevronLeft className="rotate-90" />}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button aria-label={recording ? "Остановить запись" : "Голосовой ввод"} disabled={status === "submitted"} onClick={() => void toggleRecording()} size="icon-sm" type="button" variant={recording ? "destructive" : "ghost"}>
+                    {recording ? <Square /> : <Mic />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{recording ? "Остановить запись" : "Голосовой ввод"}</TooltipContent>
+              </Tooltip>
             </PromptInputTools>
             <PromptInputSubmit disabled={status === "submitted"} status={status} />
           </PromptInputFooter>
-        </PromptInput>
+          </PromptInput>
+        </div>
       </div>
-
-      <Dialog onOpenChange={setHistoryOpen} open={historyOpen}>
-        <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)] sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>История FixPlan</DialogTitle>
-            <DialogDescription>Единый диалог из веба и личного чата Telegram.</DialogDescription>
-          </DialogHeader>
-          <ScrollArea className="min-h-0 pr-3">
-            <div className="grid gap-3 py-1">
-              {messages.map((message) => (
-                <div className={message.role === "user" ? "ml-8 rounded-lg bg-secondary p-3" : "mr-8 rounded-lg border p-3"} key={message.id}>
-                  <div className="mb-1 flex items-center justify-between gap-3 text-muted-foreground text-xs">
-                    <span>{message.role === "user" ? "Вы" : "FixPlan"}</span>
-                    <span>{message.channel === "telegram" ? "Telegram" : "Веб"}</span>
-                  </div>
-                  <p className="whitespace-pre-line text-sm">{message.content}</p>
-                </div>
-              ))}
-              {!messages.length && <p className="text-muted-foreground text-sm">Диалог пока пуст.</p>}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-    </>
+    </aside>
   );
 }
 
@@ -3656,71 +3752,54 @@ function SidebarSearch({
 
 function AppNavigation({
   activeView,
+  compact = false,
   navigate,
 }: {
   activeView: View;
+  compact?: boolean;
   navigate: (view: View) => void;
 }) {
   return (
     <>
-      <NavButton active={activeView === "dashboard"} onClick={() => navigate("dashboard")}>
-        <LayoutDashboard size={16} />
-        Дашборд
-      </NavButton>
-      <NavButton active={activeView === "plan"} onClick={() => navigate("plan")}>
-        <MapIcon size={16} />
-        План
-      </NavButton>
-      <NavButton active={activeView === "assets"} onClick={() => navigate("assets")}>
-        <List size={16} />
-        Узлы
-      </NavButton>
+      <NavButton active={activeView === "dashboard"} compact={compact} icon={<LayoutDashboard size={16} />} label="Дашборд" onClick={() => navigate("dashboard")} />
+      <NavButton active={activeView === "plan"} compact={compact} icon={<MapIcon size={16} />} label="План" onClick={() => navigate("plan")} />
+      <NavButton active={activeView === "assets"} compact={compact} icon={<List size={16} />} label="Узлы" onClick={() => navigate("assets")} />
       <NavButton
         active={["work_orders", "inspections", "contractor", "report", "inspection"].includes(activeView)}
+        compact={compact}
+        icon={<Check size={16} />}
+        label="Задания"
         onClick={() => navigate("work_orders")}
-      >
-        <Check size={16} />
-        Задания
-      </NavButton>
-      <NavButton active={activeView === "documents"} onClick={() => navigate("documents")}>
-        <FileText size={16} />
-        Документы
-      </NavButton>
-      <NavButton active={activeView === "utilities"} onClick={() => navigate("utilities")}>
-        <FileText size={16} />
-        Счета
-      </NavButton>
-      <NavButton active={activeView === "log"} onClick={() => navigate("log")}>
-        <History size={16} />
-        Журнал
-      </NavButton>
-      <NavButton active={activeView === "settings"} onClick={() => navigate("settings")}>
-        <Settings size={16} />
-        Настройки
-      </NavButton>
+      />
+      <NavButton active={activeView === "documents"} compact={compact} icon={<FileText size={16} />} label="Документы" onClick={() => navigate("documents")} />
+      <NavButton active={activeView === "utilities"} compact={compact} icon={<ReceiptText size={16} />} label="Счета" onClick={() => navigate("utilities")} />
+      <NavButton active={activeView === "log"} compact={compact} icon={<History size={16} />} label="Журнал" onClick={() => navigate("log")} />
+      <NavButton active={activeView === "settings"} compact={compact} icon={<Settings size={16} />} label="Настройки" onClick={() => navigate("settings")} />
     </>
   );
 }
 
 function NavButton({
   active,
-  children,
+  compact,
+  icon,
+  label,
   onClick,
 }: {
   active: boolean;
-  children: React.ReactNode;
+  compact: boolean;
+  icon: React.ReactNode;
+  label: string;
   onClick: () => void;
 }) {
-  return (
-    <Button
-      className="w-full justify-start"
-      variant={active ? "secondary" : "ghost"}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
+  const button = (
+    <Button className={compact ? "w-full justify-center px-0" : "w-full justify-start"} variant={active ? "secondary" : "ghost"} onClick={onClick} type="button">
+      {icon}
+      {!compact && <span>{label}</span>}
     </Button>
   );
+  if (!compact) return button;
+  return <Tooltip><TooltipTrigger asChild>{button}</TooltipTrigger><TooltipContent side="right">{label}</TooltipContent></Tooltip>;
 }
 
 function StatusSelect({

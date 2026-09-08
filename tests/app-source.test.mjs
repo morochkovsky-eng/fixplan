@@ -737,13 +737,17 @@ test("keeps inspection and work order cards compact on mobile", () => {
 });
 
 test("keeps the owner assistant persistent across web and Telegram", () => {
-  assert.match(pageSource, /<WebAssistant \/>/);
+  assert.match(pageSource, /<WebAssistant selectedAsset=\{selectedAsset\} view=\{view\} \/>/);
   assert.match(pageSource, /<PromptInput/);
-  assert.match(pageSource, /История FixPlan/);
+  assert.match(pageSource, /assistant-message-list/);
+  assert.match(pageSource, /MediaRecorder/);
+  assert.match(pageSource, /Голосовой ввод/);
+  assert.match(pageSource, /sidebar-collapsed/);
   assert.match(pageSource, /Требует решения/);
   assert.match(pageSource, /Активные работы/);
   assert.doesNotMatch(pageSource, /label="Всего узлов"/);
   assert.match(assistantRouteSource, /runTelegramAssistant/);
+  assert.match(assistantRouteSource, /transcribeAudioFile/);
   assert.match(assistantRouteSource, /pendingAction/);
   assert.match(telegramWebhookSource, /recordAssistantMessage/);
   assert.match(assistantMessagesMigrationSource, /channel in \('web', 'telegram'\)/);

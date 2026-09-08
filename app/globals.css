@@ -118,8 +118,12 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px minmax(0, 1fr) 380px;
   min-height: 100vh;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 64px minmax(0, 1fr) 380px;
 }
 
 .mobile-header,
@@ -137,6 +141,45 @@ button {
   padding: 16px 12px;
   border-right: 1px solid var(--border);
   background: var(--content);
+}
+
+.sidebar-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-heading .brand {
+  min-width: 0;
+  flex: 1;
+  border-bottom: 0;
+}
+
+.sidebar-heading > [data-slot="button"] {
+  margin-top: 8px;
+}
+
+.sidebar-collapsed .sidebar {
+  align-items: stretch;
+  padding-inline: 8px;
+}
+
+.sidebar-collapsed .sidebar-heading {
+  display: grid;
+  justify-items: center;
+  padding-bottom: 8px;
+}
+
+.sidebar-collapsed .sidebar-heading .brand {
+  display: grid;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+.sidebar-collapsed .sidebar-heading > [data-slot="button"] {
+  margin-top: 0;
 }
 
 .brand {
@@ -368,29 +411,80 @@ button {
 
 .workspace {
   min-width: 0;
-  padding: 24px 32px 220px;
+  padding: 24px 32px 40px;
   overflow-x: clip;
 }
 
-.web-assistant {
-  position: fixed;
-  z-index: 40;
-  right: auto;
-  bottom: 16px;
-  left: calc(50% + 140px);
-  width: min(720px, calc(100vw - 344px));
-  transform: translateX(-50%);
+.assistant-panel {
+  position: sticky;
+  top: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  border-left: 1px solid var(--border);
   background: var(--content);
-  box-shadow: 0 16px 48px rgba(29, 32, 35, 0.16);
 }
 
-.web-assistant-reply {
+.assistant-desktop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 58px;
   border-bottom: 1px solid var(--border);
-  background: var(--content);
+  padding: 0 16px;
+}
+
+.assistant-mobile-toggle {
+  display: none;
+}
+
+.assistant-panel-body {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  min-height: 0;
+}
+
+.assistant-message-list {
+  min-height: 0;
+}
+
+.assistant-message {
+  width: fit-content;
+  max-width: 92%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   padding: 10px 12px;
+}
+
+.assistant-message.user {
+  margin-left: auto;
+  background: var(--muted);
+}
+
+.assistant-message p {
+  overflow-wrap: anywhere;
+}
+
+.assistant-composer {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+}
+
+@media (max-width: 1280px) and (min-width: 981px) {
+  .app-shell {
+    grid-template-columns: 248px minmax(0, 1fr) 340px;
+  }
+
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 64px minmax(0, 1fr) 340px;
+  }
+
+  .workspace {
+    padding-inline: 20px;
+  }
 }
 
 .topbar {
@@ -2422,6 +2516,10 @@ select:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .app-shell.sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .mobile-header {
     position: sticky;
     top: 0;
@@ -2502,13 +2600,53 @@ select:focus-visible {
 
   .workspace {
     min-width: 0;
-    padding: 12px 12px 210px;
+    padding: 12px 12px 80px;
   }
 
-  .web-assistant {
-    bottom: max(10px, env(safe-area-inset-bottom));
-    left: 50%;
-    width: calc(100vw - 24px);
+  .assistant-panel {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    display: block;
+    height: auto;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -8px 24px rgba(29, 32, 35, 0.08);
+  }
+
+  .assistant-desktop-header {
+    display: none;
+  }
+
+  .assistant-mobile-toggle {
+    display: flex;
+    width: 100%;
+    height: 52px;
+    justify-content: space-between;
+    border-radius: 0;
+    padding-inline: 14px;
+  }
+
+  .assistant-panel-body {
+    display: none;
+  }
+
+  .assistant-panel.mobile-expanded {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: min(72dvh, 680px);
+  }
+
+  .assistant-panel.mobile-expanded .assistant-panel-body {
+    display: grid;
+  }
+
+  .assistant-composer {
+    padding: 10px 12px;
   }
 
   .workspace > * {

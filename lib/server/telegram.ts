@@ -151,16 +151,20 @@ export async function downloadTelegramFile(
 }
 
 export async function transcribeTelegramVoice(fileId: string) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
   const audio = await downloadTelegramFile(fileId, {
     filename: "telegram-voice.ogg",
     mimeType: "audio/ogg",
   });
+  return transcribeAudioFile(audio.bytes, audio.filename, audio.mimeType);
+}
+
+export async function transcribeAudioFile(bytes: Uint8Array, filename: string, mimeType: string) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
   const form = new FormData();
   form.set("model", process.env.OPENAI_TRANSCRIBE_MODEL ?? "gpt-4o-mini-transcribe");
   form.set("language", "ru");
-  form.set("file", new File([audio.bytes], audio.filename, { type: audio.mimeType }));
+  form.set("file", new File([Uint8Array.from(bytes).buffer], filename, { type: mimeType }));
   const transcriptionResponse = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}` },
