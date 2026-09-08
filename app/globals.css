@@ -1846,7 +1846,7 @@ textarea {
   font-weight: 500;
 }
 
-textarea {
+textarea:not([data-slot]) {
   width: 100%;
   min-height: 112px;
   resize: vertical;
@@ -1857,6 +1857,58 @@ textarea {
   padding: 14px 46px 14px 16px;
   font-size: 17px;
   line-height: 22px;
+}
+
+/* Layout responds to the workspace left by the navigation and assistant. */
+.workspace {
+  container-type: inline-size;
+  container-name: workspace;
+  min-width: 0;
+}
+
+.assets-view,
+.asset-tools,
+.asset-current-section > *,
+.plan-primary-actions {
+  min-width: 0;
+}
+
+.money-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bill-row {
+  container-type: inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+}
+
+.bill-row > :first-child { flex: 1 1 240px; }
+.bill-row > :nth-child(2) { flex: 1 1 220px; }
+.bill-row > :nth-child(3) { flex: 1 1 100%; }
+
+.assistant-composer textarea[data-slot] {
+  min-height: 64px;
+  max-height: 192px;
+  field-sizing: content;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.assistant-message { min-width: 0; }
+.assistant-message a { text-decoration: underline; overflow-wrap: anywhere; }
+
+@container workspace (max-width: 1100px) {
+  .plan-layout { grid-template-columns: minmax(0, 1fr); }
+  .asset-tools { grid-template-columns: minmax(0, 1fr); }
+  .asset-primary-actions { display: flex; flex-wrap: wrap; }
+  .asset-current-section { flex-wrap: wrap; }
+  .asset-current-actions { flex-wrap: wrap; }
+  .asset-sort-trigger { width: 100%; }
 }
 
 textarea:focus-visible,
@@ -3159,4 +3211,49 @@ select:focus-visible {
   html {
     @apply font-sans;
   }
+}
+
+@source "../node_modules/streamdown/dist/*.js";
+
+[data-slot="button"][data-size="sm"] {
+  min-height: 32px;
+  font-size: 14px;
+}
+
+[data-slot="card-title"] { margin: 0; }
+.stat-card strong { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 980px) {
+  .app-shell { align-content: start; }
+  [data-slot="button"],
+  button[data-size],
+  [data-slot="button"][data-size="sm"],
+  [data-slot="dialog-close"],
+  [data-slot="select-trigger"],
+  [data-slot="tabs-trigger"],
+  [data-slot="command-item"],
+  .mobile-header button,
+  .assistant-mobile-toggle,
+  .asset-row-edit,
+  .asset-filter-chip {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  [data-slot="button"][data-size="default"] { height: 44px; font-size: 14px; }
+  [data-slot="button"][data-size^="icon"] { width: 44px; height: 44px; }
+  button[data-size^="icon"] { width: 44px; height: 44px; }
+  [data-slot="dialog-close"] { width: 44px; height: 44px; }
+  [data-slot="input-group"] { min-height: 44px; }
+  input[data-slot], textarea[data-slot] { font-size: 16px; }
+  .assistant-composer textarea[data-slot] { font-size: 16px; line-height: 24px; }
+  .assistant-message .assistant-response { font-size: 16px; line-height: 24px; }
+  .asset-checkbox-cell { display: grid; place-items: center; min-width: 44px; min-height: 44px; }
+  .asset-table-row button { min-height: 44px; }
+  .asset-table-row { grid-template-columns: 44px minmax(0, 1fr); }
+  .plan-primary-actions { grid-template-columns: minmax(0, 1fr); }
+  .plan-primary-actions button { white-space: normal; }
+  .asset-current-actions { flex-wrap: wrap; }
+  .assistant-mobile-toggle { height: 44px; }
 }

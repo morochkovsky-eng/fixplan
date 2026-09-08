@@ -566,7 +566,7 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /счет или показания электричества/);
   assert.match(pageSource, /Добавить счетчик/);
   assert.match(pageSource, /Сохранить счетчик/);
-  assert.match(pageSource, /Тариф, руб\. за единицу/);
+  assert.match(pageSource, /Тариф, ₽ за единицу/);
   assert.match(pageSource, /по тарифу/);
   assert.match(documentRouteSource, /utility_bill_id \|\| data\.utility_reading_id/);
   assert.match(documentRouteSource, /является первоисточником/);

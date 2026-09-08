@@ -50,6 +50,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { formatMoney } from "@/lib/format-money";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
+import { MessageResponse } from "@/components/ai-elements/message";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -1173,7 +1177,7 @@ function tenantShareFor(allocation: UtilityBillAllocation, amount: number, curre
 }
 
 function moneyLabel(value: number) {
-  return `${value.toLocaleString("ru-RU")} ₽`;
+  return formatMoney(value);
 }
 
 function utilityBillTone(status: UtilityBillStatus): "secondary" | "destructive" | "outline" {
@@ -3406,7 +3410,7 @@ function WebAssistant({
         </div>
         <span className="text-muted-foreground text-xs">Веб и Telegram</span>
       </div>
-      <Button className="assistant-mobile-toggle" onClick={() => setMobileExpanded((value) => !value)} type="button" variant="ghost">
+      <Button aria-expanded={mobileExpanded} className="assistant-mobile-toggle" onClick={() => setMobileExpanded((value) => !value)} type="button" variant="ghost">
         <span className="flex items-center gap-2"><Bot className="size-4" /> FixPlan</span>
         <span className="flex items-center gap-2 text-muted-foreground">{mobileExpanded ? "Свернуть" : "Написать"}{mobileExpanded ? <ChevronDown /> : <ChevronUp />}</span>
       </Button>
@@ -3420,7 +3424,7 @@ function WebAssistant({
                   <span>{message.role === "user" ? "Вы" : "FixPlan"}</span>
                   <span>{message.channel === "telegram" ? "Telegram" : "Веб"}</span>
                 </div>
-                <p className="whitespace-pre-line text-sm">{message.content}</p>
+                <MessageResponse className="assistant-response text-sm leading-5" components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{typeof children === "string" && children.startsWith("https://") ? "Открыть ссылку" : children}</a> }}>{message.content}</MessageResponse>
               </div>
             ))}
             {status === "submitted" && (
@@ -3468,7 +3472,7 @@ function WebAssistant({
               </PromptInputActionMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button aria-label={recording ? "Остановить запись" : "Голосовой ввод"} disabled={status === "submitted"} onClick={() => void toggleRecording()} size="icon-sm" type="button" variant={recording ? "destructive" : "ghost"}>
+                  <Button aria-label={recording ? "Остановить запись" : "Голосовой ввод"} disabled={status === "submitted"} onClick={() => void toggleRecording()} size="icon" type="button" variant={recording ? "destructive" : "ghost"}>
                     {recording ? <Square /> : <Mic />}
                   </Button>
                 </TooltipTrigger>
@@ -5602,7 +5606,7 @@ function AssetDetail({
       <dd className="font-medium">
         {asset.purchaseCost === undefined
           ? "не указана"
-          : `${asset.purchaseCost.toLocaleString("ru-RU")} ₽`}
+          : moneyLabel(asset.purchaseCost)}
       </dd>
       <dt className="text-muted-foreground">Последняя проверка</dt><dd className="font-medium">{asset.lastChecked}</dd>
       <dt className="text-muted-foreground">Гарантия</dt><dd className="font-medium">{asset.warrantyUntil ?? "не указана"}</dd>
@@ -6011,7 +6015,7 @@ function EditableEventTask({
             {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
             {event.cost && (
               <TaskItemFile>
-                Стоимость: {event.cost.toLocaleString("ru-RU")} руб.
+                Стоимость: {moneyLabel(event.cost)}
               </TaskItemFile>
             )}
             {event.statusAfter && (
@@ -6468,6 +6472,7 @@ function UtilitiesView({
     emptyUtilityBillDraft(selectedMonth?.period ?? selectedPeriod),
   );
   const [showBillForm, setShowBillForm] = useState(false);
+  const billFormTrigger = useRef<HTMLButtonElement | null>(null);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Omit<UtilityBill, "id"> | null>(null);
   const [editingMeterId, setEditingMeterId] = useState<string | null>(null);
@@ -6744,13 +6749,13 @@ function UtilitiesView({
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="money-grid">
         <StatCard label="Выставлено жильцу" value={moneyLabel(issuedTenantAmount)} />
         <StatCard label="Получено от жильца" value={moneyLabel(receivedTenantAmount)} tone={receivedTenantAmount ? "positive" : undefined} />
         <StatCard label="Осталось получить" value={moneyLabel(pendingTenantAmount)} tone={pendingTenantAmount ? "warning" : undefined} />
       </div>
 
-      <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
         <Card className="max-xl:contents xl:sticky xl:top-4 xl:max-h-[calc(100dvh-12rem)] xl:self-start">
           <CardHeader className="max-xl:order-0 max-xl:rounded-lg max-xl:border max-xl:bg-card">
             <CardTitle>Коммуналка</CardTitle>
@@ -6805,7 +6810,7 @@ function UtilitiesView({
               </div>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="money-grid">
                 <div className="rounded-lg bg-muted p-3">
                   <div className="text-muted-foreground text-sm">Выставлено жильцу</div>
                   <div className="mt-1 text-2xl font-semibold">
@@ -6829,7 +6834,7 @@ function UtilitiesView({
                   <span className="text-muted-foreground text-sm">Осталось получить {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}</span>
                 </div>
                 {sortedBills.map((bill) => (
-                  <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={bill.id}>
+                  <div className="bill-row gap-3 rounded-lg border bg-background p-3" key={bill.id}>
                     <div className="grid min-w-0 gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <strong className="font-medium">{bill.service}</strong>
@@ -6881,7 +6886,7 @@ function UtilitiesView({
                 {!sortedBills.length && <div className="rounded-lg bg-muted p-4 text-muted-foreground text-sm">За этот месяц счетов пока нет.</div>}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => setShowBillForm(true)} type="button">
+                <Button onClick={(event) => { billFormTrigger.current = event.currentTarget; setShowBillForm(true); }} type="button">
                   <ReceiptText size={16} />
                   Добавить счет
                 </Button>
@@ -6989,7 +6994,7 @@ function UtilitiesView({
                       />
                     </label>
                     <label className="grid gap-1.5 text-sm font-medium" htmlFor="new-meter-rate">
-                      Тариф, руб. за единицу
+                      Тариф, ₽ за единицу
                       <Input
                         id="new-meter-rate"
                         inputMode="decimal"
@@ -7065,7 +7070,7 @@ function UtilitiesView({
                           <div className="text-muted-foreground text-sm">
                             Расход {reading.consumption.toLocaleString("ru-RU")} {meter.unit}
                             {reading.calculatedAmount !== undefined
-                              ? ` · ${moneyLabel(reading.calculatedAmount)} по тарифу ${reading.rate?.toLocaleString("ru-RU")} руб.`
+                              ? ` · ${moneyLabel(reading.calculatedAmount)} по тарифу ${reading.rate?.toLocaleString("ru-RU")} ₽`
                               : " · сумма не рассчитана, тариф не указан"}
                           </div>
                         )}
@@ -7159,13 +7164,13 @@ function UtilitiesView({
             </CardContent>
           </Card>
 
-          {showBillForm && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Выставление счета</CardTitle>
-                <CardDescription>Добавьте начисление за {selectedMonth?.period} и сохраните исходную квитанцию в архиве.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3">
+          <Dialog open={showBillForm} onOpenChange={setShowBillForm}>
+            <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl" onCloseAutoFocus={(event) => { event.preventDefault(); billFormTrigger.current?.focus(); }}>
+              <DialogHeader>
+                <DialogTitle>Выставление счета</DialogTitle>
+                <DialogDescription>Начисление за {selectedMonth?.period}</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
                 <div className="grid gap-3 md:grid-cols-3">
                   <label className="grid gap-1.5 text-sm font-medium" htmlFor="utility-service">
                     Услуга
@@ -7212,7 +7217,7 @@ function UtilitiesView({
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="grid gap-1.5">
-                    <span className="text-sm font-medium">Распределение расхода</span>
+                    <label htmlFor="utility-allocation" className="text-sm font-medium">Распределение расхода</label>
                     <Select
                       value={draft.allocation}
                       onValueChange={(value) => setDraft((current) => {
@@ -7225,7 +7230,7 @@ function UtilitiesView({
                         };
                       })}
                     >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="utility-allocation" aria-label="Распределение расхода"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(utilityBillAllocationLabels).map(([value, label]) => (
                           <SelectItem key={value} value={value}>{label}</SelectItem>
@@ -7292,9 +7297,9 @@ function UtilitiesView({
                     {savingBill ? "Сохраняем..." : "Добавить счет"}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <Card className="hidden">
             <CardContent className="grid gap-2 border-t pt-4">
@@ -7672,15 +7677,15 @@ function ActivityLog({
   return (
     <Card>
       <CardContent className="grid gap-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-          <Input
-            className="pl-9"
+        <InputGroup>
+          <InputGroupAddon><Search size={16} /></InputGroupAddon>
+          <InputGroupInput
+            aria-label="Поиск событий"
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="Найти событие, узел или исполнителя"
             value={query}
           />
-        </div>
+        </InputGroup>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {Object.entries(journalKindLabels).map(([value, label]) => (
             <Button
@@ -7781,6 +7786,10 @@ function DocumentsView({
   const [savingDocumentId, setSavingDocumentId] = useState<string | null>(null);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [selectedAssetId, setSelectedAssetId] = useState("apartment");
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+  const assetPickerTrigger = useRef<HTMLButtonElement | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const documentFileInput = useRef<HTMLInputElement>(null);
   const sortedAssets = useMemo(
     () => assets.slice().sort((left, right) => left.code.localeCompare(right.code, "ru")),
     [assets],
@@ -7912,8 +7921,8 @@ function DocumentsView({
     setMedia(media.filter((item) => item.id !== document.id));
   }
 
-  async function createDocuments(message: PromptInputMessage) {
-    if (!message.files.length) {
+  async function createDocuments() {
+    if (!documentFiles.length) {
       window.alert("Прикрепите хотя бы один файл.");
       return;
     }
@@ -7924,13 +7933,8 @@ function DocumentsView({
       formData.set("documentType", documentType);
       formData.set("issuedAt", documentIssuedAt);
       formData.set("validUntil", documentValidUntil);
-      formData.set("note", message.text.trim() || documentNote.trim());
-      for (const file of message.files) {
-        if (!file.url) continue;
-        const response = await fetch(file.url);
-        const blob = await response.blob();
-        formData.append("files", new File([blob], file.filename ?? "document", { type: file.mediaType ?? blob.type ?? "application/octet-stream" }));
-      }
+      formData.set("note", documentNote.trim());
+      for (const file of documentFiles) formData.append("files", file);
       const response = await fetch("/api/documents", { method: "POST", body: formData });
       const payload = (await response.json().catch(() => ({}))) as { documents?: AssetMedia[]; error?: string };
       if (!response.ok || !payload.documents?.length) throw new Error(payload.error ?? "Не удалось добавить документ.");
@@ -7938,6 +7942,8 @@ function DocumentsView({
       setDocumentNote("");
       setDocumentIssuedAt("");
       setDocumentValidUntil("");
+      setDocumentFiles([]);
+      if (documentFileInput.current) documentFileInput.current.value = "";
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Не удалось добавить документ.");
     } finally {
@@ -7948,16 +7954,16 @@ function DocumentsView({
   return (
     <div className="grid gap-4">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
-        <label className="search-field" htmlFor="documents-search">
-          <Search size={16} />
-          <Input
+        <InputGroup>
+          <InputGroupAddon><Search size={16} /></InputGroupAddon>
+          <InputGroupInput
             aria-label="Найти документ"
             id="documents-search"
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder="Файл, узел, категория"
             value={query}
           />
-        </label>
+        </InputGroup>
         <StatCard label="Документов" value={documents.length.toString()} />
         <StatCard label="Узлов с документами" value={assetCount.toString()} />
         <StatCard label="Требуют внимания" value={attentionDocumentsCount.toString()} />
@@ -7972,25 +7978,28 @@ function DocumentsView({
         </CardHeader>
         <CardContent className="grid gap-3">
           <div className="grid gap-1.5">
-            <span className="text-sm font-medium">Относится к</span>
-            <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Выберите квартиру или узел" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="apartment">Вся квартира</SelectItem>
-                {sortedAssets.map((asset) => (
-                  <SelectItem key={asset.id} value={asset.id}>
-                    {asset.code} · {asset.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <label htmlFor="document-asset" className="text-sm font-medium">Относится к</label>
+            <Button ref={assetPickerTrigger} id="document-asset" aria-label="Относится к" aria-haspopup="dialog" aria-expanded={assetPickerOpen} className="w-full justify-between" variant="outline" onClick={() => setAssetPickerOpen(true)}>
+              <span className="truncate">{selectedAsset ? `${selectedAsset.code} · ${selectedAsset.name}` : "Вся квартира"}</span><ChevronDown />
+            </Button>
+            <Dialog open={assetPickerOpen} onOpenChange={setAssetPickerOpen}>
+              <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); assetPickerTrigger.current?.focus(); }}>
+                <DialogHeader><DialogTitle>Квартира или узел</DialogTitle><DialogDescription className="sr-only">Выберите объект документа</DialogDescription></DialogHeader>
+                <Command>
+                  <CommandInput aria-label="Найти узел для документа" placeholder="Код или название узла" />
+                  <CommandList label="Узлы квартиры">
+                    <CommandEmpty>Узлы не найдены.</CommandEmpty>
+                    <CommandItem value="Вся квартира" onSelect={() => { setSelectedAssetId("apartment"); setAssetPickerOpen(false); }}>Вся квартира</CommandItem>
+                    {sortedAssets.map((asset) => <CommandItem key={asset.id} value={`${asset.code} ${asset.name} ${asset.id}`} onSelect={() => { setSelectedAssetId(asset.id); setAssetPickerOpen(false); }}>{asset.code} · {asset.name}</CommandItem>)}
+                  </CommandList>
+                </Command>
+              </DialogContent>
+            </Dialog>
           </div>
           <div className="grid gap-1.5">
-            <span className="text-sm font-medium">Тип документа</span>
+            <label htmlFor="document-type" className="text-sm font-medium">Тип документа</label>
             <Select value={documentType} onValueChange={(value) => setDocumentType(value as DocumentTypeId)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger id="document-type" aria-label="Тип документа" className="w-full">
                 <SelectValue placeholder="Выберите тип" />
               </SelectTrigger>
               <SelectContent>
@@ -8022,32 +8031,13 @@ function DocumentsView({
               />
             </label>
           </div>
-          <PromptInput
-            accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx"
-            className="w-full"
-            onSubmit={(message: PromptInputMessage) => {
-              void createDocuments(message);
-            }}
-          >
-            <PromptInputBody>
-              <PromptInputTextarea
-                placeholder="Комментарий к документу"
-                value={documentNote}
-                onChange={(event) => setDocumentNote(event.currentTarget.value)}
-              />
-            </PromptInputBody>
-            <PromptInputFooter>
-              <PromptInputTools>
-                <PromptInputActionMenu>
-                  <PromptInputActionMenuTrigger />
-                  <PromptInputActionMenuContent>
-                    <PromptInputActionAddAttachments label="Прикрепить файл" />
-                  </PromptInputActionMenuContent>
-                </PromptInputActionMenu>
-              </PromptInputTools>
-              <PromptInputSubmit aria-label="Добавить документ в архив" disabled={uploadingDocument} />
-            </PromptInputFooter>
-          </PromptInput>
+          <label className="grid gap-1.5 text-sm font-medium" htmlFor="document-files">Файлы
+            <Input id="document-files" ref={documentFileInput} type="file" multiple accept="application/pdf,image/*,text/*,.doc,.docx,.xls,.xlsx" disabled={uploadingDocument} onChange={(event) => setDocumentFiles(Array.from(event.currentTarget.files ?? []))} />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium" htmlFor="document-note">Комментарий
+            <Textarea id="document-note" rows={3} value={documentNote} onChange={(event) => setDocumentNote(event.currentTarget.value)} />
+          </label>
+          <Button aria-label="Добавить документ в архив" className="w-fit" disabled={uploadingDocument || !documentFiles.length} onClick={() => void createDocuments()}>{uploadingDocument ? <Spinner /> : <Upload />}Добавить документ в архив</Button>
         </CardContent>
       </Card>
 
@@ -8553,7 +8543,7 @@ function InspectionsView({
                     <Badge variant={issues.length ? "destructive" : "secondary"}>
                       {issues.length} замечаний
                     </Badge>
-                    <Badge variant="outline">{cost.toLocaleString("ru-RU")} руб.</Badge>
+                    <Badge variant="outline">{moneyLabel(cost)}</Badge>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button
@@ -9156,7 +9146,7 @@ function ContractorReport({
         <StatCard label="В задании" value={`${reportAssetCount} узла`} />
         <StatCard label="Проверено" value={`${reportResults.length} узла`} />
         <StatCard label="Замечания" value={`${issueResults.length}`} tone="negative" />
-        <StatCard label="Стоимость" value={`${totalCost.toLocaleString("ru-RU")} руб.`} />
+        <StatCard label="Стоимость" value={moneyLabel(totalCost)} />
         <StatCard label="Фото" value={`${photoCount} файлов`} />
       </div>
 
@@ -9209,7 +9199,7 @@ function ContractorReport({
                       <StatusBadge status={result.statusAfter} />
                       <Badge variant="outline">{result.photoCount} фото</Badge>
                       {result.cost && (
-                        <Badge variant="outline">{result.cost.toLocaleString("ru-RU")} руб.</Badge>
+                        <Badge variant="outline">{moneyLabel(result.cost)}</Badge>
                       )}
                     </div>
                   </div>
@@ -9445,7 +9435,7 @@ function EventTask({
           {asset && <TaskItemFile>{asset.code}</TaskItemFile>}
           {event.master && <TaskItemFile>Мастер: {event.master}</TaskItemFile>}
           {event.cost && (
-            <TaskItemFile>{event.cost.toLocaleString("ru-RU")} руб.</TaskItemFile>
+            <TaskItemFile>{moneyLabel(event.cost)}</TaskItemFile>
           )}
           {event.statusAfter && <TaskItemFile>{statusLabels[event.statusAfter]}</TaskItemFile>}
         </div>
