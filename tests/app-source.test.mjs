@@ -491,7 +491,8 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityBillServiceSource, /normalizeUtilityPeriod/);
   assert.match(utilityPeriodSource, /за\\s\+/);
   assert.match(pageSource, /utilityPeriodTimestamp/);
-  assert.match(pageSource, /Все месяцы/);
+  assert.match(pageSource, /max-xl:contents/);
+  assert.match(pageSource, /selectedMonthIndex \* 2 \+ 3/);
   assert.match(utilityBillServiceSource, /receipt_storage_path/);
   assert.match(schemaSource, /receipt_storage_path text/);
   assert.match(schemaSource, /utility_bill_id text/);

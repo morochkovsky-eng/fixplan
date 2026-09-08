@@ -6201,6 +6201,7 @@ function UtilitiesView({
   const months = useMemo(() => buildUtilityMonths(bills, meters, readings), [bills, meters, readings]);
   const [selectedPeriod, setSelectedPeriod] = useState(months[0]?.period ?? "Сентябрь 2026");
   const selectedMonth = months.find((month) => month.period === selectedPeriod) ?? months[0];
+  const selectedMonthIndex = Math.max(0, months.findIndex((month) => month.period === selectedMonth?.period));
   const selectedBills = selectedMonth?.bills ?? [];
   const selectedReadings = selectedMonth?.readings ?? [];
   const readingByMeter = new Map(selectedReadings.map((reading) => [reading.meterId, reading]));
@@ -6236,13 +6237,13 @@ function UtilitiesView({
   const currentStatus = selectedMonth?.status ?? "awaiting_readings";
 
   function selectPeriod(period: string) {
+    setMobileMonthOpen((current) => period !== selectedPeriod || !current);
     setSelectedPeriod(period);
     setDraft((current) => ({ ...current, period }));
     setShowBillForm(false);
     setEditingBillId(null);
     setEditDraft(null);
     setEditingMeterId(null);
-    setMobileMonthOpen(true);
   }
 
   function startReading(meter: UtilityMeter, reading?: UtilityReading) {
@@ -6539,24 +6540,30 @@ function UtilitiesView({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card className={mobileMonthOpen ? "hidden xl:block" : undefined}>
-          <CardHeader>
+        <Card className="max-xl:contents">
+          <CardHeader className="max-xl:order-0 max-xl:rounded-lg max-xl:border max-xl:bg-card">
             <CardTitle>Коммуналка</CardTitle>
             <CardDescription>Месяцы, счета, счетчики и статусы передачи.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2">
-            {months.map((month) => (
+          <CardContent className="grid gap-2 max-xl:contents">
+            {months.map((month, index) => (
               <button
                 className={`grid gap-1 rounded-lg border p-3 text-left transition hover:bg-muted ${
                   month.period === selectedMonth?.period ? "border-foreground bg-muted" : "bg-background"
                 }`}
                 key={month.period}
                 onClick={() => selectPeriod(month.period)}
+                style={{ order: index * 2 + 2 }}
                 type="button"
               >
                 <div className="flex items-center justify-between gap-3">
                   <strong className="font-medium">{month.period}</strong>
-                  <ChevronRight className="text-muted-foreground" size={16} />
+                  <ChevronRight
+                    className={`text-muted-foreground transition-transform xl:rotate-0 ${
+                      mobileMonthOpen && month.period === selectedMonth?.period ? "rotate-90" : ""
+                    }`}
+                    size={16}
+                  />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
                   <span>
@@ -6573,22 +6580,10 @@ function UtilitiesView({
           </CardContent>
         </Card>
 
-        <div className={`${mobileMonthOpen ? "grid" : "hidden"} gap-4 xl:grid`}>
-          <Button
-            className="w-fit xl:hidden"
-            onClick={() => {
-              setMobileMonthOpen(false);
-              setShowBillForm(false);
-              setEditingBillId(null);
-              setEditDraft(null);
-              setEditingMeterId(null);
-            }}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <ArrowLeft size={14} /> Все месяцы
-          </Button>
+        <div
+          className={`${mobileMonthOpen ? "grid" : "hidden"} gap-4 xl:col-start-2 xl:row-start-1 xl:grid`}
+          style={{ order: selectedMonthIndex * 2 + 3 }}
+        >
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
