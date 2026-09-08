@@ -45,6 +45,7 @@ const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.t
 const telegramContextSource = fs.readFileSync("lib/server/telegram-context.ts", "utf8");
 const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
 const assistantRouteSource = fs.readFileSync("app/api/assistant/route.ts", "utf8");
+const assistantRepliesSource = fs.readFileSync("lib/server/assistant-replies.ts", "utf8");
 const assistantMessagesMigrationSource = fs.readFileSync("supabase/migrations/20260908120000_add_assistant_messages.sql", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
@@ -183,12 +184,12 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /hasReadyDraft \? draftKeyboard/);
   assert.match(telegramWebhookSource, /cleanTelegramDraftText\(text\)/);
   assert.match(telegramWebhookSource, /utilityDraftReply/);
-  assert.match(telegramWebhookSource, /Что удалось извлечь из вложения/);
+  assert.match(assistantRepliesSource, /Что удалось извлечь из вложения/);
   assert.match(telegramWebhookSource, /Создать счёт/);
   assert.match(telegramWebhookSource, /Удалить черновик/);
-  assert.match(telegramWebhookSource, /Чтобы добавить другие ресурсы/);
+  assert.match(assistantRepliesSource, /Чтобы добавить другие ресурсы/);
   assert.match(telegramWebhookSource, /Исключить страховку/);
-  assert.match(telegramWebhookSource, /Начислено за месяц/);
+  assert.match(assistantRepliesSource, /Начислено за месяц/);
   assert.match(telegramWebhookSource, /media-group-companion/);
   assert.match(telegramClientSource, /media_group_id/);
   assert.match(telegramClientSource, /cleanTelegramText/);

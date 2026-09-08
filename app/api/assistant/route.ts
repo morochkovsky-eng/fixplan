@@ -2,8 +2,10 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireApartmentAccess } from "../assets/access";
 import { recordAssistantMessage } from "@/lib/server/assistant-messages";
+import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
 import type { TelegramOwnerAccount } from "@/lib/server/telegram-context";
+import { cleanTelegramDraftText } from "@/lib/server/telegram";
 
 const supportedAttachmentTypes = new Set([
   "application/pdf",
@@ -106,19 +108,28 @@ export async function POST(request: Request) {
 
   try {
     const answer = await runTelegramAssistant(access.admin, account, text, new URL(request.url).origin, attachment);
+    const [conversationResult, apartmentResult] = await Promise.all([
+      access.admin.from("telegram_conversations").select("pending_action").eq("telegram_user_id", account.telegram_user_id).maybeSingle(),
+      access.admin.from("apartments").select("currency,timezone").eq("id", access.apartmentId).maybeSingle(),
+    ]);
+    if (conversationResult.error) throw new Error(conversationResult.error.message);
+    if (apartmentResult.error) throw new Error(apartmentResult.error.message);
+    const pending = conversationResult.data?.pending_action as Record<string, unknown> | null;
+    const conciseAnswer = pending?.type
+      ? utilityDraftReply(
+          pending,
+          apartmentResult.data?.currency ?? "RUB",
+          apartmentResult.data?.timezone ?? "Europe/Moscow",
+        ) ?? cleanTelegramDraftText(answer)
+      : answer;
     await recordAssistantMessage(access.admin, {
       ownerUserId: access.userId,
       apartmentId: access.apartmentId,
       role: "assistant",
       channel: "web",
-      content: answer,
+      content: conciseAnswer,
     });
-    const { data: conversation } = await access.admin
-      .from("telegram_conversations")
-      .select("pending_action")
-      .eq("telegram_user_id", account.telegram_user_id)
-      .maybeSingle();
-    return NextResponse.json({ message: answer, pendingAction: conversation?.pending_action ?? null });
+    return NextResponse.json({ message: conciseAnswer, pendingAction: pending });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось обработать запрос." }, { status: 500 });
   }
