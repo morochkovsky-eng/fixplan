@@ -35,7 +35,12 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
   const amount = Number(body.amount ?? 0);
   const allocation = String(body.allocation ?? "owner");
   const requestedTenantAmount = Number(body.tenantAmount ?? 0);
-  const tenantAmount = allocation === "owner" ? 0 : allocation === "tenant" ? amount : requestedTenantAmount;
+  const hasExplicitTenantAmount = body.tenantAmount !== undefined && body.tenantAmount !== null && String(body.tenantAmount).trim() !== "";
+  const tenantAmount = allocation === "owner"
+    ? 0
+    : allocation === "tenant" && !hasExplicitTenantAmount
+      ? amount
+      : requestedTenantAmount;
   const requestedReimbursementStatus = String(
     body.reimbursementStatus ?? (tenantAmount > 0 ? "awaiting" : "not_required"),
   );

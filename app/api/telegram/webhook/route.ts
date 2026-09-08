@@ -21,6 +21,10 @@ const draftKeyboard: TelegramInlineButton[][] = [[
   { text: "Изменить", callback_data: "fixplan:pending:edit" },
   { text: "Отменить", callback_data: "fixplan:pending:cancel" },
 ]];
+const utilityDraftKeyboard: TelegramInlineButton[][] = [[
+  { text: "Создать счёт", callback_data: "fixplan:pending:confirm" },
+  { text: "Удалить черновик", callback_data: "fixplan:pending:cancel" },
+]];
 const editDraftKeyboard: TelegramInlineButton[][] = [[
   { text: "Отменить черновик", callback_data: "fixplan:pending:cancel" },
 ]];
@@ -65,31 +69,72 @@ function displayName(user: TelegramUser) {
   return [user.first_name, user.last_name].filter(Boolean).join(" ");
 }
 
-function utilityDraftReply(pendingAction: Record<string, unknown>, currency: string) {
+function currencyLabel(value: unknown, currency: string) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "";
+  try {
+    return new Intl.NumberFormat("ru-RU", { style: "currency", currency }).format(amount);
+  } catch {
+    return `${amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+  }
+}
+
+function utilityDraftReply(pendingAction: Record<string, unknown>, currency: string, timezone: string) {
   if (pendingAction.type !== "create_utility_bill") return null;
   const payload = pendingAction.payload;
   if (!payload || typeof payload !== "object") return null;
   const bill = payload as Record<string, unknown>;
   const service = typeof bill.service === "string" ? bill.service.trim() : "";
   const period = typeof bill.period === "string" ? bill.period.trim() : "";
-  const amount = Number(bill.amount);
+  const items = (Array.isArray(bill.items) ? bill.items : [bill])
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"));
+  const latest = items.at(-1) ?? bill;
+  const latestService = typeof latest.service === "string" ? latest.service.trim() : service;
+  const amount = Number(latest.amount);
   if (!service || !period || !Number.isFinite(amount) || amount <= 0) return null;
-  let formattedAmount = `${amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
-  try {
-    formattedAmount = new Intl.NumberFormat("ru-RU", { style: "currency", currency }).format(amount);
-  } catch {
-    // Keep the plain currency format for an unknown apartment currency code.
+  const creditAmount = Number(latest.creditAmount ?? 0);
+  const tenantAmount = Number(latest.tenantAmount ?? amount - creditAmount);
+  const dueDate = typeof latest.dueDate === "string" ? latest.dueDate.trim() : "";
+  const existingItems = Array.isArray(bill.existingItems)
+    ? bill.existingItems.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+    : [];
+  const statementItems = [
+    ...existingItems.map((entry) => ({ service: entry.service, tenantAmount: entry.tenant_amount })),
+    ...items.map((entry) => ({ service: entry.service, tenantAmount: entry.tenantAmount })),
+  ];
+  const tenantTotal = statementItems.reduce((sum, entry) => sum + Number(entry.tenantAmount ?? 0), 0);
+  const hasPreviousItems = statementItems.length > 1;
+  const createdAt = typeof bill.draftCreatedAt === "string" ? new Date(bill.draftCreatedAt) : null;
+  const createdLabel = createdAt && !Number.isNaN(createdAt.valueOf())
+    ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: timezone }).format(createdAt)
+    : "сегодня";
+  const extracted = [
+    `Что удалось извлечь из вложения (${latestService}, ${period.toLocaleLowerCase("ru-RU")}):`,
+    `• Период начисления: за ${period.toLocaleLowerCase("ru-RU")}`,
+    `• Итого к оплате: ${currencyLabel(amount, currency)}`,
+    ...(creditAmount > 0 ? [`• Переплата или вычет: ${currencyLabel(creditAmount, currency)}`] : []),
+    ...(dueDate ? [`• Срок оплаты: ${dueDate}`] : []),
+    `Жилец должен: ${currencyLabel(tenantAmount, currency)}`,
+    "",
+  ];
+  if (hasPreviousItems) {
+    const continuationLabel = existingItems.length
+      ? `Подготовил дополнение к счёту за ${period.toLocaleLowerCase("ru-RU")}.`
+      : `Дополнил черновик от ${createdLabel}.`;
+    extracted.push(
+      continuationLabel,
+      `• Период: за ${period.toLocaleLowerCase("ru-RU")}`,
+      ...statementItems.map((entry) => `• ${String(entry.service ?? "Услуга")}: ${currencyLabel(entry.tenantAmount, currency)}`),
+      `Жилец должен всего: ${currencyLabel(tenantTotal, currency)}`,
+      "",
+    );
+  } else {
+    extracted.push("Черновик счёта подготовлен.", "");
   }
-  const dueDate = typeof bill.dueDate === "string" ? bill.dueDate.trim() : "";
-  return [
-    `Вижу квитанцию «${service}». Подготовил черновик счёта.`,
-    "",
-    `Период: ${period}`,
-    `Сумма: ${formattedAmount}`,
-    ...(dueDate ? [`Оплатить до: ${dueDate}`] : []),
-    "",
-    "Другие услуги можно прислать отдельной квитанцией или показаниями.",
-  ].join("\n");
+  extracted.push(
+    "Для добавления других ресурсов пришлите дополнительные квитанции.",
+  );
+  return extracted.join("\n");
 }
 
 async function connectAccount(admin: NonNullable<ReturnType<typeof createAdminClient>>, code: string, user: TelegramUser, chatId: number) {
@@ -167,28 +212,17 @@ async function sendAssistantReply(
   if (pendingAction?.type === "create_utility_bill") {
     const apartmentId = typeof pendingAction.apartmentId === "string" ? pendingAction.apartmentId : "";
     let currency = "RUB";
+    let timezone = "Europe/Moscow";
     if (apartmentId) {
-      const { data: apartment } = await admin.from("apartments").select("currency").eq("id", apartmentId).maybeSingle();
+      const { data: apartment } = await admin.from("apartments").select("currency,timezone").eq("id", apartmentId).maybeSingle();
       if (typeof apartment?.currency === "string" && apartment.currency) currency = apartment.currency;
+      if (typeof apartment?.timezone === "string" && apartment.timezone) timezone = apartment.timezone;
     }
-    reply = utilityDraftReply(pendingAction, currency) ?? reply;
+    reply = utilityDraftReply(pendingAction, currency, timezone) ?? reply;
   }
   await sendTelegramMessage(chatId, reply, {
-    inlineKeyboard: hasReadyDraft ? draftKeyboard : undefined,
+    inlineKeyboard: pendingAction?.type === "create_utility_bill" ? utilityDraftKeyboard : hasReadyDraft ? draftKeyboard : undefined,
   });
-}
-
-async function hasReadyTelegramDraft(
-  admin: NonNullable<ReturnType<typeof createAdminClient>>,
-  telegramUserId: number,
-) {
-  const { data, error } = await admin
-    .from("telegram_conversations")
-    .select("pending_action")
-    .eq("telegram_user_id", telegramUserId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return Boolean(data?.pending_action?.type && String(data.pending_action.type).startsWith("create_"));
 }
 
 export async function POST(request: Request) {
@@ -253,10 +287,6 @@ export async function POST(request: Request) {
         if (!account) {
           await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
         } else if (message.voice || message.photo?.length || message.document || text) {
-          if (message.photo?.length && !message.caption?.trim() && await hasReadyTelegramDraft(admin, user.id)) {
-            await admin.from("telegram_updates").update({ status: "processed", processed_at: new Date().toISOString() }).eq("update_id", update.update_id);
-            return NextResponse.json({ ok: true, ignored: "attachment-after-ready-draft" });
-          }
           const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
           const active = await getActiveTelegramApartment(admin, account);
           if ("error" in active) throw new Error(active.error);

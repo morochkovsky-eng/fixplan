@@ -226,13 +226,14 @@ const tools = [
       properties: {
         service: { type: "string", description: "Название услуги или поставщика" },
         period: { type: "string", description: "Расчётный период в понятном пользователю виде" },
-        amount: { type: "number", description: "Сумма к оплате" },
+        amount: { type: "number", description: "Полная сумма начисления до переплат, скидок и вычетов" },
+        creditAmount: { type: "number", description: "Переплата, скидка или вычет, уменьшающие долг; 0 если отсутствуют" },
         dueDate: { type: "string", description: "Срок оплаты в понятном пользователю виде, пустая строка если не указан" },
         allocation: { type: "string", enum: ["owner", "tenant", "split"], description: "На кого относится расход. По умолчанию owner, если пользователь не уточнил другое" },
-        tenantAmount: { type: "number", description: "Доля жильца: 0 для owner, полная сумма для tenant, указанная доля для split" },
+        tenantAmount: { type: "number", description: "Итоговый долг жильца после переплат, скидок и вычетов: 0 для owner, итоговая сумма для tenant, указанная доля для split" },
         note: { type: "string", description: "Короткие важные детали квитанции, пустая строка если их нет" },
       },
-      required: ["service", "period", "amount", "dueDate", "allocation", "tenantAmount", "note"],
+      required: ["service", "period", "amount", "creditAmount", "dueDate", "allocation", "tenantAmount", "note"],
       additionalProperties: false,
     },
     strict: true,
@@ -253,7 +254,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски: не больше шести коротких строк. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, положительную сумму и срок оплаты. Вызывай prepare_utility_bill только когда сумма достоверно известна и больше нуля; если суммы нет или она не читается, назови только один блокирующий вопрос, не создавая черновик. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. После каждого такого сообщения кратко перечисляй, что получено и чего не хватает за этот месяц. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Если на коммунальной фотографии виден счётчик с показаниями, анализируй только сам счётчик и цифры на табло. Автоматы, УЗО, щиток, провода и подписи линий считай фоном: никогда не упоминай их и не предлагай ремонт или осмотр, если владелец прямо не сообщил о неисправности. Не описывай содержимое фотографии, оборудование и возможные действия, если владелец прямо об этом не спрашивал. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. Как только обязательных данных достаточно, обязательно вызови соответствующий prepare-инструмент и покажи короткое резюме с названием объекта. Кнопки подтверждения интерфейс добавит сам: никогда не проси написать «создавай», «подтверждаю» или подтвердить действие текстом. Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий. Форматируй ответ как обычный текст Telegram: без Markdown, звёздочек и решёток. Для списка используй короткие строки с маркером «•». Никогда не показывай технические идентификаторы или английские значения статусов: переводи их на понятный русский язык. Не повторяй одну и ту же просьбу или вывод.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, полную сумму начисления, переплату или вычет, итоговый долг жильца и срок оплаты. Если квитанция показывает полную сумму и переплату, вычисли долг жильца как полную сумму минус переплата и не спрашивай, какую из этих сумм использовать. Вызывай prepare_utility_bill только когда полная сумма достоверно известна и больше нуля; если суммы нет или она не читается, назови только один блокирующий вопрос, не создавая черновик. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. Новая квитанция того же периода дополняет текущий черновик или уже созданный месячный счёт. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Если на коммунальной фотографии виден счётчик с показаниями, анализируй только сам счётчик и цифры на табло. Автоматы, УЗО, щиток, провода и подписи линий считай фоном: никогда не упоминай их и не предлагай ремонт или осмотр, если владелец прямо не сообщил о неисправности. Не описывай содержимое фотографии, оборудование и возможные действия, если владелец прямо об этом не спрашивал. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. Как только обязательных данных достаточно, обязательно вызови соответствующий prepare-инструмент. Интерфейс сам сформирует резюме готового коммунального черновика. Кнопки подтверждения интерфейс добавит сам: никогда не проси написать «создавай», «подтверждаю» или подтвердить действие текстом. Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий. Форматируй ответ как обычный текст Telegram: без Markdown, звёздочек и решёток. Для списка используй короткие строки с маркером «•». Никогда не показывай технические идентификаторы или английские значения статусов: переводи их на понятный русский язык. Не повторяй одну и ту же просьбу или вывод.`,
       input,
       tools,
       tool_choice: "auto",
@@ -283,6 +284,7 @@ async function executeTool(
   call: ResponseItem,
   attachment?: TelegramAssistantAttachment,
   existingReceiptStoragePath?: string,
+  existingPendingAction?: Record<string, unknown> | null,
 ) {
   const args = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
   if (call.name === "list_apartments") {
@@ -496,7 +498,7 @@ async function executeTool(
   }
 
   if (call.name === "prepare_utility_bill") {
-    const payload = {
+    const item: Record<string, unknown> = {
       ...args,
       status: "due",
       source: "telegram_private",
@@ -504,10 +506,10 @@ async function executeTool(
       receiptFilename: attachment?.filename,
       receiptMediaType: attachment?.mimeType,
     };
-    const validation = normalizeBillPayload(payload);
+    const validation = normalizeBillPayload(item);
     if ("error" in validation) {
       await saveConversation(admin, account, {
-        pending_action: { type: "collect_utility_bill", apartmentId: account.apartment_id, payload },
+        pending_action: { type: "collect_utility_bill", apartmentId: account.apartment_id, payload: item },
       });
       return {
         ok: false,
@@ -516,12 +518,43 @@ async function executeTool(
         instruction: "Черновик неполный. Кнопки подтверждения не показывать; попросить только недостающие данные.",
       };
     }
+    const period = normalizeUtilityPeriod(item.period);
+    const previousPayload = existingPendingAction?.type === "create_utility_bill" && existingPendingAction.payload && typeof existingPendingAction.payload === "object"
+      ? existingPendingAction.payload as Record<string, unknown>
+      : null;
+    const previousItems = previousPayload && normalizeUtilityPeriod(previousPayload.period) === period
+      ? (Array.isArray(previousPayload.items) ? previousPayload.items : [previousPayload]).filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+      : [];
+    const serviceKey = String(item.service ?? "").trim().toLocaleLowerCase("ru-RU");
+    const items = [
+      ...previousItems.filter((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU") !== serviceKey),
+      item,
+    ];
+    const { data: existingBills, error: existingBillsError } = await admin
+      .from("utility_bills")
+      .select("id,service,period,amount,tenant_amount,due_date_label")
+      .eq("apartment_id", account.apartment_id)
+      .eq("period", period)
+      .neq("status", "paid");
+    if (existingBillsError) return { ok: false, error: existingBillsError.message };
+    const pendingServiceKeys = new Set(items.map((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU")));
+    const enrichedItems = items.map((entry) => {
+      const matchingBill = (existingBills ?? []).find((bill) => String(bill.service).trim().toLocaleLowerCase("ru-RU") === String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU"));
+      return matchingBill ? { ...entry, replaceBillId: matchingBill.id } : entry;
+    });
+    const payload = {
+      ...item,
+      period,
+      items: enrichedItems,
+      existingItems: (existingBills ?? []).filter((bill) => !pendingServiceKeys.has(String(bill.service).trim().toLocaleLowerCase("ru-RU"))),
+      draftCreatedAt: previousPayload?.draftCreatedAt ?? new Date().toISOString(),
+    };
     await saveConversation(admin, account, {
       pending_action: { type: "create_utility_bill", apartmentId: account.apartment_id, payload },
     });
     return {
       ok: true,
-      draft: payload,
+      draft: { ...payload, latestItem: item },
       attachmentClaimed: Boolean(attachment),
       instruction: "Покажи кратко услугу, период, сумму, срок оплаты и распределение расхода. Не проси вводить команду: интерфейс добавит кнопки.",
     };
@@ -536,14 +569,13 @@ async function removePendingAttachment(
 ) {
   const payload = pending?.payload;
   if (!payload || typeof payload !== "object") return;
-  const storagePath = (payload as Record<string, unknown>).receiptStoragePath;
-  const photoStoragePath = (payload as Record<string, unknown>).photoStoragePath;
-  const pendingStoragePath = typeof storagePath === "string" && storagePath
-    ? storagePath
-    : typeof photoStoragePath === "string" ? photoStoragePath : "";
-  if (pendingStoragePath) {
-    await admin.storage.from("asset-media").remove([pendingStoragePath]);
-  }
+  const record = payload as Record<string, unknown>;
+  const entries = Array.isArray(record.items)
+    ? record.items.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+    : [record];
+  const paths = entries.flatMap((entry) => [entry.receiptStoragePath, entry.photoStoragePath])
+    .filter((path): path is string => typeof path === "string" && Boolean(path));
+  if (paths.length) await admin.storage.from("asset-media").remove([...new Set(paths)]);
 }
 
 function attachmentInput(message: string, attachment: TelegramAssistantAttachment) {
@@ -612,36 +644,61 @@ export async function runTelegramAssistant(
     }
     if (pending.type === "create_utility_bill") {
       const billPayload = pending.payload as Record<string, unknown>;
-      const result = await createUtilityBillRecord(admin, {
-        apartmentId: draftApartment.id,
-        payload: {
-          ...billPayload,
-          ownerConfirmedAt: new Date().toISOString(),
-        },
-      });
-      if ("error" in result || !result.row) return `Не удалось создать счёт: ${result.error ?? "неизвестная ошибка"}`;
-      const receiptStoragePath = String(billPayload.receiptStoragePath ?? "").trim();
-      if (receiptStoragePath) {
-        const { error: mediaError } = await admin.from("asset_media").insert({
-          apartment_id: draftApartment.id,
-          asset_id: null,
-          event_id: null,
-          inspection_id: null,
-          utility_bill_id: result.row.id,
-          storage_path: receiptStoragePath,
-          media_type: String(billPayload.receiptMediaType ?? "application/octet-stream"),
-          caption: String(billPayload.receiptFilename ?? "Квитанция из Telegram"),
-          created_by: `telegram:${account.telegram_user_id}`,
-          document_type: "invoice",
-          document_note: `Квитанция: ${result.row.service}, ${result.row.period}`,
-        });
-        if (mediaError) {
-          await admin.from("utility_bills").delete().eq("apartment_id", draftApartment.id).eq("id", result.row.id);
-          return `Не удалось сохранить квитанцию в архиве: ${mediaError.message}`;
+      const items = (Array.isArray(billPayload.items) ? billPayload.items : [billPayload])
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"));
+      const createdBillIds: string[] = [];
+      for (const item of items) {
+        const confirmedPayload = { ...item, ownerConfirmedAt: new Date().toISOString() };
+        const replaceBillId = String(item.replaceBillId ?? "").trim();
+        let resultRow: Record<string, unknown> | null = null;
+        if (replaceBillId) {
+          const normalized = normalizeBillPayload(confirmedPayload);
+          if ("error" in normalized) return `Не удалось обновить счёт: ${normalized.error}`;
+          const { data: updated, error: updateError } = await admin
+            .from("utility_bills")
+            .update({ ...normalized.bill, updated_at: new Date().toISOString() })
+            .eq("apartment_id", draftApartment.id)
+            .eq("id", replaceBillId)
+            .select("*")
+            .single();
+          if (updateError || !updated) return `Не удалось обновить счёт: ${updateError?.message ?? "неизвестная ошибка"}`;
+          resultRow = updated as Record<string, unknown>;
+        } else {
+          const result = await createUtilityBillRecord(admin, {
+            apartmentId: draftApartment.id,
+            payload: confirmedPayload,
+          });
+          if ("error" in result || !result.row) {
+            if (createdBillIds.length) await admin.from("utility_bills").delete().eq("apartment_id", draftApartment.id).in("id", createdBillIds);
+            return `Не удалось создать счёт: ${result.error ?? "неизвестная ошибка"}`;
+          }
+          resultRow = result.row as unknown as Record<string, unknown>;
+          createdBillIds.push(String(result.row.id));
+        }
+        const receiptStoragePath = String(item.receiptStoragePath ?? "").trim();
+        if (receiptStoragePath) {
+          const { error: mediaError } = await admin.from("asset_media").insert({
+            apartment_id: draftApartment.id,
+            asset_id: null,
+            event_id: null,
+            inspection_id: null,
+            utility_bill_id: String(resultRow.id),
+            storage_path: receiptStoragePath,
+            media_type: String(item.receiptMediaType ?? "application/octet-stream"),
+            caption: String(item.receiptFilename ?? "Квитанция из Telegram"),
+            created_by: `telegram:${account.telegram_user_id}`,
+            document_type: "invoice",
+            document_note: `Квитанция: ${String(resultRow.service)}, ${String(resultRow.period)}`,
+          });
+          if (mediaError) {
+            await admin.from("utility_bills").delete().eq("apartment_id", draftApartment.id).in("id", createdBillIds);
+            return `Не удалось сохранить квитанцию в архиве: ${mediaError.message}`;
+          }
         }
       }
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
-      return `Счёт «${result.row.service}» за ${result.row.period} создан для объекта «${draftApartment.name}». Сумма: ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: draftApartment.currency }).format(Number(result.row.amount))}.`;
+      const tenantTotal = items.reduce((sum, item) => sum + Number(item.tenantAmount ?? 0), 0);
+      return `Счёт за ${normalizeUtilityPeriod(billPayload.period)} создан. Жилец должен: ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: draftApartment.currency }).format(tenantTotal)}.`;
     }
     if (pending.type === "create_work_order") {
       const payload = pending.payload as Record<string, unknown>;
@@ -835,12 +892,13 @@ export async function runTelegramAssistant(
     return "Черновик отменён.";
   }
 
-  if (attachment && conversation.pending_action) {
+  const keepsUtilityDraft = attachment && conversation.pending_action?.type === "create_utility_bill";
+  if (attachment && conversation.pending_action && !keepsUtilityDraft) {
     await removePendingAttachment(admin, conversation.pending_action);
     await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
   }
 
-  const contextualMessage = !attachment && conversation.pending_action
+  const contextualMessage = conversation.pending_action
     ? `${message}\n\nТекущий неподтверждённый черновик: ${JSON.stringify(conversation.pending_action)}`
     : message;
   let attachmentClaimed = false;
@@ -867,6 +925,7 @@ export async function runTelegramAssistant(
           call,
           attachment,
           typeof existingAttachmentStoragePath === "string" ? existingAttachmentStoragePath : undefined,
+          conversation.pending_action,
         );
         if (
           (call.name === "prepare_utility_bill" || call.name === "prepare_utility_reading" || call.name === "prepare_asset_event") &&

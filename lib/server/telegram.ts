@@ -58,6 +58,9 @@ export function cleanTelegramText(text: string) {
     .replace(/\bin_progress\b/gi, "в работе")
     .replace(/\battention\b/gi, "требует внимания")
     .replace(/\bok\b/gi, "исправно")
+    .replace(/\bRUB\b/g, "₽")
+    .replace(/\bEUR\b/g, "€")
+    .replace(/\bUSD\b/g, "$")
     .replace(/\*/g, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
