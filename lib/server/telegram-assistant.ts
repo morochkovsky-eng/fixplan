@@ -227,11 +227,11 @@ const tools = [
       properties: {
         service: { type: "string", description: "Название услуги или поставщика" },
         period: { type: "string", description: "Расчётный период в понятном пользователю виде" },
-        amount: { type: "number", description: "Полная сумма начисления до переплат, скидок и вычетов" },
+        amount: { type: "number", description: "Сумма, которую сохраняем жильцу. Для ЖКХ строго строка «Начислено»; для электричества итог документа плюс отдельно указанная добровольная услуга, если она включена по умолчанию" },
         creditAmount: { type: "number", description: "Переплата, скидка или вычет, уменьшающие долг; 0 если отсутствуют" },
         dueDate: { type: "string", description: "Срок оплаты в понятном пользователю виде, пустая строка если не указан" },
         allocation: { type: "string", enum: ["owner", "tenant", "split"], description: "На кого относится расход. По умолчанию owner, если пользователь не уточнил другое" },
-        tenantAmount: { type: "number", description: "Итоговый долг жильца после переплат, скидок и вычетов: 0 для owner, итоговая сумма для tenant, указанная доля для split" },
+        tenantAmount: { type: "number", description: "Итоговый долг жильца; при allocation tenant равен amount и включает добровольную строку, если optionalChargeIncluded=true" },
         optionalChargeLabel: { type: "string", description: "Название добровольной дополнительной услуги, например страхования; пустая строка если её нет" },
         optionalChargeAmount: { type: "number", description: "Сумма добровольной дополнительной услуги; 0 если её нет" },
         optionalChargeIncluded: { type: "boolean", description: "Добровольная услуга включена в сумму по умолчанию; false если её нет или пользователь ранее отказался" },
