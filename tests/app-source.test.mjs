@@ -44,6 +44,8 @@ const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts
 const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
 const telegramContextSource = fs.readFileSync("lib/server/telegram-context.ts", "utf8");
 const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
+const assistantRouteSource = fs.readFileSync("app/api/assistant/route.ts", "utf8");
+const assistantMessagesMigrationSource = fs.readFileSync("supabase/migrations/20260908120000_add_assistant_messages.sql", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
@@ -731,4 +733,18 @@ test("keeps inspection and work order cards compact on mobile", () => {
   assert.doesNotMatch(pageSource, /Как работает задание/);
   assert.doesNotMatch(pageSource, /Как теперь копится отчет/);
   assert.match(pageSource, /response\.json\(\)\.catch\(\(\) => \(\{\}\)\)/);
+});
+
+test("keeps the owner assistant persistent across web and Telegram", () => {
+  assert.match(pageSource, /<WebAssistant \/>/);
+  assert.match(pageSource, /<PromptInput/);
+  assert.match(pageSource, /История FixPlan/);
+  assert.match(pageSource, /Требует решения/);
+  assert.match(pageSource, /Активные работы/);
+  assert.doesNotMatch(pageSource, /label="Всего узлов"/);
+  assert.match(assistantRouteSource, /runTelegramAssistant/);
+  assert.match(assistantRouteSource, /pendingAction/);
+  assert.match(telegramWebhookSource, /recordAssistantMessage/);
+  assert.match(assistantMessagesMigrationSource, /channel in \('web', 'telegram'\)/);
+  assert.match(assistantMessagesMigrationSource, /owners can read their assistant messages/);
 });

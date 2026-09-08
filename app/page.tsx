@@ -3,7 +3,12 @@
 import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
 import {
+  Attachment,
   type AttachmentData,
+  AttachmentInfo,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
 } from "@/components/ai-elements/attachments";
 import {
   PromptInput,
@@ -17,6 +22,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
   type PromptInputMessage,
+  usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
 import {
   Task,
@@ -52,6 +58,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CleaningsView } from "@/components/cleanings-view";
 import { cleaningStatusLabels, cleaningTypeLabels, type Cleaning } from "@/lib/cleanings";
 import { normalizeUtilityPeriod, recentUtilityPeriods, utilityPeriodTimestamp } from "@/lib/utility-period";
@@ -81,6 +93,7 @@ import {
   History,
   LayoutDashboard,
   List,
+  MessageSquare,
   Map as MapIcon,
   Plus,
   ArrowLeft,
@@ -1154,7 +1167,7 @@ function tenantShareFor(allocation: UtilityBillAllocation, amount: number, curre
 }
 
 function moneyLabel(value: number) {
-  return `${value.toLocaleString("ru-RU")} руб.`;
+  return `${value.toLocaleString("ru-RU")} ₽`;
 }
 
 function utilityBillTone(status: UtilityBillStatus): "secondary" | "destructive" | "outline" {
@@ -1748,13 +1761,6 @@ export default function Home() {
     planModes.find((mode) => mode.id === activePlanMode) ?? planModes[0];
 
   const issueAssets = state.assets.filter((asset) => asset.status !== "ok");
-  const attentionAssets = state.assets.filter((asset) => asset.status === "attention");
-  const inProgressAssets = state.assets.filter(
-    (asset) => asset.status === "in_progress",
-  );
-  const needsMasterAssets = state.assets.filter(
-    (asset) => asset.status === "needs_master",
-  );
   const dirtyPlanAssetCount =
     new Set([...dirtyPlanAssetIds, ...deletedPlanAssetIds]).size +
     (!editingAssetId && assetDraft.name.trim() ? 1 : 0);
@@ -1772,12 +1778,6 @@ export default function Home() {
   function openReport(id: string) {
     setSelectedInspectionId(id);
     setView("report");
-    setMobileMenuOpen(false);
-  }
-
-  function openAssets(filter: AssetFilter) {
-    setAssetFilter(filter);
-    setView("assets");
     setMobileMenuOpen(false);
   }
 
@@ -2869,29 +2869,25 @@ export default function Home() {
         {view === "dashboard" && (
           <Dashboard
             assets={state.assets}
-            attentionAssets={attentionAssets}
+            bills={state.utilityBills}
+            cleanings={state.cleanings}
             events={state.events}
             inspections={inspectionFlows}
             inspectionResults={state.inspectionResults}
             issueAssets={issueAssets}
-            inProgressAssets={inProgressAssets}
             media={state.media}
-            needsMasterAssets={needsMasterAssets}
+            meters={state.utilityMeters}
+            readings={state.utilityReadings}
             workOrders={workOrderFlows}
             openAsset={openAsset}
-            openAssets={openAssets}
-            openContractor={(workflow) => {
-              setContractorWorkflow(workflow);
-              setView("contractor");
-            }}
-            openInspections={() => {
-              setTaskTab("inspection");
-              setView("work_orders");
-            }}
+            openDocuments={() => setView("documents")}
             openLog={() => setView("log")}
             openReport={openReport}
-            openWorkOrders={() => setView("work_orders")}
-            goPlan={() => setView("plan")}
+            openTasks={(tab) => {
+              setTaskTab(tab);
+              setView("work_orders");
+            }}
+            openUtilities={() => setView("utilities")}
           />
         )}
 
@@ -3157,9 +3153,173 @@ export default function Home() {
             }
           />
         )}
+        <WebAssistant />
       </section>
       </main>
     </TooltipProvider>
+  );
+}
+
+type WebAssistantMessage = {
+  id: string;
+  role: "user" | "assistant";
+  channel: "web" | "telegram";
+  content: string;
+  attachments?: Array<{ filename?: string }>;
+  created_at: string;
+};
+
+function ComposerAttachments() {
+  const attachments = usePromptInputAttachments();
+  if (!attachments.files.length) return null;
+  return (
+    <Attachments className="px-2 pt-2" variant="inline">
+      {attachments.files.map((file) => (
+        <Attachment data={file} key={file.id} onRemove={() => attachments.remove(file.id)}>
+          <AttachmentPreview />
+          <AttachmentInfo />
+          <AttachmentRemove label="Убрать файл" />
+        </Attachment>
+      ))}
+    </Attachments>
+  );
+}
+
+function WebAssistant() {
+  const [messages, setMessages] = useState<WebAssistantMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [status, setStatus] = useState<"ready" | "submitted" | "error">("ready");
+  const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<Record<string, unknown> | null>(null);
+
+  async function loadMessages() {
+    const response = await fetch("/api/assistant", { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = await response.json() as { messages?: WebAssistantMessage[]; pendingAction?: Record<string, unknown> | null };
+    setMessages(payload.messages ?? []);
+    setPendingAction(payload.pendingAction ?? null);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/assistant", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { messages: [] })
+      .then((payload: { messages?: WebAssistantMessage[]; pendingAction?: Record<string, unknown> | null }) => {
+        if (!cancelled) {
+          setMessages(payload.messages ?? []);
+          setPendingAction(payload.pendingAction ?? null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function send(text: string, file?: PromptInputMessage["files"][number]) {
+    const normalizedText = text.trim();
+    if (!normalizedText && !file) return;
+    setStatus("submitted");
+    setError("");
+    setExpanded(true);
+    const form = new FormData();
+    form.set("text", normalizedText);
+    if (file) {
+      const blob = await fetch(file.url).then((response) => response.blob());
+      form.set("file", new File([blob], file.filename || "attachment", { type: file.mediaType }));
+    }
+    const response = await fetch("/api/assistant", { method: "POST", body: form });
+    const payload = await response.json() as { error?: string; pendingAction?: Record<string, unknown> | null };
+    if (!response.ok) {
+      setError(payload.error ?? "Не удалось отправить сообщение.");
+      setStatus("error");
+      throw new Error(payload.error ?? "Assistant request failed");
+    }
+    setPendingAction(payload.pendingAction ?? null);
+    setDraft("");
+    setStatus("ready");
+    await loadMessages();
+  }
+
+  const latestAssistant = messages.findLast((message) => message.role === "assistant");
+  const hasPendingCreate = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
+
+  return (
+    <>
+      <div className="web-assistant">
+        {expanded && latestAssistant && (
+          <div className="web-assistant-reply">
+            <div className="flex items-start gap-2">
+              <Bot className="mt-0.5 size-4 shrink-0" />
+              <p className="line-clamp-3 whitespace-pre-line text-sm">{latestAssistant.content}</p>
+            </div>
+          </div>
+        )}
+        {expanded && error && <div className="web-assistant-reply text-destructive text-sm">{error}</div>}
+        {expanded && hasPendingCreate && (
+          <div className="flex flex-wrap gap-2 bg-background px-2 pt-2">
+            <Button disabled={status === "submitted"} onClick={() => void send("создавай")} size="sm" type="button">Создать</Button>
+            <Button disabled={status === "submitted"} onClick={() => void send("отмена")} size="sm" type="button" variant="outline">Удалить черновик</Button>
+          </div>
+        )}
+        <PromptInput
+          accept="application/pdf,image/jpeg,image/png,image/webp,image/gif"
+          maxFileSize={20 * 1024 * 1024}
+          maxFiles={1}
+          onError={(nextError) => setError(nextError.message)}
+          onSubmit={async (message) => send(message.text || draft, message.files[0])}
+        >
+          <ComposerAttachments />
+          <PromptInputBody>
+            <PromptInputTextarea
+              aria-label="Сообщение ассистенту"
+              onChange={(event) => setDraft(event.currentTarget.value)}
+              placeholder="Напишите FixPlan или приложите квитанцию"
+              value={draft}
+            />
+          </PromptInputBody>
+          <PromptInputFooter>
+            <PromptInputTools>
+              <PromptInputActionMenu>
+                <PromptInputActionMenuTrigger tooltip="Прикрепить файл" />
+                <PromptInputActionMenuContent>
+                  <PromptInputActionAddAttachments label="Прикрепить файл" />
+                </PromptInputActionMenuContent>
+              </PromptInputActionMenu>
+              <Button aria-label="История диалога" onClick={() => setHistoryOpen(true)} size="icon-sm" type="button" variant="ghost"><MessageSquare /></Button>
+              <Button aria-label={expanded ? "Свернуть ответ" : "Показать ответ"} onClick={() => setExpanded((value) => !value)} size="icon-sm" type="button" variant="ghost">
+                {expanded ? <ChevronRight className="rotate-90" /> : <ChevronLeft className="rotate-90" />}
+              </Button>
+            </PromptInputTools>
+            <PromptInputSubmit disabled={status === "submitted"} status={status} />
+          </PromptInputFooter>
+        </PromptInput>
+      </div>
+
+      <Dialog onOpenChange={setHistoryOpen} open={historyOpen}>
+        <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>История FixPlan</DialogTitle>
+            <DialogDescription>Единый диалог из веба и личного чата Telegram.</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="min-h-0 pr-3">
+            <div className="grid gap-3 py-1">
+              {messages.map((message) => (
+                <div className={message.role === "user" ? "ml-8 rounded-lg bg-secondary p-3" : "mr-8 rounded-lg border p-3"} key={message.id}>
+                  <div className="mb-1 flex items-center justify-between gap-3 text-muted-foreground text-xs">
+                    <span>{message.role === "user" ? "Вы" : "FixPlan"}</span>
+                    <span>{message.channel === "telegram" ? "Telegram" : "Веб"}</span>
+                  </div>
+                  <p className="whitespace-pre-line text-sm">{message.content}</p>
+                </div>
+              ))}
+              {!messages.length && <p className="text-muted-foreground text-sm">Диалог пока пуст.</p>}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -3221,7 +3381,7 @@ function viewTitle(view: View, asset?: Asset) {
 
 function viewSubtitle(view: View) {
   const subtitles: Record<View, string> = {
-    dashboard: "Что требует внимания, что уже в работе и где нужен мастер.",
+    dashboard: "Решения, деньги и текущие работы по квартире.",
     plan: "Слои узлов поверх схемы квартиры.",
     assets: "Инвентарный список по комнатам, категориям и статусам.",
     asset: "История, фото, паспорт узла и быстрые действия.",
@@ -3606,42 +3766,40 @@ function StatusSelect({
 
 function Dashboard({
   assets,
-  attentionAssets,
+  bills,
+  cleanings,
   events,
   inspections,
   inspectionResults,
   issueAssets,
-  inProgressAssets,
   media,
-  needsMasterAssets,
+  meters,
+  readings,
   workOrders,
   openAsset,
-  openAssets,
-  openContractor,
-  openInspections,
   openLog,
   openReport,
-  openWorkOrders,
-  goPlan,
+  openTasks,
+  openUtilities,
+  openDocuments,
 }: {
   assets: Asset[];
-  attentionAssets: Asset[];
+  bills: UtilityBill[];
+  cleanings: Cleaning[];
   events: AssetEvent[];
   inspections: Inspection[];
   inspectionResults: InspectionResult[];
   issueAssets: Asset[];
-  inProgressAssets: Asset[];
   media: AssetMedia[];
-  needsMasterAssets: Asset[];
+  meters: UtilityMeter[];
+  readings: UtilityReading[];
   workOrders: Inspection[];
   openAsset: (id: string) => void;
-  openAssets: (filter: AssetFilter) => void;
-  openContractor: (workflow: Workflow) => void;
-  openInspections: () => void;
   openLog: () => void;
   openReport: (id: string) => void;
-  openWorkOrders: () => void;
-  goPlan: () => void;
+  openTasks: (tab: "master-work" | "cleaning" | "inspection") => void;
+  openUtilities: () => void;
+  openDocuments: () => void;
 }) {
   const activeInspections = inspections.filter((inspection) =>
     !["completed", "accepted"].includes(inspection.status),
@@ -3649,15 +3807,14 @@ function Dashboard({
   const activeWorkOrders = workOrders.filter((inspection) =>
     !["completed", "accepted"].includes(inspection.status),
   );
-  const completedInspections = inspections.filter((inspection) =>
-    ["completed", "accepted"].includes(inspection.status),
-  );
-  const completedWorkOrders = workOrders.filter((inspection) =>
-    ["completed", "accepted"].includes(inspection.status),
+  const reviewInspections = inspections.filter((inspection) => inspection.status === "completed");
+  const reviewWorkOrders = workOrders.filter((inspection) => inspection.status === "completed");
+  const reviewCleanings = cleanings.filter((cleaning) => cleaning.status === "completed");
+  const activeCleanings = cleanings.filter((cleaning) =>
+    !["completed", "accepted", "declined"].includes(cleaning.status),
   );
   const recentEvents = events.slice().sort((a, b) => b.id.localeCompare(a.id)).slice(0, 5);
-  const unresolvedResultCount = inspectionResults.filter((result) => result.statusAfter !== "ok").length;
-  const assetsWithPhotos = new Set(media.map((item) => item.assetId)).size;
+  const currentUtilityMonth = buildUtilityMonths(bills, meters, readings)[0];
   const primaryIssues = issueAssets
     .slice()
     .sort((left, right) =>
@@ -3665,80 +3822,59 @@ function Dashboard({
       left.code.localeCompare(right.code, "ru"),
     )
     .slice(0, 6);
-  const activeMasterFlows = [...activeWorkOrders, ...activeInspections].slice(0, 5);
+  const activeMasterFlows = [...activeWorkOrders, ...activeInspections].slice(0, 4);
+  const decisionCount = primaryIssues.length + reviewInspections.length + reviewWorkOrders.length + reviewCleanings.length + (currentUtilityMonth?.status === "not_issued" ? 1 : 0);
 
   return (
     <div className="grid gap-4">
-      <div className="mobile-metric-grid grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Всего узлов"
-          onClick={() => openAssets("all")}
-          value={assets.length.toString()}
-        />
-        <StatCard
-          label="Требует внимания"
-          onClick={() => openAssets("attention")}
-          tone="negative"
-          value={attentionAssets.length.toString()}
-        />
-        <StatCard
-          label="В работе"
-          onClick={() => openAssets("in_progress")}
-          tone="warning"
-          value={inProgressAssets.length.toString()}
-        />
-        <StatCard
-          label="Нужен мастер"
-          onClick={() => openAssets("needs_master")}
-          tone="violet"
-          value={needsMasterAssets.length.toString()}
-        />
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button"><Plus />Создать</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-52">
+            <DropdownMenuItem onSelect={() => openTasks("master-work")}><Check />Задание мастеру</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openTasks("cleaning")}><ClipboardCheck />Уборку</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openTasks("inspection")}><History />Обход</DropdownMenuItem>
+            <DropdownMenuItem onSelect={openUtilities}><ReceiptText />Коммунальный счёт</DropdownMenuItem>
+            <DropdownMenuItem onSelect={openDocuments}><FileText />Документ</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Активные задания"
-          onClick={openWorkOrders}
-          tone={activeWorkOrders.length ? "warning" : "positive"}
-          value={activeWorkOrders.length.toString()}
-        />
-        <StatCard
-          label="Активные обходы"
-          onClick={openInspections}
-          tone={activeInspections.length ? "warning" : "positive"}
-          value={activeInspections.length.toString()}
-        />
-        <StatCard
-          label="Замечания из отчетов"
-          onClick={openInspections}
-          tone={unresolvedResultCount ? "negative" : "positive"}
-          value={unresolvedResultCount.toString()}
-        />
-        <StatCard
-          label="Узлы с фото"
-          onClick={openLog}
-          value={assetsWithPhotos.toString()}
-        />
-      </div>
-
-      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(340px,0.85fr)] gap-4 max-[1080px]:grid-cols-1">
+      <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)] items-start gap-4 max-[1080px]:grid-cols-1">
         <Card>
           <CardHeader className="grid-cols-[1fr_auto] gap-3">
             <div>
-              <CardTitle>Что требует решения</CardTitle>
-              <CardDescription>Проблемные узлы, с которых стоит начинать работу.</CardDescription>
+              <CardTitle>Требует решения</CardTitle>
+              <CardDescription>{decisionCount ? `${decisionCount} действий ждут владельца.` : "Сейчас ничего не требует решения."}</CardDescription>
             </div>
-            <Button variant="secondary" onClick={() => openAssets("issues")} type="button">
-              Открыть список
-            </Button>
           </CardHeader>
           <CardContent className="grid gap-2">
+            {currentUtilityMonth?.status === "not_issued" && (
+              <Button className="h-auto justify-between py-3 text-left" onClick={openUtilities} type="button" variant="secondary">
+                <span><strong className="block">Коммуналка за {currentUtilityMonth.period}</strong><span className="text-muted-foreground text-xs">Счёт жильцу ещё не выставлен</span></span>
+                <ChevronRight />
+              </Button>
+            )}
+            {[...reviewWorkOrders, ...reviewInspections].slice(0, 3).map((inspection) => (
+              <Button className="h-auto justify-between py-3 text-left" key={inspection.id} onClick={() => openReport(inspection.id)} type="button" variant="secondary">
+                <span><strong className="block">{inspection.title}</strong><span className="text-muted-foreground text-xs">Проверить результат и принять работу</span></span>
+                <ChevronRight />
+              </Button>
+            ))}
+            {reviewCleanings.slice(0, 2).map((cleaning) => (
+              <Button className="h-auto justify-between py-3 text-left" key={cleaning.id} onClick={() => openTasks("cleaning")} type="button" variant="secondary">
+                <span><strong className="block">{cleaning.title}</strong><span className="text-muted-foreground text-xs">Уборка выполнена, нужен приём</span></span>
+                <ChevronRight />
+              </Button>
+            ))}
             {primaryIssues.map((asset) => (
               <AssetRow key={asset.id} asset={asset} onClick={() => openAsset(asset.id)} />
             ))}
-            {!primaryIssues.length && (
+            {!decisionCount && (
               <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
-                Сейчас нет узлов с проблемным статусом.
+                Все текущие вопросы разобраны.
               </div>
             )}
           </CardContent>
@@ -3747,37 +3883,25 @@ function Dashboard({
         <Card>
           <CardHeader className="grid-cols-[1fr_auto] gap-3">
             <div>
-              <CardTitle>Быстрые действия</CardTitle>
-              <CardDescription>Основные входы в новую структуру.</CardDescription>
+              <CardTitle>Коммуналка</CardTitle>
+              <CardDescription>{currentUtilityMonth ? currentUtilityMonth.period : "Текущий месяц"}</CardDescription>
             </div>
+            <Button variant="secondary" onClick={openUtilities} type="button">Открыть</Button>
           </CardHeader>
-          <CardContent className="grid gap-2">
-            <Button className="justify-start" onClick={goPlan} type="button" variant="secondary">
-              <MapIcon size={16} />
-              Открыть план
-            </Button>
-            <Button className="justify-start" onClick={() => openAssets("all")} type="button" variant="secondary">
-              <List size={16} />
-              Открыть узлы
-            </Button>
-            <Button className="justify-start" onClick={() => openContractor("work_order")} type="button">
-              <Plus size={16} />
-              Создать задание
-            </Button>
-            <Button className="justify-start" onClick={() => openContractor("inspection")} type="button" variant="secondary">
-              <UserRoundCheck size={16} />
-              Выдать доступ мастеру
-            </Button>
+          <CardContent className="grid grid-cols-2 gap-3">
+            <Metric value={moneyLabel(currentUtilityMonth?.reimbursementAmount ?? 0)} label="ожидаем от жильца" />
+            <Metric value={currentUtilityMonth ? utilityMonthStatusLabels[currentUtilityMonth.status] : "Нет данных"} label="статус месяца" />
+            {currentUtilityMonth?.missing.length ? <p className="col-span-2 text-muted-foreground text-sm">Не хватает: {currentUtilityMonth.missing.join(", ")}.</p> : null}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="grid-cols-[1fr_auto] gap-3">
             <div>
-              <CardTitle>У мастеров</CardTitle>
-              <CardDescription>Активные задания и обходы по ссылкам.</CardDescription>
+              <CardTitle>Активные работы</CardTitle>
+              <CardDescription>Мастера, клинеры и обходы, которые сейчас в процессе.</CardDescription>
             </div>
-            <Button variant="secondary" onClick={openWorkOrders} type="button">
+            <Button variant="secondary" onClick={() => openTasks("master-work")} type="button">
               Задания
             </Button>
           </CardHeader>
@@ -3790,9 +3914,15 @@ function Dashboard({
                 onClick={() => openReport(inspection.id)}
               />
             ))}
-            {!activeMasterFlows.length && (
+            {activeCleanings.slice(0, 3).map((cleaning) => (
+              <Button className="h-auto justify-between py-3 text-left" key={cleaning.id} onClick={() => openTasks("cleaning")} type="button" variant="secondary">
+                <span><strong className="block">{cleaning.title}</strong><span className="text-muted-foreground text-xs">{cleaning.cleaner || "Клинер не назначен"} · {cleaningStatusLabels[cleaning.status]}</span></span>
+                <ChevronRight />
+              </Button>
+            ))}
+            {!activeMasterFlows.length && !activeCleanings.length && (
               <div className="rounded-lg bg-muted p-3 text-muted-foreground text-sm">
-                Сейчас нет активных ссылок у мастеров.
+                Сейчас нет активных работ.
               </div>
             )}
           </CardContent>
@@ -3826,18 +3956,6 @@ function Dashboard({
           </CardContent>
         </Card>
 
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle>Состояние процессов</CardTitle>
-            <CardDescription>Сводка по обходам, заданиям и накопленной истории.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Metric value={completedInspections.length.toString()} label="завершенных обходов" />
-            <Metric value={completedWorkOrders.length.toString()} label="закрытых заданий" />
-            <Metric value={events.length.toString()} label="событий в журнале" />
-            <Metric value={media.length.toString()} label="фото в истории" />
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

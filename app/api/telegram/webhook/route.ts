@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { recordAssistantMessage } from "@/lib/server/assistant-messages";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import {
@@ -214,7 +215,7 @@ async function sendAssistantReply(
 ) {
   const { data, error } = await admin
     .from("telegram_conversations")
-    .select("pending_action")
+    .select("active_apartment_id,pending_action")
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -242,6 +243,20 @@ async function sendAssistantReply(
         })()
       : hasReadyDraft ? draftKeyboard : undefined,
   });
+  const { data: account } = await admin
+    .from("telegram_accounts")
+    .select("owner_user_id,default_apartment_id")
+    .eq("telegram_user_id", telegramUserId)
+    .maybeSingle();
+  if (account?.owner_user_id) {
+    await recordAssistantMessage(admin, {
+      ownerUserId: account.owner_user_id,
+      apartmentId: data?.active_apartment_id ?? account.default_apartment_id,
+      role: "assistant",
+      channel: "telegram",
+      content: reply,
+    });
+  }
 }
 
 export async function POST(request: Request) {
@@ -285,6 +300,10 @@ export async function POST(request: Request) {
           inlineKeyboard: editDraftKeyboard,
         });
       } else if (callback.data === "fixplan:pending:confirm" || callback.data === "fixplan:pending:cancel") {
+        const active = await getActiveTelegramApartment(admin, account);
+        if ("error" in active) throw new Error(active.error);
+        const callbackText = callback.data.endsWith(":confirm") ? "Создать" : "Удалить черновик";
+        await recordAssistantMessage(admin, { ownerUserId: account.owner_user_id, apartmentId: active.apartment.id, role: "user", channel: "telegram", content: callbackText });
         const answer = await runTelegramAssistant(
           admin,
           account,
@@ -293,6 +312,10 @@ export async function POST(request: Request) {
         );
         await sendAssistantReply(admin, user.id, chat.id, answer);
       } else if (callback.data === "fixplan:utility:insurance:keep" || callback.data === "fixplan:utility:insurance:exclude") {
+        const active = await getActiveTelegramApartment(admin, account);
+        if ("error" in active) throw new Error(active.error);
+        const callbackText = callback.data.endsWith(":exclude") ? "Исключить страховку" : "Оставить страховку";
+        await recordAssistantMessage(admin, { ownerUserId: account.owner_user_id, apartmentId: active.apartment.id, role: "user", channel: "telegram", content: callbackText });
         const answer = await runTelegramAssistant(
           admin,
           account,
@@ -318,6 +341,14 @@ export async function POST(request: Request) {
           const active = await getActiveTelegramApartment(admin, account);
           if ("error" in active) throw new Error(active.error);
           const attachment = await uploadTelegramAttachment(admin, active.apartment.id, message);
+          await recordAssistantMessage(admin, {
+            ownerUserId: account.owner_user_id,
+            apartmentId: active.apartment.id,
+            role: "user",
+            channel: "telegram",
+            content: message.caption?.trim() || userMessage || attachment?.filename || "Вложение",
+            attachments: attachment ? [{ filename: attachment.filename, mimeType: attachment.mimeType, storagePath: attachment.storagePath }] : [],
+          });
           const answer = await runTelegramAssistant(
             admin,
             account,

@@ -397,6 +397,20 @@ create table public.telegram_conversations (
   updated_at timestamptz not null default now()
 );
 
+create table public.assistant_messages (
+  id uuid primary key default gen_random_uuid(),
+  owner_user_id uuid not null references auth.users(id) on delete cascade,
+  apartment_id uuid not null references public.apartments(id) on delete cascade,
+  role text not null check (role in ('user', 'assistant')),
+  channel text not null check (channel in ('web', 'telegram')),
+  content text not null,
+  attachments jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index assistant_messages_owner_apartment_created_idx
+  on public.assistant_messages(owner_user_id, apartment_id, created_at desc);
+
 create table public.telegram_updates (
   update_id bigint primary key,
   telegram_user_id bigint,
@@ -462,6 +476,7 @@ alter table public.notification_events enable row level security;
 alter table public.telegram_pairing_codes enable row level security;
 alter table public.telegram_accounts enable row level security;
 alter table public.telegram_conversations enable row level security;
+alter table public.assistant_messages enable row level security;
 alter table public.telegram_updates enable row level security;
 
 create policy "members can read apartments"
@@ -601,6 +616,20 @@ with check (
         or lower(account.owner_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
       )
   )
+);
+
+create policy "owners can read their assistant messages"
+on public.assistant_messages for select
+using (
+  owner_user_id = auth.uid()
+  and public.is_apartment_manager(apartment_id)
+);
+
+create policy "owners can create their assistant messages"
+on public.assistant_messages for insert
+with check (
+  owner_user_id = auth.uid()
+  and public.is_apartment_manager(apartment_id)
 );
 
 create policy "members can read media files"

@@ -368,8 +368,29 @@ button {
 
 .workspace {
   min-width: 0;
-  padding: 24px 32px 48px;
+  padding: 24px 32px 220px;
   overflow-x: clip;
+}
+
+.web-assistant {
+  position: fixed;
+  z-index: 40;
+  right: auto;
+  bottom: 16px;
+  left: calc(50% + 140px);
+  width: min(720px, calc(100vw - 344px));
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--content);
+  box-shadow: 0 16px 48px rgba(29, 32, 35, 0.16);
+}
+
+.web-assistant-reply {
+  border-bottom: 1px solid var(--border);
+  background: var(--content);
+  padding: 10px 12px;
 }
 
 .topbar {
@@ -2481,7 +2502,13 @@ select:focus-visible {
 
   .workspace {
     min-width: 0;
-    padding: 12px;
+    padding: 12px 12px 210px;
+  }
+
+  .web-assistant {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    left: 50%;
+    width: calc(100vw - 24px);
   }
 
   .workspace > * {
