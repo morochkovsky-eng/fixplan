@@ -152,6 +152,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /max_output_tokens: 280/);
   assert.match(telegramAssistantSource, /не больше шести коротких строк/);
   assert.match(telegramAssistantSource, /Не описывай содержимое фотографии/);
+  assert.match(telegramAssistantSource, /Автоматы, УЗО, щиток, провода и подписи линий считай фоном/);
+  assert.match(telegramAssistantSource, /автоматы, УЗО и щиток игнорируй/);
   assert.match(telegramAssistantSource, /без Markdown, звёздочек и решёток/);
   assert.match(telegramWebhookSource, /fixplan:pending:confirm/);
   assert.match(telegramWebhookSource, /fixplan:pending:edit/);
@@ -163,6 +165,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /utilityDraftReply/);
   assert.match(telegramWebhookSource, /Другие услуги можно прислать/);
   assert.match(telegramWebhookSource, /media-group-companion/);
+  assert.match(telegramWebhookSource, /attachment-after-ready-draft/);
+  assert.match(telegramWebhookSource, /hasReadyTelegramDraft/);
   assert.match(telegramClientSource, /media_group_id/);
   assert.match(telegramClientSource, /cleanTelegramText/);
   assert.match(telegramClientSource, /export function cleanTelegramDraftText/);

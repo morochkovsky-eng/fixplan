@@ -178,6 +178,19 @@ async function sendAssistantReply(
   });
 }
 
+async function hasReadyTelegramDraft(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  telegramUserId: number,
+) {
+  const { data, error } = await admin
+    .from("telegram_conversations")
+    .select("pending_action")
+    .eq("telegram_user_id", telegramUserId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return Boolean(data?.pending_action?.type && String(data.pending_action.type).startsWith("create_"));
+}
+
 export async function POST(request: Request) {
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (!expectedSecret || request.headers.get("x-telegram-bot-api-secret-token") !== expectedSecret) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -240,6 +253,10 @@ export async function POST(request: Request) {
         if (!account) {
           await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
         } else if (message.voice || message.photo?.length || message.document || text) {
+          if (message.photo?.length && !message.caption?.trim() && await hasReadyTelegramDraft(admin, user.id)) {
+            await admin.from("telegram_updates").update({ status: "processed", processed_at: new Date().toISOString() }).eq("update_id", update.update_id);
+            return NextResponse.json({ ok: true, ignored: "attachment-after-ready-draft" });
+          }
           const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
           const active = await getActiveTelegramApartment(admin, account);
           if ("error" in active) throw new Error(active.error);
