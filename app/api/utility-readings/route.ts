@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireApartmentAccess } from "../assets/access";
+import { normalizeUtilityPeriod } from "@/lib/utility-period";
 
 const services = new Set(["cold_water", "hot_water", "electricity", "heating", "other"]);
 const sources = new Set(["owner", "telegram", "manual"]);
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
   }
   const meter = normalizeMeter(body.meter);
   const meterId = String(body.meterId ?? meter?.id ?? "").trim();
-  const period = String(body.period ?? "").trim();
+  const period = normalizeUtilityPeriod(body.period);
   const source = String(body.source ?? "owner");
   const value = Number(body.value);
 

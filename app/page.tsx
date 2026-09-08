@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/dialog";
 import { CleaningsView } from "@/components/cleanings-view";
 import { cleaningStatusLabels, cleaningTypeLabels, type Cleaning } from "@/lib/cleanings";
+import { normalizeUtilityPeriod, recentUtilityPeriods, utilityPeriodTimestamp } from "@/lib/utility-period";
 import {
   createClient as createSupabaseBrowserClient,
   createClientFromConfig as createSupabaseClientFromConfig,
@@ -1166,17 +1167,7 @@ function utilityBillTone(status: UtilityBillStatus): "secondary" | "destructive"
   return "outline";
 }
 
-const utilityPeriods = [
-  "Сентябрь 2026",
-  "Август 2026",
-  "Июль 2026",
-  "Июнь 2026",
-  "Май 2026",
-  "Апрель 2026",
-  "Март 2026",
-  "Февраль 2026",
-  "Январь 2026",
-];
+const utilityPeriods = recentUtilityPeriods();
 
 const utilityMonthStatusLabels: Record<UtilityMonthStatus, string> = {
   awaiting_readings: "Ждем показания",
@@ -1254,13 +1245,18 @@ function buildUtilityMonths(
   meters: UtilityMeter[],
   readings: UtilityReading[],
 ) {
-  const periods = Array.from(
-    new Set([...utilityPeriods, ...bills.map((bill) => bill.period), ...readings.map((reading) => reading.period)]),
-  );
+  const periods = Array.from(new Set([
+    ...utilityPeriods,
+    ...bills.map((bill) => normalizeUtilityPeriod(bill.period)),
+    ...readings.map((reading) => normalizeUtilityPeriod(reading.period)),
+  ].filter(Boolean))).sort((left, right) => {
+    const difference = utilityPeriodTimestamp(right) - utilityPeriodTimestamp(left);
+    return difference || right.localeCompare(left, "ru");
+  });
 
   return periods.map((period) => {
-    const periodBills = bills.filter((bill) => bill.period === period);
-    const periodReadings = readings.filter((reading) => reading.period === period);
+    const periodBills = bills.filter((bill) => normalizeUtilityPeriod(bill.period) === period);
+    const periodReadings = readings.filter((reading) => normalizeUtilityPeriod(reading.period) === period);
     const readMeterIds = new Set(periodReadings.map((reading) => reading.meterId));
     const electricityMeters = meters.filter((meter) => meter.service === "electricity");
     const hasElectricityBill = periodBills.some((bill) => /элект|свет/i.test(bill.service));
@@ -6220,6 +6216,7 @@ function UtilitiesView({
   const [billReceipt, setBillReceipt] = useState<File | null>(null);
   const [savingBill, setSavingBill] = useState(false);
   const [showMeterForm, setShowMeterForm] = useState(false);
+  const [mobileMonthOpen, setMobileMonthOpen] = useState(false);
   const [meterDraft, setMeterDraft] = useState<UtilityMeterDraft>(() => emptyUtilityMeterDraft());
   const [savingMeter, setSavingMeter] = useState(false);
   const sortedBills = [...selectedBills].sort(
@@ -6245,6 +6242,7 @@ function UtilitiesView({
     setEditingBillId(null);
     setEditDraft(null);
     setEditingMeterId(null);
+    setMobileMonthOpen(true);
   }
 
   function startReading(meter: UtilityMeter, reading?: UtilityReading) {
@@ -6357,8 +6355,8 @@ function UtilitiesView({
 
   async function createBill() {
     const period = selectedMonth?.period ?? draft.period;
-    if (!draft.service.trim() || !period.trim()) {
-      window.alert("Укажите услугу и период.");
+    if (!draft.service.trim() || !period.trim() || !Number.isFinite(draft.amount) || draft.amount <= 0) {
+      window.alert("Укажите услугу, период и сумму больше нуля.");
       return;
     }
     setSavingBill(true);
@@ -6415,8 +6413,8 @@ function UtilitiesView({
 
   async function saveBill() {
     if (!editingBillId || !editDraft) return;
-    if (!editDraft.service.trim() || !editDraft.period.trim()) {
-      window.alert("Укажите услугу и период.");
+    if (!editDraft.service.trim() || !editDraft.period.trim() || !Number.isFinite(editDraft.amount) || editDraft.amount <= 0) {
+      window.alert("Укажите услугу, период и сумму больше нуля.");
       return;
     }
     const nextBill = {
@@ -6541,7 +6539,7 @@ function UtilitiesView({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card>
+        <Card className={mobileMonthOpen ? "hidden xl:block" : undefined}>
           <CardHeader>
             <CardTitle>Коммуналка</CardTitle>
             <CardDescription>Месяцы, счета, счетчики и статусы передачи.</CardDescription>
@@ -6575,7 +6573,22 @@ function UtilitiesView({
           </CardContent>
         </Card>
 
-        <div className="grid gap-4">
+        <div className={`${mobileMonthOpen ? "grid" : "hidden"} gap-4 xl:grid`}>
+          <Button
+            className="w-fit xl:hidden"
+            onClick={() => {
+              setMobileMonthOpen(false);
+              setShowBillForm(false);
+              setEditingBillId(null);
+              setEditDraft(null);
+              setEditingMeterId(null);
+            }}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <ArrowLeft size={14} /> Все месяцы
+          </Button>
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -6928,7 +6941,8 @@ function UtilitiesView({
                     Сумма
                     <Input
                       id="utility-amount"
-                      min="0"
+                      min="0.01"
+                      step="0.01"
                       onChange={(event) => {
                         const amount = Number(event.currentTarget.value);
                         setDraft((current) => ({
@@ -7138,7 +7152,8 @@ function UtilitiesView({
                             Сумма
                             <Input
                               id={`edit-${bill.id}-amount`}
-                              min="0"
+                              min="0.01"
+                              step="0.01"
                               onChange={(event) => {
                                 const amount = Number(event.currentTarget.value);
                                 setEditDraft((current) => current ? {

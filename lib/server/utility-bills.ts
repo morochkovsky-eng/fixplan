@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normalizeUtilityPeriod } from "@/lib/utility-period";
 
 const statuses = new Set(["draft", "due", "paid", "overdue"]);
 const allocations = new Set(["owner", "tenant", "split"]);
@@ -29,7 +30,7 @@ export type UtilityBillRow = {
 
 export function normalizeBillPayload(body: Record<string, unknown>) {
   const service = String(body.service ?? "").trim();
-  const period = String(body.period ?? "").trim();
+  const period = normalizeUtilityPeriod(body.period);
   const status = String(body.status ?? "due");
   const amount = Number(body.amount ?? 0);
   const allocation = String(body.allocation ?? "owner");
@@ -51,12 +52,12 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
     !reimbursementStatuses.has(reimbursementStatus) ||
     !sources.has(source) ||
     !Number.isFinite(amount) ||
-    amount < 0 ||
+    amount <= 0 ||
     !Number.isFinite(tenantAmount) ||
     tenantAmount < 0 ||
     tenantAmount > amount
   ) {
-    return { error: "Некорректные параметры счета." } as const;
+    return { error: amount <= 0 ? "Сумма счета должна быть больше нуля." : "Некорректные параметры счета." } as const;
   }
 
   return {

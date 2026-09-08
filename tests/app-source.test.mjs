@@ -24,6 +24,8 @@ const utilityBillRouteSource = fs.readFileSync("app/api/utility-bills/[id]/route
 const utilityReadingsRouteSource = fs.readFileSync("app/api/utility-readings/route.ts", "utf8");
 const utilityMetersRouteSource = fs.readFileSync("app/api/utility-meters/route.ts", "utf8");
 const utilityMeterRouteSource = fs.readFileSync("app/api/utility-meters/[id]/route.ts", "utf8");
+const utilityBillServiceSource = fs.readFileSync("lib/server/utility-bills.ts", "utf8");
+const utilityPeriodSource = fs.readFileSync("lib/utility-period.ts", "utf8");
 const documentsRouteSource = fs.readFileSync("app/api/documents/route.ts", "utf8");
 const documentRouteSource = fs.readFileSync("app/api/documents/[id]/route.ts", "utf8");
 const apartmentDocumentsMigrationSource = fs.readFileSync("supabase/migrations/20260907130000_add_apartment_documents.sql", "utf8");
@@ -42,7 +44,6 @@ const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts
 const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
 const telegramContextSource = fs.readFileSync("lib/server/telegram-context.ts", "utf8");
 const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
-const utilityBillServiceSource = fs.readFileSync("lib/server/utility-bills.ts", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
@@ -154,7 +155,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /fixplan:pending:edit/);
   assert.match(telegramWebhookSource, /fixplan:pending:cancel/);
   assert.match(telegramWebhookSource, /callback_query/);
-  assert.match(telegramWebhookSource, /pending_action \? draftKeyboard/);
+  assert.match(telegramWebhookSource, /pending_action\?\.type\?\.startsWith\("create_"\) \? draftKeyboard/);
   assert.match(telegramClientSource, /cleanTelegramText/);
   assert.match(telegramClientSource, /требует внимания/);
   assert.match(telegramClientSource, /replace\(\/\\\*\/g, ""\)/);
@@ -483,6 +484,11 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityBillsRouteSource, /export async function POST/);
   assert.match(utilityBillsRouteSource, /createUtilityBillRecord/);
   assert.match(utilityBillServiceSource, /\.from\("utility_bills"\)/);
+  assert.match(utilityBillServiceSource, /amount <= 0/);
+  assert.match(utilityBillServiceSource, /normalizeUtilityPeriod/);
+  assert.match(utilityPeriodSource, /за\\s\+/);
+  assert.match(pageSource, /utilityPeriodTimestamp/);
+  assert.match(pageSource, /Все месяцы/);
   assert.match(utilityBillServiceSource, /receipt_storage_path/);
   assert.match(schemaSource, /receipt_storage_path text/);
   assert.match(schemaSource, /utility_bill_id text/);

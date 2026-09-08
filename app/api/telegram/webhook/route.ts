@@ -134,7 +134,7 @@ async function sendAssistantReply(
     .maybeSingle();
   if (error) throw new Error(error.message);
   await sendTelegramMessage(chatId, text, {
-    inlineKeyboard: data?.pending_action ? draftKeyboard : undefined,
+    inlineKeyboard: data?.pending_action?.type?.startsWith("create_") ? draftKeyboard : undefined,
   });
 }
 

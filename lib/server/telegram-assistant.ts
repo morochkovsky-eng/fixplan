@@ -8,6 +8,7 @@ import {
   type TelegramOwnerAccount,
 } from "@/lib/server/telegram-context";
 import { createUtilityBillRecord, normalizeBillPayload } from "@/lib/server/utility-bills";
+import { normalizeUtilityPeriod } from "@/lib/utility-period";
 
 type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_id: string;
@@ -219,7 +220,7 @@ const tools = [
   {
     type: "function",
     name: "prepare_utility_bill",
-    description: "Подготовить черновик коммунального счёта по сообщению или приложенной квитанции. Это не создаёт счёт: после вызова обязательно попроси явное подтверждение.",
+    description: "Подготовить черновик коммунального счёта только когда известна положительная сумма. Если суммы нет, задай вопрос и не вызывай этот инструмент. Ничего не создаёт до явного подтверждения.",
     parameters: {
       type: "object",
       properties: {
@@ -252,7 +253,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, сумму и срок оплаты, затем вызови prepare_utility_bill. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. После каждого такого сообщения кратко перечисляй, что получено и чего не хватает за этот месяц. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи короткое резюме с названием объекта; кнопки подтверждения интерфейс добавит сам. Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий. Форматируй ответ как обычный текст Telegram: без Markdown, звёздочек и решёток. Для списка используй короткие строки с маркером «•». Никогда не показывай технические идентификаторы или английские значения статусов: переводи их на понятный русский язык. Не повторяй одну и ту же просьбу или вывод.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай кратко и по-русски. Сейчас ${today}, часовой пояс ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, положительную сумму и срок оплаты. Вызывай prepare_utility_bill только когда сумма достоверно известна и больше нуля; если суммы нет или она не читается, перечисли недостающие данные и задай вопрос, не создавая черновик. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. После каждого такого сообщения кратко перечисляй, что получено и чего не хватает за этот месяц. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. После подготовки покажи короткое резюме с названием объекта; кнопки подтверждения интерфейс добавит сам. Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий. Форматируй ответ как обычный текст Telegram: без Markdown, звёздочек и решёток. Для списка используй короткие строки с маркером «•». Никогда не показывай технические идентификаторы или английские значения статусов: переводи их на понятный русский язык. Не повторяй одну и ту же просьбу или вывод.`,
       input,
       tools,
       tool_choice: "auto",
@@ -404,7 +405,7 @@ async function executeTool(
 
   if (call.name === "prepare_utility_reading") {
     const meterId = String(args.meterId ?? "").trim();
-    const period = String(args.period ?? "").trim();
+    const period = normalizeUtilityPeriod(args.period);
     const value = Number(args.value);
     const { data: meter, error } = await admin
       .from("utility_meters")
@@ -504,7 +505,17 @@ async function executeTool(
       receiptMediaType: attachment?.mimeType,
     };
     const validation = normalizeBillPayload(payload);
-    if ("error" in validation) return { ok: false, error: validation.error };
+    if ("error" in validation) {
+      await saveConversation(admin, account, {
+        pending_action: { type: "collect_utility_bill", apartmentId: account.apartment_id, payload },
+      });
+      return {
+        ok: false,
+        error: validation.error,
+        attachmentClaimed: Boolean(attachment),
+        instruction: "Черновик неполный. Кнопки подтверждения не показывать; попросить только недостающие данные.",
+      };
+    }
     await saveConversation(admin, account, {
       pending_action: { type: "create_utility_bill", apartmentId: account.apartment_id, payload },
     });
@@ -584,6 +595,9 @@ export async function runTelegramAssistant(
     const pending = conversation.pending_action;
     if (!pending.payload || typeof pending.payload !== "object") {
       return "Черновик повреждён. Давайте соберём его заново.";
+    }
+    if (pending.type === "collect_utility_bill") {
+      return "Счёт пока нельзя создать: не хватает положительной суммы или других обязательных данных. Пришлите недостающие сведения.";
     }
     const apartmentId = typeof pending.apartmentId === "string" ? pending.apartmentId : "";
     const apartmentResult = await listTelegramApartments(admin, account);
@@ -681,7 +695,7 @@ export async function runTelegramAssistant(
       const payload = pending.payload as Record<string, unknown>;
       const meterId = String(payload.meterId ?? "").trim();
       const value = Number(payload.value);
-      const period = String(payload.period ?? "").trim();
+      const period = normalizeUtilityPeriod(payload.period);
       const { data: meter, error: meterError } = await admin
         .from("utility_meters")
         .select("id,label,last_reading,current_rate,status")
@@ -854,7 +868,12 @@ export async function runTelegramAssistant(
           attachment,
           typeof existingAttachmentStoragePath === "string" ? existingAttachmentStoragePath : undefined,
         );
-        if ((call.name === "prepare_utility_bill" || call.name === "prepare_utility_reading" || call.name === "prepare_asset_event") && result.ok && attachment) {
+        if (
+          (call.name === "prepare_utility_bill" || call.name === "prepare_utility_reading" || call.name === "prepare_asset_event") &&
+          attachment &&
+          "attachmentClaimed" in result &&
+          result.attachmentClaimed
+        ) {
           attachmentClaimed = true;
         }
         outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
