@@ -5,6 +5,7 @@ import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/se
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import {
   answerTelegramCallbackQuery,
+  cleanTelegramDraftText,
   clearTelegramInlineKeyboard,
   downloadTelegramFile,
   sendTelegramMessage,
@@ -133,8 +134,9 @@ async function sendAssistantReply(
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  await sendTelegramMessage(chatId, text, {
-    inlineKeyboard: data?.pending_action?.type?.startsWith("create_") ? draftKeyboard : undefined,
+  const hasReadyDraft = Boolean(data?.pending_action?.type?.startsWith("create_"));
+  await sendTelegramMessage(chatId, hasReadyDraft ? cleanTelegramDraftText(text) : text, {
+    inlineKeyboard: hasReadyDraft ? draftKeyboard : undefined,
   });
 }
 

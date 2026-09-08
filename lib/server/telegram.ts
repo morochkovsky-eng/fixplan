@@ -62,6 +62,17 @@ export function cleanTelegramText(text: string) {
     .trim();
 }
 
+export function cleanTelegramDraftText(text: string) {
+  const confirmationPrompt = /^(?:если\s+вс[её].*|нужно\s+(?:ваше\s+)?подтверждение.*|(?:пожалуйста,?\s*)?подтвердите.*|(?:напишите|скажите|ответьте).*?(?:созда|подтверд).*)$/i;
+  const cleaned = text
+    .split("\n")
+    .filter((line) => !confirmationPrompt.test(line.trim()))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return cleaned || "Проверьте данные и выберите действие ниже.";
+}
+
 export async function sendTelegramMessage(
   chatId: number | string,
   text: string,

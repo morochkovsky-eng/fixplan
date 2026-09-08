@@ -155,8 +155,11 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /fixplan:pending:edit/);
   assert.match(telegramWebhookSource, /fixplan:pending:cancel/);
   assert.match(telegramWebhookSource, /callback_query/);
-  assert.match(telegramWebhookSource, /pending_action\?\.type\?\.startsWith\("create_"\) \? draftKeyboard/);
+  assert.match(telegramWebhookSource, /pending_action\?\.type\?\.startsWith\("create_"\)/);
+  assert.match(telegramWebhookSource, /hasReadyDraft \? draftKeyboard/);
+  assert.match(telegramWebhookSource, /cleanTelegramDraftText\(text\)/);
   assert.match(telegramClientSource, /cleanTelegramText/);
+  assert.match(telegramClientSource, /export function cleanTelegramDraftText/);
   assert.match(telegramClientSource, /требует внимания/);
   assert.match(telegramClientSource, /replace\(\/\\\*\/g, ""\)/);
   assert.match(telegramClientSource, /answerCallbackQuery/);
