@@ -14,6 +14,7 @@ export type TelegramApartment = {
   address: string;
   currency: string;
   timezone: string;
+  utility_insurance_included: boolean | null;
 };
 
 type TelegramApartmentListResult =
@@ -51,7 +52,7 @@ export async function listTelegramApartments(
   if (!apartmentIds.size) return { apartments: [] };
   const { data, error } = await admin
     .from("apartments")
-    .select("id,name,address,currency,timezone")
+    .select("id,name,address,currency,timezone,utility_insurance_included")
     .in("id", [...apartmentIds])
     .order("created_at", { ascending: true });
   if (error) return { error: error.message };

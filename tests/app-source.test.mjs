@@ -135,6 +135,9 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /prepare_cleaning/);
   assert.match(telegramAssistantSource, /prepare_utility_bill/);
   assert.match(telegramAssistantSource, /creditAmount/);
+  assert.match(telegramAssistantSource, /optionalChargeIncluded/);
+  assert.match(telegramAssistantSource, /значение строки «Начислено»/);
+  assert.match(telegramAssistantSource, /Страхование исключено/);
   assert.match(telegramAssistantSource, /existingItems/);
   assert.match(telegramAssistantSource, /draftCreatedAt/);
   assert.match(telegramAssistantSource, /keepsUtilityDraft/);
@@ -170,7 +173,9 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /Что удалось извлечь из вложения/);
   assert.match(telegramWebhookSource, /Создать счёт/);
   assert.match(telegramWebhookSource, /Удалить черновик/);
-  assert.match(telegramWebhookSource, /Для добавления других ресурсов/);
+  assert.match(telegramWebhookSource, /Чтобы добавить другие ресурсы/);
+  assert.match(telegramWebhookSource, /Исключить страховку/);
+  assert.match(telegramWebhookSource, /Начислено за месяц/);
   assert.match(telegramWebhookSource, /media-group-companion/);
   assert.match(telegramClientSource, /media_group_id/);
   assert.match(telegramClientSource, /cleanTelegramText/);
@@ -178,6 +183,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramClientSource, /требует внимания/);
   assert.match(telegramClientSource, /RUB/);
   assert.match(telegramClientSource, /₽/);
+  assert.match(telegramClientSource, /RUBS/);
   assert.match(telegramClientSource, /replace\(\/\\\*\/g, ""\)/);
   assert.match(telegramClientSource, /answerCallbackQuery/);
   assert.match(telegramClientSource, /editMessageReplyMarkup/);

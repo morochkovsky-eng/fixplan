@@ -3034,7 +3034,7 @@ export default function Home() {
         )}
 
         {view === "inspection" && !currentInspectionAsset && (
-          <Card>
+          <Card className="order-1 rounded-b-none border-b-0">
             <CardHeader>
               <CardTitle>В квартире пока нет узлов</CardTitle>
               <CardDescription>
@@ -5558,7 +5558,7 @@ function AssetDetail({
 
       <aside className="grid content-start gap-4 max-[980px]:hidden">
         <Tabs defaultValue="passport">
-          <Card>
+          <Card className="order-4 mt-4">
             <CardHeader>
               <TabsList aria-label="Данные узла" className="grid w-full grid-cols-3">
                 <TabsTrigger value="passport">
@@ -6913,7 +6913,7 @@ function UtilitiesView({
           </Card>
 
           {showBillForm && (
-            <Card>
+            <Card className="order-3 mt-4">
               <CardHeader>
                 <CardTitle>Выставление счета</CardTitle>
                 <CardDescription>Добавьте начисление за {selectedMonth?.period} и сохраните исходную квитанцию в архиве.</CardDescription>
@@ -7049,12 +7049,14 @@ function UtilitiesView({
             </Card>
           )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Счета за месяц</CardTitle>
-              <CardDescription>Начисления, оплата и квитанции за выбранный период.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2">
+          <Card className="order-2 -mt-4 rounded-t-none border-t-0">
+            <CardContent className="grid gap-2 border-t pt-4">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <strong className="font-medium">Начисления за месяц</strong>
+                <span className="text-muted-foreground text-sm">
+                  Жилец должен {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}
+                </span>
+              </div>
               {sortedBills.map((bill) => {
                 const isEditing = editingBillId === bill.id && editDraft;
 

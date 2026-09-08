@@ -16,6 +16,7 @@ type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_address: string;
   apartment_currency: string;
   apartment_timezone: string;
+  apartment_utility_insurance_included: boolean | null;
 };
 
 type Conversation = {
@@ -231,9 +232,12 @@ const tools = [
         dueDate: { type: "string", description: "Срок оплаты в понятном пользователю виде, пустая строка если не указан" },
         allocation: { type: "string", enum: ["owner", "tenant", "split"], description: "На кого относится расход. По умолчанию owner, если пользователь не уточнил другое" },
         tenantAmount: { type: "number", description: "Итоговый долг жильца после переплат, скидок и вычетов: 0 для owner, итоговая сумма для tenant, указанная доля для split" },
+        optionalChargeLabel: { type: "string", description: "Название добровольной дополнительной услуги, например страхования; пустая строка если её нет" },
+        optionalChargeAmount: { type: "number", description: "Сумма добровольной дополнительной услуги; 0 если её нет" },
+        optionalChargeIncluded: { type: "boolean", description: "Добровольная услуга включена в сумму по умолчанию; false если её нет или пользователь ранее отказался" },
         note: { type: "string", description: "Короткие важные детали квитанции, пустая строка если их нет" },
       },
-      required: ["service", "period", "amount", "creditAmount", "dueDate", "allocation", "tenantAmount", "note"],
+      required: ["service", "period", "amount", "creditAmount", "dueDate", "allocation", "tenantAmount", "optionalChargeLabel", "optionalChargeAmount", "optionalChargeIncluded", "note"],
       additionalProperties: false,
     },
     strict: true,
@@ -254,7 +258,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции внимательно извлеки услугу, период, полную сумму начисления, переплату или вычет, итоговый долг жильца и срок оплаты. Если квитанция показывает полную сумму и переплату, вычисли долг жильца как полную сумму минус переплата и не спрашивай, какую из этих сумм использовать. Вызывай prepare_utility_bill только когда полная сумма достоверно известна и больше нуля; если суммы нет или она не читается, назови только один блокирующий вопрос, не создавая черновик. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. Новая квитанция того же периода дополняет текущий черновик или уже созданный месячный счёт. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Если на коммунальной фотографии виден счётчик с показаниями, анализируй только сам счётчик и цифры на табло. Автоматы, УЗО, щиток, провода и подписи линий считай фоном: никогда не упоминай их и не предлагай ремонт или осмотр, если владелец прямо не сообщил о неисправности. Не описывай содержимое фотографии, оборудование и возможные действия, если владелец прямо об этом не спрашивал. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения: попроси владельца уточнить их. Как только обязательных данных достаточно, обязательно вызови соответствующий prepare-инструмент. Интерфейс сам сформирует резюме готового коммунального черновика. Кнопки подтверждения интерфейс добавит сам: никогда не проси написать «создавай», «подтверждаю» или подтвердить действие текстом. Никогда не создавай и не изменяй данные без явного подтверждения. Мастера и клинеры не общаются с тобой: они работают по гостевым ссылкам конкретных заданий. Форматируй ответ как обычный текст Telegram: без Markdown, звёздочек и решёток. Для списка используй короткие строки с маркером «•». Никогда не показывай технические идентификаторы или английские значения статусов: переводи их на понятный русский язык. Не повторяй одну и ту же просьбу или вывод.`,
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Настройка добровольного страхования: ${account.apartment_utility_insurance_included === false ? "исключать" : "включать по умолчанию"}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning. Для счёта или квитанции извлеки только услугу, расчётный период, сумму жильца и срок оплаты. Критическое правило для квитанций ЖКХ: сумма жильца и amount — значение строки «Начислено» за этот расчётный период. «К оплате», общий долг, сальдо, задолженность и переплата лицевого счёта относятся к расчётам владельца с поставщиком и никогда не заменяют начисление жильцу. Не вычитай накопленную переплату из строки «Начислено». Для готовой квитанции за электричество amount равен итоговой сумме документа. Добровольную страховку и другие необязательные строки включай по умолчанию, заполняй optionalChargeLabel/optionalChargeAmount/optionalChargeIncluded и не останавливай черновик вопросом. При любой достоверной положительной сумме сразу вызывай prepare_utility_bill; если суммы нет или она не читается, задай один блокирующий вопрос. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. Новая квитанция того же периода обязательно дополняет текущий черновик или уже созданный месячный счёт. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Если на коммунальной фотографии виден счётчик с показаниями, анализируй только сам счётчик и цифры на табло. Автоматы, УЗО, щиток, провода и подписи линий считай фоном: никогда не упоминай их и не предлагай ремонт или осмотр, если владелец прямо не сообщил о неисправности. Не описывай содержимое фотографии, адрес, поставщика, лицевой счёт, ЕРЦ/СПБ и прочие реквизиты. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения. Как только обязательных данных достаточно, обязательно вызови соответствующий prepare-инструмент. Интерфейс сам сформирует краткое резюме коммунального черновика и кнопки: никогда не проси подтверждать текстом. Никогда не создавай окончательную запись без явного подтверждения. Мастера и клинеры работают по гостевым ссылкам. Форматируй ответ как обычный текст Telegram без Markdown, звёздочек и решёток. Денежные суммы обозначай только знаком валюты, для рублей только «₽», никогда RUB, rub., rubs или «руб.». Не показывай технические идентификаторы и английские статусы. Не повторяй просьбу или вывод.`,
       input,
       tools,
       tool_choice: "auto",
@@ -498,8 +502,14 @@ async function executeTool(
   }
 
   if (call.name === "prepare_utility_bill") {
+    const requestedOptionalAmount = Number(args.optionalChargeAmount ?? 0);
+    const requestedOptionalIncluded = Boolean(args.optionalChargeIncluded && requestedOptionalAmount > 0);
+    const excludesOptionalCharge = account.apartment_utility_insurance_included === false && requestedOptionalIncluded;
     const item: Record<string, unknown> = {
       ...args,
+      amount: Math.max(0, Number(args.amount ?? 0) - (excludesOptionalCharge ? requestedOptionalAmount : 0)),
+      tenantAmount: Math.max(0, Number(args.tenantAmount ?? 0) - (excludesOptionalCharge ? requestedOptionalAmount : 0)),
+      optionalChargeIncluded: requestedOptionalIncluded && !excludesOptionalCharge,
       status: "due",
       source: "telegram_private",
       receiptStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
@@ -620,8 +630,53 @@ export async function runTelegramAssistant(
     apartment_address: context.apartment.address,
     apartment_currency: context.apartment.currency,
     apartment_timezone: context.apartment.timezone,
+    apartment_utility_insurance_included: context.apartment.utility_insurance_included,
   };
   const normalized = message.trim().toLocaleLowerCase("ru-RU");
+
+  if (!attachment && conversation.pending_action?.type === "create_utility_bill" && /страховк/u.test(normalized)) {
+    const excludesInsurance = /(?:не\s+включ|исключ|убер|отказ)/u.test(normalized);
+    const keepsInsurance = /(?:включ|остав)/u.test(normalized) && !excludesInsurance;
+    if (excludesInsurance || keepsInsurance) {
+      const pendingPayload = conversation.pending_action.payload;
+      if (!pendingPayload || typeof pendingPayload !== "object") return "Черновик повреждён. Давайте соберём его заново.";
+      const payload = pendingPayload as Record<string, unknown>;
+      const sourceItems = Array.isArray(payload.items) ? payload.items : [payload];
+      let changed = false;
+      const items = sourceItems.map((entry) => {
+        if (!entry || typeof entry !== "object") return entry;
+        const item = entry as Record<string, unknown>;
+        const optionalAmount = Number(item.optionalChargeAmount ?? 0);
+        if (!(optionalAmount > 0) || !String(item.optionalChargeLabel ?? "").toLocaleLowerCase("ru-RU").includes("страх")) return item;
+        const wasIncluded = Boolean(item.optionalChargeIncluded);
+        if (wasIncluded === !excludesInsurance) return item;
+        changed = true;
+        const direction = excludesInsurance ? -1 : 1;
+        return {
+          ...item,
+          amount: Math.max(0, Number(item.amount ?? 0) + direction * optionalAmount),
+          tenantAmount: Math.max(0, Number(item.tenantAmount ?? 0) + direction * optionalAmount),
+          optionalChargeIncluded: !excludesInsurance,
+          note: `Добровольное страхование ${excludesInsurance ? "исключено" : "включено"} по выбору владельца.`,
+        };
+      });
+      if (!changed) return excludesInsurance ? "Страхование уже исключено из черновика." : "Страхование уже включено в черновик.";
+      const latest = [...items].reverse().find((entry) => entry && typeof entry === "object") as Record<string, unknown>;
+      await saveConversation(admin, account, {
+        previous_response_id: null,
+        pending_action: {
+          ...conversation.pending_action,
+          payload: { ...payload, ...latest, items },
+        },
+      });
+      const { error: preferenceError } = await admin
+        .from("apartments")
+        .update({ utility_insurance_included: !excludesInsurance })
+        .eq("id", account.apartment_id);
+      if (preferenceError) throw new Error(preferenceError.message);
+      return excludesInsurance ? "Страхование исключено. Черновик пересчитан." : "Страхование включено. Черновик пересчитан.";
+    }
+  }
 
   if (!attachment && conversation.pending_action && confirmationWords.has(normalized)) {
     const pending = conversation.pending_action;

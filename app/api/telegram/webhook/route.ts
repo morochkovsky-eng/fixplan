@@ -25,6 +25,13 @@ const utilityDraftKeyboard: TelegramInlineButton[][] = [[
   { text: "Создать счёт", callback_data: "fixplan:pending:confirm" },
   { text: "Удалить черновик", callback_data: "fixplan:pending:cancel" },
 ]];
+const utilityInsuranceKeyboard: TelegramInlineButton[][] = [
+  [
+    { text: "Оставить страховку", callback_data: "fixplan:utility:insurance:keep" },
+    { text: "Исключить страховку", callback_data: "fixplan:utility:insurance:exclude" },
+  ],
+  ...utilityDraftKeyboard,
+];
 const editDraftKeyboard: TelegramInlineButton[][] = [[
   { text: "Отменить черновик", callback_data: "fixplan:pending:cancel" },
 ]];
@@ -75,7 +82,8 @@ function currencyLabel(value: unknown, currency: string) {
   try {
     return new Intl.NumberFormat("ru-RU", { style: "currency", currency }).format(amount);
   } catch {
-    return `${amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+    const symbol = currency === "EUR" ? "€" : currency === "USD" ? "$" : "₽";
+    return `${amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
   }
 }
 
@@ -92,8 +100,10 @@ function utilityDraftReply(pendingAction: Record<string, unknown>, currency: str
   const latestService = typeof latest.service === "string" ? latest.service.trim() : service;
   const amount = Number(latest.amount);
   if (!service || !period || !Number.isFinite(amount) || amount <= 0) return null;
-  const creditAmount = Number(latest.creditAmount ?? 0);
-  const tenantAmount = Number(latest.tenantAmount ?? amount - creditAmount);
+  const tenantAmount = Number(latest.tenantAmount ?? amount);
+  const optionalChargeLabel = typeof latest.optionalChargeLabel === "string" ? latest.optionalChargeLabel.trim() : "";
+  const optionalChargeAmount = Number(latest.optionalChargeAmount ?? 0);
+  const optionalChargeIncluded = Boolean(latest.optionalChargeIncluded && optionalChargeAmount > 0);
   const dueDate = typeof latest.dueDate === "string" ? latest.dueDate.trim() : "";
   const existingItems = Array.isArray(bill.existingItems)
     ? bill.existingItems.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
@@ -111,8 +121,10 @@ function utilityDraftReply(pendingAction: Record<string, unknown>, currency: str
   const extracted = [
     `Что удалось извлечь из вложения (${latestService}, ${period.toLocaleLowerCase("ru-RU")}):`,
     `• Период начисления: за ${period.toLocaleLowerCase("ru-RU")}`,
-    `• Итого к оплате: ${currencyLabel(amount, currency)}`,
-    ...(creditAmount > 0 ? [`• Переплата или вычет: ${currencyLabel(creditAmount, currency)}`] : []),
+    `• Начислено за месяц: ${currencyLabel(amount, currency)}`,
+    ...(optionalChargeLabel && optionalChargeAmount > 0
+      ? [`• ${optionalChargeLabel}: ${currencyLabel(optionalChargeAmount, currency)} (${optionalChargeIncluded ? "включено" : "исключено"})`]
+      : []),
     ...(dueDate ? [`• Срок оплаты: ${dueDate}`] : []),
     `Жилец должен: ${currencyLabel(tenantAmount, currency)}`,
     "",
@@ -132,7 +144,7 @@ function utilityDraftReply(pendingAction: Record<string, unknown>, currency: str
     extracted.push("Черновик счёта подготовлен.", "");
   }
   extracted.push(
-    "Для добавления других ресурсов пришлите дополнительные квитанции.",
+    "Чтобы добавить другие ресурсы, пришлите дополнительные квитанции.",
   );
   return extracted.join("\n");
 }
@@ -221,7 +233,14 @@ async function sendAssistantReply(
     reply = utilityDraftReply(pendingAction, currency, timezone) ?? reply;
   }
   await sendTelegramMessage(chatId, reply, {
-    inlineKeyboard: pendingAction?.type === "create_utility_bill" ? utilityDraftKeyboard : hasReadyDraft ? draftKeyboard : undefined,
+    inlineKeyboard: pendingAction?.type === "create_utility_bill"
+      ? (() => {
+          const payload = pendingAction.payload as Record<string, unknown> | undefined;
+          const items = Array.isArray(payload?.items) ? payload.items : payload ? [payload] : [];
+          const hasInsurance = items.some((item) => item && typeof item === "object" && Number((item as Record<string, unknown>).optionalChargeAmount ?? 0) > 0);
+          return hasInsurance ? utilityInsuranceKeyboard : utilityDraftKeyboard;
+        })()
+      : hasReadyDraft ? draftKeyboard : undefined,
   });
 }
 
@@ -270,6 +289,14 @@ export async function POST(request: Request) {
           admin,
           account,
           callback.data.endsWith(":confirm") ? "создавай" : "отмена",
+          new URL(request.url).origin,
+        );
+        await sendAssistantReply(admin, user.id, chat.id, answer);
+      } else if (callback.data === "fixplan:utility:insurance:keep" || callback.data === "fixplan:utility:insurance:exclude") {
+        const answer = await runTelegramAssistant(
+          admin,
+          account,
+          callback.data.endsWith(":exclude") ? "страховку не включаем" : "страховку включаем",
           new URL(request.url).origin,
         );
         await sendAssistantReply(admin, user.id, chat.id, answer);
