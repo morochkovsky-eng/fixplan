@@ -158,6 +158,7 @@ type AppConfig = {
   usageMode: "living" | "rented";
   currency: "RUB" | "EUR" | "USD";
   timezone: string;
+  locale: "ru";
 };
 
 type EventType =
@@ -795,6 +796,7 @@ const initialState: AppState = {
     usageMode: "living",
     currency: "RUB",
     timezone: "Europe/Moscow",
+    locale: "ru",
   },
   plan: undefined,
   categories: defaultAssetCategories,
@@ -3034,7 +3036,7 @@ export default function Home() {
         )}
 
         {view === "inspection" && !currentInspectionAsset && (
-          <Card className="order-1 rounded-b-none border-b-0">
+          <Card>
             <CardHeader>
               <CardTitle>В квартире пока нет узлов</CardTitle>
               <CardDescription>
@@ -5063,6 +5065,7 @@ function SettingsView({
         usageMode: draft.usageMode,
         currency: draft.currency,
         timezone: draft.timezone,
+        locale: draft.locale,
       }),
     });
     const payload = (await response.json().catch(() => ({}))) as {
@@ -5085,7 +5088,8 @@ function SettingsView({
     draft.address !== config.address ||
     draft.usageMode !== config.usageMode ||
     draft.currency !== config.currency ||
-    draft.timezone !== config.timezone;
+    draft.timezone !== config.timezone ||
+    draft.locale !== config.locale;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -5153,6 +5157,15 @@ function SettingsView({
                     <SelectItem value="Europe/Madrid">Мадрид</SelectItem>
                     <SelectItem value="Europe/Berlin">Берлин</SelectItem>
                     <SelectItem value="Asia/Dubai">Дубай</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid gap-2" htmlFor="locale">
+                <span className="text-sm font-medium">Язык интерфейса и бота</span>
+                <Select value={draft.locale} onValueChange={(locale: AppConfig["locale"]) => setDraft((current) => ({ ...current, locale }))}>
+                  <SelectTrigger className="w-full" id="locale"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ru">Русский</SelectItem>
                   </SelectContent>
                 </Select>
               </label>
@@ -5558,7 +5571,7 @@ function AssetDetail({
 
       <aside className="grid content-start gap-4 max-[980px]:hidden">
         <Tabs defaultValue="passport">
-          <Card className="order-4 mt-4">
+          <Card>
             <CardHeader>
               <TabsList aria-label="Данные узла" className="grid w-full grid-cols-3">
                 <TabsTrigger value="passport">
@@ -6625,6 +6638,67 @@ function UtilitiesView({
                   </div>
                 </div>
               </div>
+              <div className="grid gap-2 border-t pt-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong className="font-medium">Начисления</strong>
+                  <span className="text-muted-foreground text-sm">Жилец должен {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}</span>
+                </div>
+                {sortedBills.map((bill) => (
+                  <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={bill.id}>
+                    <div className="grid min-w-0 gap-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="font-medium">{bill.service}</strong>
+                        <Badge variant={utilityBillTone(bill.status)}>{utilityBillStatusLabels[bill.status]}</Badge>
+                        {bill.tenantAmount > 0 && <Badge variant="outline">{utilityReimbursementStatusLabels[bill.reimbursementStatus]}</Badge>}
+                      </div>
+                      <div className="text-muted-foreground text-sm">
+                        {moneyLabel(bill.amount)}{bill.dueDate ? ` · оплатить до ${bill.dueDate}` : ""}{bill.paidAt ? ` · оплачено ${bill.paidAt}` : ""}
+                      </div>
+                      {bill.tenantAmount > 0 && <div className="text-sm">С жильца: {moneyLabel(bill.tenantAmount)}</div>}
+                      {bill.note && <div className="line-clamp-1 text-muted-foreground text-sm">{bill.note}</div>}
+                    </div>
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {bill.receiptUrl && <Button asChild size="sm" variant="secondary"><a href={bill.receiptUrl} rel="noreferrer" target="_blank">Квитанция</a></Button>}
+                      {bill.status !== "paid" && <Button onClick={() => markPaid(bill.id)} size="sm" type="button" variant="secondary">Оплачено</Button>}
+                      {bill.tenantAmount > 0 && bill.reimbursementStatus !== "received" && <Button onClick={() => void markReimbursementReceived(bill.id)} size="sm" type="button" variant="outline">Возмещение получено</Button>}
+                      <Button onClick={() => startEditBill(bill)} size="sm" type="button" variant="secondary"><Pencil size={14} />Редактировать</Button>
+                      <Button onClick={() => deleteBill(bill.id)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /><span className="sr-only">Удалить</span></Button>
+                    </div>
+                    {editingBillId === bill.id && editDraft && (
+                      <div className="grid gap-3 rounded-lg bg-muted p-3 md:col-span-2">
+                        <div className="grid gap-3 md:grid-cols-3">
+                          <label className="grid gap-1.5 text-sm font-medium" htmlFor={`summary-${bill.id}-service`}>
+                            Услуга
+                            <Input id={`summary-${bill.id}-service`} value={editDraft.service} onChange={(event) => {
+                              const service = event.currentTarget.value;
+                              setEditDraft((current) => current ? { ...current, service } : current);
+                            }} />
+                          </label>
+                          <label className="grid gap-1.5 text-sm font-medium" htmlFor={`summary-${bill.id}-amount`}>
+                            Сумма
+                            <Input id={`summary-${bill.id}-amount`} min="0.01" step="0.01" type="number" value={editDraft.amount} onChange={(event) => {
+                              const amount = Number(event.currentTarget.value);
+                              setEditDraft((current) => current ? { ...current, amount, tenantAmount: tenantShareFor(current.allocation, amount, current.tenantAmount) } : current);
+                            }} />
+                          </label>
+                          <label className="grid gap-1.5 text-sm font-medium" htmlFor={`summary-${bill.id}-due-date`}>
+                            Оплатить до
+                            <Input id={`summary-${bill.id}-due-date`} type="date" value={dateInputFromFormatted(editDraft.dueDate)} onChange={(event) => {
+                              const dueDate = formatDateInput(event.currentTarget.value);
+                              setEditDraft((current) => current ? { ...current, dueDate } : current);
+                            }} />
+                          </label>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <Button onClick={() => { setEditingBillId(null); setEditDraft(null); }} size="sm" type="button" variant="secondary">Отменить</Button>
+                          <Button onClick={saveBill} size="sm" type="button"><Save size={14} />Сохранить</Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {!sortedBills.length && <div className="rounded-lg bg-muted p-4 text-muted-foreground text-sm">За этот месяц счетов пока нет.</div>}
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setShowBillForm(true)} type="button">
                   <ReceiptText size={16} />
@@ -6913,7 +6987,7 @@ function UtilitiesView({
           </Card>
 
           {showBillForm && (
-            <Card className="order-3 mt-4">
+            <Card>
               <CardHeader>
                 <CardTitle>Выставление счета</CardTitle>
                 <CardDescription>Добавьте начисление за {selectedMonth?.period} и сохраните исходную квитанцию в архиве.</CardDescription>
@@ -7049,7 +7123,7 @@ function UtilitiesView({
             </Card>
           )}
 
-          <Card className="order-2 -mt-4 rounded-t-none border-t-0">
+          <Card className="hidden">
             <CardContent className="grid gap-2 border-t pt-4">
               <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                 <strong className="font-medium">Начисления за месяц</strong>

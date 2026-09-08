@@ -17,6 +17,7 @@ type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_currency: string;
   apartment_timezone: string;
   apartment_utility_insurance_included: boolean | null;
+  apartment_locale: "ru";
 };
 
 type Conversation = {
@@ -221,13 +222,16 @@ const tools = [
   {
     type: "function",
     name: "prepare_utility_bill",
-    description: "Подготовить черновик коммунального счёта только когда известна положительная сумма. Если суммы нет, задай вопрос и не вызывай этот инструмент. Ничего не создаёт до явного подтверждения.",
+    description: "Сразу создать или дополнить коммунальный черновик, когда известна положительная сумма. Черновик сохраняется без подтверждения; кнопка подтверждения создаёт окончательный счёт. Если суммы нет, задай один вопрос и не вызывай инструмент.",
     parameters: {
       type: "object",
       properties: {
         service: { type: "string", description: "Название услуги или поставщика" },
+        documentKind: { type: "string", enum: ["housing", "electricity", "water", "other"], description: "Тип квитанции: ЖКХ, электричество, вода или другое" },
         period: { type: "string", description: "Расчётный период в понятном пользователю виде" },
         amount: { type: "number", description: "Сумма, которую сохраняем жильцу. Для ЖКХ строго строка «Начислено»; для электричества итог документа плюс отдельно указанная добровольная услуга, если она включена по умолчанию" },
+        periodChargeAmount: { type: "number", description: "Начисление строго за расчётный период. Для ЖКХ только значение рядом со словом «Начислено», никогда строка «К оплате» или общий долг" },
+        providerBalanceAmount: { type: "number", description: "Баланс владельца перед поставщиком из строки «К оплате», долг или сальдо; 0 если отсутствует. Не является долгом жильца" },
         creditAmount: { type: "number", description: "Переплата, скидка или вычет, уменьшающие долг; 0 если отсутствуют" },
         dueDate: { type: "string", description: "Срок оплаты в понятном пользователю виде, пустая строка если не указан" },
         allocation: { type: "string", enum: ["owner", "tenant", "split"], description: "На кого относится расход. По умолчанию owner, если пользователь не уточнил другое" },
@@ -237,7 +241,7 @@ const tools = [
         optionalChargeIncluded: { type: "boolean", description: "Добровольная услуга включена в сумму по умолчанию; false если её нет или пользователь ранее отказался" },
         note: { type: "string", description: "Короткие важные детали квитанции, пустая строка если их нет" },
       },
-      required: ["service", "period", "amount", "creditAmount", "dueDate", "allocation", "tenantAmount", "optionalChargeLabel", "optionalChargeAmount", "optionalChargeIncluded", "note"],
+      required: ["service", "documentKind", "period", "amount", "periodChargeAmount", "providerBalanceAmount", "creditAmount", "dueDate", "allocation", "tenantAmount", "optionalChargeLabel", "optionalChargeAmount", "optionalChargeIncluded", "note"],
       additionalProperties: false,
     },
     strict: true,
@@ -502,15 +506,21 @@ async function executeTool(
   }
 
   if (call.name === "prepare_utility_bill") {
+    const documentKind = String(args.documentKind ?? "other");
+    const periodChargeAmount = Number(args.periodChargeAmount ?? 0);
     const requestedOptionalAmount = Number(args.optionalChargeAmount ?? 0);
     const requestedOptionalIncluded = Boolean(args.optionalChargeIncluded && requestedOptionalAmount > 0);
     const excludesOptionalCharge = account.apartment_utility_insurance_included === false && requestedOptionalIncluded;
+    const extractedAmount = documentKind === "housing" ? periodChargeAmount : Number(args.amount ?? 0);
+    const storedAmount = Math.max(0, extractedAmount - (excludesOptionalCharge ? requestedOptionalAmount : 0));
+    const tenantReceipt = Boolean(attachment && ["housing", "electricity", "water"].includes(documentKind));
     const item: Record<string, unknown> = {
       ...args,
-      amount: Math.max(0, Number(args.amount ?? 0) - (excludesOptionalCharge ? requestedOptionalAmount : 0)),
-      tenantAmount: Math.max(0, Number(args.tenantAmount ?? 0) - (excludesOptionalCharge ? requestedOptionalAmount : 0)),
+      amount: storedAmount,
+      allocation: tenantReceipt ? "tenant" : args.allocation,
+      tenantAmount: tenantReceipt ? storedAmount : Math.max(0, Number(args.tenantAmount ?? 0) - (excludesOptionalCharge ? requestedOptionalAmount : 0)),
       optionalChargeIncluded: requestedOptionalIncluded && !excludesOptionalCharge,
-      status: "due",
+      status: "draft",
       source: "telegram_private",
       receiptStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
       receiptFilename: attachment?.filename,
@@ -536,27 +546,44 @@ async function executeTool(
       ? (Array.isArray(previousPayload.items) ? previousPayload.items : [previousPayload]).filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
       : [];
     const serviceKey = String(item.service ?? "").trim().toLocaleLowerCase("ru-RU");
-    const items = [
-      ...previousItems.filter((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU") !== serviceKey),
-      item,
-    ];
+    const previousSameService = previousItems.find((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU") === serviceKey);
     const { data: existingBills, error: existingBillsError } = await admin
       .from("utility_bills")
-      .select("id,service,period,amount,tenant_amount,due_date_label")
+      .select("id,service,period,amount,tenant_amount,due_date_label,status")
       .eq("apartment_id", account.apartment_id)
       .eq("period", period)
       .neq("status", "paid");
     if (existingBillsError) return { ok: false, error: existingBillsError.message };
-    const pendingServiceKeys = new Set(items.map((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU")));
-    const enrichedItems = items.map((entry) => {
-      const matchingBill = (existingBills ?? []).find((bill) => String(bill.service).trim().toLocaleLowerCase("ru-RU") === String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU"));
-      return matchingBill ? { ...entry, replaceBillId: matchingBill.id } : entry;
-    });
-    const payload = {
+    const previousDraftId = String(previousSameService?.draftBillId ?? "").trim();
+    const matchingConfirmed = (existingBills ?? []).find((bill) => bill.status !== "draft" && String(bill.service).trim().toLocaleLowerCase("ru-RU") === serviceKey);
+    let draftBillId = previousDraftId;
+    if (previousDraftId) {
+      const { error: updateDraftError } = await admin
+        .from("utility_bills")
+        .update({ ...validation.bill, updated_at: new Date().toISOString() })
+        .eq("apartment_id", account.apartment_id)
+        .eq("id", previousDraftId);
+      if (updateDraftError) return { ok: false, error: updateDraftError.message };
+    } else {
+      const draftResult = await createUtilityBillRecord(admin, { apartmentId: account.apartment_id, payload: item });
+      if ("error" in draftResult || !draftResult.row) return { ok: false, error: draftResult.error ?? "Не удалось сохранить черновик." };
+      draftBillId = String(draftResult.row.id);
+    }
+    const savedItem: Record<string, unknown> = {
       ...item,
+      draftBillId,
+      replaceBillId: matchingConfirmed?.id,
+    };
+    const items = [
+      ...previousItems.filter((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU") !== serviceKey),
+      savedItem,
+    ];
+    const pendingServiceKeys = new Set(items.map((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU")));
+    const payload = {
+      ...savedItem,
       period,
-      items: enrichedItems,
-      existingItems: (existingBills ?? []).filter((bill) => !pendingServiceKeys.has(String(bill.service).trim().toLocaleLowerCase("ru-RU"))),
+      items,
+      existingItems: (existingBills ?? []).filter((bill) => bill.status !== "draft" && !pendingServiceKeys.has(String(bill.service).trim().toLocaleLowerCase("ru-RU"))),
       draftCreatedAt: previousPayload?.draftCreatedAt ?? new Date().toISOString(),
     };
     await saveConversation(admin, account, {
@@ -564,9 +591,9 @@ async function executeTool(
     });
     return {
       ok: true,
-      draft: { ...payload, latestItem: item },
+      draft: { ...payload, latestItem: savedItem },
       attachmentClaimed: Boolean(attachment),
-      instruction: "Покажи кратко услугу, период, сумму, срок оплаты и распределение расхода. Не проси вводить команду: интерфейс добавит кнопки.",
+      instruction: "Черновик уже сохранён. Покажи кратко услугу, период, сумму жильца и срок оплаты. Не проси подтверждать словами: интерфейс добавит кнопки создания счёта и удаления черновика.",
     };
   }
 
@@ -603,7 +630,7 @@ function attachmentInput(message: string, attachment: TelegramAssistantAttachmen
       content: [
         {
           type: "input_text",
-          text: message || "Определи намерение по контексту диалога и подготовь подходящий черновик. Если на фото есть коммунальный счётчик, работай только с показанием на табло; автоматы, УЗО и щиток игнорируй, если пользователь не сообщил о неисправности. Не сохраняй данные без подтверждения.",
+          text: message || "Определи намерение по контексту диалога и подготовь подходящий черновик. Коммунальный черновик сохраняй сразу, а окончательный счёт — только по кнопке. Если на фото есть коммунальный счётчик, работай только с показанием на табло; автоматы, УЗО и щиток игнорируй, если пользователь не сообщил о неисправности.",
         },
         fileContent,
       ],
@@ -631,6 +658,7 @@ export async function runTelegramAssistant(
     apartment_currency: context.apartment.currency,
     apartment_timezone: context.apartment.timezone,
     apartment_utility_insurance_included: context.apartment.utility_insurance_included,
+    apartment_locale: context.apartment.locale,
   };
   const normalized = message.trim().toLocaleLowerCase("ru-RU");
 
@@ -661,6 +689,20 @@ export async function runTelegramAssistant(
         };
       });
       if (!changed) return excludesInsurance ? "Страхование уже исключено из черновика." : "Страхование уже включено в черновик.";
+      for (const entry of items) {
+        if (!entry || typeof entry !== "object") continue;
+        const changedItem = entry as Record<string, unknown>;
+        const draftBillId = String(changedItem.draftBillId ?? "").trim();
+        if (!draftBillId || !String(changedItem.optionalChargeLabel ?? "").toLocaleLowerCase("ru-RU").includes("страх")) continue;
+        const normalizedDraft = normalizeBillPayload({ ...changedItem, status: "draft" });
+        if ("error" in normalizedDraft) throw new Error(normalizedDraft.error);
+        const { error: draftUpdateError } = await admin
+          .from("utility_bills")
+          .update({ ...normalizedDraft.bill, updated_at: new Date().toISOString() })
+          .eq("apartment_id", account.apartment_id)
+          .eq("id", draftBillId);
+        if (draftUpdateError) throw new Error(draftUpdateError.message);
+      }
       const latest = [...items].reverse().find((entry) => entry && typeof entry === "object") as Record<string, unknown>;
       await saveConversation(admin, account, {
         previous_response_id: null,
@@ -740,10 +782,27 @@ export async function runTelegramAssistant(
         .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"));
       const createdBillIds: string[] = [];
       for (const item of items) {
-        const confirmedPayload = { ...item, ownerConfirmedAt: new Date().toISOString() };
+        const confirmedPayload = { ...item, status: "due", ownerConfirmedAt: new Date().toISOString() };
+        const draftBillId = String(item.draftBillId ?? "").trim();
         const replaceBillId = String(item.replaceBillId ?? "").trim();
         let resultRow: Record<string, unknown> | null = null;
-        if (replaceBillId) {
+        if (draftBillId) {
+          const normalized = normalizeBillPayload(confirmedPayload);
+          if ("error" in normalized) return `Не удалось обновить счёт: ${normalized.error}`;
+          const { data: updated, error: updateError } = await admin
+            .from("utility_bills")
+            .update({ ...normalized.bill, updated_at: new Date().toISOString() })
+            .eq("apartment_id", draftApartment.id)
+            .eq("id", draftBillId)
+            .select("*")
+            .single();
+          if (updateError || !updated) return `Не удалось обновить счёт: ${updateError?.message ?? "неизвестная ошибка"}`;
+          resultRow = updated as Record<string, unknown>;
+          if (replaceBillId && replaceBillId !== draftBillId) {
+            const { error: replaceError } = await admin.from("utility_bills").delete().eq("apartment_id", draftApartment.id).eq("id", replaceBillId);
+            if (replaceError) return `Не удалось заменить прежний счёт: ${replaceError.message}`;
+          }
+        } else if (replaceBillId) {
           const normalized = normalizeBillPayload(confirmedPayload);
           if ("error" in normalized) return `Не удалось обновить счёт: ${normalized.error}`;
           const { data: updated, error: updateError } = await admin
@@ -979,6 +1038,21 @@ export async function runTelegramAssistant(
   }
 
   if (!attachment && conversation.pending_action && cancellationWords.has(normalized)) {
+    if (conversation.pending_action.type === "create_utility_bill") {
+      const payload = conversation.pending_action.payload;
+      const items = payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).items)
+        ? (payload as Record<string, unknown>).items as Array<Record<string, unknown>>
+        : payload && typeof payload === "object" ? [payload as Record<string, unknown>] : [];
+      const draftBillIds = items.map((item) => String(item.draftBillId ?? "").trim()).filter(Boolean);
+      if (draftBillIds.length) {
+        const { error: deleteDraftError } = await admin
+          .from("utility_bills")
+          .delete()
+          .eq("apartment_id", account.apartment_id)
+          .in("id", draftBillIds);
+        if (deleteDraftError) throw new Error(deleteDraftError.message);
+      }
+    }
     await removePendingAttachment(admin, conversation.pending_action);
     await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
     return "Черновик отменён.";

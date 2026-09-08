@@ -139,7 +139,7 @@ export async function GET() {
   );
   const { data: apartment } = await admin
     .from("apartments")
-    .select("name,address,usage_mode,currency,timezone,plan_storage_path,plan_media_type,plan_original_name")
+    .select("name,address,usage_mode,currency,timezone,locale,plan_storage_path,plan_media_type,plan_original_name")
     .eq("id", apartmentId)
     .single();
   let planUrl = "";
@@ -159,6 +159,7 @@ export async function GET() {
       usageMode: apartment?.usage_mode ?? "living",
       currency: apartment?.currency ?? "RUB",
       timezone: apartment?.timezone ?? "Europe/Moscow",
+      locale: apartment?.locale ?? "ru",
     },
     plan: apartment?.plan_storage_path
       ? {

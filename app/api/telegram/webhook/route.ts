@@ -141,7 +141,7 @@ function utilityDraftReply(pendingAction: Record<string, unknown>, currency: str
       "",
     );
   } else {
-    extracted.push("Черновик счёта подготовлен.", "");
+    extracted.push("Черновик уже создан.", "");
   }
   extracted.push(
     "Чтобы добавить другие ресурсы, пришлите дополнительные квитанции.",

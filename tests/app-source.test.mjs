@@ -134,6 +134,12 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /apartmentId: account\.apartment_id/);
   assert.match(telegramAssistantSource, /prepare_cleaning/);
   assert.match(telegramAssistantSource, /prepare_utility_bill/);
+  assert.match(telegramAssistantSource, /periodChargeAmount/);
+  assert.match(telegramAssistantSource, /providerBalanceAmount/);
+  assert.match(telegramAssistantSource, /documentKind === "housing" \? periodChargeAmount/);
+  assert.match(telegramAssistantSource, /status: "draft"/);
+  assert.match(telegramAssistantSource, /draftBillId/);
+  assert.match(telegramAssistantSource, /Черновик сохраняется без подтверждения/);
   assert.match(telegramAssistantSource, /creditAmount/);
   assert.match(telegramAssistantSource, /optionalChargeIncluded/);
   assert.match(telegramAssistantSource, /значение строки «Начислено»/);
@@ -555,6 +561,8 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(pageSource, /Коммуналка и счета/);
   assert.match(pageSource, /Месяцы, счета, счетчики и статусы передачи/);
   assert.match(pageSource, /Данные за/);
+  assert.match(pageSource, /<strong className="font-medium">Начисления<\/strong>/);
+  assert.match(pageSource, /<Card className="hidden">/);
   assert.match(pageSource, /Счетчики/);
   assert.match(pageSource, /Ждем показания/);
   assert.match(pageSource, /Счета/);
@@ -591,6 +599,10 @@ test("supports utility bills as a first-class apartment section", () => {
     /(?:set[A-Za-z]+|onChange)\(\(current\) =>[^\n]*event\.currentTarget/,
   );
   assert.match(pageSource, /setDraft\(emptyUtilityBillDraft\(selectedMonth\?\.period \?\? selectedPeriod\)\)/);
+  assert.match(pageSource, /Язык интерфейса и бота/);
+  assert.match(pageSource, /<SelectItem value="ru">Русский<\/SelectItem>/);
+  assert.match(settingsRouteSource, /const locales = new Set\(\["ru"\]\)/);
+  assert.match(schemaSource, /locale text not null default 'ru'/);
 });
 
 test("supports editing and deleting node comments without schema-cache fields", () => {

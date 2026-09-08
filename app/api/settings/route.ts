@@ -4,6 +4,7 @@ import { requireApartmentAccess } from "../assets/access";
 const usageModes = new Set(["living", "rented"]);
 const currencies = new Set(["RUB", "EUR", "USD"]);
 const timezones = new Set(["Europe/Moscow", "Europe/Madrid", "Europe/Berlin", "Asia/Dubai"]);
+const locales = new Set(["ru"]);
 
 export async function PATCH(request: Request) {
   const { admin, apartmentId, role, error: accessError, status } = await requireApartmentAccess();
@@ -18,19 +19,20 @@ export async function PATCH(request: Request) {
   const usageMode = String(body.usageMode ?? "");
   const currency = String(body.currency ?? "");
   const timezone = String(body.timezone ?? "");
+  const locale = String(body.locale ?? "");
 
   if (!name || !address) {
     return NextResponse.json({ error: "Укажите название объекта и адрес." }, { status: 400 });
   }
-  if (!usageModes.has(usageMode) || !currencies.has(currency) || !timezones.has(timezone)) {
-    return NextResponse.json({ error: "Проверьте режим, валюту и часовой пояс." }, { status: 400 });
+  if (!usageModes.has(usageMode) || !currencies.has(currency) || !timezones.has(timezone) || !locales.has(locale)) {
+    return NextResponse.json({ error: "Проверьте режим, валюту, язык и часовой пояс." }, { status: 400 });
   }
 
   const { data, error } = await admin
     .from("apartments")
-    .update({ name, address, usage_mode: usageMode, currency, timezone })
+    .update({ name, address, usage_mode: usageMode, currency, timezone, locale })
     .eq("id", apartmentId)
-    .select("name,address,usage_mode,currency,timezone")
+    .select("name,address,usage_mode,currency,timezone,locale")
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -43,6 +45,7 @@ export async function PATCH(request: Request) {
       usageMode: data.usage_mode,
       currency: data.currency,
       timezone: data.timezone,
+      locale: data.locale,
     },
   });
 }

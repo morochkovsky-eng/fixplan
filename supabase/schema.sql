@@ -35,6 +35,7 @@ create table public.apartments (
   usage_mode text not null default 'living' check (usage_mode in ('living', 'rented')),
   currency text not null default 'RUB' check (currency in ('RUB', 'EUR', 'USD')),
   timezone text not null default 'Europe/Moscow',
+  locale text not null default 'ru' check (locale in ('ru')),
   utility_insurance_included boolean,
   created_by uuid references auth.users(id) on delete set null,
   plan_storage_path text,
