@@ -136,7 +136,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /prepare_utility_bill/);
   assert.match(telegramAssistantSource, /periodChargeAmount/);
   assert.match(telegramAssistantSource, /providerBalanceAmount/);
-  assert.match(telegramAssistantSource, /documentKind === "housing" \? periodChargeAmount/);
+  assert.match(telegramAssistantSource, /periodChargeAmount \+ includedOptionalAmount/);
+  assert.doesNotMatch(telegramAssistantSource, /documentKind === "housing" \? periodChargeAmount/);
   assert.match(telegramAssistantSource, /status: "draft"/);
   assert.match(telegramAssistantSource, /draftBillId/);
   assert.match(telegramAssistantSource, /Черновик сохраняется без подтверждения/);
@@ -144,6 +145,9 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /creditAmount/);
   assert.match(telegramAssistantSource, /optionalChargeIncluded/);
   assert.match(telegramAssistantSource, /значение строки «Начислено»/);
+  assert.match(telegramAssistantSource, /ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ/);
+  assert.match(telegramAssistantSource, /Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений/);
+  assert.match(telegramAssistantSource, /никогда не переноси входящий баланс, старый долг, пени, накопленную переплату, платежи или конечное «к оплате» на жильца/);
   assert.match(telegramAssistantSource, /Страхование исключено/);
   assert.match(telegramAssistantSource, /existingItems/);
   assert.match(telegramAssistantSource, /draftCreatedAt/);
