@@ -47,6 +47,7 @@ const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
 const assistantRouteSource = fs.readFileSync("app/api/assistant/route.ts", "utf8");
 const assistantRepliesSource = fs.readFileSync("lib/server/assistant-replies.ts", "utf8");
 const assistantMessagesMigrationSource = fs.readFileSync("supabase/migrations/20260908120000_add_assistant_messages.sql", "utf8");
+const workOrderEventsMigrationSource = fs.readFileSync("supabase/migrations/20260908183000_add_work_order_creation_events.sql", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
 
@@ -712,6 +713,11 @@ test("treats work orders as a first-class master workflow", () => {
   assert.match(pageSource, /Создать задание/);
   assert.match(pageSource, /Задание по всем/);
   assert.match(pageSource, /Создать задание по узлу/);
+  assert.match(pageSource, /event\.id\.startsWith\("evt-work-order-created-"\)/);
+  assert.match(workOrderEventsMigrationSource, /record_work_order_creation_events/);
+  assert.match(workOrderEventsMigrationSource, /after insert on public\.inspections/);
+  assert.match(workOrderEventsMigrationSource, /from public\.inspections as inspection/);
+  assert.match(workOrderEventsMigrationSource, /Создано задание мастеру/);
   assert.match(pageSource, /acceptCurrentInspection/);
   assert.match(pageSource, /updateInspection=\{updateInspection\}/);
   assert.match(pageSource, /setTaskTab\(selectedInspection\?\.workflow === "work_order" \? "master-work" : "inspection"\)/);

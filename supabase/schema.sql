@@ -157,6 +157,54 @@ create table public.events (
   foreign key (apartment_id, inspection_id) references public.inspections(apartment_id, id)
 );
 
+create or replace function public.record_work_order_creation_events()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.workflow = 'work_order' then
+    insert into public.events (
+      apartment_id,
+      id,
+      asset_id,
+      inspection_id,
+      type,
+      date_label,
+      title,
+      body,
+      master,
+      created_at
+    )
+    select
+      new.apartment_id,
+      'evt-work-order-created-' || new.id || '-' || selected_asset_id,
+      selected_asset_id,
+      new.id,
+      'master',
+      new.created_at_label,
+      'Создано задание мастеру',
+      new.number || '. Мастер: ' || coalesce(nullif(trim(new.contractor), ''), 'не указан') ||
+        case
+          when nullif(trim(new.asset_instructions ->> selected_asset_id), '') is not null
+            then '. Поручение: ' || trim(new.asset_instructions ->> selected_asset_id)
+          else '.'
+        end,
+      nullif(trim(new.contractor), ''),
+      new.created_at
+    from unnest(new.allowed_asset_ids) as selected_asset_id
+    on conflict (apartment_id, id) do nothing;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger inspections_record_work_order_creation_events
+after insert on public.inspections
+for each row
+execute function public.record_work_order_creation_events();
+
 create table public.inspection_results (
   apartment_id uuid not null references public.apartments(id) on delete cascade,
   id text not null,

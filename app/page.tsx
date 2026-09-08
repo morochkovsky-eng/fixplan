@@ -2513,6 +2513,9 @@ export default function Home() {
     setSelectedInspectionId(inspection.id);
     setTaskTab(workflow === "work_order" ? "master-work" : "inspection");
     setView("work_orders");
+    if (workflow === "work_order") {
+      setDataRefreshKey((current) => current + 1);
+    }
   }
 
   async function updateInspection(inspectionId: string, patch: Partial<Inspection>) {
@@ -7594,19 +7597,21 @@ function ActivityLog({
   const [filter, setFilter] = useState<"all" | JournalKind>("all");
   const [query, setQuery] = useState("");
   const entries = useMemo<JournalEntry[]>(() => {
-    const assetEntries: JournalEntry[] = events.map((event) => {
-      const asset = assets.find((item) => item.id === event.assetId);
-      return {
-        id: `event-${event.id}`,
-        kind: "nodes",
-        title: asset ? `${asset.code} · ${event.title}` : event.title,
-        body: event.body,
-        date: event.date,
-        amount: event.cost,
-        event,
-        assetId: event.assetId,
-      };
-    });
+    const assetEntries: JournalEntry[] = events
+      .filter((event) => !event.id.startsWith("evt-work-order-created-"))
+      .map((event) => {
+        const asset = assets.find((item) => item.id === event.assetId);
+        return {
+          id: `event-${event.id}`,
+          kind: "nodes",
+          title: asset ? `${asset.code} · ${event.title}` : event.title,
+          body: event.body,
+          date: event.date,
+          amount: event.cost,
+          event,
+          assetId: event.assetId,
+        };
+      });
     const inspectionEntries: JournalEntry[] = inspections.map((inspection) => ({
       id: `inspection-${inspection.id}`,
       kind: inspection.workflow === "work_order" ? "tasks" : "inspections",
