@@ -6552,13 +6552,13 @@ function UtilitiesView({
         <StatCard label="Просрочено счетов" value={overdueBills.length.toString()} tone={overdueBills.length ? "negative" : undefined} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <Card className="max-xl:contents">
+      <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="max-xl:contents xl:sticky xl:top-4 xl:max-h-[calc(100dvh-12rem)] xl:self-start">
           <CardHeader className="max-xl:order-0 max-xl:rounded-lg max-xl:border max-xl:bg-card">
             <CardTitle>Коммуналка</CardTitle>
             <CardDescription>Месяцы, счета, счетчики и статусы передачи.</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2 max-xl:contents">
+          <CardContent className="grid gap-2 max-xl:contents xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain">
             {months.map((month, index) => (
               <button
                 className={`grid gap-1 rounded-lg border p-3 text-left transition hover:bg-muted ${
@@ -6594,7 +6594,7 @@ function UtilitiesView({
         </Card>
 
         <div
-          className={`${mobileMonthOpen ? "grid" : "hidden"} gap-4 xl:col-start-2 xl:row-start-1 xl:grid`}
+          className={`${mobileMonthOpen ? "grid" : "hidden"} content-start gap-4 self-start xl:col-start-2 xl:row-start-1 xl:grid`}
           style={{ order: selectedMonthIndex * 2 + 3 }}
         >
           <Card>

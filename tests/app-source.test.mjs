@@ -522,6 +522,9 @@ test("supports utility bills as a first-class apartment section", () => {
   assert.match(utilityPeriodSource, /за\\s\+/);
   assert.match(pageSource, /utilityPeriodTimestamp/);
   assert.match(pageSource, /max-xl:contents/);
+  assert.match(pageSource, /xl:max-h-\[calc\(100dvh-12rem\)\]/);
+  assert.match(pageSource, /xl:overflow-y-auto/);
+  assert.match(pageSource, /content-start gap-4 self-start/);
   assert.match(pageSource, /selectedMonthIndex \* 2 \+ 3/);
   assert.match(utilityBillServiceSource, /receipt_storage_path/);
   assert.match(schemaSource, /receipt_storage_path text/);
