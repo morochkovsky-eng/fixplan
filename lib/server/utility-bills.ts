@@ -20,6 +20,9 @@ export type UtilityBillRow = {
   note: string | null;
   allocation: string;
   tenant_amount: number | string;
+  optional_charge_label?: string | null;
+  optional_charge_amount?: number | string;
+  optional_charge_included?: boolean;
   reimbursement_status: string;
   reimbursed_at_label: string | null;
   source: string;
@@ -85,6 +88,9 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
       note: typeof body.note === "string" && body.note.trim() ? body.note.trim() : null,
       allocation,
       tenant_amount: tenantAmount,
+      optional_charge_label: String(body.optionalChargeLabel ?? "").trim() || null,
+      optional_charge_amount: Math.max(0, Number(body.optionalChargeAmount ?? 0)),
+      optional_charge_included: Boolean(body.optionalChargeIncluded),
       reimbursement_status: reimbursementStatus,
       reimbursed_at_label:
         typeof body.reimbursedAt === "string" && body.reimbursedAt.trim()

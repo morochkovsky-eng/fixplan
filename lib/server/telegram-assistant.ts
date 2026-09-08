@@ -678,6 +678,43 @@ export async function runTelegramAssistant(
     }
   }
 
+  if (!attachment && !conversation.pending_action && /страховк/u.test(normalized)) {
+    const excludesInsurance = /(?:не\s+включ|исключ|убер|отказ)/u.test(normalized);
+    const keepsInsurance = /(?:включ|остав)/u.test(normalized) && !excludesInsurance;
+    if (excludesInsurance || keepsInsurance) {
+      const { error: preferenceError } = await admin
+        .from("apartments")
+        .update({ utility_insurance_included: !excludesInsurance })
+        .eq("id", account.apartment_id);
+      if (preferenceError) throw new Error(preferenceError.message);
+      const { data: bill, error: billError } = await admin
+        .from("utility_bills")
+        .select("id,period,amount,tenant_amount,optional_charge_amount,optional_charge_included")
+        .eq("apartment_id", account.apartment_id)
+        .gt("optional_charge_amount", 0)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (billError) throw new Error(billError.message);
+      if (!bill || Boolean(bill.optional_charge_included) === !excludesInsurance) {
+        return excludesInsurance ? "Запомнил: добровольное страхование не включаем." : "Запомнил: добровольное страхование включаем.";
+      }
+      const optionalAmount = Number(bill.optional_charge_amount ?? 0);
+      const direction = excludesInsurance ? -1 : 1;
+      const amount = Math.max(0, Number(bill.amount) + direction * optionalAmount);
+      const tenantAmount = Math.max(0, Number(bill.tenant_amount) + direction * optionalAmount);
+      const { error: updateError } = await admin.from("utility_bills").update({
+        amount,
+        tenant_amount: tenantAmount,
+        optional_charge_included: !excludesInsurance,
+        updated_at: new Date().toISOString(),
+      }).eq("apartment_id", account.apartment_id).eq("id", bill.id);
+      if (updateError) throw new Error(updateError.message);
+      const formatted = new Intl.NumberFormat("ru-RU", { style: "currency", currency: account.apartment_currency }).format(tenantAmount);
+      return `Страхование ${excludesInsurance ? "исключено из" : "добавлено в"} счёт за ${bill.period}. Жилец должен: ${formatted}. Выбор запомнен.`;
+    }
+  }
+
   if (!attachment && conversation.pending_action && confirmationWords.has(normalized)) {
     const pending = conversation.pending_action;
     if (!pending.payload || typeof pending.payload !== "object") {
