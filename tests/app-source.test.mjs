@@ -140,6 +140,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /status: "draft"/);
   assert.match(telegramAssistantSource, /draftBillId/);
   assert.match(telegramAssistantSource, /Черновик сохраняется без подтверждения/);
+  assert.match(telegramAssistantSource, /item\.tenantAmount \?\? item\.tenant_amount/);
   assert.match(telegramAssistantSource, /creditAmount/);
   assert.match(telegramAssistantSource, /optionalChargeIncluded/);
   assert.match(telegramAssistantSource, /значение строки «Начислено»/);

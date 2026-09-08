@@ -848,7 +848,13 @@ export async function runTelegramAssistant(
         }
       }
       await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
-      const tenantTotal = items.reduce((sum, item) => sum + Number(item.tenantAmount ?? 0), 0);
+      const existingItems = Array.isArray(billPayload.existingItems)
+        ? billPayload.existingItems.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+        : [];
+      const tenantTotal = [...existingItems, ...items].reduce(
+        (sum, item) => sum + Number(item.tenantAmount ?? item.tenant_amount ?? 0),
+        0,
+      );
       return `Счёт за ${normalizeUtilityPeriod(billPayload.period)} создан. Жилец должен: ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: draftApartment.currency }).format(tenantTotal)}.`;
     }
     if (pending.type === "create_work_order") {
