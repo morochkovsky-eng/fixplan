@@ -343,13 +343,7 @@ type Inspection = {
 type UtilityBillStatus = "draft" | "due" | "paid" | "overdue";
 type UtilityBillAllocation = "owner" | "tenant" | "split";
 type UtilityReimbursementStatus = "not_required" | "awaiting" | "received";
-type UtilityMonthStatus =
-  | "awaiting_readings"
-  | "partial"
-  | "needs_bill"
-  | "awaiting_payment"
-  | "awaiting_reimbursement"
-  | "closed";
+type UtilityMonthStatus = "not_issued" | "issued" | "payment_received";
 type UtilityMeterStatus = "due" | "submitted" | "overdue";
 type UtilityServiceId = "cold_water" | "hot_water" | "electricity" | "heating" | "other";
 
@@ -1148,9 +1142,9 @@ const utilityBillAllocationLabels: Record<UtilityBillAllocation, string> = {
 };
 
 const utilityReimbursementStatusLabels: Record<UtilityReimbursementStatus, string> = {
-  not_required: "Возмещение не требуется",
-  awaiting: "Ждем возмещение",
-  received: "Возмещение получено",
+  not_required: "Оплата не требуется",
+  awaiting: "Ожидаем оплату",
+  received: "Оплата получена",
 };
 
 function tenantShareFor(allocation: UtilityBillAllocation, amount: number, current: number) {
@@ -1172,21 +1166,15 @@ function utilityBillTone(status: UtilityBillStatus): "secondary" | "destructive"
 const utilityPeriods = recentUtilityPeriods();
 
 const utilityMonthStatusLabels: Record<UtilityMonthStatus, string> = {
-  awaiting_readings: "Ждем показания",
-  partial: "Получено частично",
-  needs_bill: "Нужен счет",
-  awaiting_payment: "Ждем оплату",
-  awaiting_reimbursement: "Ждем возмещение",
-  closed: "Закрыто",
+  not_issued: "Счёт не выставлен",
+  issued: "Счёт выставлен",
+  payment_received: "Оплата получена",
 };
 
 const utilityMonthStatusDescriptions: Record<UtilityMonthStatus, string> = {
-  awaiting_readings: "Пока нет данных за месяц.",
-  partial: "Часть данных получена, комплект за месяц еще не собран.",
-  needs_bill: "Показания есть, нужно рассчитать или добавить счет.",
-  awaiting_payment: "Счет создан, ожидаем оплату.",
-  awaiting_reimbursement: "Счета оплачены, ожидаем возмещение от жильца.",
-  closed: "Все данные месяца закрыты.",
+  not_issued: "Счёт жильцу за этот месяц ещё не выставлен.",
+  issued: "Счёт выставлен, оплату от жильца ещё не получили.",
+  payment_received: "Оплата от жильца получена.",
 };
 
 const utilityMeterStatusLabels: Record<UtilityMeterStatus, string> = {
@@ -1231,9 +1219,15 @@ function emptyUtilityMeterDraft(): UtilityMeterDraft {
 }
 
 function utilityMonthTone(status: UtilityMonthStatus): "secondary" | "destructive" | "outline" {
-  if (status === "awaiting_readings" || status === "partial") return "destructive";
-  if (status === "awaiting_payment" || status === "awaiting_reimbursement") return "outline";
+  if (status === "not_issued") return "destructive";
+  if (status === "issued") return "outline";
   return "secondary";
+}
+
+function utilityMonthToneClass(status: UtilityMonthStatus) {
+  if (status === "issued") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status === "payment_received") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "";
 }
 
 function utilityMeterIcon(service: UtilityServiceId) {
@@ -1266,7 +1260,6 @@ function buildUtilityMonths(
     const hasAllElectricityReadings =
       electricityMeters.length > 0 && electricityMeters.every((meter) => readMeterIds.has(meter.id));
     const hasElectricityData = hasElectricityBill || hasAllElectricityReadings;
-    const hasAnyData = periodBills.length > 0 || periodReadings.length > 0;
     const missing: string[] = [];
     if (!hasHousingBill) missing.push("квитанция ЖКХ");
     if (!hasElectricityData) {
@@ -1276,22 +1269,18 @@ function buildUtilityMonths(
     if (hasHousingBill) received.push("квитанция ЖКХ");
     if (hasElectricityBill) received.push("счет за электричество");
     else if (hasAllElectricityReadings) received.push("показания электричества");
-    const unpaidBills = periodBills.filter((bill) => bill.status !== "paid");
-    const pendingReimbursements = periodBills.filter(
+    const issuedBills = periodBills.filter((bill) => bill.status !== "draft");
+    const tenantBills = issuedBills.filter((bill) => bill.tenantAmount > 0);
+    const pendingReimbursements = tenantBills.filter(
       (bill) => bill.tenantAmount > 0 && bill.reimbursementStatus !== "received",
     );
+    const receivedReimbursements = tenantBills.filter((bill) => bill.reimbursementStatus === "received");
     const amount = periodBills.reduce((sum, bill) => sum + bill.amount, 0);
-    let status: UtilityMonthStatus = hasAnyData ? "partial" : "awaiting_readings";
-
-    if (hasHousingBill && hasAllElectricityReadings && !hasElectricityBill) {
-      status = "needs_bill";
-    } else if (!missing.length && periodBills.length && unpaidBills.length) {
-      status = "awaiting_payment";
-    } else if (!missing.length && periodBills.length && !unpaidBills.length && pendingReimbursements.length) {
-      status = "awaiting_reimbursement";
-    } else if (!missing.length && periodBills.length && !unpaidBills.length) {
-      status = "closed";
-    }
+    const status: UtilityMonthStatus = !issuedBills.length
+      ? "not_issued"
+      : tenantBills.length > 0 && !pendingReimbursements.length
+        ? "payment_received"
+        : "issued";
 
     return {
       period,
@@ -1299,8 +1288,9 @@ function buildUtilityMonths(
       bills: periodBills,
       readings: periodReadings,
       amount,
-      unpaidAmount: unpaidBills.reduce((sum, bill) => sum + bill.amount, 0),
+      issuedAmount: tenantBills.reduce((sum, bill) => sum + bill.tenantAmount, 0),
       reimbursementAmount: pendingReimbursements.reduce((sum, bill) => sum + bill.tenantAmount, 0),
+      receivedAmount: receivedReimbursements.reduce((sum, bill) => sum + bill.tenantAmount, 0),
       missing,
       received,
     };
@@ -6236,18 +6226,15 @@ function UtilitiesView({
   const sortedBills = [...selectedBills].sort(
     (left, right) => documentExpiryTime(left.dueDate) - documentExpiryTime(right.dueDate),
   );
-  const unpaidBills = bills.filter((bill) => bill.status !== "paid");
-  const overdueBills = bills.filter((bill) => bill.status === "overdue");
-  const unpaidAmount = unpaidBills.reduce((sum, bill) => sum + bill.amount, 0);
-  const pendingReimbursementAmount = bills
-    .filter((bill) => bill.tenantAmount > 0 && bill.reimbursementStatus !== "received")
+  const issuedTenantBills = bills.filter((bill) => bill.status !== "draft" && bill.tenantAmount > 0);
+  const issuedTenantAmount = issuedTenantBills.reduce((sum, bill) => sum + bill.tenantAmount, 0);
+  const receivedTenantAmount = issuedTenantBills
+    .filter((bill) => bill.reimbursementStatus === "received")
     .reduce((sum, bill) => sum + bill.tenantAmount, 0);
-  const activeMeters = meters.filter((meter) => !readingByMeter.has(meter.id)).length;
-  const calculatedReadingAmount = selectedReadings.reduce(
-    (sum, reading) => sum + (reading.calculatedAmount ?? 0),
-    0,
-  );
-  const currentStatus = selectedMonth?.status ?? "awaiting_readings";
+  const pendingTenantAmount = issuedTenantBills
+    .filter((bill) => bill.reimbursementStatus !== "received")
+    .reduce((sum, bill) => sum + bill.tenantAmount, 0);
+  const currentStatus = selectedMonth?.status ?? "not_issued";
 
   function selectPeriod(period: string) {
     setMobileMonthOpen((current) => period !== selectedPeriod || !current);
@@ -6477,25 +6464,6 @@ function UtilitiesView({
     }
   }
 
-  async function markPaid(billId: string) {
-    const nextBill = bills.find((bill) => bill.id === billId);
-    if (!nextBill) return;
-
-    const paidBill: UtilityBill = { ...nextBill, status: "paid", paidAt: todayLabel() };
-    try {
-      const response = await fetch(`/api/utility-bills/${billId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(paidBill),
-      });
-      const payload = (await response.json().catch(() => ({}))) as { bill?: UtilityBill; error?: string };
-      if (!response.ok || !payload.bill) throw new Error(payload.error ?? "Не удалось отметить счет оплаченным.");
-      setBills(bills.map((bill) => bill.id === billId ? payload.bill! : bill));
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось отметить счет оплаченным.");
-    }
-  }
-
   async function markReimbursementReceived(billId: string) {
     const bill = bills.find((item) => item.id === billId);
     if (!bill || bill.tenantAmount <= 0) return;
@@ -6518,38 +6486,12 @@ function UtilitiesView({
     }
   }
 
-  async function markMonthPaid() {
-    const billIds = new Set(sortedBills.filter((bill) => bill.status !== "paid").map((bill) => bill.id));
-    if (!billIds.size) return;
-
-    const paidAt = todayLabel();
-    const responses = await Promise.all(
-      bills
-        .filter((bill) => billIds.has(bill.id))
-        .map((bill) =>
-          fetch(`/api/utility-bills/${bill.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...bill, status: "paid", paidAt }),
-          }),
-        ),
-    ).catch(() => null);
-    if (!responses || responses.some((response) => !response.ok)) {
-      window.alert("Не все счета удалось отметить оплаченными. Обновите страницу и повторите действие.");
-      return;
-    }
-    const refreshed = await Promise.all(responses.map((response) => response.json() as Promise<{ bill: UtilityBill }>));
-    const savedBills = new Map(refreshed.map((item) => [item.bill.id, item.bill]));
-    setBills(bills.map((bill) => savedBills.get(bill.id) ?? bill));
-  }
-
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="К оплате" value={moneyLabel(unpaidAmount)} tone={unpaidAmount ? "warning" : undefined} />
-        <StatCard label="К возмещению" value={moneyLabel(pendingReimbursementAmount)} tone={pendingReimbursementAmount ? "warning" : undefined} />
-        <StatCard label="Счетчиков к передаче" value={activeMeters.toString()} tone={activeMeters ? "negative" : undefined} />
-        <StatCard label="Просрочено счетов" value={overdueBills.length.toString()} tone={overdueBills.length ? "negative" : undefined} />
+      <div className="grid gap-3 md:grid-cols-3">
+        <StatCard label="Выставлено жильцу" value={moneyLabel(issuedTenantAmount)} />
+        <StatCard label="Получено от жильца" value={moneyLabel(receivedTenantAmount)} tone={receivedTenantAmount ? "positive" : undefined} />
+        <StatCard label="Осталось получить" value={moneyLabel(pendingTenantAmount)} tone={pendingTenantAmount ? "warning" : undefined} />
       </div>
 
       <div className="grid items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -6578,13 +6520,8 @@ function UtilitiesView({
                     size={16}
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
-                  <span>
-                    {month.missing.length
-                      ? `Не хватает: ${month.missing.join(", ")}.`
-                      : utilityMonthStatusDescriptions[month.status]}
-                  </span>
-                  <Badge variant={utilityMonthTone(month.status)}>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge className={utilityMonthToneClass(month.status)} variant={utilityMonthTone(month.status)}>
                     {utilityMonthStatusLabels[month.status]}
                   </Badge>
                 </div>
@@ -6603,64 +6540,52 @@ function UtilitiesView({
                 <div>
                   <CardTitle>Данные за {selectedMonth?.period}</CardTitle>
                   <CardDescription>
-                    {selectedMonth?.missing.length
-                      ? `Получено: ${selectedMonth.received.join(", ") || "пока ничего"}. Не хватает: ${selectedMonth.missing.join(", ")}.`
-                      : utilityMonthStatusDescriptions[currentStatus]}
+                    {utilityMonthStatusDescriptions[currentStatus]}
                   </CardDescription>
                 </div>
-                <Badge variant={utilityMonthTone(currentStatus)}>
+                <Badge className={utilityMonthToneClass(currentStatus)} variant={utilityMonthTone(currentStatus)}>
                   {utilityMonthStatusLabels[currentStatus]}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="grid gap-3">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-lg bg-muted p-3">
-                  <div className="text-muted-foreground text-sm">Показаний передано</div>
+                  <div className="text-muted-foreground text-sm">Выставлено жильцу</div>
                   <div className="mt-1 text-2xl font-semibold">
-                    {selectedReadings.length}/{meters.length}
+                    {moneyLabel(selectedMonth?.issuedAmount ?? 0)}
                   </div>
                 </div>
                 <div className="rounded-lg bg-muted p-3">
-                  <div className="text-muted-foreground text-sm">Счетов за месяц</div>
-                  <div className="mt-1 text-2xl font-semibold">{selectedBills.length}</div>
+                  <div className="text-muted-foreground text-sm">Получено от жильца</div>
+                  <div className="mt-1 text-2xl font-semibold">{moneyLabel(selectedMonth?.receivedAmount ?? 0)}</div>
                 </div>
                 <div className="rounded-lg bg-muted p-3">
-                  <div className="text-muted-foreground text-sm">К возмещению</div>
+                  <div className="text-muted-foreground text-sm">Осталось получить</div>
                   <div className="mt-1 text-2xl font-semibold">
                     {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}
-                  </div>
-                </div>
-                <div className="rounded-lg bg-muted p-3">
-                  <div className="text-muted-foreground text-sm">Расчет по показаниям</div>
-                  <div className="mt-1 text-2xl font-semibold">
-                    {moneyLabel(calculatedReadingAmount)}
                   </div>
                 </div>
               </div>
               <div className="grid gap-2 border-t pt-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <strong className="font-medium">Начисления</strong>
-                  <span className="text-muted-foreground text-sm">Жилец должен {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}</span>
+                  <span className="text-muted-foreground text-sm">Осталось получить {moneyLabel(selectedMonth?.reimbursementAmount ?? 0)}</span>
                 </div>
                 {sortedBills.map((bill) => (
                   <div className="grid gap-3 rounded-lg border bg-background p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center" key={bill.id}>
                     <div className="grid min-w-0 gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <strong className="font-medium">{bill.service}</strong>
-                        <Badge variant={utilityBillTone(bill.status)}>{utilityBillStatusLabels[bill.status]}</Badge>
                         {bill.tenantAmount > 0 && <Badge variant="outline">{utilityReimbursementStatusLabels[bill.reimbursementStatus]}</Badge>}
                       </div>
-                      <div className="text-muted-foreground text-sm">
-                        {moneyLabel(bill.amount)}{bill.dueDate ? ` · оплатить до ${bill.dueDate}` : ""}{bill.paidAt ? ` · оплачено ${bill.paidAt}` : ""}
-                      </div>
-                      {bill.tenantAmount > 0 && <div className="text-sm">С жильца: {moneyLabel(bill.tenantAmount)}</div>}
+                      {bill.tenantAmount > 0 && <div className="text-sm">Выставлено жильцу: {moneyLabel(bill.tenantAmount)}</div>}
+                      {bill.dueDate && <div className="text-muted-foreground text-sm">Оплатить до {bill.dueDate}</div>}
                       {bill.note && <div className="line-clamp-1 text-muted-foreground text-sm">{bill.note}</div>}
+                      {bill.receiptUrl && <Button className="mt-1 w-fit" asChild size="sm" variant="secondary"><a href={bill.receiptUrl} rel="noreferrer" target="_blank"><ReceiptText size={14} />Квитанция</a></Button>}
                     </div>
                     <div className="flex flex-wrap gap-2 md:justify-end">
-                      {bill.receiptUrl && <Button asChild size="sm" variant="secondary"><a href={bill.receiptUrl} rel="noreferrer" target="_blank">Квитанция</a></Button>}
-                      {bill.status !== "paid" && <Button onClick={() => markPaid(bill.id)} size="sm" type="button" variant="secondary">Оплачено</Button>}
-                      {bill.tenantAmount > 0 && bill.reimbursementStatus !== "received" && <Button onClick={() => void markReimbursementReceived(bill.id)} size="sm" type="button" variant="outline">Возмещение получено</Button>}
+                      {bill.tenantAmount > 0 && bill.reimbursementStatus !== "received" && <Button onClick={() => void markReimbursementReceived(bill.id)} size="sm" type="button" variant="outline"><Check size={14} />Оплата получена</Button>}
                       <Button onClick={() => startEditBill(bill)} size="sm" type="button" variant="secondary"><Pencil size={14} />Редактировать</Button>
                       <Button onClick={() => deleteBill(bill.id)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /><span className="sr-only">Удалить</span></Button>
                     </div>
@@ -6703,14 +6628,6 @@ function UtilitiesView({
                 <Button onClick={() => setShowBillForm(true)} type="button">
                   <ReceiptText size={16} />
                   Добавить счет
-                </Button>
-                <Button
-                  onClick={() => void markMonthPaid()}
-                  type="button"
-                  variant="outline"
-                >
-                  <Check size={16} />
-                  Уже оплачено
                 </Button>
               </div>
             </CardContent>
@@ -7168,11 +7085,6 @@ function UtilitiesView({
                             </a>
                           </Button>
                         )}
-                        {bill.status !== "paid" && (
-                          <Button onClick={() => markPaid(bill.id)} size="sm" type="button" variant="secondary">
-                            Оплачено
-                          </Button>
-                        )}
                         {bill.tenantAmount > 0 && bill.reimbursementStatus !== "received" && (
                           <Button
                             onClick={() => void markReimbursementReceived(bill.id)}
@@ -7180,7 +7092,7 @@ function UtilitiesView({
                             type="button"
                             variant="outline"
                           >
-                            Возмещение получено
+                            Оплата получена
                           </Button>
                         )}
                         <Button onClick={() => startEditBill(bill)} size="sm" type="button" variant="secondary">
