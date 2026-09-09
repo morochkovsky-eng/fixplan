@@ -581,7 +581,7 @@
   .candidateTabsList {
     display: flex;
     width: 100%;
-    height: 52px;
+    height: 44px;
     overflow-x: auto;
     gap: 2px;
     justify-content: flex-start;
@@ -591,10 +591,14 @@
     width: auto;
     min-width: max-content;
     flex: 0 0 auto;
-    height: 44px;
+    height: 36px;
+    min-height: 36px;
+    font-size: 13px;
   }
 
-  .page .buttonMd,
+  .page .buttonMd { height: 40px; min-height: 40px; font-size: 13px; padding-inline: 10px; }
+
+
   .page .candidateInput,
   .page .candidateSelect {
     height: 44px;
@@ -605,7 +609,7 @@
   }
 
   .page .iconButton {
-    width: 44px;
+    width: 40px;
   }
 
   .candidateSelectItem {
