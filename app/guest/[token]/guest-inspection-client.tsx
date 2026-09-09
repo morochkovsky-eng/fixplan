@@ -437,6 +437,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
                   priority
                   src="/fixplan-logo.svg"
                   style={{ height: 18, width: 133 }}
+                  unoptimized
                   width={133}
                 />
                 <span className="text-muted-foreground" style={{ fontSize: 14, lineHeight: "20px" }}>
@@ -617,7 +618,7 @@ export function GuestInspectionClient({ token }: { token: string }) {
               />
             )}
 
-            {error && <p className="m-0 text-destructive text-sm">{error}</p>}
+            {error && <p className="m-0 text-destructive text-sm" role="alert">{error}</p>}
 
             <div className="grid grid-cols-2 gap-2">
               <Button

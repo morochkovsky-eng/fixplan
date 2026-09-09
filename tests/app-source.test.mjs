@@ -34,6 +34,8 @@ const documentsRouteSource = fs.readFileSync("app/api/documents/route.ts", "utf8
 const documentRouteSource = fs.readFileSync("app/api/documents/[id]/route.ts", "utf8");
 const apartmentDocumentsMigrationSource = fs.readFileSync("supabase/migrations/20260907130000_add_apartment_documents.sql", "utf8");
 const cleaningsViewSource = fs.readFileSync("components/cleanings-view.tsx", "utf8");
+const attachmentSource = fs.readFileSync("components/ai-elements/attachments.tsx", "utf8");
+const errorBoundarySource = fs.readFileSync("app/error.tsx", "utf8");
 const cleaningsRouteSource = fs.readFileSync("app/api/cleanings/route.ts", "utf8");
 const cleaningRouteSource = fs.readFileSync("app/api/cleanings/[id]/route.ts", "utf8");
 const cleaningHelpersSource = fs.readFileSync("app/api/cleanings/helpers.ts", "utf8");
@@ -88,6 +90,20 @@ test("optimizes long lists and application images", () => {
   assert.doesNotMatch(guestSource, /<img\b/);
   assert.match(pageSource, /sizes="100vw"/);
   assert.match(guestSource, /sizes="\(max-width: 640px\)/);
+  assert.match(pageSource, /src: "\/plan\/flooring\.webp"/);
+  assert.doesNotMatch(pageSource, /flooring\.png/);
+  assert.match(attachmentSource, /loading="lazy"/);
+  assert.ok(fs.statSync("public/plan/flooring.webp").size < 500 * 1024);
+});
+
+test("defers heavy feature code and provides a recoverable route error", () => {
+  assert.match(pageSource, /const MessageResponse = dynamic\(/);
+  assert.match(pageSource, /const CleaningsView = dynamic\(/);
+  assert.doesNotMatch(pageSource, /import \{ MessageResponse \} from/);
+  assert.doesNotMatch(pageSource, /import \{ CleaningsView \} from/);
+  assert.match(errorBoundarySource, /role="alert"/);
+  assert.match(errorBoundarySource, /onClick=\{reset\}/);
+  assert.match(errorBoundarySource, />Повторить</);
 });
 
 test("keeps the apartment catalog at 123 plan nodes", () => {

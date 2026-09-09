@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
 import {
@@ -53,7 +54,6 @@ import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/lib/format-money";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandItem } from "@/components/ui/command";
-import { MessageResponse } from "@/components/ai-elements/message";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -69,7 +69,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CleaningsView } from "@/components/cleanings-view";
 import { DashboardClock } from "@/components/dashboard-clock";
 import { SystemDialogProvider, useSystemDialog } from "@/components/system-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -122,6 +121,16 @@ import {
   X,
   Zap,
 } from "lucide-react";
+
+const MessageResponse = dynamic(
+  () => import("@/components/ai-elements/message").then((module) => module.MessageResponse),
+  { loading: () => <span className="text-muted-foreground">Загружаем сообщение...</span> },
+);
+
+const CleaningsView = dynamic(
+  () => import("@/components/cleanings-view").then((module) => module.CleaningsView),
+  { loading: () => <div className="grid min-h-40 place-items-center"><Spinner /></div> },
+);
 
 type Category = string;
 
@@ -705,7 +714,7 @@ const planModes: PlanMode[] = [
   {
     id: "flooring",
     label: "Паркет и плитка",
-    src: "/plan/flooring.png",
+    src: "/plan/flooring.webp",
     categories: ["furniture"],
     summary: "Покрытия, зоны плитки, паркет, пробковый компенсатор.",
   },
@@ -3029,7 +3038,7 @@ function HomeContent() {
             type="button"
           >
             {sidebarCollapsed ? (
-              <Image alt="FixPlan" height={32} src="/favicon.svg" width={32} />
+              <Image alt="FixPlan" height={32} src="/favicon.svg" unoptimized width={32} />
             ) : (
               <BrandMark objectName={state.config.objectName} />
             )}
@@ -3772,6 +3781,7 @@ function BrandMark({ objectName }: { objectName: string }) {
         priority
         src="/fixplan-logo.svg"
         style={{ height: 18, width: 133 }}
+        unoptimized
         width={133}
       />
     </span>
@@ -3890,7 +3900,7 @@ function ApartmentSwitcher({ compact = false }: { compact?: boolean }) {
         </TooltipTrigger>
         <TooltipContent>Добавить объект</TooltipContent>
       </Tooltip>
-      {error && !createOpen ? <p className="apartment-switcher-error">{error}</p> : null}
+      {error && !createOpen ? <p className="apartment-switcher-error" role="alert">{error}</p> : null}
 
       <Dialog
         open={createOpen}
@@ -5617,7 +5627,7 @@ function SettingsView({
                 </Select>
               </label>
             </div>
-            {error && <div className="rounded-lg bg-destructive/10 p-3 text-destructive text-sm">{error}</div>}
+            {error && <div className="rounded-lg bg-destructive/10 p-3 text-destructive text-sm" role="alert">{error}</div>}
             {message && <div className="rounded-lg bg-muted p-3 text-sm">{message}</div>}
             <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
               <Button disabled={!hasChanges || saving} onClick={() => { setDraft(config); setError(""); setMessage(""); }} type="button" variant="secondary">Отменить</Button>
@@ -5706,7 +5716,7 @@ function TelegramSettings() {
           </div>
         )}
 
-        {error && <div className="rounded-lg bg-destructive/10 p-3 text-destructive text-sm">{error}</div>}
+        {error && <div className="rounded-lg bg-destructive/10 p-3 text-destructive text-sm" role="alert">{error}</div>}
         <div className="grid divide-y rounded-lg border">
           {accounts.map((account) => (
             <div className="flex flex-wrap items-center justify-between gap-3 p-3" key={account.telegramUserId}>
