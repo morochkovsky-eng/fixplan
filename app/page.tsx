@@ -70,7 +70,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CleaningsView } from "@/components/cleanings-view";
+import { DashboardClock } from "@/components/dashboard-clock";
 import { SystemDialogProvider, useSystemDialog } from "@/components/system-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cleaningStatusLabels, cleaningTypeLabels, type Cleaning } from "@/lib/cleanings";
 import { normalizeUtilityPeriod, recentUtilityPeriods, utilityPeriodTimestamp } from "@/lib/utility-period";
 import {
@@ -3059,6 +3061,12 @@ function HomeContent() {
             <h1>{viewTitle(view, selectedAsset)}</h1>
             {!(["plan", "assets", "utilities"] as View[]).includes(view) && <p>{viewSubtitle(view)}</p>}
           </div>
+          {view === "dashboard" && (
+            <div className="topbar-tools">
+              <DashboardClock timeZone={state.config.timezone} />
+              <ThemeToggle />
+            </div>
+          )}
         </header>
 
         {view === "dashboard" && (

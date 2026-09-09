@@ -4,6 +4,9 @@ import test from "node:test";
 
 const pageSource = fs.readFileSync("app/page.tsx", "utf8");
 const globalCssSource = fs.readFileSync("app/globals.css", "utf8");
+const layoutSource = fs.readFileSync("app/layout.tsx", "utf8");
+const dashboardClockSource = fs.readFileSync("components/dashboard-clock.tsx", "utf8");
+const themeToggleSource = fs.readFileSync("components/theme-toggle.tsx", "utf8");
 const guestSource = fs.readFileSync("app/guest/[token]/guest-inspection-client.tsx", "utf8");
 const guestRouteSource = fs.readFileSync("app/api/guest/[token]/route.ts", "utf8");
 const schemaSource = fs.readFileSync("supabase/schema.sql", "utf8");
@@ -50,6 +53,17 @@ const assistantMessagesMigrationSource = fs.readFileSync("supabase/migrations/20
 const workOrderEventsMigrationSource = fs.readFileSync("supabase/migrations/20260908183000_add_work_order_creation_events.sql", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
 const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
+
+test("uses the system color scheme by default and exposes the theme controls", () => {
+  assert.match(layoutSource, /defaultTheme="system"/);
+  assert.match(layoutSource, /enableSystem/);
+  assert.match(themeToggleSource, /Системная/);
+  assert.match(themeToggleSource, /Светлая/);
+  assert.match(themeToggleSource, /Тёмная/);
+  assert.match(pageSource, /DashboardClock timeZone=\{state\.config\.timezone\}/);
+  assert.match(dashboardClockSource, /Intl\.DateTimeFormat\("ru-RU"/);
+  assert.match(globalCssSource, /\.dark \{[\s\S]*--content:/);
+});
 
 test("keeps the apartment catalog at 123 plan nodes", () => {
   const hotspotBlock = pageSource.slice(
