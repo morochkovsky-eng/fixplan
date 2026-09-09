@@ -1,8 +1,8 @@
 # FixPlan Design Review — 2026-09-09
 
-**Статус:** Черновик на согласование  
-**Изменения интерфейса:** не выполнялись  
-**Среда:** текущая авторизованная web-сборка FixPlan в Chrome; проверка исходного кода локального репозитория.
+**Статус:** Выполнено; визуальный baseline ожидает приёмки
+**Изменения интерфейса:** базовая дизайн-система и основные продуктовые экраны мигрированы
+**Среда:** локальная web-сборка FixPlan с безопасными тестовыми данными; проверка исходного кода и Playwright screenshots.
 
 ## 1. Методика и покрытие
 
@@ -31,17 +31,17 @@
 
 ## 2. Контрольные измерения
 
-| Область                      |           1440 |           1280 |                    390 |                    360 |
-| ---------------------------- | -------------: | -------------: | ---------------------: | ---------------------: |
-| Left sidebar                 |       `280 px` |       `248 px` |          mobile header |          mobile header |
-| Assistant                    |       `380 px` |       `340 px` |      `390 px` expanded |      `360 px` expanded |
-| Main column                  |       `780 px` |       `692 px` |               `390 px` |               `360 px` |
-| Workspace horizontal padding |        `32 px` |        `20 px` |                `12 px` |                `12 px` |
-| Workspace top padding        |        `24 px` |        `24 px` |   `12 px` after header |   `12 px` after header |
-| Page H1                      |        `24/28` |        `24/28` |                `20/26` |                `20/26` |
-| Base desktop button/input    | обычно `32 px` | обычно `32 px` | `44 px` touch override | `44 px` touch override |
-| Card radius                  |        `14 px` |        `14 px` |                `14 px` |                `14 px` |
-| Collapsed mobile assistant   |              — |              — |                `45 px` |                `45 px` |
+| Область                      |     1440 |     1280 |                    390 |                    360 |
+| ---------------------------- | -------: | -------: | ---------------------: | ---------------------: |
+| Left sidebar                 | `280 px` | `248 px` |          mobile header |          mobile header |
+| Assistant                    | `380 px` | `340 px` |      `390 px` expanded |      `360 px` expanded |
+| Main column                  | `780 px` | `692 px` |               `390 px` |               `360 px` |
+| Workspace horizontal padding |  `32 px` |  `20 px` |                `12 px` |                `12 px` |
+| Workspace top padding        |  `24 px` |  `24 px` |   `12 px` after header |   `12 px` after header |
+| Page H1                      |  `28/36` |  `28/36` |                `24/32` |                `24/32` |
+| Base desktop button/input    |  `40 px` |  `40 px` | `44 px` touch override | `44 px` touch override |
+| Card radius                  |  `16 px` |  `16 px` |                `16 px` |                `16 px` |
+| Collapsed mobile assistant   |        — |        — |                `52 px` |                `52 px` |
 
 Положительные результаты: заголовки имеют одинаковую стартовую координату внутри workspace; горизонтального document overflow на проверенных маршрутах нет; mobile tap targets базовых контролов увеличены до `44x44`; Dialog помещается в `360 px`; текущие три task tabs не переполняются на `360 px`.
 
@@ -244,10 +244,15 @@
 - функциональные тесты и build как дополнительная, но не визуальная проверка;
 - baseline screenshots сохранять только после ручной визуальной приёмки.
 
-## 7. Решения, требующие согласования
+## 7. Итог миграции
 
-1. Оставляем Geist или принимаем Inter из Quadratic?
-2. Принимаем ли Quadratic Medium `40 px` как основной desktop control, оставляя `32 px` только compact?
-3. Какие карточки получают Quadratic geometry, а какие считаются плотными operational sections?
-4. На `1280 px` автоматически сворачиваем sidebar или assistant?
-5. Для 117+ узлов выбираем pagination или virtualization?
+1. Geist сохранён как продуктовый шрифт; подтверждённые размеры и line-height адаптированы из Quadratic.
+2. Основная desktop-высота Button/Input/Select установлена в `40 px`; mobile touch controls — `44 px`; компактные варианты имеют отдельные размеры.
+3. Card переведён на radius `16 px`, border и отсутствие декоративной тени; operational rows остаются плотнее карточек.
+4. Dialog/Alert Dialog, Dropdown, Command, Tooltip и базовые form controls приведены к общим токенам.
+5. Tabs на mobile остаются однострочными и горизонтально прокручиваются.
+6. Страница узла реагирует на ширину центральной workspace через container query и не обрезается при открытых sidebar и assistant.
+7. Проверены `/dashboard`, `/plan`, `/assets`, asset detail, `/tasks`, `/documents`, `/utilities`, `/log`, `/settings` на `1440`, `1280`, `390`, `360 px`; на мобильных viewport горизонтального переполнения документа нет.
+8. Светлая и тёмная темы проверены на основном shell; полный screenshot baseline будет сохранён после визуальной приёмки.
+
+Открытыми остаются продуктовые решения о ширинах sidebar/assistant на промежуточных viewport и стратегия pagination/virtualization для длинных списков.

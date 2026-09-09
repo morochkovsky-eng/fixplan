@@ -1807,6 +1807,14 @@ function HomeContent() {
     let unsubscribeAuth: (() => void) | undefined;
 
     async function syncAuth() {
+      if (
+        process.env.NODE_ENV === "development" &&
+        new URLSearchParams(window.location.search).has("ui-preview")
+      ) {
+        setAuthStatus("ready");
+        return;
+      }
+
       let supabase = createSupabaseBrowserClient();
 
       if (!supabase) {
@@ -5956,9 +5964,9 @@ function AssetDetail({
   );
 
   return (
-    <div className="grid grid-cols-[minmax(560px,1fr)_384px] gap-6 max-[980px]:grid-cols-1">
+    <div className="asset-detail-page grid gap-6">
       <Card className="col-span-full">
-        <CardHeader className="grid-cols-[1fr_auto] gap-4 max-[720px]:grid-cols-1">
+        <CardHeader className="asset-detail-header grid-cols-[1fr_auto] gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
               {asset.status === "ok" ? <Check size={16} /> : <CircleAlert size={16} />}
@@ -5985,7 +5993,7 @@ function AssetDetail({
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap justify-end gap-2 max-[720px]:justify-start">
+          <div className="asset-detail-actions flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={goBack} type="button">
               <ArrowLeft size={16} />
               {returnLabel}
@@ -6002,7 +6010,7 @@ function AssetDetail({
         </CardHeader>
       </Card>
 
-      <Card className="hidden max-[980px]:block">
+      <Card className="asset-comment-mobile hidden">
         <CardHeader>
           <CardTitle>Быстрый комментарий</CardTitle>
           <CardDescription>
@@ -6014,7 +6022,7 @@ function AssetDetail({
         </CardContent>
       </Card>
 
-      <Card className="max-[980px]:hidden">
+      <Card className="asset-history-desktop">
         <CardHeader>
           <CardTitle>История узла</CardTitle>
           <CardDescription>
@@ -6026,7 +6034,7 @@ function AssetDetail({
         </CardContent>
       </Card>
 
-      <aside className="grid content-start gap-4 max-[980px]:hidden">
+      <aside className="asset-side-desktop grid content-start gap-4">
         <Tabs defaultValue="passport">
           <Card>
             <CardHeader>
@@ -6073,7 +6081,7 @@ function AssetDetail({
         </Card>
       </aside>
 
-      <Card className="hidden max-[980px]:block">
+      <Card className="asset-tabs-mobile hidden">
         <Tabs defaultValue="history">
           <CardHeader className="gap-3">
             <TabsList aria-label="Разделы карточки узла" className="grid w-full grid-cols-4">
