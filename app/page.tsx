@@ -4198,7 +4198,7 @@ function Dashboard({
         </DropdownMenu>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)] items-start gap-4 max-[1080px]:grid-cols-1">
+      <div className="grid grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)] items-start gap-6 max-[1080px]:grid-cols-1">
         <Card>
           <CardHeader className="grid-cols-[1fr_auto] gap-3">
             <div>

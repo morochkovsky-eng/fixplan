@@ -123,7 +123,7 @@ export default function UiLabPage() {
                     Small · 36
                   </CandidateButton>
                   <CandidateButton className={styles.buttonMd}>
-                    Medium · 40
+                    Default · 36
                   </CandidateButton>
                   <CandidateButton className={styles.buttonLg}>
                     Large · 48
@@ -233,7 +233,7 @@ export default function UiLabPage() {
               </div>
 
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · default 32</DemoLabel>
+                <DemoLabel>Текущая база · default 36</DemoLabel>
                 <div className={styles.row}>
                   <Button>Основная</Button>
                   <Button variant="secondary">Вторичная</Button>
@@ -246,7 +246,7 @@ export default function UiLabPage() {
 
           <div id="inputs">
             <Specimen
-              description="Основная форма 40 px, крупная 48 px и все рабочие состояния."
+              description="Основная форма 36 px, крупная 48 px и все рабочие состояния."
               title="Input"
             >
               <div className={styles.fieldGrid}>
@@ -309,7 +309,7 @@ export default function UiLabPage() {
                 </label>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · 32</DemoLabel>
+                <DemoLabel>Текущая база · 36</DemoLabel>
                 <Input
                   className={styles.baselineControl}
                   placeholder="Название узла"
@@ -320,7 +320,7 @@ export default function UiLabPage() {
 
           <div id="selects">
             <Specimen
-              description="Trigger 40 px, меню Radix, заполненное и недоступное состояния."
+              description="Trigger 36 px, меню Radix, заполненное и недоступное состояния."
               title="Select"
             >
               <div className={styles.fieldGrid}>
@@ -407,7 +407,7 @@ export default function UiLabPage() {
                 </div>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · 32</DemoLabel>
+                <DemoLabel>Текущая база · 36</DemoLabel>
                 <Select defaultValue="ok">
                   <SelectTrigger className={styles.baselineControl}>
                     <SelectValue />
@@ -478,7 +478,7 @@ export default function UiLabPage() {
                 </Tabs>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · list 32</DemoLabel>
+                <DemoLabel>Текущая база · list 40</DemoLabel>
                 <Tabs defaultValue="one">
                   <TabsList>
                     <TabsTrigger value="one">Обзор</TabsTrigger>

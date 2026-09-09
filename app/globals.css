@@ -533,9 +533,9 @@ button {
 
 .topbar h1 {
   margin: 0;
-  font-size: 28px;
-  line-height: 36px;
-  font-weight: 600;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
 }
 
 .topbar p {
@@ -1245,7 +1245,7 @@ textarea {
 
 .asset-search-input,
 .asset-sort-trigger {
-  height: 40px;
+  height: 36px;
   border-radius: 10px;
   background: var(--content);
   font-size: 14px;
@@ -1253,7 +1253,7 @@ textarea {
 }
 
 .asset-create-button {
-  height: 40px;
+  height: 36px;
 }
 
 .asset-primary-actions {
@@ -3133,8 +3133,8 @@ select:focus-visible {
   }
 
   .topbar h1 {
-    font-size: 24px;
-    line-height: 32px;
+    font-size: 22px;
+    line-height: 28px;
   }
 
   .topbar p {

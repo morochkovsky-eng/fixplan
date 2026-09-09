@@ -42,7 +42,7 @@ function CardTitle({
     <h2
       data-slot="card-title"
       className={cn(
-        "font-heading text-xl leading-7 font-semibold group-data-[size=sm]/card:text-base group-data-[size=sm]/card:leading-6 group-data-[size=sm]/card:font-medium",
+        "font-heading text-base leading-6 font-medium group-data-[size=sm]/card:text-base group-data-[size=sm]/card:leading-6 group-data-[size=sm]/card:font-medium",
         className,
       )}
       {...props}
