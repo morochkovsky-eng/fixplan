@@ -85,6 +85,9 @@ export default function UiLabPage() {
           <div className={styles.headerActions}>
             <ThemeToggle />
             <Button asChild variant="secondary">
+              <Link href="/ui-lab/ios">iOS Concept <ArrowRight /></Link>
+            </Button>
+            <Button asChild variant="secondary">
               <Link href="/ui-lab/asset">
                 Тестовый узел
                 <ArrowRight />
