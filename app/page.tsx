@@ -3012,31 +3012,24 @@ function HomeContent() {
       <main className={`app-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <header className="mobile-header">
         <button
-          aria-label="Открыть дашборд"
+          aria-label="Выбрать квартиру"
+          aria-expanded={mobileMenuOpen}
           className="mobile-brand"
-          onClick={() => navigate("dashboard")}
+          onClick={() => setMobileMenuOpen((value) => !value)}
           type="button"
         >
           <BrandMark objectName={state.config.objectName} />
         </button>
-        <button
-          aria-expanded={mobileMenuOpen}
-          aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"}
-          className="mobile-menu-button grid h-10 w-10 place-items-center border-0 bg-transparent text-foreground"
-          onClick={() => setMobileMenuOpen((value) => !value)}
-          type="button"
-        >
-          {mobileMenuOpen ? <X size={30} strokeWidth={1.8} /> : <MenuGlyph />}
-        </button>
+        <DashboardClock compact timeZone={state.config.timezone} />
       </header>
       {mobileMenuOpen && (
         <div className="mobile-menu">
           <ApartmentSwitcher compact />
-          <nav className="nav-list" aria-label="Мобильная навигация">
-            <AppNavigation activeView={view} navigate={navigate} />
-          </nav>
         </div>
       )}
+      <nav className="mobile-section-nav" aria-label="Мобильная навигация">
+        <AppNavigation activeView={view === "asset" ? "assets" : view} navigate={navigate} />
+      </nav>
       <aside className="sidebar">
         <div className="sidebar-heading">
           <button
@@ -3945,16 +3938,6 @@ function ApartmentSwitcher({ compact = false }: { compact?: boolean }) {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function MenuGlyph() {
-  return (
-    <span className="menu-glyph grid gap-1.5" aria-hidden="true">
-      <span className="block h-0.5 w-7 rounded-full bg-current" />
-      <span className="block h-0.5 w-7 rounded-full bg-current" />
-      <span className="block h-0.5 w-7 rounded-full bg-current" />
-    </span>
   );
 }
 
@@ -5996,15 +5979,15 @@ function AssetDetail({
           <div className="asset-detail-actions flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={goBack} type="button">
               <ArrowLeft size={16} />
-              {returnLabel}
+              <span className="desktop-action-label">{returnLabel}</span><span className="mobile-action-label">Назад</span>
             </Button>
             <Button variant="secondary" onClick={editAsset} type="button">
               <Pencil size={16} />
-              Редактировать
+              <span className="desktop-action-label">Редактировать</span><span className="mobile-action-label">Изменить</span>
             </Button>
             <Button onClick={createWorkOrder} type="button">
               <Plus size={16} />
-              Создать задание
+              <span className="desktop-action-label">Создать задание</span><span className="mobile-action-label">Задание</span>
             </Button>
           </div>
         </CardHeader>

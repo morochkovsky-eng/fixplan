@@ -550,11 +550,24 @@
   }
 
   .page {
-    padding: 20px 12px 56px;
+    padding: 12px 12px 56px;
   }
 
   .labHeader {
-    display: grid;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .labHeader h1 {
+    font-size: 16px;
+    line-height: 22px;
+  }
+
+  .labHeader [data-slot="badge"] {
+    display: none;
   }
 
   .headerActions {
@@ -566,13 +579,34 @@
     padding: 20px 16px;
   }
 
+  .heroHeader {
+    padding: 12px;
+    gap: 12px;
+  }
+
   .heroIdentity {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .heroIcon {
+    width: 24px;
+    height: 24px;
+  }
+
+  .heroIcon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .heroDescription {
+    font-size: 13px;
+    line-height: 18px;
   }
 
   .heroTitle {
-    font-size: 20px;
-    line-height: 28px;
+    font-size: 18px;
+    line-height: 24px;
   }
 
   .heroActions,

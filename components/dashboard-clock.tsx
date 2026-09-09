@@ -10,13 +10,13 @@ const timezoneLabels: Record<string, string> = {
   "Asia/Dubai": "Дубай",
 };
 
-function formatDateTime(date: Date, timeZone: string) {
+function formatDateTime(date: Date, timeZone: string, compact = false) {
   try {
     return {
       date: new Intl.DateTimeFormat("ru-RU", {
         day: "numeric",
-        month: "long",
-        year: "numeric",
+        month: compact ? "short" : "long",
+        year: compact ? undefined : "numeric",
         timeZone,
       }).format(date),
       time: new Intl.DateTimeFormat("ru-RU", {
@@ -26,11 +26,11 @@ function formatDateTime(date: Date, timeZone: string) {
       }).format(date),
     };
   } catch {
-    return formatDateTime(date, "Europe/Moscow");
+    return formatDateTime(date, "Europe/Moscow", compact);
   }
 }
 
-export function DashboardClock({ timeZone }: { timeZone: string }) {
+export function DashboardClock({ timeZone, compact = false }: { timeZone: string; compact?: boolean }) {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -43,17 +43,17 @@ export function DashboardClock({ timeZone }: { timeZone: string }) {
   }, []);
 
   const formatted = useMemo(
-    () => (now ? formatDateTime(now, timeZone) : null),
-    [now, timeZone],
+    () => (now ? formatDateTime(now, timeZone, compact) : null),
+    [now, timeZone, compact],
   );
 
   return (
-    <div className="dashboard-clock" aria-label={`Дата и время, ${timezoneLabels[timeZone] ?? timeZone}`}>
+    <div className={`dashboard-clock${compact ? " dashboard-clock-compact" : ""}`} aria-label={`Дата и время, ${timezoneLabels[timeZone] ?? timeZone}`}>
       <Clock3 aria-hidden="true" />
       <div>
         <time dateTime={now?.toISOString()}>{formatted?.date ?? "Сегодня"}</time>
         <span>
-          {formatted?.time ?? "--:--"} · {timezoneLabels[timeZone] ?? timeZone}
+          {formatted?.time ?? "--:--"}{!compact && ` · ${timezoneLabels[timeZone] ?? timeZone}`}
         </span>
       </div>
     </div>

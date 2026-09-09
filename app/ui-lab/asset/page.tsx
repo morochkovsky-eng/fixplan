@@ -161,11 +161,11 @@ export default function AssetDemoPage() {
               </Select>
               <CandidateButton variant="outline">
                 <Pencil />
-                Редактировать
+                <span className="desktop-action-label">Редактировать</span><span className="mobile-action-label">Изменить</span>
               </CandidateButton>
               <CandidateButton>
                 <Plus />
-                Создать задание
+                <span className="desktop-action-label">Создать задание</span><span className="mobile-action-label">Задание</span>
               </CandidateButton>
               <Button
                 aria-label="Другие действия"

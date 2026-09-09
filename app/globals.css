@@ -3530,6 +3530,130 @@ select:focus-visible {
   }
 }
 
+.mobile-section-nav {
+  display: none;
+}
+
+.mobile-action-label {
+  display: none;
+}
+
+@media (max-width: 980px) {
+  .mobile-action-label { display: inline; }
+  .desktop-action-label { display: none; }
+
+  .mobile-header {
+    position: relative;
+    padding: 8px 12px;
+    min-height: 60px;
+    border-bottom: 0;
+  }
+
+  .mobile-header .brand-mark {
+    max-width: 160px;
+  }
+
+  .dashboard-clock-compact > svg {
+    display: none;
+  }
+
+  .dashboard-clock-compact div {
+    text-align: right;
+  }
+
+  .dashboard-clock-compact time,
+  .dashboard-clock-compact span {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .mobile-section-nav {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    min-width: 0;
+    gap: 4px;
+    padding: 4px 12px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    background: var(--content);
+    border-block: 1px solid var(--border);
+  }
+
+  .mobile-section-nav a[data-slot="button"] {
+    flex: 0 0 auto;
+    width: auto;
+    height: 40px;
+    min-height: 40px;
+    padding-inline: 12px;
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  .mobile-section-nav a svg {
+    display: none;
+  }
+
+  .mobile-menu {
+    position: relative;
+    top: auto;
+    box-shadow: none;
+  }
+
+  .topbar-tools .dashboard-clock {
+    display: none;
+  }
+
+  .topbar:has(.topbar-tools) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .workspace:has(.asset-detail-page) > .topbar {
+    display: none;
+  }
+
+  .asset-detail-page {
+    gap: 12px;
+  }
+
+  .asset-detail-header {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .asset-detail-header [data-slot="card-title"] {
+    font-size: 18px;
+    line-height: 24px;
+    font-weight: 500;
+  }
+
+  .asset-detail-actions {
+    gap: 6px;
+  }
+
+  .asset-detail-actions [data-slot="button"] {
+    padding-inline: 8px;
+  }
+
+  .asset-tabs-mobile {
+    order: 2;
+  }
+
+  .asset-comment-mobile {
+    order: 3;
+  }
+
+  .asset-comment-mobile [data-slot="card-description"] {
+    display: none;
+  }
+
+  .asset-tabs-mobile > [data-slot="tabs"] > [data-slot="card-header"] {
+    padding: 12px;
+  }
+}
+
 /* Compact phone controls; desktop dimensions remain unchanged. */
 @media (max-width: 760px) {
   [data-slot="button"],
