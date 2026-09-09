@@ -2991,6 +2991,7 @@ function HomeContent() {
 
   return (
     <TooltipProvider>
+      <a className="skip-link" href="#main-content">К содержимому</a>
       <main className={`app-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <header className="mobile-header">
         <button
@@ -3055,7 +3056,7 @@ function HomeContent() {
         </nav>
       </aside>
 
-      <section className="workspace">
+      <section className="workspace" id="main-content" tabIndex={-1}>
         <header className="topbar">
           <div>
             <h1>{viewTitle(view, selectedAsset)}</h1>
@@ -3596,7 +3597,7 @@ function WebAssistant({
 
       <div className="assistant-panel-body">
         <ScrollArea className="assistant-message-list">
-          <div className="grid gap-3 p-3">
+          <div aria-busy={status === "submitted"} aria-live="polite" className="grid gap-3 p-3">
             {messages.map((message) => (
               <div className={message.role === "user" ? "assistant-message user" : "assistant-message"} key={message.id}>
                 <div className="mb-1 flex items-center justify-between gap-3 text-muted-foreground text-xs">
@@ -3609,7 +3610,7 @@ function WebAssistant({
             {status === "submitted" && (
               <div className="assistant-message flex items-center gap-2 text-muted-foreground">
                 <Spinner />
-                <span className="text-sm">FixPlan обрабатывает запрос</span>
+                <span className="text-sm">FixPlan обрабатывает запрос…</span>
               </div>
             )}
             {!messages.length && <p className="py-8 text-center text-muted-foreground text-sm">Начните диалог с FixPlan.</p>}
@@ -3617,7 +3618,7 @@ function WebAssistant({
           </div>
         </ScrollArea>
 
-        {error && <div className="border-t px-3 py-2 text-destructive text-sm">{error}</div>}
+        {error && <div className="border-t px-3 py-2 text-destructive text-sm" role="alert">{error}</div>}
         {hasPendingCreate && (
           <div className="flex flex-wrap gap-2 border-t bg-background px-3 py-2">
             <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("confirm")} size="sm" type="button">Создать</Button>
@@ -4006,20 +4007,21 @@ function AppNavigation({
 }) {
   return (
     <>
-      <NavButton active={activeView === "dashboard"} compact={compact} icon={<LayoutDashboard size={16} />} label="Дашборд" onClick={() => navigate("dashboard")} />
-      <NavButton active={activeView === "plan"} compact={compact} icon={<MapIcon size={16} />} label="План" onClick={() => navigate("plan")} />
-      <NavButton active={activeView === "assets"} compact={compact} icon={<List size={16} />} label="Узлы" onClick={() => navigate("assets")} />
+      <NavButton active={activeView === "dashboard"} compact={compact} icon={<LayoutDashboard size={16} />} label="Дашборд" navigate={navigate} target="dashboard" />
+      <NavButton active={activeView === "plan"} compact={compact} icon={<MapIcon size={16} />} label="План" navigate={navigate} target="plan" />
+      <NavButton active={activeView === "assets"} compact={compact} icon={<List size={16} />} label="Узлы" navigate={navigate} target="assets" />
       <NavButton
         active={["work_orders", "inspections", "contractor", "report", "inspection"].includes(activeView)}
         compact={compact}
         icon={<Check size={16} />}
         label="Задания"
-        onClick={() => navigate("work_orders")}
+        navigate={navigate}
+        target="work_orders"
       />
-      <NavButton active={activeView === "documents"} compact={compact} icon={<FileText size={16} />} label="Документы" onClick={() => navigate("documents")} />
-      <NavButton active={activeView === "utilities"} compact={compact} icon={<ReceiptText size={16} />} label="Счета" onClick={() => navigate("utilities")} />
-      <NavButton active={activeView === "log"} compact={compact} icon={<History size={16} />} label="Журнал" onClick={() => navigate("log")} />
-      <NavButton active={activeView === "settings"} compact={compact} icon={<Settings size={16} />} label="Настройки" onClick={() => navigate("settings")} />
+      <NavButton active={activeView === "documents"} compact={compact} icon={<FileText size={16} />} label="Документы" navigate={navigate} target="documents" />
+      <NavButton active={activeView === "utilities"} compact={compact} icon={<ReceiptText size={16} />} label="Счета" navigate={navigate} target="utilities" />
+      <NavButton active={activeView === "log"} compact={compact} icon={<History size={16} />} label="Журнал" navigate={navigate} target="log" />
+      <NavButton active={activeView === "settings"} compact={compact} icon={<Settings size={16} />} label="Настройки" navigate={navigate} target="settings" />
     </>
   );
 }
@@ -4029,18 +4031,30 @@ function NavButton({
   compact,
   icon,
   label,
-  onClick,
+  navigate,
+  target,
 }: {
   active: boolean;
   compact: boolean;
   icon: React.ReactNode;
   label: string;
-  onClick: () => void;
+  navigate: (view: View) => void;
+  target: View;
 }) {
   const button = (
-    <Button className={compact ? "w-full justify-center px-0" : "w-full justify-start"} variant={active ? "secondary" : "ghost"} onClick={onClick} type="button">
-      {icon}
-      {!compact && <span>{label}</span>}
+    <Button asChild className={compact ? "w-full justify-center px-0" : "w-full justify-start"} variant={active ? "secondary" : "ghost"}>
+      <a
+        aria-current={active ? "page" : undefined}
+        href={appRouteHref({ view: target })}
+        onClick={(event) => {
+          if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          navigate(target);
+        }}
+      >
+        {icon}
+        {!compact && <span>{label}</span>}
+      </a>
     </Button>
   );
   if (!compact) return button;
@@ -6473,7 +6487,7 @@ function MediaGallery({
             type="button"
           >
             <span className="media-gallery-preview">
-              <img alt={photo.filename} src={photo.imageUrl} />
+              <Image alt={photo.filename ?? "Фото узла"} height={480} sizes="(max-width: 980px) 33vw, 220px" src={photo.imageUrl} unoptimized width={640} />
             </span>
             {variant === "list" && (
               <span className="media-gallery-info">
@@ -6531,7 +6545,7 @@ function MediaGallery({
             >
               {photos.map((photo) => (
                 <div className="media-lightbox-slide" key={photo.id}>
-                  <img alt={photo.filename} src={photo.imageUrl} />
+                  <Image alt={photo.filename ?? "Фото узла"} height={1200} sizes="100vw" src={photo.imageUrl} unoptimized width={1600} />
                 </div>
               ))}
             </div>
@@ -6564,7 +6578,7 @@ function MediaGallery({
                     onClick={() => setActiveIndex(index)}
                     type="button"
                   >
-                    <img alt={photo.filename} src={photo.imageUrl} />
+                    <Image alt={photo.filename ?? "Фото узла"} height={96} sizes="72px" src={photo.imageUrl} unoptimized width={96} />
                   </button>
                 ))}
               </div>
@@ -7222,7 +7236,7 @@ function UtilitiesView({
                       Отмена
                     </Button>
                     <Button disabled={savingMeter} onClick={() => void createMeter()} size="sm" type="button">
-                      <Save size={14} /> {savingMeter ? "Сохраняем..." : "Сохранить счетчик"}
+                      <Save size={14} /> {savingMeter ? "Сохраняем…" : "Сохранить счетчик"}
                     </Button>
                   </div>
                 </div>
@@ -7482,7 +7496,7 @@ function UtilitiesView({
                   </Button>
                   <Button disabled={savingBill} onClick={createBill} type="button">
                     <Plus size={14} />
-                    {savingBill ? "Сохраняем..." : "Добавить счет"}
+                    {savingBill ? "Сохраняем…" : "Добавить счет"}
                   </Button>
                 </div>
               </div>
@@ -9136,7 +9150,7 @@ function ContractorAccessView({
                     },
                   }));
                 }}
-                placeholder="+7 ..."
+                placeholder="+7…"
                 value={state.contractorAccess.contractorPhone}
               />
             </div>

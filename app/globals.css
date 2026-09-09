@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
   --content: #ffffff;
   --content-alt: #f7f8fa;
   --field: #f2f3f5;
@@ -71,6 +72,26 @@ body {
   color: var(--text);
   font-family: var(--font-geist-sans), Inter, Arial, Helvetica, sans-serif;
   overflow-x: clip;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 200;
+  translate: 0 -160%;
+  border-radius: 6px;
+  background: var(--primary);
+  padding: 8px 12px;
+  color: var(--primary-foreground);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.skip-link:focus-visible {
+  translate: 0;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 button,
@@ -1336,6 +1357,8 @@ textarea {
 }
 
 .asset-table-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 62px;
   min-height: 62px;
   border-bottom: 1px solid var(--border);
   padding: 8px 16px;
@@ -1561,6 +1584,7 @@ textarea {
   height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: contain;
   background: rgba(0, 0, 0, 0.86);
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
   color: #fff;
@@ -2680,7 +2704,8 @@ select:focus-visible {
     padding-bottom: 0;
   }
 
-  .nav-list button {
+  .nav-list button,
+  .nav-list a {
     min-width: 0;
     justify-content: flex-start;
   }
@@ -3207,6 +3232,7 @@ select:focus-visible {
 }
 
 .dark {
+  color-scheme: dark;
   --content: oklch(0.205 0 0);
   --content-alt: oklch(0.145 0 0);
   --field: oklch(0.269 0 0);
@@ -3250,6 +3276,11 @@ select:focus-visible {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+.dark .brand-mark img,
+.dark .guest-brand-mark img {
+  filter: invert(1);
 }
 
 @layer base {

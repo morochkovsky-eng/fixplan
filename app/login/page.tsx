@@ -38,25 +38,32 @@ export default function LoginPage() {
           <CardTitle>Вход в FixPlan</CardTitle>
           <CardDescription>Закрытый доступ к квартире Шпалерная, 34Б.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3">
-          <Input
-            autoComplete="email"
-            onChange={(event) => setEmail(event.currentTarget.value)}
-            placeholder="email"
-            type="email"
-            value={email}
-          />
-          <Input
-            autoComplete="current-password"
-            onChange={(event) => setPassword(event.currentTarget.value)}
-            placeholder="пароль"
-            type="password"
-            value={password}
-          />
-          <Button disabled={loading} onClick={signIn} type="button">
-            {loading ? "Входим..." : "Войти"}
-          </Button>
-          {message && <p className="m-0 text-muted-foreground text-sm">{message}</p>}
+        <CardContent>
+          <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void signIn(); }}>
+            <Input
+              aria-label="Электронная почта"
+              autoComplete="email"
+              name="email"
+              onChange={(event) => setEmail(event.currentTarget.value)}
+              placeholder="email"
+              spellCheck={false}
+              type="email"
+              value={email}
+            />
+            <Input
+              aria-label="Пароль"
+              autoComplete="current-password"
+              name="password"
+              onChange={(event) => setPassword(event.currentTarget.value)}
+              placeholder="пароль"
+              type="password"
+              value={password}
+            />
+            <Button disabled={loading} type="submit">
+              {loading ? "Входим…" : "Войти"}
+            </Button>
+            {message && <p aria-live="polite" className="m-0 text-muted-foreground text-sm">{message}</p>}
+          </form>
         </CardContent>
       </Card>
     </main>

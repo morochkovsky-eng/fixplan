@@ -502,14 +502,18 @@ export function GuestInspectionClient({ token }: { token: string }) {
                 {index + 1} из {assets.length}
               </Badge>
               <Badge variant="secondary">
-                {saving ? "Сохраняем..." : `${completedCount} сохранено`}
+                {saving ? "Сохраняем…" : `${completedCount} сохранено`}
               </Badge>
             </div>
             <div className="relative overflow-hidden rounded-xl bg-muted p-2">
-              <img
+              <Image
                 alt="Схема расположения узла"
                 className="block max-h-[34vh] w-full object-contain"
+                height={1803}
+                sizes="(max-width: 640px) calc(100vw - 40px), 576px"
                 src={planForAsset(asset)}
+                unoptimized
+                width={1390}
               />
               <div
                 className="absolute grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background"

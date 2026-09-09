@@ -5,6 +5,7 @@ import test from "node:test";
 const pageSource = fs.readFileSync("app/page.tsx", "utf8");
 const globalCssSource = fs.readFileSync("app/globals.css", "utf8");
 const layoutSource = fs.readFileSync("app/layout.tsx", "utf8");
+const loginSource = fs.readFileSync("app/login/page.tsx", "utf8");
 const dashboardClockSource = fs.readFileSync("components/dashboard-clock.tsx", "utf8");
 const themeToggleSource = fs.readFileSync("components/theme-toggle.tsx", "utf8");
 const guestSource = fs.readFileSync("app/guest/[token]/guest-inspection-client.tsx", "utf8");
@@ -63,6 +64,30 @@ test("uses the system color scheme by default and exposes the theme controls", (
   assert.match(pageSource, /DashboardClock timeZone=\{state\.config\.timezone\}/);
   assert.match(dashboardClockSource, /Intl\.DateTimeFormat\("ru-RU"/);
   assert.match(globalCssSource, /\.dark \{[\s\S]*--content:/);
+  assert.match(layoutSource, /export const viewport: Viewport/);
+  assert.match(layoutSource, /prefers-color-scheme: dark/);
+  assert.match(globalCssSource, /color-scheme: light/);
+  assert.match(globalCssSource, /\.dark \{\s+color-scheme: dark/);
+  assert.match(globalCssSource, /\.dark \.brand-mark img,[\s\S]*filter: invert\(1\)/);
+});
+
+test("follows accessible navigation and feedback patterns", () => {
+  assert.match(pageSource, /className="skip-link" href="#main-content"/);
+  assert.match(pageSource, /id="main-content" tabIndex=\{-1\}/);
+  assert.match(pageSource, /<Button asChild[\s\S]*?<a[\s\S]*?aria-current=/);
+  assert.match(pageSource, /aria-live="polite"/);
+  assert.match(pageSource, /role="alert"/);
+  assert.match(loginSource, /<form[\s\S]*?type="submit"/);
+  assert.match(loginSource, /aria-label="Электронная почта"/);
+  assert.match(loginSource, /aria-label="Пароль"/);
+});
+
+test("optimizes long lists and application images", () => {
+  assert.match(globalCssSource, /\.asset-table-row \{[\s\S]*?content-visibility: auto/);
+  assert.doesNotMatch(pageSource, /<img\b/);
+  assert.doesNotMatch(guestSource, /<img\b/);
+  assert.match(pageSource, /sizes="100vw"/);
+  assert.match(guestSource, /sizes="\(max-width: 640px\)/);
 });
 
 test("keeps the apartment catalog at 123 plan nodes", () => {

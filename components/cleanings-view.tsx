@@ -251,7 +251,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
               <Field label="Дата и время"><Input onChange={(event) => { const scheduledAt = event.currentTarget.value; setDraft((current) => ({ ...current, scheduledAt, scheduledFor: scheduledAt ? current.scheduledFor : "" })); }} type="datetime-local" value={draft.scheduledAt ?? ""} /></Field>
               <Field label="Повторение"><Select value={draft.recurrence} onValueChange={(value) => setDraft((current) => ({ ...current, recurrence: value as CleaningRecurrence }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(cleaningRecurrenceLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></Field>
               <Field label="Клинер"><Input onChange={(event) => { const cleaner = event.currentTarget.value; setDraft((current) => ({ ...current, cleaner })); }} placeholder="Имя" value={draft.cleaner} /></Field>
-              <Field label="Телефон"><Input onChange={(event) => { const cleanerPhone = event.currentTarget.value; setDraft((current) => ({ ...current, cleanerPhone })); }} placeholder="+7..." value={draft.cleanerPhone ?? ""} /></Field>
+              <Field label="Телефон"><Input onChange={(event) => { const cleanerPhone = event.currentTarget.value; setDraft((current) => ({ ...current, cleanerPhone })); }} placeholder="+7…" value={draft.cleanerPhone ?? ""} /></Field>
               <Field label="Стоимость"><Input min="0" onChange={(event) => { const value = event.currentTarget.value; setDraft((current) => ({ ...current, cost: value === "" ? undefined : Number(value) })); }} placeholder="0" type="number" value={draft.cost ?? ""} /></Field>
             </div>
             <div className="grid gap-2"><span className="text-sm font-medium">Зоны</span><div className="flex flex-wrap gap-2">{zones.map((zone) => { const active = draft.zones.includes(zone); return <Button key={zone} onClick={() => setDraft((current) => ({ ...current, zones: active ? current.zones.filter((item) => item !== zone) : zone === "Вся квартира" ? [zone] : [...current.zones.filter((item) => item !== "Вся квартира"), zone] }))} size="sm" type="button" variant={active ? "default" : "secondary"}>{active && <Check size={14} />}{zone}</Button>; })}</div></div>
@@ -273,7 +273,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
                 </label>
               </div>
             </fieldset>
-            <div className="flex justify-end gap-2"><Button onClick={closeForm} type="button" variant="outline">Отменить</Button><Button disabled={saving} onClick={() => void saveCleaning()} type="button"><Save size={16} />{saving ? "Сохраняем..." : "Сохранить"}</Button></div>
+            <div className="flex justify-end gap-2"><Button onClick={closeForm} type="button" variant="outline">Отменить</Button><Button disabled={saving} onClick={() => void saveCleaning()} type="button"><Save size={16} />{saving ? "Сохраняем…" : "Сохранить"}</Button></div>
           </CardContent>
         </Card>
       )}
