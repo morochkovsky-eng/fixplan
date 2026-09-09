@@ -70,6 +70,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CleaningsView } from "@/components/cleanings-view";
+import { SystemDialogProvider, useSystemDialog } from "@/components/system-dialog";
 import { cleaningStatusLabels, cleaningTypeLabels, type Cleaning } from "@/lib/cleanings";
 import { normalizeUtilityPeriod, recentUtilityPeriods, utilityPeriodTimestamp } from "@/lib/utility-period";
 import {
@@ -460,6 +461,80 @@ type View =
   | "contractor"
   | "report"
   | "settings";
+
+type TaskTab = "master-work" | "cleaning" | "inspection";
+
+type AppRoute = {
+  view: View;
+  selectedAssetId?: string;
+  selectedInspectionId?: string;
+  contractorWorkflow?: Workflow;
+  taskTab?: TaskTab;
+  utilityPeriod?: string;
+};
+
+function parseAppRoute(location: Pick<Location, "pathname" | "search">): AppRoute {
+  const segments = location.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  const params = new URLSearchParams(location.search);
+
+  if (!segments.length || segments[0] === "dashboard") return { view: "dashboard" };
+  if (segments[0] === "plan") return { view: "plan" };
+  if (segments[0] === "assets" && segments[1]) return { view: "asset", selectedAssetId: segments[1] };
+  if (segments[0] === "assets") return { view: "assets" };
+  if (segments[0] === "documents") return { view: "documents" };
+  if (segments[0] === "utilities") {
+    const month = params.get("month");
+    return { view: "utilities", utilityPeriod: month ? normalizeUtilityPeriod(month) : undefined };
+  }
+  if (segments[0] === "log") return { view: "log" };
+  if (segments[0] === "settings") return { view: "settings" };
+  if (segments[0] === "inspection") return { view: "inspection" };
+  if (segments[0] === "tasks" && segments[1] === "new") {
+    return {
+      view: "contractor",
+      contractorWorkflow: params.get("workflow") === "work_order" ? "work_order" : "inspection",
+    };
+  }
+  if (segments[0] === "tasks" && segments[1] === "report" && segments[2]) {
+    return { view: "report", selectedInspectionId: segments[2] };
+  }
+  if (segments[0] === "tasks") {
+    const tab = params.get("tab");
+    return {
+      view: "work_orders",
+      taskTab: tab === "cleaning" || tab === "inspection" ? tab : "master-work",
+    };
+  }
+  return { view: "dashboard" };
+}
+
+function utilityPeriodParam(period: string) {
+  const timestamp = utilityPeriodTimestamp(period);
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function appRouteHref(route: AppRoute) {
+  if (route.view === "dashboard") return "/dashboard";
+  if (route.view === "plan") return "/plan";
+  if (route.view === "assets") return "/assets";
+  if (route.view === "asset") return `/assets/${encodeURIComponent(route.selectedAssetId ?? "")}`;
+  if (route.view === "documents") return "/documents";
+  if (route.view === "utilities") {
+    const month = route.utilityPeriod ? utilityPeriodParam(route.utilityPeriod) : "";
+    return month ? `/utilities?month=${encodeURIComponent(month)}` : "/utilities";
+  }
+  if (route.view === "log") return "/log";
+  if (route.view === "settings") return "/settings";
+  if (route.view === "inspection") return "/inspection";
+  if (route.view === "contractor") return `/tasks/new?workflow=${route.contractorWorkflow ?? "inspection"}`;
+  if (route.view === "report") return `/tasks/report/${encodeURIComponent(route.selectedInspectionId ?? "")}`;
+  if (route.view === "work_orders" || route.view === "inspections") {
+    return `/tasks?tab=${route.taskTab ?? (route.view === "inspections" ? "inspection" : "master-work")}`;
+  }
+  return "/dashboard";
+}
 
 const rooms: Room[] = [
   { id: "living", name: "Гостиная", x: 0, y: 0, width: 270, height: 210 },
@@ -1617,6 +1692,15 @@ function withCatalogAssets(state: AppState, includeCatalogFallback = true): AppS
 const defaultState = withCatalogAssets(initialState);
 
 export default function Home() {
+  return (
+    <SystemDialogProvider>
+      <HomeContent />
+    </SystemDialogProvider>
+  );
+}
+
+function HomeContent() {
+  const { confirm, notify } = useSystemDialog();
   const [state, setState] = useState<AppState>(() => {
     return defaultState;
   });
@@ -1631,7 +1715,8 @@ export default function Home() {
   const [activePlanMode, setActivePlanMode] = useState<PlanModeId>("sockets");
   const [activePlanCategory, setActivePlanCategory] = useState<Category>("electric");
   const [contractorWorkflow, setContractorWorkflow] = useState<Workflow>("inspection");
-  const [taskTab, setTaskTab] = useState<"master-work" | "cleaning" | "inspection">("master-work");
+  const [taskTab, setTaskTab] = useState<TaskTab>("master-work");
+  const [utilityPeriod, setUtilityPeriod] = useState("");
   const [planFilter, setPlanFilter] = useState<AssetFilter>("all");
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
@@ -1647,10 +1732,64 @@ export default function Home() {
   const [planEditSnapshot, setPlanEditSnapshot] = useState<AppState | null>(null);
   const [dirtyPlanAssetIds, setDirtyPlanAssetIds] = useState<string[]>([]);
   const [deletedPlanAssetIds, setDeletedPlanAssetIds] = useState<string[]>([]);
+  const routeReady = useRef(false);
+  const skipRouteSync = useRef(true);
+
+  function applyRoute(route: AppRoute) {
+    setView(route.view);
+    if (route.selectedAssetId) setSelectedAssetId(route.selectedAssetId);
+    if (route.selectedInspectionId) setSelectedInspectionId(route.selectedInspectionId);
+    if (route.contractorWorkflow) setContractorWorkflow(route.contractorWorkflow);
+    if (route.taskTab) setTaskTab(route.taskTab);
+    if (route.utilityPeriod) setUtilityPeriod(route.utilityPeriod);
+  }
+
+  function pushRoute(route: AppRoute) {
+    window.history.pushState(null, "", appRouteHref(route));
+  }
 
   function toggleSidebar() {
     setSidebarCollapsed((current) => !current);
   }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    function handlePopState() {
+      skipRouteSync.current = true;
+      applyRoute(parseAppRoute(window.location));
+      setMobileMenuOpen(false);
+    }
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      applyRoute(parseAppRoute(window.location));
+      routeReady.current = true;
+    });
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!routeReady.current) return;
+    if (skipRouteSync.current) {
+      skipRouteSync.current = false;
+      return;
+    }
+    const href = appRouteHref({
+      view,
+      selectedAssetId,
+      selectedInspectionId,
+      contractorWorkflow,
+      taskTab,
+      utilityPeriod,
+    });
+    const currentHref = `${window.location.pathname}${window.location.search}`;
+    if (currentHref !== href) window.history.replaceState(null, "", href);
+  }, [contractorWorkflow, selectedAssetId, selectedInspectionId, taskTab, utilityPeriod, view]);
 
   useEffect(() => {
     let mounted = true;
@@ -1785,6 +1924,7 @@ export default function Home() {
     : undefined;
 
   function openAsset(id: string) {
+    pushRoute({ view: "asset", selectedAssetId: id });
     setSelectedAssetId(id);
     setAssetReturnView(view === "asset" ? assetReturnView : view);
     setView("asset");
@@ -1792,6 +1932,7 @@ export default function Home() {
   }
 
   function openReport(id: string) {
+    pushRoute({ view: "report", selectedInspectionId: id });
     setSelectedInspectionId(id);
     setView("report");
     setMobileMenuOpen(false);
@@ -1799,6 +1940,7 @@ export default function Home() {
 
   function createContractorFlowFromAssets(assetIds: string[], workflow: Workflow) {
     if (!assetIds.length) return;
+    pushRoute({ view: "contractor", contractorWorkflow: workflow });
     setContractorWorkflow(workflow);
     setState((current) => ({
       ...current,
@@ -1834,6 +1976,7 @@ export default function Home() {
       category?.planModeId ?? planModeFromAssetFilter(assetFilter),
       category?.id,
     );
+    pushRoute({ view: "plan" });
     setView("plan");
     setMobileMenuOpen(false);
   }
@@ -1845,11 +1988,20 @@ export default function Home() {
     setActivePlanCategory(asset.category);
     setActivePlanMode(planModeForCategory(asset.category, state.categories));
     selectAssetForEditing(asset);
+    pushRoute({ view: "plan" });
     setView("plan");
     setMobileMenuOpen(false);
   }
 
   function navigate(viewName: View) {
+    pushRoute({
+      view: viewName,
+      selectedAssetId,
+      selectedInspectionId,
+      contractorWorkflow,
+      taskTab,
+      utilityPeriod,
+    });
     setView(viewName);
     setMobileMenuOpen(false);
   }
@@ -1999,7 +2151,7 @@ export default function Home() {
     };
 
     if (!normalizedDraft.name) {
-      window.alert("Укажите название узла.");
+      notify("Укажите название узла.");
       return;
     }
 
@@ -2011,7 +2163,7 @@ export default function Home() {
         )
       : undefined;
     if (duplicate) {
-      window.alert(`Код ${normalizedDraft.code} уже занят узлом ${duplicate.name}.`);
+      notify(`Код ${normalizedDraft.code} уже занят узлом ${duplicate.name}.`);
       return;
     }
 
@@ -2030,7 +2182,7 @@ export default function Home() {
       };
 
       if (!response.ok || !payload.asset) {
-        window.alert(payload.error ?? "Не удалось сохранить узел.");
+        notify(payload.error ?? "Не удалось сохранить узел.");
         return;
       }
 
@@ -2058,7 +2210,7 @@ export default function Home() {
     const asset = state.assets.find((item) => item.id === editingAssetId);
     if (!asset) return;
 
-    const confirmed = window.confirm(
+    const confirmed = await confirm(
       `Удалить ${asset.code} · ${asset.name} с плана? История и фото останутся в базе.`,
     );
     if (!confirmed) return;
@@ -2132,7 +2284,7 @@ export default function Home() {
       seenCodes.add(code);
     }
     if (duplicateCodes.size) {
-      window.alert(`Повторяется код узла: ${Array.from(duplicateCodes).join(", ")}.`);
+      notify(`Повторяется код узла: ${Array.from(duplicateCodes).join(", ")}.`);
       return;
     }
 
@@ -2150,7 +2302,7 @@ export default function Home() {
           error?: string;
         };
         if (!response.ok || !payload.asset) {
-          window.alert(payload.error ?? "Не удалось сохранить новый узел.");
+          notify(payload.error ?? "Не удалось сохранить новый узел.");
           return;
         }
         createdAsset = payload.asset;
@@ -2160,7 +2312,7 @@ export default function Home() {
         const response = await fetch(`/api/assets/${assetId}`, { method: "DELETE" });
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
         if (!response.ok) {
-          window.alert(payload.error ?? "Не удалось удалить узел.");
+          notify(payload.error ?? "Не удалось удалить узел.");
           return;
         }
       }
@@ -2177,7 +2329,7 @@ export default function Home() {
         });
 
         if (!normalizedAssetDraft.name) {
-          window.alert("Укажите название узла.");
+          notify("Укажите название узла.");
           return;
         }
 
@@ -2192,7 +2344,7 @@ export default function Home() {
             error?: string;
           };
           if (!response.ok || !payload.asset) {
-            window.alert(payload.error ?? `Не удалось создать ${asset.code}.`);
+            notify(payload.error ?? `Не удалось создать ${asset.code}.`);
             return;
           }
 
@@ -2215,7 +2367,7 @@ export default function Home() {
         });
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
         if (!response.ok) {
-          window.alert(payload.error ?? `Не удалось сохранить ${asset.code}.`);
+          notify(payload.error ?? `Не удалось сохранить ${asset.code}.`);
           return;
         }
       }
@@ -2313,7 +2465,7 @@ export default function Home() {
     const nextTitle = patch.title.trim();
     const nextBody = patch.body.trim();
     if (!nextTitle || !nextBody) {
-      window.alert("У события должны быть название и комментарий.");
+      notify("У события должны быть название и комментарий.");
       return false;
     }
 
@@ -2329,7 +2481,7 @@ export default function Home() {
       };
 
       if (!response.ok || !payload.event) {
-        window.alert(payload.error ?? "Не удалось обновить комментарий.");
+        notify(payload.error ?? "Не удалось обновить комментарий.");
         return false;
       }
 
@@ -2341,13 +2493,13 @@ export default function Home() {
       }));
       return true;
     } catch {
-      window.alert("Не удалось обновить комментарий.");
+      notify("Не удалось обновить комментарий.");
       return false;
     }
   }
 
   async function deleteEvent(assetId: string, eventId: string) {
-    const confirmed = window.confirm("Удалить эту запись истории и прикрепленные к ней файлы?");
+    const confirmed = await confirm("Удалить эту запись истории и прикрепленные к ней файлы?");
     if (!confirmed) return false;
 
     try {
@@ -2361,7 +2513,7 @@ export default function Home() {
       };
 
       if (!response.ok) {
-        window.alert(payload.error ?? "Не удалось удалить комментарий.");
+        notify(payload.error ?? "Не удалось удалить комментарий.");
         return false;
       }
 
@@ -2373,7 +2525,7 @@ export default function Home() {
       }));
       return true;
     } catch {
-      window.alert("Не удалось удалить комментарий.");
+      notify("Не удалось удалить комментарий.");
       return false;
     }
   }
@@ -2447,13 +2599,13 @@ export default function Home() {
 
       const failed = responses.filter((response) => !response.ok);
       if (failed.length) {
-        window.alert(`Не удалось сохранить ${failed.length} из ${responses.length} изменений.`);
+        notify(`Не удалось сохранить ${failed.length} из ${responses.length} изменений.`);
         return false;
       }
 
       return true;
     } catch {
-      window.alert("Не удалось сохранить массовое действие.");
+      notify("Не удалось сохранить массовое действие.");
       return false;
     }
   }
@@ -2472,12 +2624,12 @@ export default function Home() {
     const allowed = state.contractorAccess.allowedAssetIds;
 
     if (!state.contractorAccess.contractorName.trim()) {
-      window.alert("Укажите имя мастера.");
+      notify("Укажите имя мастера.");
       return;
     }
 
     if (!allowed.length) {
-      window.alert("Выберите хотя бы один узел или категорию плана.");
+      notify("Выберите хотя бы один узел или категорию плана.");
       return;
     }
 
@@ -2499,7 +2651,7 @@ export default function Home() {
     };
 
     if (!response.ok || !payload.inspection) {
-      window.alert(payload.error ?? "Не удалось создать ссылку мастеру.");
+      notify(payload.error ?? "Не удалось создать ссылку мастеру.");
       return;
     }
 
@@ -2515,7 +2667,9 @@ export default function Home() {
       },
     }));
     setSelectedInspectionId(inspection.id);
-    setTaskTab(workflow === "work_order" ? "master-work" : "inspection");
+    const nextTab = workflow === "work_order" ? "master-work" : "inspection";
+    pushRoute({ view: "work_orders", taskTab: nextTab });
+    setTaskTab(nextTab);
     setView("work_orders");
     if (workflow === "work_order") {
       setDataRefreshKey((current) => current + 1);
@@ -2541,7 +2695,7 @@ export default function Home() {
     };
 
     if (!response.ok || !payload.inspection) {
-      window.alert(payload.error ?? "Не удалось обновить обход.");
+      notify(payload.error ?? "Не удалось обновить обход.");
       return false;
     }
 
@@ -2598,7 +2752,7 @@ export default function Home() {
     const inspection = state.inspections.find((item) => item.id === inspectionId);
     if (!inspection) return;
 
-    const confirmed = window.confirm(
+    const confirmed = await confirm(
       `Удалить ${inspection.number}? Отчет исчезнет из списка, но уже созданные события в истории узлов останутся.`,
     );
     if (!confirmed) return;
@@ -2609,7 +2763,7 @@ export default function Home() {
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
 
     if (!response.ok) {
-      window.alert(payload.error ?? "Не удалось удалить обход.");
+      notify(payload.error ?? "Не удалось удалить обход.");
       return;
     }
 
@@ -2639,6 +2793,7 @@ export default function Home() {
     if (selectedInspectionId === inspectionId) {
       setSelectedInspectionId(state.inspections.find((item) => item.id !== inspectionId)?.id ?? "");
       setTaskTab("inspection");
+      pushRoute({ view: "work_orders", taskTab: "inspection" });
       setView("work_orders");
     }
   }
@@ -2646,7 +2801,7 @@ export default function Home() {
   async function createCategory(label: string) {
     const normalizedLabel = label.trim();
     if (!normalizedLabel) {
-      window.alert("Укажите название категории.");
+      notify("Укажите название категории.");
       return false;
     }
 
@@ -2654,7 +2809,7 @@ export default function Home() {
       (category) => category.label.trim().toLowerCase() === normalizedLabel.toLowerCase(),
     );
     if (duplicate) {
-      window.alert(`Категория «${normalizedLabel}» уже есть.`);
+      notify(`Категория «${normalizedLabel}» уже есть.`);
       return false;
     }
 
@@ -2677,7 +2832,7 @@ export default function Home() {
     };
 
     if (!response.ok || !payload.category) {
-      window.alert(payload.error ?? "Не удалось создать категорию.");
+      notify(payload.error ?? "Не удалось создать категорию.");
       return false;
     }
 
@@ -2691,7 +2846,7 @@ export default function Home() {
   async function renameCategory(categoryId: Category, label: string) {
     const normalizedLabel = label.trim();
     if (!normalizedLabel) {
-      window.alert("Название категории не может быть пустым.");
+      notify("Название категории не может быть пустым.");
       return false;
     }
 
@@ -2706,7 +2861,7 @@ export default function Home() {
     };
 
     if (!response.ok || !payload.category) {
-      window.alert(payload.error ?? "Не удалось переименовать категорию.");
+      notify(payload.error ?? "Не удалось переименовать категорию.");
       return false;
     }
 
@@ -2727,7 +2882,7 @@ export default function Home() {
 
     const usedAssets = state.assets.filter((asset) => asset.category === categoryId);
     if (usedAssets.length) {
-      window.alert(
+      notify(
         `Нельзя удалить «${category.label}»: в категории ${usedAssets.length} узлов. Сначала перенесите их в другую категорию.`,
       );
       return false;
@@ -2736,7 +2891,7 @@ export default function Home() {
     const response = await fetch(`/api/categories/${categoryId}`, { method: "DELETE" });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) {
-      window.alert(payload.error ?? "Не удалось удалить категорию.");
+      notify(payload.error ?? "Не удалось удалить категорию.");
       return false;
     }
 
@@ -2820,6 +2975,7 @@ export default function Home() {
       events: [...resultEvents, ...current.events],
     }));
     setSelectedInspectionId(activeInspection.id);
+    pushRoute({ view: "report", selectedInspectionId: activeInspection.id });
     setView("report");
   }
 
@@ -2919,14 +3075,15 @@ export default function Home() {
             readings={state.utilityReadings}
             workOrders={workOrderFlows}
             openAsset={openAsset}
-            openDocuments={() => setView("documents")}
-            openLog={() => setView("log")}
+            openDocuments={() => navigate("documents")}
+            openLog={() => navigate("log")}
             openReport={openReport}
             openTasks={(tab) => {
+              pushRoute({ view: "work_orders", taskTab: tab });
               setTaskTab(tab);
               setView("work_orders");
             }}
-            openUtilities={() => setView("utilities")}
+            openUtilities={() => navigate("utilities")}
           />
         )}
 
@@ -3010,7 +3167,7 @@ export default function Home() {
             meters={state.utilityMeters}
             openAsset={openAsset}
             openReport={openReport}
-            openSection={(nextView) => setView(nextView)}
+            openSection={navigate}
             readings={state.utilityReadings}
             updateEvent={updateEvent}
           />
@@ -3034,6 +3191,11 @@ export default function Home() {
             media={state.media}
             meters={state.utilityMeters}
             readings={state.utilityReadings}
+            initialPeriod={utilityPeriod}
+            onPeriodChange={(period) => {
+              setUtilityPeriod(period);
+              pushRoute({ view: "utilities", utilityPeriod: period });
+            }}
             setBills={(utilityBills) =>
               setState((current) => ({
                 ...current,
@@ -3086,6 +3248,7 @@ export default function Home() {
             openAsset={openAsset}
             openReport={openReport}
             openContractor={() => {
+              pushRoute({ view: "contractor", contractorWorkflow: "inspection" });
               setContractorWorkflow("inspection");
               setView("contractor");
             }}
@@ -3096,7 +3259,11 @@ export default function Home() {
         {view === "work_orders" && (
           <Tabs
             className="gap-4"
-            onValueChange={(value) => setTaskTab(value as typeof taskTab)}
+            onValueChange={(value) => {
+              const tab = value as TaskTab;
+              setTaskTab(tab);
+              pushRoute({ view: "work_orders", taskTab: tab });
+            }}
             value={taskTab}
           >
             <TabsList aria-label="Тип задания" className="w-full sm:w-fit">
@@ -3120,6 +3287,7 @@ export default function Home() {
                 openAsset={openAsset}
                 openReport={openReport}
                 openContractor={() => {
+                  pushRoute({ view: "contractor", contractorWorkflow: "work_order" });
                   setContractorWorkflow("work_order");
                   setView("contractor");
                 }}
@@ -3144,6 +3312,7 @@ export default function Home() {
                 openAsset={openAsset}
                 openReport={openReport}
                 openContractor={() => {
+                  pushRoute({ view: "contractor", contractorWorkflow: "inspection" });
                   setContractorWorkflow("inspection");
                   setView("contractor");
                 }}
@@ -3174,6 +3343,8 @@ export default function Home() {
             results={state.inspectionResults}
             openAsset={openAsset}
             openInspections={() => {
+              const tab = selectedInspection?.workflow === "work_order" ? "master-work" : "inspection";
+              pushRoute({ view: "work_orders", taskTab: tab });
               setTaskTab(selectedInspection?.workflow === "work_order" ? "master-work" : "inspection");
               setView("work_orders");
             }}
@@ -4241,6 +4412,7 @@ function PlanView({
   startNewAsset: (modeId?: PlanModeId, categoryId?: Category) => void;
   openAsset: (id: string) => void;
 }) {
+  const { confirm, prompt } = useSystemDialog();
   const [planQuery, setPlanQuery] = useState("");
   const [sort, setSort] = useState<AssetSort>("status");
   const [planFileSaving, setPlanFileSaving] = useState(false);
@@ -4300,7 +4472,7 @@ function PlanView({
   }
 
   async function promptCreateCategory() {
-    const label = window.prompt("Название новой категории");
+    const label = await prompt("Название новой категории");
     if (!label?.trim()) return;
     await createCategory(label);
   }
@@ -4328,7 +4500,7 @@ function PlanView({
   }
 
   async function deletePlan() {
-    if (!window.confirm("Удалить схему квартиры? Узлы и их данные останутся в системе.")) return;
+    if (!await confirm("Удалить схему квартиры? Узлы и их данные останутся в системе.")) return;
     setPlanFileSaving(true);
     setPlanFileError("");
     try {
@@ -4993,6 +5165,7 @@ function AssetsView({
   createInspectionFromAssets: (assetIds: string[]) => void;
   createWorkOrderFromAssets: (assetIds: string[]) => void;
 }) {
+  const { prompt } = useSystemDialog();
   const [sort, setSort] = useState<AssetSort>("status");
   const [query, setQuery] = useState("");
   const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
@@ -5073,14 +5246,16 @@ function AssetsView({
   }
 
   async function promptCreateCategory() {
-    const label = window.prompt("Название новой категории");
+    const label = await prompt("Название новой категории");
     if (!label?.trim()) return;
     await createCategory(label);
   }
 
   async function promptRenameCategory() {
     if (!selectedCategory) return;
-    const nextLabel = window.prompt("Новое название категории", selectedCategory.label);
+    const nextLabel = await prompt("Новое название категории", {
+      defaultValue: selectedCategory.label,
+    });
     if (nextLabel === null || nextLabel.trim() === selectedCategory.label) return;
     await renameCategory(selectedCategory.id, nextLabel);
   }
@@ -6444,8 +6619,10 @@ function DocumentList({ events = [], items }: { events?: AssetEvent[]; items: As
 
 function UtilitiesView({
   bills,
+  initialPeriod,
   media,
   meters,
+  onPeriodChange,
   readings,
   setBills,
   setMedia,
@@ -6453,16 +6630,19 @@ function UtilitiesView({
   setReadings,
 }: {
   bills: UtilityBill[];
+  initialPeriod?: string;
   media: AssetMedia[];
   meters: UtilityMeter[];
+  onPeriodChange?: (period: string) => void;
   readings: UtilityReading[];
   setBills: (bills: UtilityBill[]) => void;
   setMedia: (media: AssetMedia[]) => void;
   setMeters: (meters: UtilityMeter[]) => void;
   setReadings: (readings: UtilityReading[]) => void;
 }) {
+  const { confirm, notify } = useSystemDialog();
   const months = useMemo(() => buildUtilityMonths(bills, meters, readings), [bills, meters, readings]);
-  const [selectedPeriod, setSelectedPeriod] = useState(months[0]?.period ?? "Сентябрь 2026");
+  const selectedPeriod = initialPeriod || months[0]?.period || "Сентябрь 2026";
   const selectedMonth = months.find((month) => month.period === selectedPeriod) ?? months[0];
   const selectedMonthIndex = Math.max(0, months.findIndex((month) => month.period === selectedMonth?.period));
   const selectedBills = selectedMonth?.bills ?? [];
@@ -6499,7 +6679,7 @@ function UtilitiesView({
 
   function selectPeriod(period: string) {
     setMobileMonthOpen((current) => period !== selectedPeriod || !current);
-    setSelectedPeriod(period);
+    onPeriodChange?.(period);
     setDraft((current) => ({ ...current, period }));
     setShowBillForm(false);
     setEditingBillId(null);
@@ -6519,7 +6699,7 @@ function UtilitiesView({
   async function saveReading(meter: UtilityMeter) {
     const value = Number(readingDraft.value.replace(",", "."));
     if (!Number.isFinite(value) || value < 0) {
-      window.alert("Введите корректное показание.");
+      notify("Введите корректное показание.");
       return;
     }
 
@@ -6566,13 +6746,13 @@ function UtilitiesView({
       setReadingDraft({ value: "", note: "" });
       setReadingPhoto(null);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось сохранить показание.");
+      notify(error instanceof Error ? error.message : "Не удалось сохранить показание.");
     }
   }
 
   async function createMeter() {
     if (!meterDraft.label.trim()) {
-      window.alert("Укажите название счетчика.");
+      notify("Укажите название счетчика.");
       return;
     }
     setSavingMeter(true);
@@ -6588,14 +6768,14 @@ function UtilitiesView({
       setMeterDraft(emptyUtilityMeterDraft());
       setShowMeterForm(false);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось добавить счетчик.");
+      notify(error instanceof Error ? error.message : "Не удалось добавить счетчик.");
     } finally {
       setSavingMeter(false);
     }
   }
 
   async function deleteMeter(meter: UtilityMeter) {
-    const confirmed = window.confirm(
+    const confirmed = await confirm(
       `Удалить счетчик «${meter.label}» и всю историю его показаний?`,
     );
     if (!confirmed) return;
@@ -6611,14 +6791,14 @@ function UtilitiesView({
       setReadings(readings.filter((reading) => reading.meterId !== meter.id));
       setMedia(media.filter((item) => !item.utilityReadingId || !deletedReadingIds.has(item.utilityReadingId)));
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось удалить счетчик.");
+      notify(error instanceof Error ? error.message : "Не удалось удалить счетчик.");
     }
   }
 
   async function createBill() {
     const period = selectedMonth?.period ?? draft.period;
     if (!draft.service.trim() || !period.trim() || !Number.isFinite(draft.amount) || draft.amount <= 0) {
-      window.alert("Укажите услугу, период и сумму больше нуля.");
+      notify("Укажите услугу, период и сумму больше нуля.");
       return;
     }
     setSavingBill(true);
@@ -6645,7 +6825,7 @@ function UtilitiesView({
       setBillReceipt(null);
       setShowBillForm(false);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось добавить счет.");
+      notify(error instanceof Error ? error.message : "Не удалось добавить счет.");
     } finally {
       setSavingBill(false);
     }
@@ -6676,7 +6856,7 @@ function UtilitiesView({
   async function saveBill() {
     if (!editingBillId || !editDraft) return;
     if (!editDraft.service.trim() || !editDraft.period.trim() || !Number.isFinite(editDraft.amount) || editDraft.amount <= 0) {
-      window.alert("Укажите услугу, период и сумму больше нуля.");
+      notify("Укажите услугу, период и сумму больше нуля.");
       return;
     }
     const nextBill = {
@@ -6708,12 +6888,12 @@ function UtilitiesView({
       setEditingBillId(null);
       setEditDraft(null);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось сохранить счет.");
+      notify(error instanceof Error ? error.message : "Не удалось сохранить счет.");
     }
   }
 
   async function deleteBill(billId: string) {
-    const confirmed = window.confirm("Удалить этот счет?");
+    const confirmed = await confirm("Удалить этот счет?");
     if (!confirmed) return;
     try {
       const response = await fetch(`/api/utility-bills/${billId}`, { method: "DELETE" });
@@ -6721,7 +6901,7 @@ function UtilitiesView({
       if (!response.ok) throw new Error(payload.error ?? "Не удалось удалить счет.");
       setBills(bills.filter((bill) => bill.id !== billId));
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось удалить счет.");
+      notify(error instanceof Error ? error.message : "Не удалось удалить счет.");
     }
   }
 
@@ -6743,7 +6923,7 @@ function UtilitiesView({
       if (!response.ok || !payload.bill) throw new Error(payload.error ?? "Не удалось подтвердить возмещение.");
       setBills(bills.map((item) => item.id === billId ? payload.bill! : item));
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось подтвердить возмещение.");
+      notify(error instanceof Error ? error.message : "Не удалось подтвердить возмещение.");
     }
   }
 
@@ -7772,6 +7952,7 @@ function DocumentsView({
     patch: Pick<AssetEvent, "title" | "body">,
   ) => Promise<boolean>;
 }) {
+  const { confirm, notify } = useSystemDialog();
   const [query, setQuery] = useState("");
   const [documentNote, setDocumentNote] = useState("");
   const [documentType, setDocumentType] = useState<DocumentTypeId>("passport");
@@ -7897,7 +8078,7 @@ function DocumentsView({
       });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       ok = response.ok;
-      if (!ok) window.alert(payload.error ?? "Не удалось обновить документ.");
+      if (!ok) notify(payload.error ?? "Не удалось обновить документ.");
       if (ok) {
         setMedia(media.map((item) => item.id === document.id ? { ...item, documentType: editDocumentType, issuedAt: editDocumentIssuedAt || undefined, validUntil: editDocumentValidUntil || undefined, note: editDocumentNote.trim() || undefined } : item));
       }
@@ -7907,7 +8088,7 @@ function DocumentsView({
   }
 
   async function deleteDocument(document: AssetMedia, event?: AssetEvent) {
-    if (!window.confirm(`Удалить «${document.caption ?? document.filename}»?`)) return;
+    if (!await confirm(`Удалить «${document.caption ?? document.filename}»?`)) return;
     if (event) {
       await deleteEvent(event.assetId, event.id);
       return;
@@ -7915,7 +8096,7 @@ function DocumentsView({
     const response = await fetch(`/api/documents/${document.id}`, { method: "DELETE" });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) {
-      window.alert(payload.error ?? "Не удалось удалить документ.");
+      notify(payload.error ?? "Не удалось удалить документ.");
       return;
     }
     setMedia(media.filter((item) => item.id !== document.id));
@@ -7923,7 +8104,7 @@ function DocumentsView({
 
   async function createDocuments() {
     if (!documentFiles.length) {
-      window.alert("Прикрепите хотя бы один файл.");
+      notify("Прикрепите хотя бы один файл.");
       return;
     }
     setUploadingDocument(true);
@@ -7945,7 +8126,7 @@ function DocumentsView({
       setDocumentFiles([]);
       if (documentFileInput.current) documentFileInput.current.value = "";
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось добавить документ.");
+      notify(error instanceof Error ? error.message : "Не удалось добавить документ.");
     } finally {
       setUploadingDocument(false);
     }
@@ -8350,6 +8531,7 @@ function InspectionsView({
   openContractor: () => void;
   workflow: Workflow;
 }) {
+  const { notify } = useSystemDialog();
   const [editingInspectionId, setEditingInspectionId] = useState("");
   const [editDraft, setEditDraft] = useState<{
     contractor: string;
@@ -8381,7 +8563,7 @@ function InspectionsView({
 
   async function saveEdit(inspectionId: string) {
     if (!editDraft?.contractor.trim()) {
-      window.alert("Укажите имя мастера.");
+      notify("Укажите имя мастера.");
       return;
     }
 
@@ -8395,7 +8577,7 @@ function InspectionsView({
   async function acceptInspection(inspection: Inspection) {
     const saved = await updateInspection(inspection.id, { status: "accepted" });
     if (!saved) {
-      window.alert(
+      notify(
         isWorkOrder
           ? "Не удалось принять задание."
           : "Не удалось принять отчет.",
@@ -8406,7 +8588,7 @@ function InspectionsView({
   async function returnInspection(inspection: Inspection) {
     const saved = await updateInspection(inspection.id, { status: "in_progress" });
     if (!saved) {
-      window.alert(
+      notify(
         isWorkOrder
           ? "Не удалось вернуть задание в работу."
           : "Не удалось вернуть отчет в работу.",
@@ -9055,6 +9237,7 @@ function ContractorReport({
   openInspections: () => void;
   updateInspection: (inspectionId: string, patch: Partial<Inspection>) => Promise<boolean>;
 }) {
+  const { notify } = useSystemDialog();
   const reportEvents = events.filter((event) =>
     inspection ? event.inspectionId === inspection.id : event.type === "report",
   );
@@ -9080,7 +9263,7 @@ function ContractorReport({
     if (!inspection) return;
     const saved = await updateInspection(inspection.id, { status: "accepted" });
     if (!saved) {
-      window.alert(isWorkOrder ? "Не удалось принять задание." : "Не удалось принять отчет.");
+      notify(isWorkOrder ? "Не удалось принять задание." : "Не удалось принять отчет.");
     }
   }
 
@@ -9088,7 +9271,7 @@ function ContractorReport({
     if (!inspection) return;
     const saved = await updateInspection(inspection.id, { status: "in_progress" });
     if (!saved) {
-      window.alert(
+      notify(
         isWorkOrder
           ? "Не удалось вернуть задание в работу."
           : "Не удалось вернуть отчет в работу.",

@@ -23,6 +23,7 @@ import {
   type CleaningType,
 } from "@/lib/cleanings";
 import type { AppNotification } from "@/lib/notifications";
+import { useSystemDialog } from "@/components/system-dialog";
 
 const zones = ["Вся квартира", "Гостиная", "Кухня", "Санузел", "Спальня", "Прихожая", "Кабинет", "Постирочная"];
 
@@ -98,6 +99,7 @@ function statusTone(status: CleaningStatus): "secondary" | "outline" | "destruct
 }
 
 export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning[]; setCleanings: (items: Cleaning[]) => void }) {
+  const { confirm, notify } = useSystemDialog();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CleaningDraft>(emptyDraft);
@@ -162,7 +164,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
     const checklist = draft.checklistText.split("\n").map((item) => item.trim()).filter(Boolean);
     const supplies = draft.suppliesText.split("\n").map((item) => item.trim()).filter(Boolean);
     if (!draft.title.trim() || !checklist.length) {
-      window.alert("Укажите название и добавьте хотя бы один пункт чек-листа.");
+      notify("Укажите название и добавьте хотя бы один пункт чек-листа.");
       return;
     }
     setSaving(true);
@@ -178,18 +180,18 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
       setCleanings(editingId ? cleanings.map((item) => item.id === editingId ? { ...payload.cleaning!, photos: item.photos } : item) : [payload.cleaning, ...cleanings]);
       closeForm();
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Не удалось сохранить уборку.");
+      notify(error instanceof Error ? error.message : "Не удалось сохранить уборку.");
     } finally {
       setSaving(false);
     }
   }
 
   async function removeCleaning(cleaning: Cleaning) {
-    if (!window.confirm(`Удалить «${cleaning.title}»?`)) return;
+    if (!await confirm(`Удалить «${cleaning.title}»?`)) return;
     const response = await fetch(`/api/cleanings/${cleaning.id}`, { method: "DELETE" });
     if (!response.ok) {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
-      window.alert(payload.error ?? "Не удалось удалить уборку.");
+      notify(payload.error ?? "Не удалось удалить уборку.");
       return;
     }
     setCleanings(cleanings.filter((item) => item.id !== cleaning.id));
@@ -198,7 +200,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
   async function reviewCleaning(cleaning: Cleaning, status: "accepted" | "revision_requested") {
     const ownerFeedback = status === "revision_requested" ? (reviewDrafts[cleaning.id] ?? "").trim() : "";
     if (status === "revision_requested" && !ownerFeedback) {
-      window.alert("Напишите, что нужно доработать.");
+      notify("Напишите, что нужно доработать.");
       return;
     }
     const response = await fetch(`/api/cleanings/${cleaning.id}`, {
@@ -208,7 +210,7 @@ export function CleaningsView({ cleanings, setCleanings }: { cleanings: Cleaning
     });
     const payload = (await response.json().catch(() => ({}))) as { cleaning?: Cleaning; nextCleaning?: Cleaning; error?: string };
     if (!response.ok || !payload.cleaning) {
-      window.alert(payload.error ?? "Не удалось сохранить решение.");
+      notify(payload.error ?? "Не удалось сохранить решение.");
       return;
     }
     const updated = cleanings.map((item) => item.id === cleaning.id ? { ...payload.cleaning!, photos: item.photos } : item);

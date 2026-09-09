@@ -765,3 +765,22 @@ test("keeps the owner assistant persistent across web and Telegram", () => {
   assert.match(assistantMessagesMigrationSource, /channel in \('web', 'telegram'\)/);
   assert.match(assistantMessagesMigrationSource, /owners can read their assistant messages/);
 });
+
+test("uses app dialogs and stable deep links instead of browser popups", () => {
+  const cleaningSource = fs.readFileSync("components/cleanings-view.tsx", "utf8");
+  const dialogSource = fs.readFileSync("components/system-dialog.tsx", "utf8");
+  const catchAllSource = fs.readFileSync("app/[...path]/page.tsx", "utf8");
+
+  assert.doesNotMatch(pageSource, /window\.(alert|confirm|prompt)/);
+  assert.doesNotMatch(cleaningSource, /window\.(alert|confirm|prompt)/);
+  assert.match(dialogSource, /AlertDialogContent/);
+  assert.match(dialogSource, /DialogContent/);
+  assert.match(dialogSource, /Отмена/);
+  assert.match(pageSource, /function parseAppRoute/);
+  assert.match(pageSource, /window\.history\.pushState/);
+  assert.match(pageSource, /window\.addEventListener\("popstate"/);
+  assert.match(pageSource, /\/assets\/\$\{encodeURIComponent/);
+  assert.match(pageSource, /\/utilities\?month=/);
+  assert.match(pageSource, /\/tasks\?tab=/);
+  assert.match(catchAllSource, /export \{ default \} from "\.\.\/page"/);
+});
