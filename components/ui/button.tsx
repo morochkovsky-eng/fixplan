@@ -18,8 +18,8 @@ const buttonVariants = cva(
           "hover:bg-default-soft-hover hover:text-foreground aria-expanded:bg-default-soft-hover",
         destructive:
           "bg-danger text-danger-foreground hover:bg-danger-hover focus-visible:border-danger focus-visible:ring-danger/30",
-        "destructive-outline":
-          "border-destructive/30 bg-background text-destructive hover:bg-destructive/10 focus-visible:border-destructive/50 focus-visible:ring-destructive/20",
+        "destructive-soft":
+          "bg-danger-soft text-danger-soft-foreground hover:bg-danger-soft-hover focus-visible:border-danger focus-visible:ring-danger/30",
         success:
           "bg-success text-success-foreground hover:bg-success-hover focus-visible:border-success focus-visible:ring-success/30",
         "success-outline":

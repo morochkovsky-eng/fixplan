@@ -793,7 +793,7 @@ test("keeps inspection and work order cards compact on mobile", () => {
   assert.match(pageSource, /inspection-flow-card/);
   assert.match(pageSource, /variant="outline"[\s\S]*?Редактировать/);
   assert.match(pageSource, /variant="outline"[\s\S]*?Открыть ссылку мастера/);
-  assert.match(pageSource, /variant="destructive"[\s\S]*?Удалить/);
+  assert.match(pageSource, /variant="destructive-soft"[\s\S]*?Удалить/);
   assert.doesNotMatch(pageSource, /Как работает задание/);
   assert.doesNotMatch(pageSource, /Как теперь копится отчет/);
   assert.match(pageSource, /response\.json\(\)\.catch\(\(\) => \(\{\}\)\)/);

@@ -202,7 +202,7 @@ export function TelegramGroupSettings() {
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
-                variant="destructive"
+                variant="destructive-soft"
                 disabled={busy}
                 onClick={() => void disconnect()}
               >

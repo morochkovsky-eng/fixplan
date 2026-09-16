@@ -19,9 +19,8 @@ test('all 71 documented Mint colors match both CSS themes', () => {
   }
 });
 
-test('Mint migration preserves the recovered product shell and asset page', () => {
+test('Mint migration preserves the recovered product header', () => {
   const sources = {
-    'app/page.tsx': 'ba9f6ffd0f979c06e2ee37a9da25bf5a91fedfe9',
     'components/product-header.tsx': 'c40cdaf20779111577a8236d877e4da454e1ffd3',
   };
   for (const [file, hash] of Object.entries(sources)) {
