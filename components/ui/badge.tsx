@@ -9,19 +9,19 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        default: "bg-primary text-primary-foreground [a]:hover:bg-accent-hover",
         secondary:
-          "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
+          "bg-default text-default-foreground [a]:hover:bg-default-hover",
         destructive:
-          "border-[color-mix(in_oklch,var(--status-destructive-fg),transparent_78%)] bg-[var(--status-destructive-bg)] text-[var(--status-destructive-fg)] focus-visible:ring-destructive/20 [a]:hover:bg-destructive/20",
+          "bg-danger-soft text-danger-soft-foreground focus-visible:ring-danger/30 [a]:hover:bg-danger-soft-hover",
         success:
-          "border-[var(--status-success-border)] bg-[var(--status-success-bg)] text-[var(--status-success-fg)]",
+          "bg-success-soft text-success-soft-foreground focus-visible:ring-success/30 [a]:hover:bg-success-soft-hover",
         warning:
-          "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] text-[var(--status-warning-fg)]",
+          "bg-warning-soft text-warning-soft-foreground focus-visible:ring-warning/30 [a]:hover:bg-warning-soft-hover",
         outline:
-          "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
+          "border-border text-foreground [a]:hover:bg-default-hover",
         ghost:
-          "hover:bg-muted hover:text-muted-foreground dark:hover:bg-muted/50",
+          "hover:bg-default-soft-hover hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
     },

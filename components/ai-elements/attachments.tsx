@@ -211,11 +211,11 @@ export const Attachment = ({
             "flex h-8 cursor-pointer select-none items-center gap-1.5",
             "rounded-md border border-border px-1.5",
             "font-medium text-sm transition-all",
-            "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+            "hover:bg-default-hover hover:text-foreground dark:hover:bg-default-hover",
           ],
           variant === "list" && [
             "flex w-full items-center gap-3 rounded-lg border p-3",
-            "hover:bg-accent/50",
+            "hover:bg-default-hover",
           ],
           className
         )}
@@ -265,9 +265,9 @@ export const AttachmentPreview = ({
     <div
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden",
-        variant === "grid" && "size-full bg-muted",
+        variant === "grid" && "size-full bg-default",
         variant === "inline" && "size-5 rounded bg-background",
-        variant === "list" && "size-12 rounded bg-muted",
+        variant === "list" && "size-12 rounded bg-default",
         className
       )}
       {...props}

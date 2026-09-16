@@ -47,11 +47,80 @@ const catalog = [
   { id: "cards", title: "Карточки", component: "Card", file: "components/ui/card.tsx", selectors: "[data-slot=card] · [data-slot=card-header] · [data-slot=card-content]", mobile: "Примеры переходят в одну колонку. Высота определяется содержимым." },
 ];
 
+type Token = { name: string; light: string; dark: string };
+type TokenGroup = { title: string; tokens: Token[] };
+
+const tokenGroups: TokenGroup[] = [
+  { title: "Primitives", tokens: [
+    { name: "white", light: "#ffffff", dark: "#ffffff" }, { name: "black", light: "#000000", dark: "#000000" },
+    { name: "snow", light: "#fcfcfc", dark: "#fcfcfc" }, { name: "eclipse", light: "#18181b", dark: "#18181b" },
+  ]},
+  { title: "Background", tokens: [
+    { name: "background", light: "#eef8f1", dark: "#030704" }, { name: "background-secondary", light: "#e4eee7", dark: "#080e09" },
+    { name: "background-tertiary", light: "#dae4dd", dark: "#0f1611" }, { name: "background-inverse", light: "#131a15", dark: "#f5fff8" },
+  ]},
+  { title: "Content", tokens: [
+    { name: "foreground", light: "#131a15", dark: "#f5fff8" }, { name: "muted", light: "#65786a", dark: "#92a698" },
+    { name: "link", light: "#131a15", dark: "#f5fff8" },
+  ]},
+  { title: "Surface", tokens: [
+    { name: "surface", light: "#ffffff", dark: "#0d1c12" }, { name: "surface-foreground", light: "#131a15", dark: "#f5fff8" },
+    { name: "surface-secondary", light: "#e4f4e9", dark: "#1b271e" }, { name: "surface-secondary-foreground", light: "#131a15", dark: "#f5fff8" },
+    { name: "surface-tertiary", light: "#dfefe4", dark: "#1e2a22" }, { name: "surface-tertiary-foreground", light: "#131a15", dark: "#f5fff8" },
+  ]},
+  { title: "Overlay & structure", tokens: [
+    { name: "overlay", light: "#ffffff", dark: "#0d1c12" }, { name: "overlay-foreground", light: "#131a15", dark: "#f5fff8" },
+    { name: "backdrop", light: "#00000080", dark: "#00000099" }, { name: "segment", light: "#ffffff", dark: "#414943" },
+    { name: "segment-foreground", light: "#131a15", dark: "#f5fff8" }, { name: "border", light: "#d7e1da", dark: "#232b26" },
+    { name: "border-secondary", light: "#c4c6c5", dark: "#38473d" }, { name: "border-tertiary", light: "#a6a9a6", dark: "#526056" },
+    { name: "separator", light: "#dde8e0", dark: "#1c241e" }, { name: "separator-secondary", light: "#d7d8d7", dark: "#2a392e" },
+    { name: "separator-tertiary", light: "#cccecd", dark: "#324136" }, { name: "scrollbar", light: "#cdd8d0", dark: "#99a39c" },
+  ]},
+  { title: "Form field", tokens: [
+    { name: "field-background", light: "#ffffff", dark: "#0d1c12" }, { name: "field-hover", light: "#f9f9f9eb", dark: "#112016eb" },
+    { name: "field-focus", light: "#ffffff", dark: "#0d1c12" }, { name: "field-foreground", light: "#131a15", dark: "#f5fff8" },
+    { name: "field-placeholder", light: "#65786a", dark: "#92a698" }, { name: "field-border", light: "#d7e1da", dark: "#232b26" },
+  ]},
+  { title: "Accent", tokens: [
+    { name: "accent", light: "#86efac", dark: "#86efac" }, { name: "accent-hover", light: "#77d599", dark: "#77d599" },
+    { name: "accent-foreground", light: "#030e06", dark: "#030e06" }, { name: "accent-soft", light: "#86efac26", dark: "#86efac1f" },
+    { name: "accent-soft-hover", light: "#86efac33", dark: "#86efac29" }, { name: "accent-soft-foreground", light: "#61a87a", dark: "#a8f4c1" },
+  ]},
+  { title: "Default", tokens: [
+    { name: "default", light: "#e4eee7", dark: "#222a24" }, { name: "default-hover", light: "#cdd6cf", dark: "#343c36" },
+    { name: "default-foreground", light: "#161917", dark: "#fcfcfc" }, { name: "default-soft", light: "#e4eee726", dark: "#222a241f" },
+    { name: "default-soft-hover", light: "#e4eee733", dark: "#222a2429" }, { name: "default-soft-foreground", light: "#161917", dark: "#fcfcfc" },
+  ]},
+  { title: "Success", tokens: [
+    { name: "success", light: "#5dc539", dark: "#5dc539" }, { name: "success-hover", light: "#56b237", dark: "#56b237" },
+    { name: "success-foreground", light: "#171916", dark: "#171916" }, { name: "success-soft", light: "#5dc53926", dark: "#5dc5391f" },
+    { name: "success-soft-hover", light: "#5dc53933", dark: "#5dc53929" }, { name: "success-soft-foreground", light: "#3d762e", dark: "#8ad676" },
+  ]},
+  { title: "Warning", tokens: [
+    { name: "warning", light: "#ff9d3d", dark: "#ff9d3d" }, { name: "warning-hover", light: "#e58e3b", dark: "#e58e3b" },
+    { name: "warning-foreground", light: "#1a1816", dark: "#1a1816" }, { name: "warning-soft", light: "#ff9d3d26", dark: "#ff9d3d1f" },
+    { name: "warning-soft-hover", light: "#ff9d3d33", dark: "#ff9d3d29" }, { name: "warning-soft-foreground", light: "#885d2f", dark: "#ffb979" },
+  ]},
+  { title: "Danger", tokens: [
+    { name: "danger", light: "#ff2e63", dark: "#ff2e63" }, { name: "danger-hover", light: "#ff4f72", dark: "#ff4f72" },
+    { name: "danger-foreground", light: "#fcfcfc", dark: "#fcfcfc" }, { name: "danger-soft", light: "#ff2e6326", dark: "#ff2e631f" },
+    { name: "danger-soft-hover", light: "#ff2e6333", dark: "#ff2e6329" }, { name: "danger-soft-foreground", light: "#a33345", dark: "#ff798a" },
+  ]},
+  { title: "Focus & charts", tokens: [
+    { name: "focus", light: "#86efac", dark: "#86efac" }, { name: "chart-1", light: "#33a163", dark: "#33a163" },
+    { name: "chart-2", light: "#5ec787", dark: "#5ec787" }, { name: "chart-3", light: "#86efac", dark: "#86efac" },
+    { name: "chart-4", light: "#aeffd3", dark: "#aeffd3" }, { name: "chart-5", light: "#b1ffd6", dark: "#b1ffd6" },
+  ]},
+];
+
+
+
+
 function Foundations() {
-  const tokens = ["background", "foreground", "card", "primary", "primary-foreground", "secondary", "muted", "muted-foreground", "border", "input", "ring", "destructive", "status-success-bg", "status-success-fg", "status-warning-bg", "status-warning-fg"];
+
   return <div className={styles.foundations}>
     <h3>Цвета</h3>
-    <div className={styles.swatchGrid}>{tokens.map(token => <div key={token} className={styles.swatch}><span style={{ background: `var(--${token})` }} /><code>--{token}</code></div>)}</div>
+    {tokenGroups.map(group => <div key={group.title}><h3>{group.title}</h3><div className={styles.swatchGrid}>{group.tokens.map(token => <div key={token.name} className={styles.swatch}><span style={{ background: `var(--${token.name})` }} /><code>--{token.name}</code><small>Light {token.light}</small><small>Dark {token.dark}</small></div>)}</div></div>)}
     <h3>Типографика · Geist</h3>
     <div className={styles.typeSamples}>
       {[[22, 28, 500, "Заголовок страницы"], [16, 24, 500, "Заголовок карточки"], [14, 20, 400, "Основной текст"], [12, 16, 400, "Подпись"]].map(([size, line, weight, label]) => <div key={String(label)}><span style={{fontSize: Number(size), lineHeight: `${line}px`, fontWeight: Number(weight)}}>{label}</span><code>{size}/{line} · {weight}</code></div>)}

@@ -9,23 +9,23 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        default: "bg-primary text-primary-foreground hover:bg-accent-hover",
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-surface text-surface-foreground hover:bg-default-hover aria-expanded:bg-default-hover",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "bg-default text-default-foreground hover:bg-default-hover aria-expanded:bg-default-hover",
         ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+          "hover:bg-default-soft-hover hover:text-foreground aria-expanded:bg-default-soft-hover",
         destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+          "bg-danger text-danger-foreground hover:bg-danger-hover focus-visible:border-danger focus-visible:ring-danger/30",
         "destructive-outline":
           "border-destructive/30 bg-background text-destructive hover:bg-destructive/10 focus-visible:border-destructive/50 focus-visible:ring-destructive/20",
         success:
-          "bg-[var(--status-success-fg)] text-white hover:bg-[color-mix(in_oklch,var(--status-success-fg),black_10%)]",
+          "bg-success text-success-foreground hover:bg-success-hover focus-visible:border-success focus-visible:ring-success/30",
         "success-outline":
           "border-[var(--status-success-border)] bg-[var(--status-success-bg)] text-[var(--status-success-fg)] hover:bg-[color-mix(in_oklch,var(--status-success-bg),var(--status-success-fg)_6%)]",
         warning:
-          "bg-[var(--status-warning-fg)] text-white hover:bg-[color-mix(in_oklch,var(--status-warning-fg),black_10%)]",
+          "bg-warning text-warning-foreground hover:bg-warning-hover focus-visible:border-warning focus-visible:ring-warning/30",
         "warning-outline":
           "border-[var(--status-warning-border)] bg-[var(--status-warning-bg)] text-[var(--status-warning-fg)] hover:bg-[color-mix(in_oklch,var(--status-warning-bg),var(--status-warning-fg)_6%)]",
         link: "text-primary underline-offset-4 hover:underline",
