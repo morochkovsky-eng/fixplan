@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input"
 type NoticeRequest = { kind: "notice"; message: string; title: string }
 type ConfirmRequest = {
   kind: "confirm"
+  destructive: boolean
   message: string
   title: string
   confirmLabel: string
@@ -40,7 +41,7 @@ type PromptRequest = {
 }
 type DialogRequest = NoticeRequest | ConfirmRequest | PromptRequest
 
-type ConfirmOptions = { title?: string; confirmLabel?: string }
+type ConfirmOptions = { title?: string; confirmLabel?: string; destructive?: boolean }
 type PromptOptions = { title?: string; confirmLabel?: string; defaultValue?: string }
 
 type SystemDialogContextValue = {
@@ -63,9 +64,10 @@ export function SystemDialogProvider({ children }: { children: React.ReactNode }
     return new Promise<boolean>((resolve) => {
       setRequest({
         kind: "confirm",
+        destructive: options.destructive ?? false,
         message,
         title: options.title ?? "Подтвердите действие",
-        confirmLabel: options.confirmLabel ?? (message.trim().startsWith("Удалить") ? "Удалить" : "Подтвердить"),
+        confirmLabel: options.confirmLabel ?? (options.destructive ? "Да, удалить" : "Подтвердить"),
         resolve,
       })
     })
@@ -128,7 +130,7 @@ export function SystemDialogProvider({ children }: { children: React.ReactNode }
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => resolveConfirm(false)}>Отмена</AlertDialogCancel>
-            <AlertDialogAction onClick={() => resolveConfirm(true)}>
+            <AlertDialogAction variant={request?.kind === "confirm" && request.destructive ? "destructive" : "default"} onClick={() => resolveConfirm(true)}>
               {request?.kind === "confirm" ? request.confirmLabel : "Подтвердить"}
             </AlertDialogAction>
           </AlertDialogFooter>

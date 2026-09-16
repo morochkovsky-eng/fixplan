@@ -268,7 +268,7 @@ export default function UiLabPage() {
                   </Button>
                   <Button
 
-                    variant="destructive"
+                    variant="destructive-soft"
                   >
                     Удалить
                   </Button>
@@ -346,13 +346,29 @@ export default function UiLabPage() {
                 </div>
               </div>
 
+              <div className={styles.demoGroup} id="danger-buttons">
+                <DemoLabel>Danger · soft / solid</DemoLabel>
+                {(["destructive-soft", "destructive"] as const).map((variant) => (
+                  <div className={styles.demoGroup} key={variant}>
+                    <DemoLabel>{variant === "destructive-soft" ? "Soft · запуск удаления" : "Solid · финальное подтверждение"}</DemoLabel>
+                    <div className={styles.row}>
+                      <Button variant={variant}>{variant === "destructive-soft" ? "Удалить" : "Да, удалить"}</Button>
+                      <Button variant={variant} style={{ backgroundColor: `var(--${variant === "destructive-soft" ? "danger-soft-hover" : "danger-hover"})` }}>Hover</Button>
+                      <Button variant={variant} className="ring-3 ring-danger/30 border-danger">Focus</Button>
+                      <Button variant={variant} disabled>Disabled</Button>
+                      <Button variant={variant} disabled aria-busy="true"><LoaderCircle className="animate-spin" />Удаление…</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div className={styles.baseline}>
                 <DemoLabel>Общий компонент · default 36</DemoLabel>
                 <div className={styles.row}>
                   <Button>Основная</Button>
                   <Button variant="secondary">Вторичная</Button>
                   <Button variant="outline">Контурная</Button>
-                  <Button variant="destructive">Удалить</Button>
+                  <Button variant="destructive-soft">Удалить</Button>
                 </div>
               </div>
             </Specimen>

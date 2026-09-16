@@ -477,7 +477,7 @@ export default function AssetDemoPage() {
                   </CardFooter>
                 </Card>
 
-                <Button className={styles.deleteButton} variant="destructive">
+                <Button className={styles.deleteButton} variant="destructive-soft">
                   <Trash2 />
                   Удалить узел
                 </Button>

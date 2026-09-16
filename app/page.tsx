@@ -2220,8 +2220,7 @@ function HomeContent() {
     if (!asset) return;
 
     const confirmed = await confirm(
-      `Удалить ${asset.code} · ${asset.name} с плана? История и фото останутся в базе.`,
-    );
+      `Удалить ${asset.code} · ${asset.name} с плана? История и фото останутся в базе.`, { destructive: true });
     if (!confirmed) return;
 
     if (isTempAssetId(editingAssetId)) {
@@ -2508,7 +2507,7 @@ function HomeContent() {
   }
 
   async function deleteEvent(assetId: string, eventId: string) {
-    const confirmed = await confirm("Удалить эту запись истории и прикрепленные к ней файлы?");
+    const confirmed = await confirm("Удалить эту запись истории и прикрепленные к ней файлы?", { destructive: true });
     if (!confirmed) return false;
 
     try {
@@ -2762,8 +2761,7 @@ function HomeContent() {
     if (!inspection) return;
 
     const confirmed = await confirm(
-      `Удалить ${inspection.number}? Отчет исчезнет из списка, но уже созданные события в истории узлов останутся.`,
-    );
+      `Удалить ${inspection.number}? Отчет исчезнет из списка, но уже созданные события в истории узлов останутся.`, { destructive: true });
     if (!confirmed) return;
 
     const response = await fetch(`/api/inspections/${inspectionId}`, {
@@ -3590,7 +3588,7 @@ function WebAssistant({
         {hasPendingCreate && (
           <div className="assistant-pending-actions flex flex-wrap gap-2 border-t bg-background px-3 py-2">
             <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("confirm")} size="sm" type="button">Создать</Button>
-            <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("cancel")} size="sm" type="button" variant="outline">Удалить черновик</Button>
+            <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("cancel")} size="sm" type="button" variant="destructive-soft">Удалить черновик</Button>
           </div>
         )}
         <div className="assistant-composer">
@@ -3620,7 +3618,7 @@ function WebAssistant({
               </PromptInputActionMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button aria-label={recording ? "Остановить запись" : "Голосовой ввод"} disabled={status === "submitted"} onClick={() => void toggleRecording()} size="icon" type="button" variant={recording ? "destructive" : "ghost"}>
+                  <Button aria-label={recording ? "Остановить запись" : "Голосовой ввод"} disabled={status === "submitted"} onClick={() => void toggleRecording()} size="icon" type="button" variant={recording ? "destructive-soft" : "ghost"}>
                     {recording ? <Square /> : <Mic />}
                   </Button>
                 </TooltipTrigger>
@@ -4430,7 +4428,7 @@ function PlanView({
   }
 
   async function deletePlan() {
-    if (!await confirm("Удалить схему квартиры? Узлы и их данные останутся в системе.")) return;
+    if (!await confirm("Удалить схему квартиры? Узлы и их данные останутся в системе.", { destructive: true })) return;
     setPlanFileSaving(true);
     setPlanFileError("");
     try {
@@ -4545,7 +4543,7 @@ function PlanView({
                       onClick={() => void deletePlan()}
                       size="icon-sm"
                       type="button"
-                      variant="outline"
+                      variant="destructive-soft"
                     >
                       <Trash2 size={14} />
                     </Button>
@@ -4865,7 +4863,7 @@ function PlanAssetEditor({
           {isSaving ? "Сохраняю" : "Сохранить узел"}
         </Button>
         {asset && (
-          <Button disabled={isSaving} onClick={onDelete} type="button" variant="destructive">
+          <Button disabled={isSaving} onClick={onDelete} type="button" variant="destructive-soft">
             <Trash2 size={14} />
             Удалить
           </Button>
@@ -5269,7 +5267,7 @@ function AssetsView({
               onClick={() => void deleteCategory(selectedCategory.id)}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="destructive-soft"
             >
               <Trash2 size={14} />
             </Button>
@@ -6043,7 +6041,7 @@ function EditableEventTask({
               }}
               size="icon-sm"
               type="button"
-              variant="ghost"
+              variant="destructive-soft"
             >
               <Trash2 size={14} />
             </Button>
@@ -6666,8 +6664,7 @@ function UtilitiesView({
 
   async function deleteMeter(meter: UtilityMeter) {
     const confirmed = await confirm(
-      `Удалить счетчик «${meter.label}» и всю историю его показаний?`,
-    );
+      `Удалить счетчик «${meter.label}» и всю историю его показаний?`, { destructive: true });
     if (!confirmed) return;
     try {
       const response = await fetch(`/api/utility-meters/${meter.id}`, { method: "DELETE" });
@@ -6783,7 +6780,7 @@ function UtilitiesView({
   }
 
   async function deleteBill(billId: string) {
-    const confirmed = await confirm("Удалить этот счет?");
+    const confirmed = await confirm("Удалить этот счет?", { destructive: true });
     if (!confirmed) return;
     try {
       const response = await fetch(`/api/utility-bills/${billId}`, { method: "DELETE" });
@@ -6918,7 +6915,7 @@ function UtilitiesView({
                     <div className="flex flex-wrap gap-2 md:justify-end">
                       {bill.tenantAmount > 0 && bill.reimbursementStatus !== "received" && <Button onClick={() => void markReimbursementReceived(bill.id)} size="sm" type="button" variant="outline"><Check size={14} />Оплата получена</Button>}
                       <Button onClick={() => startEditBill(bill)} size="sm" type="button" variant="secondary"><Pencil size={14} />Редактировать</Button>
-                      <Button onClick={() => deleteBill(bill.id)} size="icon-sm" type="button" variant="destructive"><Trash2 size={14} /><span className="sr-only">Удалить</span></Button>
+                      <Button onClick={() => deleteBill(bill.id)} size="icon-sm" type="button" variant="destructive-soft"><Trash2 size={14} /><span className="sr-only">Удалить</span></Button>
                     </div>
                     {editingBillId === bill.id && editDraft && (
                       <div className="grid gap-3 rounded-lg bg-muted p-3 md:col-span-2">
@@ -7160,7 +7157,7 @@ function UtilitiesView({
                           onClick={() => void deleteMeter(meter)}
                           size="icon-sm"
                           type="button"
-                          variant="ghost"
+                          variant="destructive-soft"
                         >
                           <Trash2 size={14} />
                         </Button>
@@ -7430,7 +7427,7 @@ function UtilitiesView({
                           <Pencil size={14} />
                           Редактировать
                         </Button>
-                        <Button onClick={() => deleteBill(bill.id)} size="sm" type="button" variant="destructive">
+                        <Button onClick={() => deleteBill(bill.id)} size="sm" type="button" variant="destructive-soft">
                           <Trash2 size={14} />
                           Удалить
                         </Button>
@@ -7978,7 +7975,7 @@ function DocumentsView({
   }
 
   async function deleteDocument(document: AssetMedia, event?: AssetEvent) {
-    if (!await confirm(`Удалить «${document.caption ?? document.filename}»?`)) return;
+    if (!await confirm(`Удалить «${document.caption ?? document.filename}»?`, { destructive: true })) return;
     if (event) {
       await deleteEvent(event.assetId, event.id);
       return;
@@ -8259,7 +8256,7 @@ function DocumentsView({
                       <Pencil size={14} />
                       Редактировать
                     </Button>
-                    <Button onClick={() => void deleteDocument(document, event)} size="sm" type="button" variant="destructive">
+                    <Button onClick={() => void deleteDocument(document, event)} size="sm" type="button" variant="destructive-soft">
                       <Trash2 size={14} />
                       Удалить
                     </Button>
@@ -8698,7 +8695,7 @@ function InspectionsView({
                       onClick={() => void deleteInspection(inspection.id)}
                       size="sm"
                       type="button"
-                      variant="destructive"
+                      variant="destructive-soft"
                     >
                       <Trash2 size={14} />
                       Удалить
