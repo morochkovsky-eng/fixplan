@@ -1,0 +1,7145 @@
+{
+  "version": 1,
+  "runId": "fixplan-web-20260910",
+  "status": "in-progress-awaiting-shared-style-clarification",
+  "fileKey": "fSlKjQJ1qHZmA6CWrq9ZyT",
+  "catalog": "https://fixplan-ui-lab-public-20260909.vercel.app/ui-lab",
+  "date": "2026-09-10",
+  "pages": {
+    "00 · Start": "7:2",
+    "01 · Foundations": "7:3",
+    "02 · Icons": "7:4",
+    "03 · Buttons": "7:5",
+    "04 · Fields": "7:6",
+    "05 · Selection": "7:7",
+    "06 · Tabs": "7:8",
+    "07 · Cards": "7:9",
+    "08 · Navigation": "7:10",
+    "09 · Overlays": "7:11",
+    "10 · Data": "7:12",
+    "11 · Assistant": "7:13",
+    "12 · Feedback": "7:14",
+    "13 · Product blocks": "7:15"
+  },
+  "inventory": [
+    {
+      "page": "00 · Start",
+      "pageId": "7:2",
+      "components": []
+    },
+    {
+      "page": "01 · Foundations",
+      "pageId": "7:3",
+      "components": []
+    },
+    {
+      "page": "02 · Icons",
+      "pageId": "7:4",
+      "components": [
+        {
+          "id": "10:5",
+          "name": "Plus",
+          "type": "COMPONENT",
+          "description": "lucide-react / Plus",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:10",
+          "name": "X",
+          "type": "COMPONENT",
+          "description": "lucide-react / X",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:15",
+          "name": "Check",
+          "type": "COMPONENT",
+          "description": "lucide-react / Check",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:19",
+          "name": "ChevronDown",
+          "type": "COMPONENT",
+          "description": "lucide-react / ChevronDown",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:23",
+          "name": "ChevronUp",
+          "type": "COMPONENT",
+          "description": "lucide-react / ChevronUp",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:27",
+          "name": "ChevronRight",
+          "type": "COMPONENT",
+          "description": "lucide-react / ChevronRight",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:31",
+          "name": "ArrowLeft",
+          "type": "COMPONENT",
+          "description": "lucide-react / ArrowLeft",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:36",
+          "name": "ArrowRight",
+          "type": "COMPONENT",
+          "description": "lucide-react / ArrowRight",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:41",
+          "name": "ArrowUp",
+          "type": "COMPONENT",
+          "description": "lucide-react / ArrowUp",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:46",
+          "name": "Search",
+          "type": "COMPONENT",
+          "description": "lucide-react / Search",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:51",
+          "name": "Pencil",
+          "type": "COMPONENT",
+          "description": "lucide-react / Pencil",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:56",
+          "name": "Trash2",
+          "type": "COMPONENT",
+          "description": "lucide-react / Trash2",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:64",
+          "name": "Save",
+          "type": "COMPONENT",
+          "description": "lucide-react / Save",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:70",
+          "name": "LoaderCircle",
+          "type": "COMPONENT",
+          "description": "lucide-react / LoaderCircle",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:74",
+          "name": "AlertTriangle",
+          "type": "COMPONENT",
+          "description": "lucide-react / AlertTriangle",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:80",
+          "name": "ReceiptText",
+          "type": "COMPONENT",
+          "description": "lucide-react / ReceiptText",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:87",
+          "name": "Wrench",
+          "type": "COMPONENT",
+          "description": "lucide-react / Wrench",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:91",
+          "name": "Bot",
+          "type": "COMPONENT",
+          "description": "lucide-react / Bot",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:100",
+          "name": "Mic",
+          "type": "COMPONENT",
+          "description": "lucide-react / Mic",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:106",
+          "name": "Paperclip",
+          "type": "COMPONENT",
+          "description": "lucide-react / Paperclip",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:110",
+          "name": "FileText",
+          "type": "COMPONENT",
+          "description": "lucide-react / FileText",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:118",
+          "name": "Image",
+          "type": "COMPONENT",
+          "description": "lucide-react / Image",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:124",
+          "name": "Upload",
+          "type": "COMPONENT",
+          "description": "lucide-react / Upload",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:130",
+          "name": "Clock",
+          "type": "COMPONENT",
+          "description": "lucide-react / Clock",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:135",
+          "name": "Moon",
+          "type": "COMPONENT",
+          "description": "lucide-react / Moon",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:139",
+          "name": "Sun",
+          "type": "COMPONENT",
+          "description": "lucide-react / Sun",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:151",
+          "name": "Monitor",
+          "type": "COMPONENT",
+          "description": "lucide-react / Monitor",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:157",
+          "name": "PanelLeftClose",
+          "type": "COMPONENT",
+          "description": "lucide-react / PanelLeftClose",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:163",
+          "name": "PanelLeftOpen",
+          "type": "COMPONENT",
+          "description": "lucide-react / PanelLeftOpen",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:169",
+          "name": "LayoutDashboard",
+          "type": "COMPONENT",
+          "description": "lucide-react / LayoutDashboard",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:176",
+          "name": "Map",
+          "type": "COMPONENT",
+          "description": "lucide-react / Map",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:182",
+          "name": "List",
+          "type": "COMPONENT",
+          "description": "lucide-react / List",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:191",
+          "name": "History",
+          "type": "COMPONENT",
+          "description": "lucide-react / History",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:197",
+          "name": "Settings",
+          "type": "COMPONENT",
+          "description": "lucide-react / Settings",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:202",
+          "name": "User",
+          "type": "COMPONENT",
+          "description": "lucide-react / User",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:207",
+          "name": "Droplets",
+          "type": "COMPONENT",
+          "description": "lucide-react / Droplets",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:212",
+          "name": "Zap",
+          "type": "COMPONENT",
+          "description": "lucide-react / Zap",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:216",
+          "name": "Gauge",
+          "type": "COMPONENT",
+          "description": "lucide-react / Gauge",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:221",
+          "name": "Ellipsis",
+          "type": "COMPONENT",
+          "description": "lucide-react / Ellipsis",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:227",
+          "name": "Download",
+          "type": "COMPONENT",
+          "description": "lucide-react / Download",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:233",
+          "name": "Copy",
+          "type": "COMPONENT",
+          "description": "lucide-react / Copy",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:238",
+          "name": "ExternalLink",
+          "type": "COMPONENT",
+          "description": "lucide-react / ExternalLink",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:244",
+          "name": "Circle",
+          "type": "COMPONENT",
+          "description": "lucide-react / Circle",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:248",
+          "name": "Calendar",
+          "type": "COMPONENT",
+          "description": "lucide-react / Calendar",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "10:255",
+          "name": "ClipboardCheck",
+          "type": "COMPONENT",
+          "description": "lucide-react / ClipboardCheck",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "22:2",
+          "name": "CornerDownLeft",
+          "type": "COMPONENT",
+          "description": "lucide-react/CornerDownLeft · 24×24 stroke2",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "22:6",
+          "name": "Square",
+          "type": "COMPONENT",
+          "description": "lucide-react/Square · 24×24 stroke2",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "22:9",
+          "name": "Clock3",
+          "type": "COMPONENT",
+          "description": "lucide-react/Clock3 · 24×24 stroke2",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "31:2",
+          "name": "BrandMark",
+          "type": "COMPONENT",
+          "description": "public/fixplan-logo.svg · source paths,133×18; semantic foreground for theme",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "41:2",
+          "name": "BrandSymbol",
+          "type": "COMPONENT",
+          "description": "public/favicon.svg · original paths and colors;32×32 sidebar",
+          "variants": [],
+          "properties": {}
+        }
+      ]
+    },
+    {
+      "page": "03 · Buttons",
+      "pageId": "7:5",
+      "components": [
+        {
+          "id": "11:34",
+          "name": "Button/default",
+          "type": "COMPONENT_SET",
+          "description": "variant=default · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:5",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:11",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:17",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:23",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:29",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:15": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:16": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:17": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:0": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:64",
+          "name": "Button/secondary",
+          "type": "COMPONENT_SET",
+          "description": "variant=secondary · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:35",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:41",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:47",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:53",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:59",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:33": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:34": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:35": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:6": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:94",
+          "name": "Button/outline",
+          "type": "COMPONENT_SET",
+          "description": "variant=outline · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:65",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:71",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:77",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:83",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:89",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:51": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:52": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:53": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:12": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:124",
+          "name": "Button/ghost",
+          "type": "COMPONENT_SET",
+          "description": "variant=ghost · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:95",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:101",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:107",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:113",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:119",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:69": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:70": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:71": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:18": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:154",
+          "name": "Button/destructive",
+          "type": "COMPONENT_SET",
+          "description": "variant=destructive · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:125",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:131",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:137",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:143",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:149",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:87": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:88": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:89": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:24": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:184",
+          "name": "Button/destructive-outline",
+          "type": "COMPONENT_SET",
+          "description": "variant=destructive-outline · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:155",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:161",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:167",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:173",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:179",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:105": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:106": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:107": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:30": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:214",
+          "name": "Button/success",
+          "type": "COMPONENT_SET",
+          "description": "variant=success · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:185",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:191",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:197",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:203",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:209",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:123": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:124": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:125": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:36": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:244",
+          "name": "Button/success-outline",
+          "type": "COMPONENT_SET",
+          "description": "variant=success-outline · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:215",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:221",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:227",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:233",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:239",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:141": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:142": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:143": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:42": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:274",
+          "name": "Button/warning",
+          "type": "COMPONENT_SET",
+          "description": "variant=warning · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:245",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:251",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:257",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:263",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:269",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:159": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:160": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:161": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:48": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:304",
+          "name": "Button/warning-outline",
+          "type": "COMPONENT_SET",
+          "description": "variant=warning-outline · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:275",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:281",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:287",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:293",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:299",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:177": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:178": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:179": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:54": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "11:334",
+          "name": "Button/link",
+          "type": "COMPONENT_SET",
+          "description": "variant=link · components/ui/button.tsx",
+          "variants": [
+            {
+              "id": "11:305",
+              "name": "State=Default"
+            },
+            {
+              "id": "11:311",
+              "name": "State=Hover"
+            },
+            {
+              "id": "11:317",
+              "name": "State=Focus"
+            },
+            {
+              "id": "11:323",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "11:329",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "Show icon#11:195": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Icon#11:196": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Label#11:197": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Loading label#13:60": {
+              "type": "TEXT",
+              "defaultValue": "Сохраняем…"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover",
+                "Focus",
+                "Disabled",
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "14:34",
+          "name": "Button/Size",
+          "type": "COMPONENT_SET",
+          "description": "",
+          "variants": [
+            {
+              "id": "14:24",
+              "name": "Size=xs"
+            },
+            {
+              "id": "14:26",
+              "name": "Size=sm"
+            },
+            {
+              "id": "14:28",
+              "name": "Size=default"
+            },
+            {
+              "id": "14:30",
+              "name": "Size=lg"
+            },
+            {
+              "id": "14:32",
+              "name": "Size=mobile-default"
+            }
+          ],
+          "properties": {
+            "Label#14:5": {
+              "type": "TEXT",
+              "defaultValue": "Кнопка"
+            },
+            "Size": {
+              "type": "VARIANT",
+              "defaultValue": "xs",
+              "variantOptions": [
+                "xs",
+                "sm",
+                "default",
+                "lg",
+                "mobile-default"
+              ]
+            }
+          }
+        },
+        {
+          "id": "14:60",
+          "name": "IconButton",
+          "type": "COMPONENT_SET",
+          "description": "",
+          "variants": [
+            {
+              "id": "14:35",
+              "name": "Size=icon-xs"
+            },
+            {
+              "id": "14:40",
+              "name": "Size=icon-sm"
+            },
+            {
+              "id": "14:45",
+              "name": "Size=icon"
+            },
+            {
+              "id": "14:50",
+              "name": "Size=icon-lg"
+            },
+            {
+              "id": "14:55",
+              "name": "Size=mobile-icon"
+            }
+          ],
+          "properties": {
+            "Icon#14:11": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:5",
+              "preferredValues": []
+            },
+            "Size": {
+              "type": "VARIANT",
+              "defaultValue": "icon-xs",
+              "variantOptions": [
+                "icon-xs",
+                "icon-sm",
+                "icon",
+                "icon-lg",
+                "mobile-icon"
+              ]
+            }
+          }
+        },
+        {
+          "id": "14:65",
+          "name": "Lab/Button",
+          "type": "COMPONENT_SET",
+          "description": "Local showcase overrides: app/ui-lab/ui-lab.module.css; not equivalent to base success/warning.",
+          "variants": [
+            {
+              "id": "14:61",
+              "name": "Tone=success"
+            },
+            {
+              "id": "14:63",
+              "name": "Tone=warning"
+            }
+          ],
+          "properties": {
+            "Label#14:14": {
+              "type": "TEXT",
+              "defaultValue": "Готово"
+            },
+            "Tone": {
+              "type": "VARIANT",
+              "defaultValue": "success",
+              "variantOptions": [
+                "success",
+                "warning"
+              ]
+            }
+          }
+        },
+        {
+          "id": "37:74",
+          "name": "ButtonGroup",
+          "type": "COMPONENT_SET",
+          "description": "Группа вложенных Button. Без внутренних скруглений, горизонтальная или вертикальная компоновка, общая геометрия кнопок сохраняется.\nSource: components/ui/button-group.tsx",
+          "variants": [
+            {
+              "id": "37:42",
+              "name": "Orientation=Horizontal"
+            },
+            {
+              "id": "37:61",
+              "name": "Orientation=Vertical"
+            }
+          ],
+          "properties": {
+            "Orientation": {
+              "type": "VARIANT",
+              "defaultValue": "Horizontal",
+              "variantOptions": [
+                "Horizontal",
+                "Vertical"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "04 · Fields",
+      "pageId": "7:6",
+      "components": [
+        {
+          "id": "15:25",
+          "name": "Input",
+          "type": "COMPONENT_SET",
+          "description": "Desktop 36 px, 14/20. Lab mobile 44 px, 16/24. Value и Placeholder редактируются отдельно.\nSource: components/ui/input.tsx; app/ui-lab/ui-lab.module.css",
+          "variants": [
+            {
+              "id": "15:5",
+              "name": "State=Default, Device=Desktop"
+            },
+            {
+              "id": "15:7",
+              "name": "State=Filled, Device=Desktop"
+            },
+            {
+              "id": "15:9",
+              "name": "State=Focus, Device=Desktop"
+            },
+            {
+              "id": "15:11",
+              "name": "State=Error, Device=Desktop"
+            },
+            {
+              "id": "15:13",
+              "name": "State=Disabled, Device=Desktop"
+            },
+            {
+              "id": "15:15",
+              "name": "State=Default, Device=Mobile"
+            },
+            {
+              "id": "15:17",
+              "name": "State=Filled, Device=Mobile"
+            },
+            {
+              "id": "15:19",
+              "name": "State=Focus, Device=Mobile"
+            },
+            {
+              "id": "15:21",
+              "name": "State=Error, Device=Mobile"
+            },
+            {
+              "id": "15:23",
+              "name": "State=Disabled, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Placeholder#15:10": {
+              "type": "TEXT",
+              "defaultValue": "Название узла"
+            },
+            "Value#15:11": {
+              "type": "TEXT",
+              "defaultValue": "Бойлер"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Filled",
+                "Focus",
+                "Error",
+                "Disabled"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "15:49",
+          "name": "Textarea",
+          "type": "COMPONENT_SET",
+          "description": "Минимальная высота 96 px. Radius 10; padding 14 × 12. Desktop 14/20, Mobile 16/24.\nSource: components/ui/textarea.tsx",
+          "variants": [
+            {
+              "id": "15:29",
+              "name": "State=Default, Device=Desktop"
+            },
+            {
+              "id": "15:31",
+              "name": "State=Filled, Device=Desktop"
+            },
+            {
+              "id": "15:33",
+              "name": "State=Focus, Device=Desktop"
+            },
+            {
+              "id": "15:35",
+              "name": "State=Error, Device=Desktop"
+            },
+            {
+              "id": "15:37",
+              "name": "State=Disabled, Device=Desktop"
+            },
+            {
+              "id": "15:39",
+              "name": "State=Default, Device=Mobile"
+            },
+            {
+              "id": "15:41",
+              "name": "State=Filled, Device=Mobile"
+            },
+            {
+              "id": "15:43",
+              "name": "State=Focus, Device=Mobile"
+            },
+            {
+              "id": "15:45",
+              "name": "State=Error, Device=Mobile"
+            },
+            {
+              "id": "15:47",
+              "name": "State=Disabled, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Placeholder#15:32": {
+              "type": "TEXT",
+              "defaultValue": "Комментарий к состоянию узла…"
+            },
+            "Value#15:33": {
+              "type": "TEXT",
+              "defaultValue": "Бойлер"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Filled",
+                "Focus",
+                "Error",
+                "Disabled"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "15:103",
+          "name": "Select",
+          "type": "COMPONENT_SET",
+          "description": "SelectTrigger: Desktop 36 px, Mobile 44 px. ChevronDown 16 px. Список представлен отдельным SelectContent.\nSource: components/ui/select.tsx",
+          "variants": [
+            {
+              "id": "15:53",
+              "name": "State=Default, Device=Desktop"
+            },
+            {
+              "id": "15:58",
+              "name": "State=Filled, Device=Desktop"
+            },
+            {
+              "id": "15:63",
+              "name": "State=Focus, Device=Desktop"
+            },
+            {
+              "id": "15:68",
+              "name": "State=Error, Device=Desktop"
+            },
+            {
+              "id": "15:73",
+              "name": "State=Disabled, Device=Desktop"
+            },
+            {
+              "id": "15:78",
+              "name": "State=Default, Device=Mobile"
+            },
+            {
+              "id": "15:83",
+              "name": "State=Filled, Device=Mobile"
+            },
+            {
+              "id": "15:88",
+              "name": "State=Focus, Device=Mobile"
+            },
+            {
+              "id": "15:93",
+              "name": "State=Error, Device=Mobile"
+            },
+            {
+              "id": "15:98",
+              "name": "State=Disabled, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Placeholder#15:54": {
+              "type": "TEXT",
+              "defaultValue": "Выберите комнату"
+            },
+            "Value#15:55": {
+              "type": "TEXT",
+              "defaultValue": "Бойлер"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Filled",
+                "Focus",
+                "Error",
+                "Disabled"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "15:167",
+          "name": "InputGroup",
+          "type": "COMPONENT_SET",
+          "description": "Составной ввод с поиском. Desktop 40 px, Mobile 44 px. Addon + InputGroupInput; border и focus находятся на группе.\nSource: components/ui/input-group.tsx",
+          "variants": [
+            {
+              "id": "15:107",
+              "name": "State=Default, Device=Desktop"
+            },
+            {
+              "id": "15:113",
+              "name": "State=Filled, Device=Desktop"
+            },
+            {
+              "id": "15:119",
+              "name": "State=Focus, Device=Desktop"
+            },
+            {
+              "id": "15:125",
+              "name": "State=Error, Device=Desktop"
+            },
+            {
+              "id": "15:131",
+              "name": "State=Disabled, Device=Desktop"
+            },
+            {
+              "id": "15:137",
+              "name": "State=Default, Device=Mobile"
+            },
+            {
+              "id": "15:143",
+              "name": "State=Filled, Device=Mobile"
+            },
+            {
+              "id": "15:149",
+              "name": "State=Focus, Device=Mobile"
+            },
+            {
+              "id": "15:155",
+              "name": "State=Error, Device=Mobile"
+            },
+            {
+              "id": "15:161",
+              "name": "State=Disabled, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Placeholder#15:76": {
+              "type": "TEXT",
+              "defaultValue": "Найти узел…"
+            },
+            "Value#15:77": {
+              "type": "TEXT",
+              "defaultValue": "Бойлер"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Filled",
+                "Focus",
+                "Error",
+                "Disabled"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "05 · Selection",
+      "pageId": "7:7",
+      "components": [
+        {
+          "id": "15:182",
+          "name": "SelectItem",
+          "type": "COMPONENT_SET",
+          "description": "Пункт выбора: 40 px; выбранный, hover и disabled. Check справа 16 px. Мобильная область нажатия 44 px.\nSource: components/ui/select.tsx",
+          "variants": [
+            {
+              "id": "15:171",
+              "name": "State=Default"
+            },
+            {
+              "id": "15:173",
+              "name": "State=Selected"
+            },
+            {
+              "id": "15:178",
+              "name": "State=Hover"
+            },
+            {
+              "id": "15:180",
+              "name": "State=Disabled"
+            }
+          ],
+          "properties": {
+            "Label#15:92": {
+              "type": "TEXT",
+              "defaultValue": "Гостиная"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Selected",
+                "Hover",
+                "Disabled"
+              ]
+            }
+          }
+        },
+        {
+          "id": "15:196",
+          "name": "SelectContent",
+          "type": "COMPONENT_SET",
+          "description": "Связанные экземпляры SelectItem. Padding 4 px; radius 10 px; border. Ширина 288 px демонстрационная, в приложении зависит от поля.\nSource: components/ui/select.tsx",
+          "variants": [
+            {
+              "id": "15:186",
+              "name": "State=Open"
+            }
+          ],
+          "properties": {
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Open",
+              "variantOptions": [
+                "Open"
+              ]
+            }
+          }
+        },
+        {
+          "id": "16:29",
+          "name": "Badge",
+          "type": "COMPONENT_SET",
+          "description": "Статусы и метки: 28 px, Geist Medium 14/20, радиус pill; цвета связаны с Light/Dark.\nSource: components/ui/badge.tsx",
+          "variants": [
+            {
+              "id": "16:13",
+              "name": "Tone=default"
+            },
+            {
+              "id": "16:15",
+              "name": "Tone=secondary"
+            },
+            {
+              "id": "16:17",
+              "name": "Tone=outline"
+            },
+            {
+              "id": "16:19",
+              "name": "Tone=ghost"
+            },
+            {
+              "id": "16:21",
+              "name": "Tone=link"
+            },
+            {
+              "id": "16:23",
+              "name": "Tone=destructive"
+            },
+            {
+              "id": "16:25",
+              "name": "Tone=success"
+            },
+            {
+              "id": "16:27",
+              "name": "Tone=warning"
+            }
+          ],
+          "properties": {
+            "Label#16:8": {
+              "type": "TEXT",
+              "defaultValue": "Статус"
+            },
+            "Tone": {
+              "type": "VARIANT",
+              "defaultValue": "default",
+              "variantOptions": [
+                "default",
+                "secondary",
+                "outline",
+                "ghost",
+                "link",
+                "destructive",
+                "success",
+                "warning"
+              ]
+            }
+          }
+        },
+        {
+          "id": "16:41",
+          "name": "StatusBadge",
+          "type": "COMPONENT_SET",
+          "description": "Четыре состояния узла. Подписи русские, каждый статус имеет отдельное редактируемое текстовое свойство.\nSource: app/page.tsx · StatusBadge; app/globals.css · .status-pill",
+          "variants": [
+            {
+              "id": "16:33",
+              "name": "Status=ok"
+            },
+            {
+              "id": "16:35",
+              "name": "Status=attention"
+            },
+            {
+              "id": "16:37",
+              "name": "Status=in_progress"
+            },
+            {
+              "id": "16:39",
+              "name": "Status=needs_master"
+            }
+          ],
+          "properties": {
+            "Label / ok#16:13": {
+              "type": "TEXT",
+              "defaultValue": "Исправно"
+            },
+            "Label / attention#16:14": {
+              "type": "TEXT",
+              "defaultValue": "Требует внимания"
+            },
+            "Label / in_progress#16:15": {
+              "type": "TEXT",
+              "defaultValue": "В работе"
+            },
+            "Label / needs_master#16:16": {
+              "type": "TEXT",
+              "defaultValue": "Нужен мастер"
+            },
+            "Status": {
+              "type": "VARIANT",
+              "defaultValue": "ok",
+              "variantOptions": [
+                "ok",
+                "attention",
+                "in_progress",
+                "needs_master"
+              ]
+            }
+          }
+        },
+        {
+          "id": "38:61",
+          "name": "StatusSelect",
+          "type": "COMPONENT_SET",
+          "description": "Локальное исключение Select: desktop32px, mobile44px, ширина по умолчанию240. Четыре состояния узла, dot8px. Source foreground=text/background=content.\nSource: app/page.tsx · StatusSelect; app/globals.css · status-select-trigger",
+          "variants": [
+            {
+              "id": "38:13",
+              "name": "Status=ok, Device=Desktop"
+            },
+            {
+              "id": "38:19",
+              "name": "Status=attention, Device=Desktop"
+            },
+            {
+              "id": "38:25",
+              "name": "Status=in_progress, Device=Desktop"
+            },
+            {
+              "id": "38:31",
+              "name": "Status=needs_master, Device=Desktop"
+            },
+            {
+              "id": "38:37",
+              "name": "Status=ok, Device=Mobile"
+            },
+            {
+              "id": "38:43",
+              "name": "Status=attention, Device=Mobile"
+            },
+            {
+              "id": "38:49",
+              "name": "Status=in_progress, Device=Mobile"
+            },
+            {
+              "id": "38:55",
+              "name": "Status=needs_master, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Label / ok#38:8": {
+              "type": "TEXT",
+              "defaultValue": "Исправно"
+            },
+            "Label / attention#38:9": {
+              "type": "TEXT",
+              "defaultValue": "Требует внимания"
+            },
+            "Label / in_progress#38:10": {
+              "type": "TEXT",
+              "defaultValue": "В работе"
+            },
+            "Label / needs_master#38:11": {
+              "type": "TEXT",
+              "defaultValue": "Нужен мастер"
+            },
+            "Status": {
+              "type": "VARIANT",
+              "defaultValue": "ok",
+              "variantOptions": [
+                "ok",
+                "attention",
+                "in_progress",
+                "needs_master"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "06 · Tabs",
+      "pageId": "7:8",
+      "components": [
+        {
+          "id": "17:116",
+          "name": "TabsTrigger",
+          "type": "COMPONENT_SET",
+          "description": "Lab trigger: радиус 6 внутри контейнера 10 с отступом 4. Desktop 32 px; mobile 36 px. Активная вкладка с тенью.\nSource: components/ui/tabs.tsx; app/ui-lab/ui-lab.module.css; app/globals.css",
+          "variants": [
+            {
+              "id": "17:104",
+              "name": "State=Default, Device=Desktop"
+            },
+            {
+              "id": "17:106",
+              "name": "State=Active, Device=Desktop"
+            },
+            {
+              "id": "17:108",
+              "name": "State=Disabled, Device=Desktop"
+            },
+            {
+              "id": "17:110",
+              "name": "State=Default, Device=Mobile"
+            },
+            {
+              "id": "17:112",
+              "name": "State=Active, Device=Mobile"
+            },
+            {
+              "id": "17:114",
+              "name": "State=Disabled, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Label#17:6": {
+              "type": "TEXT",
+              "defaultValue": "Обзор"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Active",
+                "Disabled"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "17:148",
+          "name": "Tabs",
+          "type": "COMPONENT_SET",
+          "description": "Горизонтальная группа. Mobile: без переноса строк, overflow-x:auto в коде. Вариант Line отдельно от сегментированного.\nSource: components/ui/tabs.tsx; app/globals.css",
+          "variants": [
+            {
+              "id": "17:120",
+              "name": "Variant=Default, Device=Desktop"
+            },
+            {
+              "id": "17:127",
+              "name": "Variant=Line, Device=Desktop"
+            },
+            {
+              "id": "17:134",
+              "name": "Variant=Default, Device=Mobile"
+            },
+            {
+              "id": "17:141",
+              "name": "Variant=Line, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Variant": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Line"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "07 · Cards",
+      "pageId": "7:9",
+      "components": [
+        {
+          "id": "17:181",
+          "name": "Card",
+          "type": "COMPONENT_SET",
+          "description": "Header, Content, Footer; radius16, border1, без тени. Description и Footer отключаются свойствами. Small имеет внутренние отступы16.\nSource: components/ui/card.tsx",
+          "variants": [
+            {
+              "id": "17:152",
+              "name": "Size=Default"
+            },
+            {
+              "id": "17:168",
+              "name": "Size=Small"
+            }
+          ],
+          "properties": {
+            "Title#17:17": {
+              "type": "TEXT",
+              "defaultValue": "Заголовок карточки"
+            },
+            "Description#17:18": {
+              "type": "TEXT",
+              "defaultValue": "Описание и дополнительный контекст."
+            },
+            "Show description#17:19": {
+              "type": "BOOLEAN",
+              "defaultValue": true
+            },
+            "Content#17:20": {
+              "type": "TEXT",
+              "defaultValue": "Содержимое карточки"
+            },
+            "Show footer#17:21": {
+              "type": "BOOLEAN",
+              "defaultValue": true
+            },
+            "Content slot#27:1": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "27:6",
+              "preferredValues": []
+            },
+            "Footer slot#27:4": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "27:8",
+              "preferredValues": []
+            },
+            "Show badge#28:0": {
+              "type": "BOOLEAN",
+              "defaultValue": false
+            },
+            "Status badge#28:3": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "16:15",
+              "preferredValues": []
+            },
+            "Size": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Small"
+              ]
+            }
+          }
+        },
+        {
+          "id": "17:194",
+          "name": "StatCard",
+          "type": "COMPONENT_SET",
+          "description": "Сводная метрика: подпись14/20, значение24/30 Medium, padding16. Ширина примера260; в продукте зависит от колонки.\nSource: app/page.tsx · StatCard",
+          "variants": [
+            {
+              "id": "17:185",
+              "name": "Tone=Default"
+            },
+            {
+              "id": "17:188",
+              "name": "Tone=Warning"
+            },
+            {
+              "id": "17:191",
+              "name": "Tone=Error"
+            }
+          ],
+          "properties": {
+            "Text 1 / default#17:28": {
+              "type": "TEXT",
+              "defaultValue": "Осталось получить"
+            },
+            "Text 2 / default#17:29": {
+              "type": "TEXT",
+              "defaultValue": "20 658,77 ₽"
+            },
+            "Tone": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Warning",
+                "Error"
+              ]
+            }
+          }
+        },
+        {
+          "id": "27:6",
+          "name": "CardContent / Slot",
+          "type": "COMPONENT",
+          "description": "Replaceable content slot for components/ui/card.tsx",
+          "variants": [],
+          "properties": {
+            "Content#27:0": {
+              "type": "TEXT",
+              "defaultValue": "Содержимое карточки"
+            }
+          }
+        },
+        {
+          "id": "27:8",
+          "name": "CardFooter / Slot",
+          "type": "COMPONENT",
+          "description": "Replaceable content slot for components/ui/card.tsx",
+          "variants": [],
+          "properties": {}
+        },
+        {
+          "id": "28:451",
+          "name": "ProductCardContent",
+          "type": "COMPONENT_SET",
+          "description": "Заменяемое содержимое карточек. Вложенные DecisionRow, UtilityContent, TaskSummary. Padding0 24 24.\nSource: app/ui-lab/page.tsx; app/ui-lab/ui-lab.module.css · candidateCardContent",
+          "variants": [
+            {
+              "id": "28:383",
+              "name": "Type=Decision, Device=Desktop"
+            },
+            {
+              "id": "28:398",
+              "name": "Type=Utility, Device=Desktop"
+            },
+            {
+              "id": "28:409",
+              "name": "Type=Task, Device=Desktop"
+            },
+            {
+              "id": "28:417",
+              "name": "Type=Decision, Device=Mobile"
+            },
+            {
+              "id": "28:432",
+              "name": "Type=Utility, Device=Mobile"
+            },
+            {
+              "id": "28:443",
+              "name": "Type=Task, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Type": {
+              "type": "VARIANT",
+              "defaultValue": "Decision",
+              "variantOptions": [
+                "Decision",
+                "Utility",
+                "Task"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "28:527",
+          "name": "ProductCardFooter",
+          "type": "COMPONENT_SET",
+          "description": "Слот действий: кнопки-instance, gap8, padding20 24 24. Mobile40 px/13 px; flex-wrap.\nSource: app/ui-lab/page.tsx; app/ui-lab/ui-lab.module.css · candidateCardFooter",
+          "variants": [
+            {
+              "id": "28:455",
+              "name": "Type=Utility, Device=Desktop"
+            },
+            {
+              "id": "28:481",
+              "name": "Type=Task, Device=Desktop"
+            },
+            {
+              "id": "28:494",
+              "name": "Type=Utility, Device=Mobile"
+            },
+            {
+              "id": "28:514",
+              "name": "Type=Task, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Type": {
+              "type": "VARIANT",
+              "defaultValue": "Utility",
+              "variantOptions": [
+                "Utility",
+                "Task"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "08 · Navigation",
+      "pageId": "7:10",
+      "components": [
+        {
+          "id": "19:195",
+          "name": "NavItem",
+          "type": "COMPONENT_SET",
+          "description": "app/page.tsx NavButton: desktop36px/Medium14; collapsed48px width; mobile40px/Regular14.",
+          "variants": [
+            {
+              "id": "19:161",
+              "name": "Mode=Expanded, Active=False"
+            },
+            {
+              "id": "19:169",
+              "name": "Mode=Expanded, Active=True"
+            },
+            {
+              "id": "19:177",
+              "name": "Mode=Collapsed, Active=False"
+            },
+            {
+              "id": "19:184",
+              "name": "Mode=Collapsed, Active=True"
+            },
+            {
+              "id": "19:191",
+              "name": "Mode=Mobile, Active=False"
+            },
+            {
+              "id": "19:193",
+              "name": "Mode=Mobile, Active=True"
+            }
+          ],
+          "properties": {
+            "Label#19:8": {
+              "type": "TEXT",
+              "defaultValue": "Дашборд"
+            },
+            "Icon#34:0": {
+              "type": "INSTANCE_SWAP",
+              "defaultValue": "10:169",
+              "preferredValues": []
+            },
+            "Mode": {
+              "type": "VARIANT",
+              "defaultValue": "Expanded",
+              "variantOptions": [
+                "Expanded",
+                "Collapsed",
+                "Mobile"
+              ]
+            },
+            "Active": {
+              "type": "VARIANT",
+              "defaultValue": "False",
+              "variantOptions": [
+                "False",
+                "True"
+              ]
+            }
+          }
+        },
+        {
+          "id": "19:211",
+          "name": "DashboardClock",
+          "type": "COMPONENT_SET",
+          "description": "Дата и время в выбранном часовом поясе. Текстовые свойства Date/Time. Мобильный вариант без иконки.\nSource: app/page.tsx; app/globals.css · dashboard-clock",
+          "variants": [
+            {
+              "id": "19:199",
+              "name": "Device=Desktop"
+            },
+            {
+              "id": "19:207",
+              "name": "Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Date#19:15": {
+              "type": "TEXT",
+              "defaultValue": "10 сент."
+            },
+            "Time#19:16": {
+              "type": "TEXT",
+              "defaultValue": "15:00"
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "19:237",
+          "name": "ThemeToggle",
+          "type": "COMPONENT_SET",
+          "description": "Иконки светлой, тёмной и системной темы. Смена темы в Figma через коллекцию FixPlan / Color; системные настройки исполняются только в коде.\nSource: components/theme-provider.tsx; app/page.tsx",
+          "variants": [
+            {
+              "id": "19:215",
+              "name": "Theme=Light"
+            },
+            {
+              "id": "19:227",
+              "name": "Theme=Dark"
+            },
+            {
+              "id": "19:231",
+              "name": "Theme=System"
+            }
+          ],
+          "properties": {
+            "Theme": {
+              "type": "VARIANT",
+              "defaultValue": "Light",
+              "variantOptions": [
+                "Light",
+                "Dark",
+                "System"
+              ]
+            }
+          }
+        },
+        {
+          "id": "34:980",
+          "name": "Navigation",
+          "type": "COMPONENT_SET",
+          "description": "Полный список, свёрнутый список и мобильная горизонтальная лента. Вложенные NavItem с заменяемыми иконками. Mobile без переноса, overflow-x.\nSource: app/page.tsx · AppNavigation/NavButton; app/globals.css",
+          "variants": [
+            {
+              "id": "34:769",
+              "name": "Mode=Expanded"
+            },
+            {
+              "id": "34:870",
+              "name": "Mode=Collapsed"
+            },
+            {
+              "id": "34:963",
+              "name": "Mode=Mobile"
+            }
+          ],
+          "properties": {
+            "Mode": {
+              "type": "VARIANT",
+              "defaultValue": "Expanded",
+              "variantOptions": [
+                "Expanded",
+                "Collapsed",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "34:1014",
+          "name": "MobileHeader",
+          "type": "COMPONENT_SET",
+          "description": "Мобильная шапка60px: оригинальный логотип133×18, компактная дата и время. Примеры360/390. Лента навигации отдельным компонентом ниже.\nSource: app/page.tsx · mobile-header/BrandMark; components/dashboard-clock.tsx",
+          "variants": [
+            {
+              "id": "34:984",
+              "name": "Width=360"
+            },
+            {
+              "id": "34:999",
+              "name": "Width=390"
+            }
+          ],
+          "properties": {
+            "Width": {
+              "type": "VARIANT",
+              "defaultValue": "360",
+              "variantOptions": [
+                "360",
+                "390"
+              ]
+            }
+          }
+        },
+        {
+          "id": "40:271",
+          "name": "ApartmentSwitcher",
+          "type": "COMPONENT_SET",
+          "description": "Выбор квартиры и добавление. Select + Button instances. Состояния выбрано, загрузка, нет объектов; desktop/mobile.\nSource: app/page.tsx · ApartmentSwitcher; app/globals.css",
+          "variants": [
+            {
+              "id": "40:170",
+              "name": "State=Selected, Device=Desktop"
+            },
+            {
+              "id": "40:190",
+              "name": "State=Loading, Device=Desktop"
+            },
+            {
+              "id": "40:207",
+              "name": "State=Empty, Device=Desktop"
+            },
+            {
+              "id": "40:222",
+              "name": "State=Selected, Device=Mobile"
+            },
+            {
+              "id": "40:239",
+              "name": "State=Loading, Device=Mobile"
+            },
+            {
+              "id": "40:256",
+              "name": "State=Empty, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Selected",
+              "variantOptions": [
+                "Selected",
+                "Loading",
+                "Empty"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "42:512",
+          "name": "Sidebar",
+          "type": "COMPONENT_SET",
+          "description": "Desktop280,narrow248,collapsed64. Высота800 как пример100vh. Оригинальные BrandMark/BrandSymbol, ApartmentSwitcher, InputGroup и Navigation instances.\nSource: app/page.tsx · sidebar; app/globals.css · app-shell/sidebar",
+          "variants": [
+            {
+              "id": "42:232",
+              "name": "Mode=Expanded"
+            },
+            {
+              "id": "42:339",
+              "name": "Mode=Narrow"
+            },
+            {
+              "id": "42:440",
+              "name": "Mode=Collapsed"
+            }
+          ],
+          "properties": {
+            "Mode": {
+              "type": "VARIANT",
+              "defaultValue": "Expanded",
+              "variantOptions": [
+                "Expanded",
+                "Narrow",
+                "Collapsed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "09 · Overlays",
+      "pageId": "7:11",
+      "components": [
+        {
+          "id": "17:211",
+          "name": "MenuItem",
+          "type": "COMPONENT_SET",
+          "description": "Пункт меню40 px: обычный, выбранный, наведение, недоступный, опасное действие. Ширина определяется меню.\nSource: components/ui/dropdown-menu.tsx",
+          "variants": [
+            {
+              "id": "17:198",
+              "name": "State=Default"
+            },
+            {
+              "id": "17:200",
+              "name": "State=Selected"
+            },
+            {
+              "id": "17:205",
+              "name": "State=Hover"
+            },
+            {
+              "id": "17:207",
+              "name": "State=Disabled"
+            },
+            {
+              "id": "17:209",
+              "name": "State=Destructive"
+            }
+          ],
+          "properties": {
+            "Label#17:35": {
+              "type": "TEXT",
+              "defaultValue": "Гостиная"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Selected",
+                "Hover",
+                "Disabled",
+                "Destructive"
+              ]
+            }
+          }
+        },
+        {
+          "id": "17:225",
+          "name": "DropdownMenu",
+          "type": "COMPONENT_SET",
+          "description": "Popover с вложенными MenuItem. Radius8,padding4,без тени. Локальный пример меню выбора; содержимое редактируется в instances.\nSource: components/ui/dropdown-menu.tsx",
+          "variants": [
+            {
+              "id": "17:215",
+              "name": "State=Open"
+            }
+          ],
+          "properties": {
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Open",
+              "variantOptions": [
+                "Open"
+              ]
+            }
+          }
+        },
+        {
+          "id": "18:65",
+          "name": "Dialog",
+          "type": "COMPONENT_SET",
+          "description": "Desktop512; mobile пример328 при viewport360. Заголовок20/28 SemiBold. Mobile footer вертикальный. Диалог редактирования с Input instance.\nSource: components/ui/dialog.tsx",
+          "variants": [
+            {
+              "id": "18:13",
+              "name": "Device=Desktop"
+            },
+            {
+              "id": "18:42",
+              "name": "Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Title#18:4": {
+              "type": "TEXT",
+              "defaultValue": "Редактировать узел"
+            },
+            "Description#18:5": {
+              "type": "TEXT",
+              "defaultValue": "Название и описание узла."
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "18:106",
+          "name": "AlertDialog",
+          "type": "COMPONENT_SET",
+          "description": "Подтверждение опасного действия. Редактируемые Title/Description; вложенные кнопки. Desktop и mobile.\nSource: components/ui/alert-dialog.tsx",
+          "variants": [
+            {
+              "id": "18:69",
+              "name": "Device=Desktop"
+            },
+            {
+              "id": "18:89",
+              "name": "Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Title#18:10": {
+              "type": "TEXT",
+              "defaultValue": "Удалить задание?"
+            },
+            "Description#18:11": {
+              "type": "TEXT",
+              "defaultValue": "Задание исчезнет из списка. События в истории узла сохранятся."
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "19:157",
+          "name": "HoverCard",
+          "type": "COMPONENT_SET",
+          "description": "Контекстная информация: ширина256,padding12,radius8,без тени. Текст примера заменяется свойствами.\nSource: components/ui/hover-card.tsx",
+          "variants": [
+            {
+              "id": "19:154",
+              "name": "State=Open"
+            }
+          ],
+          "properties": {
+            "Text 1 / Open#19:2": {
+              "type": "TEXT",
+              "defaultValue": "Бойлер"
+            },
+            "Text 2 / Open#19:3": {
+              "type": "TEXT",
+              "defaultValue": "Ванная · гарантия до 2028 года"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Open",
+              "variantOptions": [
+                "Open"
+              ]
+            }
+          }
+        },
+        {
+          "id": "30:713",
+          "name": "Command",
+          "type": "COMPONENT_SET",
+          "description": "Палитра команд: фильтрация, список и пустое состояние. Input h40, CommandItem40 desktop/44mobile, радиус контейнера14.\nSource: components/ui/command.tsx",
+          "variants": [
+            {
+              "id": "30:656",
+              "name": "State=Results, Device=Desktop"
+            },
+            {
+              "id": "30:676",
+              "name": "State=Empty, Device=Desktop"
+            },
+            {
+              "id": "30:686",
+              "name": "State=Results, Device=Mobile"
+            },
+            {
+              "id": "30:703",
+              "name": "State=Empty, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Placeholder#30:10": {
+              "type": "TEXT",
+              "defaultValue": "Найти команду…"
+            },
+            "Item 0#30:11": {
+              "type": "TEXT",
+              "defaultValue": "Узлы"
+            },
+            "Item 1#30:12": {
+              "type": "TEXT",
+              "defaultValue": "Документы"
+            },
+            "Item 2#30:13": {
+              "type": "TEXT",
+              "defaultValue": "Настройки"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Results",
+              "variantOptions": [
+                "Results",
+                "Empty"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "33:405",
+          "name": "Tooltip",
+          "type": "COMPONENT_SET",
+          "description": "Подсказка12/16,padding8×6,min-height28,radius6,border1,без тени. Arrow10 из текущей реализации. Четыре стороны.\nSource: components/ui/tooltip.tsx",
+          "variants": [
+            {
+              "id": "33:393",
+              "name": "Side=Top"
+            },
+            {
+              "id": "33:396",
+              "name": "Side=Bottom"
+            },
+            {
+              "id": "33:399",
+              "name": "Side=Left"
+            },
+            {
+              "id": "33:402",
+              "name": "Side=Right"
+            }
+          ],
+          "properties": {
+            "Text 1 / default#33:30": {
+              "type": "TEXT",
+              "defaultValue": "Редактировать узел"
+            },
+            "Side": {
+              "type": "VARIANT",
+              "defaultValue": "Top",
+              "variantOptions": [
+                "Top",
+                "Bottom",
+                "Left",
+                "Right"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "10 · Data",
+      "pageId": "7:12",
+      "components": [
+        {
+          "id": "20:47",
+          "name": "TaskItemFile",
+          "type": "COMPONENT_SET",
+          "description": "Компактная метка метаданных события: 12/16,радиус8,px6 py2,border1.\nSource: components/ai-elements/task.tsx",
+          "variants": [
+            {
+              "id": "20:45",
+              "name": "State=Default"
+            }
+          ],
+          "properties": {
+            "Text 1 / default#20:1": {
+              "type": "TEXT",
+              "defaultValue": "Мастер: Алексей"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default"
+              ]
+            }
+          }
+        },
+        {
+          "id": "21:27",
+          "name": "Task",
+          "type": "COMPONENT_SET",
+          "description": "Раскрываемый Task из AI Elements. Collapsible сам не задаёт визуальный стиль; здесь его конкретное применение. Состояния Open/Closed.\nSource: components/ai-elements/task.tsx; components/ui/collapsible.tsx",
+          "variants": [
+            {
+              "id": "21:5",
+              "name": "State=Open"
+            },
+            {
+              "id": "21:17",
+              "name": "State=Closed"
+            }
+          ],
+          "properties": {
+            "Title#21:3": {
+              "type": "TEXT",
+              "defaultValue": "Проверка бойлера"
+            },
+            "Content#21:4": {
+              "type": "TEXT",
+              "defaultValue": "Мастер проверил соединения. Протечек не обнаружено."
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Open",
+              "variantOptions": [
+                "Open",
+                "Closed"
+              ]
+            }
+          }
+        },
+        {
+          "id": "29:659",
+          "name": "AssetRow",
+          "type": "COMPONENT_SET",
+          "description": "Узел в списках и дашборде: название и комната слева, StatusBadge справа. Padding12,gap12,radius10 из rounded-lg. Примеры520/336.\nSource: app/page.tsx · AssetRow",
+          "variants": [
+            {
+              "id": "29:611",
+              "name": "Status=ok, Device=Desktop"
+            },
+            {
+              "id": "29:617",
+              "name": "Status=attention, Device=Desktop"
+            },
+            {
+              "id": "29:623",
+              "name": "Status=in_progress, Device=Desktop"
+            },
+            {
+              "id": "29:629",
+              "name": "Status=needs_master, Device=Desktop"
+            },
+            {
+              "id": "29:635",
+              "name": "Status=ok, Device=Mobile"
+            },
+            {
+              "id": "29:641",
+              "name": "Status=attention, Device=Mobile"
+            },
+            {
+              "id": "29:647",
+              "name": "Status=in_progress, Device=Mobile"
+            },
+            {
+              "id": "29:653",
+              "name": "Status=needs_master, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Title#29:16": {
+              "type": "TEXT",
+              "defaultValue": "B-01 · Бойлер"
+            },
+            "Description#29:17": {
+              "type": "TEXT",
+              "defaultValue": "Ванная · Техника"
+            },
+            "Status": {
+              "type": "VARIANT",
+              "defaultValue": "ok",
+              "variantOptions": [
+                "ok",
+                "attention",
+                "in_progress",
+                "needs_master"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "29:712",
+          "name": "EventTask",
+          "type": "COMPONENT_SET",
+          "description": "Событие истории узла. Дата, заголовок, описание, метаданные и действие. Вложенная TaskItemFile и Button; Open/Closed на desktop/mobile.\nSource: app/page.tsx · EventTask; components/ai-elements/task.tsx",
+          "variants": [
+            {
+              "id": "29:663",
+              "name": "State=Open, Device=Desktop"
+            },
+            {
+              "id": "29:683",
+              "name": "State=Closed, Device=Desktop"
+            },
+            {
+              "id": "29:689",
+              "name": "State=Open, Device=Mobile"
+            },
+            {
+              "id": "29:706",
+              "name": "State=Closed, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Date#29:28": {
+              "type": "TEXT",
+              "defaultValue": "10 сентября 2026 · B-01 · Ванная"
+            },
+            "Title#29:29": {
+              "type": "TEXT",
+              "defaultValue": "Запланирован ремонт бойлера"
+            },
+            "Description#29:30": {
+              "type": "TEXT",
+              "defaultValue": "Диагностика и ремонт. Проверить соединения и нагрев воды."
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Open",
+              "variantOptions": [
+                "Open",
+                "Closed"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "11 · Assistant",
+      "pageId": "7:13",
+      "components": [
+        {
+          "id": "23:25",
+          "name": "Message",
+          "type": "COMPONENT_SET",
+          "description": "История чата: пользователь/ассистент. Ширина не более92% колонки. Desktop14/20, mobile16/24. Метаданные12/16.\nSource: app/page.tsx · FixPlanAssistant; components/ai-elements/message.tsx; app/globals.css",
+          "variants": [
+            {
+              "id": "23:5",
+              "name": "Role=User, Device=Desktop"
+            },
+            {
+              "id": "23:10",
+              "name": "Role=Assistant, Device=Desktop"
+            },
+            {
+              "id": "23:15",
+              "name": "Role=User, Device=Mobile"
+            },
+            {
+              "id": "23:20",
+              "name": "Role=Assistant, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Text 2 / default#23:4": {
+              "type": "TEXT",
+              "defaultValue": "Запланируй ремонт бойлера."
+            },
+            "Assistant response#24:0": {
+              "type": "TEXT",
+              "defaultValue": "Черновик задания создан. Мастер: Алексей."
+            },
+            "Role": {
+              "type": "VARIANT",
+              "defaultValue": "User",
+              "variantOptions": [
+                "User",
+                "Assistant"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "24:338",
+          "name": "PromptInput",
+          "type": "COMPONENT_SET",
+          "description": "Поле ассистента с вложенными кнопками: файл, голос, отправка. Пустое, отправка, запись, ошибка, недоступное. Ширины примеров360/336; mobile текст16/24.\nSource: app/page.tsx · FixPlanAssistant; components/ai-elements/prompt-input.tsx; components/ui/input-group.tsx",
+          "variants": [
+            {
+              "id": "24:5",
+              "name": "State=Default, Device=Desktop"
+            },
+            {
+              "id": "24:44",
+              "name": "State=Sending, Device=Desktop"
+            },
+            {
+              "id": "24:76",
+              "name": "State=Recording, Device=Desktop"
+            },
+            {
+              "id": "24:110",
+              "name": "State=Error, Device=Desktop"
+            },
+            {
+              "id": "24:143",
+              "name": "State=Disabled, Device=Desktop"
+            },
+            {
+              "id": "24:176",
+              "name": "State=Default, Device=Mobile"
+            },
+            {
+              "id": "24:209",
+              "name": "State=Sending, Device=Mobile"
+            },
+            {
+              "id": "24:241",
+              "name": "State=Recording, Device=Mobile"
+            },
+            {
+              "id": "24:272",
+              "name": "State=Error, Device=Mobile"
+            },
+            {
+              "id": "24:305",
+              "name": "State=Disabled, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Placeholder#24:15": {
+              "type": "TEXT",
+              "defaultValue": "Напишите FixPlan или приложите квитанцию"
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Sending",
+                "Recording",
+                "Error",
+                "Disabled"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "33:177",
+          "name": "AttachmentRemove",
+          "type": "COMPONENT_SET",
+          "description": "Кнопка удаления вложения: Inline20/icon10,Grid24/icon12,List32/icon16. Отдельный компонент сохраняет размеры иконки без нарушения вложенных Button instances.\nSource: components/ai-elements/attachments.tsx · AttachmentRemove",
+          "variants": [
+            {
+              "id": "33:159",
+              "name": "Variant=Inline"
+            },
+            {
+              "id": "33:164",
+              "name": "Variant=Grid"
+            },
+            {
+              "id": "33:172",
+              "name": "Variant=List"
+            }
+          ],
+          "properties": {
+            "Variant": {
+              "type": "VARIANT",
+              "defaultValue": "Inline",
+              "variantOptions": [
+                "Inline",
+                "Grid",
+                "List"
+              ]
+            }
+          }
+        },
+        {
+          "id": "33:345",
+          "name": "Attachment",
+          "type": "COMPONENT_SET",
+          "description": "Inline32,List74,Grid96. PDF и штатный fallback изображения без URL; реальное изображение размещается вместо fallback. Hover показывает удаление.\nSource: components/ai-elements/attachments.tsx",
+          "variants": [
+            {
+              "id": "33:181",
+              "name": "Variant=Inline, Type=PDF, State=Default"
+            },
+            {
+              "id": "33:196",
+              "name": "Variant=Inline, Type=PDF, State=Hover"
+            },
+            {
+              "id": "33:211",
+              "name": "Variant=Inline, Type=ImageFallback, State=Default"
+            },
+            {
+              "id": "33:224",
+              "name": "Variant=Inline, Type=ImageFallback, State=Hover"
+            },
+            {
+              "id": "33:237",
+              "name": "Variant=List, Type=PDF, State=Default"
+            },
+            {
+              "id": "33:252",
+              "name": "Variant=List, Type=PDF, State=Hover"
+            },
+            {
+              "id": "33:267",
+              "name": "Variant=List, Type=ImageFallback, State=Default"
+            },
+            {
+              "id": "33:280",
+              "name": "Variant=List, Type=ImageFallback, State=Hover"
+            },
+            {
+              "id": "33:293",
+              "name": "Variant=Grid, Type=PDF, State=Default"
+            },
+            {
+              "id": "33:307",
+              "name": "Variant=Grid, Type=PDF, State=Hover"
+            },
+            {
+              "id": "33:321",
+              "name": "Variant=Grid, Type=ImageFallback, State=Default"
+            },
+            {
+              "id": "33:333",
+              "name": "Variant=Grid, Type=ImageFallback, State=Hover"
+            }
+          ],
+          "properties": {
+            "Filename / PDF#33:8": {
+              "type": "TEXT",
+              "defaultValue": "Инструкция.pdf"
+            },
+            "Filename / ImageFallback#33:9": {
+              "type": "TEXT",
+              "defaultValue": "Фото узла.jpg"
+            },
+            "Variant": {
+              "type": "VARIANT",
+              "defaultValue": "Inline",
+              "variantOptions": [
+                "Inline",
+                "List",
+                "Grid"
+              ]
+            },
+            "Type": {
+              "type": "VARIANT",
+              "defaultValue": "PDF",
+              "variantOptions": [
+                "PDF",
+                "ImageFallback"
+              ]
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Default",
+              "variantOptions": [
+                "Default",
+                "Hover"
+              ]
+            }
+          }
+        },
+        {
+          "id": "35:1047",
+          "name": "AssistantPanel",
+          "type": "COMPONENT_SET",
+          "description": "Панель из вложенных Message и PromptInput. Desktop380×800 как пример100vh. Mobile360×576 =72% от800, свёрнутая строка44. Safe-area задаётся браузером.\nSource: app/page.tsx · FixPlanAssistant; app/globals.css · assistant-panel",
+          "variants": [
+            {
+              "id": "35:898",
+              "name": "Device=Desktop, State=Open"
+            },
+            {
+              "id": "35:966",
+              "name": "Device=Mobile, State=Open"
+            },
+            {
+              "id": "35:1031",
+              "name": "Device=Mobile, State=Closed"
+            }
+          ],
+          "properties": {
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            },
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Open",
+              "variantOptions": [
+                "Open",
+                "Closed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "12 · Feedback",
+      "pageId": "7:14",
+      "components": [
+        {
+          "id": "21:215",
+          "name": "Separator",
+          "type": "COMPONENT_SET",
+          "description": "Разделитель1 px, привязка к border. Горизонтальная и вертикальная ориентация.\nSource: components/ui/separator.tsx",
+          "variants": [
+            {
+              "id": "21:213",
+              "name": "Orientation=Horizontal"
+            },
+            {
+              "id": "21:214",
+              "name": "Orientation=Vertical"
+            }
+          ],
+          "properties": {
+            "Orientation": {
+              "type": "VARIANT",
+              "defaultValue": "Horizontal",
+              "variantOptions": [
+                "Horizontal",
+                "Vertical"
+              ]
+            }
+          }
+        },
+        {
+          "id": "21:223",
+          "name": "Spinner",
+          "type": "COMPONENT_SET",
+          "description": "Lucide LoaderCircle/Loader2,16 px. Статический кадр состояния загрузки; непрерывное вращение реализуется CSS animate-spin.\nSource: components/ui/spinner.tsx",
+          "variants": [
+            {
+              "id": "21:219",
+              "name": "State=Loading"
+            }
+          ],
+          "properties": {
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Loading",
+              "variantOptions": [
+                "Loading"
+              ]
+            }
+          }
+        },
+        {
+          "id": "30:731",
+          "name": "ScrollArea",
+          "type": "COMPONENT_SET",
+          "description": "Viewport с обрезкой и вертикальным scrollbar10px,p1,thumb7px/border. Контент демонстрационный; в продукте прокруткой управляет Radix.\nSource: components/ui/scroll-area.tsx",
+          "variants": [
+            {
+              "id": "30:717",
+              "name": "State=Overflow"
+            }
+          ],
+          "properties": {
+            "State": {
+              "type": "VARIANT",
+              "defaultValue": "Overflow",
+              "variantOptions": [
+                "Overflow"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "page": "13 · Product blocks",
+      "pageId": "7:15",
+      "components": [
+        {
+          "id": "25:33",
+          "name": "DecisionRow",
+          "type": "COMPONENT_SET",
+          "description": "Строка действия дашборда: 36px контейнер иконки18, gap12,padding12. Mobile иллюстрирует ширину288 внутри карточки336.\nSource: app/ui-lab/page.tsx; app/ui-lab/ui-lab.module.css · decisionRow",
+          "variants": [
+            {
+              "id": "25:5",
+              "name": "Device=Desktop"
+            },
+            {
+              "id": "25:19",
+              "name": "Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Title#25:4": {
+              "type": "TEXT",
+              "defaultValue": "Бойлер не работает"
+            },
+            "Description#25:5": {
+              "type": "TEXT",
+              "defaultValue": "Нужно назначить мастера"
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "25:57",
+          "name": "UtilityContent",
+          "type": "COMPONENT_SET",
+          "description": "Разбивка начислений и итог. Значения14/20 Medium, межстрочный gap10. Валюта₽. Суммы примера, не реальные данные.\nSource: app/ui-lab/page.tsx; app/ui-lab/ui-lab.module.css · utilityContent",
+          "variants": [
+            {
+              "id": "25:37",
+              "name": "Device=Desktop"
+            },
+            {
+              "id": "25:47",
+              "name": "Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Label 0#25:18": {
+              "type": "TEXT",
+              "defaultValue": "ЖКХ"
+            },
+            "Amount 0#25:19": {
+              "type": "TEXT",
+              "defaultValue": "7 616,24 ₽"
+            },
+            "Label 1#25:20": {
+              "type": "TEXT",
+              "defaultValue": "Электроэнергия"
+            },
+            "Amount 1#25:21": {
+              "type": "TEXT",
+              "defaultValue": "1 203,00 ₽"
+            },
+            "Label 2#25:22": {
+              "type": "TEXT",
+              "defaultValue": "Осталось получить"
+            },
+            "Amount 2#25:23": {
+              "type": "TEXT",
+              "defaultValue": "8 819,24 ₽"
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "25:75",
+          "name": "TaskSummary",
+          "type": "COMPONENT_SET",
+          "description": "Описание задания с Lucide Wrench18 в контейнере36. Текст14/20 Regular, gap12. Вкладывается в CardContent.\nSource: app/ui-lab/page.tsx; app/ui-lab/ui-lab.module.css · taskSummary",
+          "variants": [
+            {
+              "id": "25:61",
+              "name": "Device=Desktop"
+            },
+            {
+              "id": "25:68",
+              "name": "Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Title#25:26": {
+              "type": "TEXT",
+              "defaultValue": "Диагностика, ремонт и итоговая проверка работы."
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        },
+        {
+          "id": "28:757",
+          "name": "ProductCard",
+          "type": "COMPONENT_SET",
+          "description": "Карточки каталога, собранные из экземпляров Card, Badge, контентных слотов и Button. Desktop520/mobile336. Данные демонстрационные.\nSource: app/ui-lab/page.tsx · Card examples",
+          "variants": [
+            {
+              "id": "28:531",
+              "name": "Type=Decision, Device=Desktop"
+            },
+            {
+              "id": "28:569",
+              "name": "Type=Utility, Device=Desktop"
+            },
+            {
+              "id": "28:610",
+              "name": "Type=Task, Device=Desktop"
+            },
+            {
+              "id": "28:647",
+              "name": "Type=Decision, Device=Mobile"
+            },
+            {
+              "id": "28:679",
+              "name": "Type=Utility, Device=Mobile"
+            },
+            {
+              "id": "28:720",
+              "name": "Type=Task, Device=Mobile"
+            }
+          ],
+          "properties": {
+            "Type": {
+              "type": "VARIANT",
+              "defaultValue": "Decision",
+              "variantOptions": [
+                "Decision",
+                "Utility",
+                "Task"
+              ]
+            },
+            "Device": {
+              "type": "VARIANT",
+              "defaultValue": "Desktop",
+              "variantOptions": [
+                "Desktop",
+                "Mobile"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "foundationSummary": {
+    "collections": [
+      {
+        "id": "VariableCollectionId:6:2",
+        "name": "FixPlan / Primitives",
+        "modes": [
+          {
+            "name": "Value",
+            "modeId": "6:0"
+          }
+        ],
+        "count": 81
+      },
+      {
+        "id": "VariableCollectionId:6:3",
+        "name": "FixPlan / Color",
+        "modes": [
+          {
+            "name": "Light",
+            "modeId": "6:1"
+          },
+          {
+            "name": "Dark",
+            "modeId": "6:2"
+          }
+        ],
+        "count": 79
+      },
+      {
+        "id": "VariableCollectionId:6:4",
+        "name": "FixPlan / Geometry",
+        "modes": [
+          {
+            "name": "Value",
+            "modeId": "6:3"
+          }
+        ],
+        "count": 28
+      }
+    ],
+    "rawSemantic": [
+      {
+        "id": "VariableID:6:78",
+        "name": "primary"
+      },
+      {
+        "id": "VariableID:13:2",
+        "name": "focus-ring"
+      }
+    ],
+    "missingSyntax": [],
+    "allScopes": [],
+    "textStyles": [
+      {
+        "id": "S:1f5f383b53b61b911c2666c61a16ae9d41a5c201,",
+        "name": "FixPlan/Heading/Page",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 22,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 28
+        }
+      },
+      {
+        "id": "S:7c6ecec754a0c4c6da752a09d2c69b4ac2fcb8e2,",
+        "name": "FixPlan/Heading/Card",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        }
+      },
+      {
+        "id": "S:6c7e927e2f618c2cd768caf6b79ca2fdcb7455b4,",
+        "name": "FixPlan/Heading/MobileAsset",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 18,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        }
+      },
+      {
+        "id": "S:7f4bd559d0faa341a41b73d72d0107bd64a9294a,",
+        "name": "FixPlan/Metric",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 24,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 30
+        }
+      },
+      {
+        "id": "S:79cc6f41992e960e6d3ec82e5e3111a410d627ad,",
+        "name": "FixPlan/Body/Default",
+        "font": {
+          "family": "Geist",
+          "style": "Regular",
+          "variationSettings": {
+            "wght": 400
+          }
+        },
+        "size": 14,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        }
+      },
+      {
+        "id": "S:17095245d517cc469903dc8b00700c6363a6abe8,",
+        "name": "FixPlan/Body/Large",
+        "font": {
+          "family": "Geist",
+          "style": "Regular",
+          "variationSettings": {
+            "wght": 400
+          }
+        },
+        "size": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        }
+      },
+      {
+        "id": "S:3f37f7a24e4350d5d4315674b0973c770367fc85,",
+        "name": "FixPlan/Body/Small",
+        "font": {
+          "family": "Geist",
+          "style": "Regular",
+          "variationSettings": {
+            "wght": 400
+          }
+        },
+        "size": 13,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        }
+      },
+      {
+        "id": "S:bd3ce3150e50ece40425dc515a18eeda10700f88,",
+        "name": "FixPlan/Label/Default",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 12,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        }
+      },
+      {
+        "id": "S:97c4949a059bc2e3dab5602d5d0aad4b761fd55e,",
+        "name": "FixPlan/Label/Mobile",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 13,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 20
+        }
+      },
+      {
+        "id": "S:b71378c20256d8a3c5da54672dfefa51ad853070,",
+        "name": "FixPlan/Label/Large",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 16,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        }
+      },
+      {
+        "id": "S:aae189ef0eee5e98add77ebce35c1fd0c0630c4f,",
+        "name": "FixPlan/Caption",
+        "font": {
+          "family": "Geist",
+          "style": "Regular",
+          "variationSettings": {
+            "wght": 400
+          }
+        },
+        "size": 12,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        }
+      },
+      {
+        "id": "S:df5ae1aa562e94e1d487ff295d3defea564e7405,",
+        "name": "FixPlan/Caption/Medium",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 12,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 16
+        }
+      },
+      {
+        "id": "S:3017e7616fd27bb78c9e2511a6f872aab8c36ce6,",
+        "name": "FixPlan/Heading/Dialog",
+        "font": {
+          "family": "Geist",
+          "style": "SemiBold",
+          "variationSettings": {
+            "wght": 600
+          }
+        },
+        "size": 20,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 28
+        }
+      },
+      {
+        "id": "S:d95737f1330203e2976559ec49bed1034c951a10,",
+        "name": "FixPlan/Body/Relaxed",
+        "font": {
+          "family": "Geist",
+          "style": "Regular",
+          "variationSettings": {
+            "wght": 400
+          }
+        },
+        "size": 14,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 24
+        }
+      },
+      {
+        "id": "S:932bf590e0d343515adfbfc645b014570c9047c4,",
+        "name": "FixPlan/Label/Clock",
+        "font": {
+          "family": "Geist",
+          "style": "Medium",
+          "variationSettings": {
+            "wght": 500
+          }
+        },
+        "size": 14,
+        "lineHeight": {
+          "unit": "PIXELS",
+          "value": 18
+        }
+      }
+    ]
+  },
+  "audits": [
+    {
+      "pageId": "7:2",
+      "page": "00 · Start",
+      "components": 0,
+      "sets": 0,
+      "instances": 0,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:3",
+      "page": "01 · Foundations",
+      "components": 0,
+      "sets": 0,
+      "instances": 0,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:4",
+      "page": "02 · Icons",
+      "components": 50,
+      "sets": 0,
+      "instances": 0,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:5",
+      "page": "03 · Buttons",
+      "components": 69,
+      "sets": 15,
+      "instances": 64,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:6",
+      "page": "04 · Fields",
+      "components": 40,
+      "sets": 4,
+      "instances": 20,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:7",
+      "page": "05 · Selection",
+      "components": 25,
+      "sets": 5,
+      "instances": 13,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:8",
+      "page": "06 · Tabs",
+      "components": 10,
+      "sets": 2,
+      "instances": 12,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:9",
+      "page": "07 · Cards",
+      "components": 17,
+      "sets": 4,
+      "instances": 33,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:10",
+      "page": "08 · Navigation",
+      "components": 25,
+      "sets": 7,
+      "instances": 150,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:11",
+      "page": "09 · Overlays",
+      "components": 19,
+      "sets": 7,
+      "instances": 21,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:12",
+      "page": "10 · Data",
+      "components": 15,
+      "sets": 4,
+      "instances": 16,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:13",
+      "page": "11 · Assistant",
+      "components": 32,
+      "sets": 5,
+      "instances": 122,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:14",
+      "page": "12 · Feedback",
+      "components": 4,
+      "sets": 3,
+      "instances": 1,
+      "unstyled": [],
+      "unbound": [],
+      "placeholders": []
+    },
+    {
+      "pageId": "7:15",
+      "page": "13 · Product blocks",
+      "components": 12,
+      "sets": 4,
+      "instances": 89,
+      "unstyled": [],
+      "unbound": [
+        {
+          "id": "4:646",
+          "name": "Card"
+        },
+        {
+          "id": "I4:646;28:13",
+          "name": "Badge"
+        },
+        {
+          "id": "I4:646;27:20;28:495;11:66;10:82",
+          "name": "Vector"
+        },
+        {
+          "id": "I4:646;27:20;28:495;11:66;10:83",
+          "name": "Vector"
+        },
+        {
+          "id": "I4:646;27:20;28:495;11:66;10:84",
+          "name": "Vector"
+        },
+        {
+          "id": "I4:646;27:20;28:495;11:66;10:85",
+          "name": "Vector"
+        },
+        {
+          "id": "I4:646;27:20;28:506",
+          "name": "Button/default"
+        }
+      ],
+      "placeholders": []
+    }
+  ],
+  "createdFamilies": {
+    "Input": {
+      "State=Default, Device=Desktop": "15:5",
+      "State=Filled, Device=Desktop": "15:7",
+      "State=Focus, Device=Desktop": "15:9",
+      "State=Error, Device=Desktop": "15:11",
+      "State=Disabled, Device=Desktop": "15:13",
+      "State=Default, Device=Mobile": "15:15",
+      "State=Filled, Device=Mobile": "15:17",
+      "State=Focus, Device=Mobile": "15:19",
+      "State=Error, Device=Mobile": "15:21",
+      "State=Disabled, Device=Mobile": "15:23"
+    },
+    "Textarea": {
+      "State=Default, Device=Desktop": "15:29",
+      "State=Filled, Device=Desktop": "15:31",
+      "State=Focus, Device=Desktop": "15:33",
+      "State=Error, Device=Desktop": "15:35",
+      "State=Disabled, Device=Desktop": "15:37",
+      "State=Default, Device=Mobile": "15:39",
+      "State=Filled, Device=Mobile": "15:41",
+      "State=Focus, Device=Mobile": "15:43",
+      "State=Error, Device=Mobile": "15:45",
+      "State=Disabled, Device=Mobile": "15:47"
+    },
+    "Select": {
+      "State=Default, Device=Desktop": "15:53",
+      "State=Filled, Device=Desktop": "15:58",
+      "State=Focus, Device=Desktop": "15:63",
+      "State=Error, Device=Desktop": "15:68",
+      "State=Disabled, Device=Desktop": "15:73",
+      "State=Default, Device=Mobile": "15:78",
+      "State=Filled, Device=Mobile": "15:83",
+      "State=Focus, Device=Mobile": "15:88",
+      "State=Error, Device=Mobile": "15:93",
+      "State=Disabled, Device=Mobile": "15:98"
+    },
+    "InputGroup": {
+      "State=Default, Device=Desktop": "15:107",
+      "State=Filled, Device=Desktop": "15:113",
+      "State=Focus, Device=Desktop": "15:119",
+      "State=Error, Device=Desktop": "15:125",
+      "State=Disabled, Device=Desktop": "15:131",
+      "State=Default, Device=Mobile": "15:137",
+      "State=Filled, Device=Mobile": "15:143",
+      "State=Focus, Device=Mobile": "15:149",
+      "State=Error, Device=Mobile": "15:155",
+      "State=Disabled, Device=Mobile": "15:161"
+    },
+    "SelectItem": {
+      "State=Default": "15:171",
+      "State=Selected": "15:173",
+      "State=Hover": "15:178",
+      "State=Disabled": "15:180"
+    },
+    "SelectContent": {
+      "State=Open": "15:186"
+    },
+    "Badge": {
+      "Tone=default": "16:13",
+      "Tone=secondary": "16:15",
+      "Tone=outline": "16:17",
+      "Tone=ghost": "16:19",
+      "Tone=link": "16:21",
+      "Tone=destructive": "16:23",
+      "Tone=success": "16:25",
+      "Tone=warning": "16:27"
+    },
+    "StatusBadge": {
+      "Status=ok": "16:33",
+      "Status=attention": "16:35",
+      "Status=in_progress": "16:37",
+      "Status=needs_master": "16:39"
+    },
+    "TabsTrigger": {
+      "State=Default, Device=Desktop": "17:104",
+      "State=Active, Device=Desktop": "17:106",
+      "State=Disabled, Device=Desktop": "17:108",
+      "State=Default, Device=Mobile": "17:110",
+      "State=Active, Device=Mobile": "17:112",
+      "State=Disabled, Device=Mobile": "17:114"
+    },
+    "Tabs": {
+      "Variant=Default, Device=Desktop": "17:120",
+      "Variant=Line, Device=Desktop": "17:127",
+      "Variant=Default, Device=Mobile": "17:134",
+      "Variant=Line, Device=Mobile": "17:141"
+    },
+    "Card": {
+      "Size=Default": "17:152",
+      "Size=Small": "17:168"
+    },
+    "StatCard": {
+      "Tone=Default": "17:185",
+      "Tone=Warning": "17:188",
+      "Tone=Error": "17:191"
+    },
+    "MenuItem": {
+      "State=Default": "17:198",
+      "State=Selected": "17:200",
+      "State=Hover": "17:205",
+      "State=Disabled": "17:207",
+      "State=Destructive": "17:209"
+    },
+    "DropdownMenu": {
+      "State=Open": "17:215"
+    },
+    "Dialog": {
+      "Device=Desktop": "18:13",
+      "Device=Mobile": "18:42"
+    },
+    "AlertDialog": {
+      "Device=Desktop": "18:69",
+      "Device=Mobile": "18:89"
+    },
+    "HoverCard": {
+      "State=Open": "19:154"
+    },
+    "NavItem": {
+      "Mode=Expanded, Active=False": "19:161",
+      "Mode=Expanded, Active=True": "19:169",
+      "Mode=Collapsed, Active=False": "19:177",
+      "Mode=Collapsed, Active=True": "19:184",
+      "Mode=Mobile, Active=False": "19:191",
+      "Mode=Mobile, Active=True": "19:193"
+    },
+    "DashboardClock": {
+      "Device=Desktop": "19:199",
+      "Device=Mobile": "19:207"
+    },
+    "ThemeToggle": {
+      "Theme=Light": "19:215",
+      "Theme=Dark": "19:227",
+      "Theme=System": "19:231"
+    },
+    "TaskItemFile": {
+      "State=Default": "20:45"
+    },
+    "Task": {
+      "State=Open": "21:5",
+      "State=Closed": "21:17"
+    },
+    "Separator": {
+      "Orientation=Horizontal": "21:213",
+      "Orientation=Vertical": "21:214"
+    },
+    "Spinner": {
+      "State=Loading": "21:219"
+    },
+    "Message": {
+      "Role=User, Device=Desktop": "23:5",
+      "Role=Assistant, Device=Desktop": "23:10",
+      "Role=User, Device=Mobile": "23:15",
+      "Role=Assistant, Device=Mobile": "23:20"
+    },
+    "PromptInput": {
+      "State=Default, Device=Desktop": "24:5",
+      "State=Sending, Device=Desktop": "24:44",
+      "State=Recording, Device=Desktop": "24:76",
+      "State=Error, Device=Desktop": "24:110",
+      "State=Disabled, Device=Desktop": "24:143",
+      "State=Default, Device=Mobile": "24:176",
+      "State=Sending, Device=Mobile": "24:209",
+      "State=Recording, Device=Mobile": "24:241",
+      "State=Error, Device=Mobile": "24:272",
+      "State=Disabled, Device=Mobile": "24:305"
+    },
+    "DecisionRow": {
+      "Device=Desktop": "25:5",
+      "Device=Mobile": "25:19"
+    },
+    "UtilityContent": {
+      "Device=Desktop": "25:37",
+      "Device=Mobile": "25:47"
+    },
+    "TaskSummary": {
+      "Device=Desktop": "25:61",
+      "Device=Mobile": "25:68"
+    },
+    "ProductCardContent": {
+      "Type=Decision, Device=Desktop": "28:383",
+      "Type=Utility, Device=Desktop": "28:398",
+      "Type=Task, Device=Desktop": "28:409",
+      "Type=Decision, Device=Mobile": "28:417",
+      "Type=Utility, Device=Mobile": "28:432",
+      "Type=Task, Device=Mobile": "28:443"
+    },
+    "ProductCardFooter": {
+      "Type=Utility, Device=Desktop": "28:455",
+      "Type=Task, Device=Desktop": "28:481",
+      "Type=Utility, Device=Mobile": "28:494",
+      "Type=Task, Device=Mobile": "28:514"
+    },
+    "ProductCard": {
+      "Type=Decision, Device=Desktop": "28:531",
+      "Type=Utility, Device=Desktop": "28:569",
+      "Type=Task, Device=Desktop": "28:610",
+      "Type=Decision, Device=Mobile": "28:647",
+      "Type=Utility, Device=Mobile": "28:679",
+      "Type=Task, Device=Mobile": "28:720"
+    },
+    "AssetRow": {
+      "Status=ok, Device=Desktop": "29:611",
+      "Status=attention, Device=Desktop": "29:617",
+      "Status=in_progress, Device=Desktop": "29:623",
+      "Status=needs_master, Device=Desktop": "29:629",
+      "Status=ok, Device=Mobile": "29:635",
+      "Status=attention, Device=Mobile": "29:641",
+      "Status=in_progress, Device=Mobile": "29:647",
+      "Status=needs_master, Device=Mobile": "29:653"
+    },
+    "EventTask": {
+      "State=Open, Device=Desktop": "29:663",
+      "State=Closed, Device=Desktop": "29:683",
+      "State=Open, Device=Mobile": "29:689",
+      "State=Closed, Device=Mobile": "29:706"
+    },
+    "Command": {
+      "State=Results, Device=Desktop": "30:656",
+      "State=Empty, Device=Desktop": "30:676",
+      "State=Results, Device=Mobile": "30:686",
+      "State=Empty, Device=Mobile": "30:703"
+    },
+    "ScrollArea": {
+      "State=Overflow": "30:717"
+    },
+    "AttachmentRemove": {
+      "Variant=Inline": "33:159",
+      "Variant=Grid": "33:164",
+      "Variant=List": "33:172"
+    },
+    "Attachment": {
+      "Variant=Inline, Type=PDF, State=Default": "33:181",
+      "Variant=Inline, Type=PDF, State=Hover": "33:196",
+      "Variant=Inline, Type=ImageFallback, State=Default": "33:211",
+      "Variant=Inline, Type=ImageFallback, State=Hover": "33:224",
+      "Variant=List, Type=PDF, State=Default": "33:237",
+      "Variant=List, Type=PDF, State=Hover": "33:252",
+      "Variant=List, Type=ImageFallback, State=Default": "33:267",
+      "Variant=List, Type=ImageFallback, State=Hover": "33:280",
+      "Variant=Grid, Type=PDF, State=Default": "33:293",
+      "Variant=Grid, Type=PDF, State=Hover": "33:307",
+      "Variant=Grid, Type=ImageFallback, State=Default": "33:321",
+      "Variant=Grid, Type=ImageFallback, State=Hover": "33:333"
+    },
+    "Tooltip": {
+      "Side=Top": "33:393",
+      "Side=Bottom": "33:396",
+      "Side=Left": "33:399",
+      "Side=Right": "33:402"
+    },
+    "Navigation": {
+      "Mode=Expanded": "34:769",
+      "Mode=Collapsed": "34:870",
+      "Mode=Mobile": "34:963"
+    },
+    "MobileHeader": {
+      "Width=360": "34:984",
+      "Width=390": "34:999"
+    },
+    "AssistantPanel": {
+      "Device=Desktop, State=Open": "35:898",
+      "Device=Mobile, State=Open": "35:966",
+      "Device=Mobile, State=Closed": "35:1031"
+    },
+    "ButtonGroup": {
+      "Orientation=Horizontal": "37:42",
+      "Orientation=Vertical": "37:61"
+    },
+    "StatusSelect": {
+      "Status=ok, Device=Desktop": "38:13",
+      "Status=attention, Device=Desktop": "38:19",
+      "Status=in_progress, Device=Desktop": "38:25",
+      "Status=needs_master, Device=Desktop": "38:31",
+      "Status=ok, Device=Mobile": "38:37",
+      "Status=attention, Device=Mobile": "38:43",
+      "Status=in_progress, Device=Mobile": "38:49",
+      "Status=needs_master, Device=Mobile": "38:55"
+    },
+    "ApartmentSwitcher": {
+      "State=Selected, Device=Desktop": "40:170",
+      "State=Loading, Device=Desktop": "40:190",
+      "State=Empty, Device=Desktop": "40:207",
+      "State=Selected, Device=Mobile": "40:222",
+      "State=Loading, Device=Mobile": "40:239",
+      "State=Empty, Device=Mobile": "40:256"
+    },
+    "Sidebar": {
+      "Mode=Expanded": "42:232",
+      "Mode=Narrow": "42:339",
+      "Mode=Collapsed": "42:440"
+    }
+  },
+  "buttonSets": {
+    "default": "11:34",
+    "secondary": "11:64",
+    "outline": "11:94",
+    "ghost": "11:124",
+    "destructive": "11:154",
+    "destructive-outline": "11:184",
+    "success": "11:214",
+    "success-outline": "11:244",
+    "warning": "11:274",
+    "warning-outline": "11:304",
+    "link": "11:334"
+  },
+  "buttons": {
+    "default": "11:5",
+    "secondary": "11:35",
+    "outline": "11:65",
+    "ghost": "11:95",
+    "destructive": "11:125",
+    "destructive-outline": "11:155",
+    "success": "11:185",
+    "success-outline": "11:215",
+    "warning": "11:245",
+    "warning-outline": "11:275",
+    "link": "11:305"
+  },
+  "buttonExtra": {
+    "sets": {
+      "sizes": "14:34",
+      "icons": "14:60",
+      "lab": "14:65"
+    },
+    "createdNodeIds": [
+      "14:24",
+      "14:25",
+      "14:26",
+      "14:27",
+      "14:28",
+      "14:29",
+      "14:30",
+      "14:31",
+      "14:32",
+      "14:33",
+      "14:34",
+      "14:35",
+      "14:36",
+      "I14:36;10:6",
+      "I14:36;10:7",
+      "I14:36;10:8",
+      "14:40",
+      "14:41",
+      "I14:41;10:6",
+      "I14:41;10:7",
+      "I14:41;10:8",
+      "14:45",
+      "14:46",
+      "I14:46;10:6",
+      "I14:46;10:7",
+      "I14:46;10:8",
+      "14:50",
+      "14:51",
+      "I14:51;10:6",
+      "I14:51;10:7",
+      "I14:51;10:8",
+      "14:55",
+      "14:56",
+      "I14:56;10:6",
+      "I14:56;10:7",
+      "I14:56;10:8",
+      "14:60",
+      "14:61",
+      "14:62",
+      "14:63",
+      "14:64",
+      "14:65"
+    ],
+    "audit": {
+      "unstyled": [],
+      "unbound": []
+    }
+  },
+  "icons": {
+    "Plus": "10:5",
+    "X": "10:10",
+    "Check": "10:15",
+    "ChevronDown": "10:19",
+    "ChevronUp": "10:23",
+    "ChevronRight": "10:27",
+    "ArrowLeft": "10:31",
+    "ArrowRight": "10:36",
+    "ArrowUp": "10:41",
+    "Search": "10:46",
+    "Pencil": "10:51",
+    "Trash2": "10:56",
+    "Save": "10:64",
+    "LoaderCircle": "10:70",
+    "AlertTriangle": "10:74",
+    "ReceiptText": "10:80",
+    "Wrench": "10:87",
+    "Bot": "10:91",
+    "Mic": "10:100",
+    "Paperclip": "10:106",
+    "FileText": "10:110",
+    "Image": "10:118",
+    "Upload": "10:124",
+    "Clock": "10:130",
+    "Moon": "10:135",
+    "Sun": "10:139",
+    "Monitor": "10:151",
+    "PanelLeftClose": "10:157",
+    "PanelLeftOpen": "10:163",
+    "LayoutDashboard": "10:169",
+    "Map": "10:176",
+    "List": "10:182",
+    "History": "10:191",
+    "Settings": "10:197",
+    "User": "10:202",
+    "Droplets": "10:207",
+    "Zap": "10:212",
+    "Gauge": "10:216",
+    "Ellipsis": "10:221",
+    "Download": "10:227",
+    "Copy": "10:233",
+    "ExternalLink": "10:238",
+    "Circle": "10:244",
+    "Calendar": "10:248",
+    "ClipboardCheck": "10:255",
+    "CornerDownLeft": "22:2",
+    "Square": "22:6",
+    "Clock3": "22:9"
+  },
+  "cardSlots": {
+    "slots": {
+      "CardContent": "27:6",
+      "CardFooter": "27:8"
+    },
+    "keys": {
+      "contentKey": "Content slot#27:1",
+      "footerKey": "Footer slot#27:4"
+    },
+    "createdNodeIds": [
+      "27:6",
+      "27:7",
+      "27:8",
+      "27:9",
+      "I27:9;11:10",
+      "27:18",
+      "I27:18;27:7",
+      "27:20",
+      "I27:20;27:9",
+      "I27:20;27:9;11:10",
+      "17:152",
+      "27:24",
+      "I27:24;27:7",
+      "27:26",
+      "I27:26;27:9",
+      "I27:26;27:9;11:10",
+      "17:168"
+    ],
+    "removedNodeIds": [
+      "17:156",
+      "17:158",
+      "17:172",
+      "17:174"
+    ],
+    "setId": "17:181",
+    "audit": {
+      "unstyled": [],
+      "unbound": []
+    }
+  },
+  "brand": {
+    "componentId": "31:2"
+  },
+  "brandSymbol": {
+    "componentId": "41:2",
+    "createdNodeIds": [
+      "41:2",
+      "41:3",
+      "41:4",
+      "41:5",
+      "41:6",
+      "41:7"
+    ],
+    "createdVariableIds": [
+      "VariableID:41:8",
+      "VariableID:41:9",
+      "VariableID:41:10",
+      "VariableID:41:11",
+      "VariableID:41:12",
+      "VariableID:41:13"
+    ]
+  },
+  "changesThisContinuation": {
+    "sidebar": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"mutatedNodeIds\":[\"40:171\",\"40:191\",\"40:208\",\"40:223\",\"40:240\",\"40:257\",\"I42:361;40:171\"],\"width\":180,\"available\":224}"
+        }
+      ],
+      "isError": false
+    },
+    "tabs": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"mutatedNodeIds\":[\"17:106\",\"17:112\"],\"variableId\":\"VariableID:17:235\"}"
+        }
+      ],
+      "isError": false
+    },
+    "themeQA": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"createdNodeIds\":[\"43:1308\",\"43:1309\",\"43:1310\",\"I43:1310;17:135\",\"I43:1310;17:135;17:113\",\"I43:1310;17:137\",\"I43:1310;17:137;17:111\",\"I43:1310;17:139\",\"I43:1310;17:139;17:111\",\"43:1317\",\"I43:1317;28:680\",\"I43:1317;28:680;17:153\",\"I43:1317;28:680;28:12\",\"I43:1317;28:680;17:154\",\"I43:1317;28:680;17:155\",\"I43:1317;28:680;28:13\",\"I43:1317;28:680;28:13;16:28\",\"I43:1317;28:680;27:18\",\"I43:1317;28:680;27:18;28:433\",\"I43:1317;28:680;27:18;28:433;25:48\",\"I43:1317;28:680;27:18;28:433;25:49\",\"I43:1317;28:680;27:18;28:433;25:50\",\"I43:1317;28:680;27:18;28:433;25:51\",\"I43:1317;28:680;27:18;28:433;25:52\",\"I43:1317;28:680;27:18;28:433;25:53\",\"I43:1317;28:680;27:18;28:433;25:54\",\"I43:1317;28:680;27:18;28:433;25:55\",\"I43:1317;28:680;27:18;28:433;25:56\",\"I43:1317;28:680;27:20\",\"I43:1317;28:680;27:20;28:495\",\"I43:1317;28:680;27:20;28:495;11:66\",\"I43:1317;28:680;27:20;28:495;11:66;10:81\",\"I43:1317;28:680;27:20;28:495;11:66;10:82\",\"I43:1317;28:680;27:20;28:495;11:66;10:83\",\"I43:1317;28:680;27:20;28:495;11:66;10:84\",\"I43:1317;28:680;27:20;28:495;11:66;10:85\",\"I43:1317;28:680;27:20;28:495;11:70\",\"I43:1317;28:680;27:20;28:506\",\"I43:1317;28:680;27:20;28:506;11:6\",\"I43:1317;28:680;27:20;28:506;11:6;10:16\",\"I43:1317;28:680;27:20;28:506;11:6;10:17\",\"I43:1317;28:680;27:20;28:506;11:10\",\"43:1350\",\"43:1351\",\"43:1352\",\"I43:1352;17:135\",\"I43:1352;17:135;17:113\",\"I43:1352;17:137\",\"I43:1352;17:137;17:111\",\"I43:1352;17:139\",\"I43:1352;17:139;17:111\",\"43:1359\",\"I43:1359;28:680\",\"I43:1359;28:680;17:153\",\"I43:1359;28:680;28:12\",\"I43:1359;28:680;17:154\",\"I43:1359;28:680;17:155\",\"I43:1359;28:680;28:13\",\"I43:1359;28:680;28:13;16:28\",\"I43:1359;28:680;27:18\",\"I43:1359;28:680;27:18;28:433\",\"I43:1359;28:680;27:18;28:433;25:48\",\"I43:1359;28:680;27:18;28:433;25:49\",\"I43:1359;28:680;27:18;28:433;25:50\",\"I43:1359;28:680;27:18;28:433;25:51\",\"I43:1359;28:680;27:18;28:433;25:52\",\"I43:1359;28:680;27:18;28:433;25:53\",\"I43:1359;28:680;27:18;28:433;25:54\",\"I43:1359;28:680;27:18;28:433;25:55\",\"I43:1359;28:680;27:18;28:433;25:56\",\"I43:1359;28:680;27:20\",\"I43:1359;28:680;27:20;28:495\",\"I43:1359;28:680;27:20;28:495;11:66\",\"I43:1359;28:680;27:20;28:495;11:66;10:81\",\"I43:1359;28:680;27:20;28:495;11:66;10:82\",\"I43:1359;28:680;27:20;28:495;11:66;10:83\",\"I43:1359;28:680;27:20;28:495;11:66;10:84\",\"I43:1359;28:680;27:20;28:495;11:66;10:85\",\"I43:1359;28:680;27:20;28:495;11:70\",\"I43:1359;28:680;27:20;28:506\",\"I43:1359;28:680;27:20;28:506;11:6\",\"I43:1359;28:680;27:20;28:506;11:6;10:16\",\"I43:1359;28:680;27:20;28:506;11:6;10:17\",\"I43:1359;28:680;27:20;28:506;11:10\"],\"boards\":[{\"id\":\"43:1308\",\"mode\":\"Light\"},{\"id\":\"43:1350\",\"mode\":\"Dark\"}]}"
+        }
+      ],
+      "isError": false
+    }
+  },
+  "results": [
+    {
+      "name": "Input",
+      "pageId": "7:6",
+      "setId": "15:25",
+      "variants": {
+        "State=Default, Device=Desktop": "15:5",
+        "State=Filled, Device=Desktop": "15:7",
+        "State=Focus, Device=Desktop": "15:9",
+        "State=Error, Device=Desktop": "15:11",
+        "State=Disabled, Device=Desktop": "15:13",
+        "State=Default, Device=Mobile": "15:15",
+        "State=Filled, Device=Mobile": "15:17",
+        "State=Focus, Device=Mobile": "15:19",
+        "State=Error, Device=Mobile": "15:21",
+        "State=Disabled, Device=Mobile": "15:23"
+      },
+      "createdNodeIds": [
+        "15:2",
+        "15:3",
+        "15:4",
+        "15:5",
+        "15:6",
+        "15:7",
+        "15:8",
+        "15:9",
+        "15:10",
+        "15:11",
+        "15:12",
+        "15:13",
+        "15:14",
+        "15:15",
+        "15:16",
+        "15:17",
+        "15:18",
+        "15:19",
+        "15:20",
+        "15:21",
+        "15:22",
+        "15:23",
+        "15:24",
+        "15:25"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Textarea",
+      "pageId": "7:6",
+      "setId": "15:49",
+      "variants": {
+        "State=Default, Device=Desktop": "15:29",
+        "State=Filled, Device=Desktop": "15:31",
+        "State=Focus, Device=Desktop": "15:33",
+        "State=Error, Device=Desktop": "15:35",
+        "State=Disabled, Device=Desktop": "15:37",
+        "State=Default, Device=Mobile": "15:39",
+        "State=Filled, Device=Mobile": "15:41",
+        "State=Focus, Device=Mobile": "15:43",
+        "State=Error, Device=Mobile": "15:45",
+        "State=Disabled, Device=Mobile": "15:47"
+      },
+      "createdNodeIds": [
+        "15:26",
+        "15:27",
+        "15:28",
+        "15:29",
+        "15:30",
+        "15:31",
+        "15:32",
+        "15:33",
+        "15:34",
+        "15:35",
+        "15:36",
+        "15:37",
+        "15:38",
+        "15:39",
+        "15:40",
+        "15:41",
+        "15:42",
+        "15:43",
+        "15:44",
+        "15:45",
+        "15:46",
+        "15:47",
+        "15:48",
+        "15:49"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Select",
+      "pageId": "7:6",
+      "setId": "15:103",
+      "variants": {
+        "State=Default, Device=Desktop": "15:53",
+        "State=Filled, Device=Desktop": "15:58",
+        "State=Focus, Device=Desktop": "15:63",
+        "State=Error, Device=Desktop": "15:68",
+        "State=Disabled, Device=Desktop": "15:73",
+        "State=Default, Device=Mobile": "15:78",
+        "State=Filled, Device=Mobile": "15:83",
+        "State=Focus, Device=Mobile": "15:88",
+        "State=Error, Device=Mobile": "15:93",
+        "State=Disabled, Device=Mobile": "15:98"
+      },
+      "createdNodeIds": [
+        "15:50",
+        "15:51",
+        "15:52",
+        "15:53",
+        "15:54",
+        "15:55",
+        "I15:55;10:20",
+        "I15:55;10:21",
+        "15:58",
+        "15:59",
+        "15:60",
+        "I15:60;10:20",
+        "I15:60;10:21",
+        "15:63",
+        "15:64",
+        "15:65",
+        "I15:65;10:20",
+        "I15:65;10:21",
+        "15:68",
+        "15:69",
+        "15:70",
+        "I15:70;10:20",
+        "I15:70;10:21",
+        "15:73",
+        "15:74",
+        "15:75",
+        "I15:75;10:20",
+        "I15:75;10:21",
+        "15:78",
+        "15:79",
+        "15:80",
+        "I15:80;10:20",
+        "I15:80;10:21",
+        "15:83",
+        "15:84",
+        "15:85",
+        "I15:85;10:20",
+        "I15:85;10:21",
+        "15:88",
+        "15:89",
+        "15:90",
+        "I15:90;10:20",
+        "I15:90;10:21",
+        "15:93",
+        "15:94",
+        "15:95",
+        "I15:95;10:20",
+        "I15:95;10:21",
+        "15:98",
+        "15:99",
+        "15:100",
+        "I15:100;10:20",
+        "I15:100;10:21",
+        "15:103"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "InputGroup",
+      "pageId": "7:6",
+      "setId": "15:167",
+      "variants": {
+        "State=Default, Device=Desktop": "15:107",
+        "State=Filled, Device=Desktop": "15:113",
+        "State=Focus, Device=Desktop": "15:119",
+        "State=Error, Device=Desktop": "15:125",
+        "State=Disabled, Device=Desktop": "15:131",
+        "State=Default, Device=Mobile": "15:137",
+        "State=Filled, Device=Mobile": "15:143",
+        "State=Focus, Device=Mobile": "15:149",
+        "State=Error, Device=Mobile": "15:155",
+        "State=Disabled, Device=Mobile": "15:161"
+      },
+      "createdNodeIds": [
+        "15:104",
+        "15:105",
+        "15:106",
+        "15:107",
+        "15:108",
+        "I15:108;10:47",
+        "I15:108;10:48",
+        "I15:108;10:49",
+        "15:112",
+        "15:113",
+        "15:114",
+        "I15:114;10:47",
+        "I15:114;10:48",
+        "I15:114;10:49",
+        "15:118",
+        "15:119",
+        "15:120",
+        "I15:120;10:47",
+        "I15:120;10:48",
+        "I15:120;10:49",
+        "15:124",
+        "15:125",
+        "15:126",
+        "I15:126;10:47",
+        "I15:126;10:48",
+        "I15:126;10:49",
+        "15:130",
+        "15:131",
+        "15:132",
+        "I15:132;10:47",
+        "I15:132;10:48",
+        "I15:132;10:49",
+        "15:136",
+        "15:137",
+        "15:138",
+        "I15:138;10:47",
+        "I15:138;10:48",
+        "I15:138;10:49",
+        "15:142",
+        "15:143",
+        "15:144",
+        "I15:144;10:47",
+        "I15:144;10:48",
+        "I15:144;10:49",
+        "15:148",
+        "15:149",
+        "15:150",
+        "I15:150;10:47",
+        "I15:150;10:48",
+        "I15:150;10:49",
+        "15:154",
+        "15:155",
+        "15:156",
+        "I15:156;10:47",
+        "I15:156;10:48",
+        "I15:156;10:49",
+        "15:160",
+        "15:161",
+        "15:162",
+        "I15:162;10:47",
+        "I15:162;10:48",
+        "I15:162;10:49",
+        "15:166",
+        "15:167"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "SelectItem",
+      "pageId": "7:7",
+      "setId": "15:182",
+      "variants": {
+        "State=Default": "15:171",
+        "State=Selected": "15:173",
+        "State=Hover": "15:178",
+        "State=Disabled": "15:180"
+      },
+      "createdNodeIds": [
+        "15:168",
+        "15:169",
+        "15:170",
+        "15:171",
+        "15:172",
+        "15:173",
+        "15:174",
+        "15:175",
+        "I15:175;10:16",
+        "I15:175;10:17",
+        "15:178",
+        "15:179",
+        "15:180",
+        "15:181",
+        "15:182"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "SelectContent",
+      "pageId": "7:7",
+      "setId": "15:196",
+      "variants": {
+        "State=Open": "15:186"
+      },
+      "createdNodeIds": [
+        "15:183",
+        "15:184",
+        "15:185",
+        "15:186",
+        "15:187",
+        "I15:187;15:174",
+        "I15:187;15:175",
+        "I15:187;15:175;10:16",
+        "I15:187;15:175;10:17",
+        "15:192",
+        "I15:192;15:172",
+        "15:194",
+        "I15:194;15:172",
+        "15:196"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Badge",
+      "pageId": "7:7",
+      "setId": "16:29",
+      "variants": {
+        "Tone=default": "16:13",
+        "Tone=secondary": "16:15",
+        "Tone=outline": "16:17",
+        "Tone=ghost": "16:19",
+        "Tone=link": "16:21",
+        "Tone=destructive": "16:23",
+        "Tone=success": "16:25",
+        "Tone=warning": "16:27"
+      },
+      "createdNodeIds": [
+        "16:10",
+        "16:11",
+        "16:12",
+        "16:13",
+        "16:14",
+        "16:15",
+        "16:16",
+        "16:17",
+        "16:18",
+        "16:19",
+        "16:20",
+        "16:21",
+        "16:22",
+        "16:23",
+        "16:24",
+        "16:25",
+        "16:26",
+        "16:27",
+        "16:28",
+        "16:29"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "StatusBadge",
+      "pageId": "7:7",
+      "setId": "16:41",
+      "variants": {
+        "Status=ok": "16:33",
+        "Status=attention": "16:35",
+        "Status=in_progress": "16:37",
+        "Status=needs_master": "16:39"
+      },
+      "createdNodeIds": [
+        "16:30",
+        "16:31",
+        "16:32",
+        "16:33",
+        "16:34",
+        "16:35",
+        "16:36",
+        "16:37",
+        "16:38",
+        "16:39",
+        "16:40",
+        "16:41"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "TabsTrigger",
+      "pageId": "7:8",
+      "setId": "17:116",
+      "variants": {
+        "State=Default, Device=Desktop": "17:104",
+        "State=Active, Device=Desktop": "17:106",
+        "State=Disabled, Device=Desktop": "17:108",
+        "State=Default, Device=Mobile": "17:110",
+        "State=Active, Device=Mobile": "17:112",
+        "State=Disabled, Device=Mobile": "17:114"
+      },
+      "createdNodeIds": [
+        "17:101",
+        "17:102",
+        "17:103",
+        "17:104",
+        "17:105",
+        "17:106",
+        "17:107",
+        "17:108",
+        "17:109",
+        "17:110",
+        "17:111",
+        "17:112",
+        "17:113",
+        "17:114",
+        "17:115",
+        "17:116"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Tabs",
+      "pageId": "7:8",
+      "setId": "17:148",
+      "variants": {
+        "Variant=Default, Device=Desktop": "17:120",
+        "Variant=Line, Device=Desktop": "17:127",
+        "Variant=Default, Device=Mobile": "17:134",
+        "Variant=Line, Device=Mobile": "17:141"
+      },
+      "createdNodeIds": [
+        "17:117",
+        "17:118",
+        "17:119",
+        "17:120",
+        "17:121",
+        "I17:121;17:107",
+        "17:123",
+        "I17:123;17:105",
+        "17:125",
+        "I17:125;17:105",
+        "17:127",
+        "17:128",
+        "I17:128;17:107",
+        "17:130",
+        "I17:130;17:105",
+        "17:132",
+        "I17:132;17:105",
+        "17:134",
+        "17:135",
+        "I17:135;17:113",
+        "17:137",
+        "I17:137;17:111",
+        "17:139",
+        "I17:139;17:111",
+        "17:141",
+        "17:142",
+        "I17:142;17:113",
+        "17:144",
+        "I17:144;17:111",
+        "17:146",
+        "I17:146;17:111",
+        "17:148"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Card",
+      "pageId": "7:9",
+      "setId": "17:181",
+      "variants": {
+        "Size=Default": "17:152",
+        "Size=Small": "17:168"
+      },
+      "createdNodeIds": [
+        "17:149",
+        "17:150",
+        "17:151",
+        "17:152",
+        "17:153",
+        "17:154",
+        "17:155",
+        "17:156",
+        "17:157",
+        "17:158",
+        "17:159",
+        "I17:159;11:10",
+        "17:168",
+        "17:169",
+        "17:170",
+        "17:171",
+        "17:172",
+        "17:173",
+        "17:174",
+        "17:175",
+        "I17:175;11:10",
+        "17:181"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "StatCard",
+      "pageId": "7:9",
+      "setId": "17:194",
+      "variants": {
+        "Tone=Default": "17:185",
+        "Tone=Warning": "17:188",
+        "Tone=Error": "17:191"
+      },
+      "createdNodeIds": [
+        "17:182",
+        "17:183",
+        "17:184",
+        "17:185",
+        "17:186",
+        "17:187",
+        "17:188",
+        "17:189",
+        "17:190",
+        "17:191",
+        "17:192",
+        "17:193",
+        "17:194"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "MenuItem",
+      "pageId": "7:11",
+      "setId": "17:211",
+      "variants": {
+        "State=Default": "17:198",
+        "State=Selected": "17:200",
+        "State=Hover": "17:205",
+        "State=Disabled": "17:207",
+        "State=Destructive": "17:209"
+      },
+      "createdNodeIds": [
+        "17:195",
+        "17:196",
+        "17:197",
+        "17:198",
+        "17:199",
+        "17:200",
+        "17:201",
+        "17:202",
+        "I17:202;10:16",
+        "I17:202;10:17",
+        "17:205",
+        "17:206",
+        "17:207",
+        "17:208",
+        "17:209",
+        "17:210",
+        "17:211"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "DropdownMenu",
+      "pageId": "7:11",
+      "setId": "17:225",
+      "variants": {
+        "State=Open": "17:215"
+      },
+      "createdNodeIds": [
+        "17:212",
+        "17:213",
+        "17:214",
+        "17:215",
+        "17:216",
+        "I17:216;17:201",
+        "I17:216;17:202",
+        "I17:216;17:202;10:16",
+        "I17:216;17:202;10:17",
+        "17:221",
+        "I17:221;17:199",
+        "17:223",
+        "I17:223;17:199",
+        "17:225"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Dialog",
+      "pageId": "7:11",
+      "setId": "18:65",
+      "variants": {
+        "Device=Desktop": "18:13",
+        "Device=Mobile": "18:42"
+      },
+      "createdNodeIds": [
+        "18:10",
+        "18:11",
+        "18:12",
+        "18:13",
+        "18:14",
+        "18:15",
+        "18:16",
+        "18:17",
+        "I18:17;15:8",
+        "18:19",
+        "18:20",
+        "I18:20;11:70",
+        "18:29",
+        "I18:29;11:10",
+        "18:38",
+        "I18:38;10:11",
+        "I18:38;10:12",
+        "I18:38;10:13",
+        "18:42",
+        "18:43",
+        "18:44",
+        "18:45",
+        "18:46",
+        "I18:46;15:18",
+        "18:48",
+        "18:49",
+        "I18:49;11:10",
+        "18:55",
+        "I18:55;11:70",
+        "18:61",
+        "I18:61;10:11",
+        "I18:61;10:12",
+        "I18:61;10:13",
+        "18:65"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "AlertDialog",
+      "pageId": "7:11",
+      "setId": "18:106",
+      "variants": {
+        "Device=Desktop": "18:69",
+        "Device=Mobile": "18:89"
+      },
+      "createdNodeIds": [
+        "18:66",
+        "18:67",
+        "18:68",
+        "18:69",
+        "18:70",
+        "18:71",
+        "18:72",
+        "18:73",
+        "18:74",
+        "I18:74;11:70",
+        "18:80",
+        "I18:80;11:130",
+        "18:89",
+        "18:90",
+        "18:91",
+        "18:92",
+        "18:93",
+        "18:94",
+        "I18:94;11:130",
+        "18:100",
+        "I18:100;11:70",
+        "18:106"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "HoverCard",
+      "pageId": "7:11",
+      "setId": "19:157",
+      "variants": {
+        "State=Open": "19:154"
+      },
+      "createdNodeIds": [
+        "19:151",
+        "19:152",
+        "19:153",
+        "19:154",
+        "19:155",
+        "19:156",
+        "19:157"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "NavItem",
+      "pageId": "7:10",
+      "setId": "19:195",
+      "variants": {
+        "Mode=Expanded, Active=False": "19:161",
+        "Mode=Expanded, Active=True": "19:169",
+        "Mode=Collapsed, Active=False": "19:177",
+        "Mode=Collapsed, Active=True": "19:184",
+        "Mode=Mobile, Active=False": "19:191",
+        "Mode=Mobile, Active=True": "19:193"
+      },
+      "createdNodeIds": [
+        "19:158",
+        "19:159",
+        "19:160",
+        "19:161",
+        "19:162",
+        "I19:162;10:170",
+        "I19:162;10:171",
+        "I19:162;10:172",
+        "I19:162;10:173",
+        "I19:162;10:174",
+        "19:168",
+        "19:169",
+        "19:170",
+        "I19:170;10:170",
+        "I19:170;10:171",
+        "I19:170;10:172",
+        "I19:170;10:173",
+        "I19:170;10:174",
+        "19:176",
+        "19:177",
+        "19:178",
+        "I19:178;10:170",
+        "I19:178;10:171",
+        "I19:178;10:172",
+        "I19:178;10:173",
+        "I19:178;10:174",
+        "19:184",
+        "19:185",
+        "I19:185;10:170",
+        "I19:185;10:171",
+        "I19:185;10:172",
+        "I19:185;10:173",
+        "I19:185;10:174",
+        "19:191",
+        "19:192",
+        "19:193",
+        "19:194",
+        "19:195"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "DashboardClock",
+      "pageId": "7:10",
+      "setId": "19:211",
+      "variants": {
+        "Device=Desktop": "19:199",
+        "Device=Mobile": "19:207"
+      },
+      "createdNodeIds": [
+        "19:196",
+        "19:197",
+        "19:198",
+        "19:199",
+        "19:200",
+        "I19:200;10:131",
+        "I19:200;10:132",
+        "I19:200;10:133",
+        "19:204",
+        "19:205",
+        "19:206",
+        "19:207",
+        "19:208",
+        "19:209",
+        "19:210",
+        "19:211"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "ThemeToggle",
+      "pageId": "7:10",
+      "setId": "19:237",
+      "variants": {
+        "Theme=Light": "19:215",
+        "Theme=Dark": "19:227",
+        "Theme=System": "19:231"
+      },
+      "createdNodeIds": [
+        "19:212",
+        "19:213",
+        "19:214",
+        "19:215",
+        "19:216",
+        "I19:216;10:140",
+        "I19:216;10:141",
+        "I19:216;10:142",
+        "I19:216;10:143",
+        "I19:216;10:144",
+        "I19:216;10:145",
+        "I19:216;10:146",
+        "I19:216;10:147",
+        "I19:216;10:148",
+        "I19:216;10:149",
+        "19:227",
+        "19:228",
+        "I19:228;10:136",
+        "I19:228;10:137",
+        "19:231",
+        "19:232",
+        "I19:232;10:152",
+        "I19:232;10:153",
+        "I19:232;10:154",
+        "I19:232;10:155",
+        "19:237"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "TaskItemFile",
+      "pageId": "7:12",
+      "setId": "20:47",
+      "variants": {
+        "State=Default": "20:45"
+      },
+      "createdNodeIds": [
+        "20:42",
+        "20:43",
+        "20:44",
+        "20:45",
+        "20:46",
+        "20:47"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Task",
+      "pageId": "7:12",
+      "setId": "21:27",
+      "variants": {
+        "State=Open": "21:5",
+        "State=Closed": "21:17"
+      },
+      "createdNodeIds": [
+        "21:2",
+        "21:3",
+        "21:4",
+        "21:5",
+        "21:6",
+        "21:7",
+        "I21:7;10:47",
+        "I21:7;10:48",
+        "I21:7;10:49",
+        "21:11",
+        "21:12",
+        "I21:12;10:24",
+        "I21:12;10:25",
+        "21:15",
+        "21:16",
+        "21:17",
+        "21:18",
+        "21:19",
+        "I21:19;10:47",
+        "I21:19;10:48",
+        "I21:19;10:49",
+        "21:23",
+        "21:24",
+        "I21:24;10:20",
+        "I21:24;10:21",
+        "21:27"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Separator",
+      "pageId": "7:14",
+      "setId": "21:215",
+      "variants": {
+        "Orientation=Horizontal": "21:213",
+        "Orientation=Vertical": "21:214"
+      },
+      "createdNodeIds": [
+        "21:210",
+        "21:211",
+        "21:212",
+        "21:213",
+        "21:214",
+        "21:215"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Spinner",
+      "pageId": "7:14",
+      "setId": "21:223",
+      "variants": {
+        "State=Loading": "21:219"
+      },
+      "createdNodeIds": [
+        "21:216",
+        "21:217",
+        "21:218",
+        "21:219",
+        "21:220",
+        "I21:220;10:71",
+        "I21:220;10:72",
+        "21:223"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Message",
+      "pageId": "7:13",
+      "setId": "23:25",
+      "variants": {
+        "Role=User, Device=Desktop": "23:5",
+        "Role=Assistant, Device=Desktop": "23:10",
+        "Role=User, Device=Mobile": "23:15",
+        "Role=Assistant, Device=Mobile": "23:20"
+      },
+      "createdNodeIds": [
+        "23:2",
+        "23:3",
+        "23:4",
+        "23:5",
+        "23:6",
+        "23:7",
+        "23:8",
+        "23:9",
+        "23:10",
+        "23:11",
+        "23:12",
+        "23:13",
+        "23:14",
+        "23:15",
+        "23:16",
+        "23:17",
+        "23:18",
+        "23:19",
+        "23:20",
+        "23:21",
+        "23:22",
+        "23:23",
+        "23:24",
+        "23:25"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "PromptInput",
+      "pageId": "7:13",
+      "setId": "24:338",
+      "variants": {
+        "State=Default, Device=Desktop": "24:5",
+        "State=Sending, Device=Desktop": "24:44",
+        "State=Recording, Device=Desktop": "24:76",
+        "State=Error, Device=Desktop": "24:110",
+        "State=Disabled, Device=Desktop": "24:143",
+        "State=Default, Device=Mobile": "24:176",
+        "State=Sending, Device=Mobile": "24:209",
+        "State=Recording, Device=Mobile": "24:241",
+        "State=Error, Device=Mobile": "24:272",
+        "State=Disabled, Device=Mobile": "24:305"
+      },
+      "createdNodeIds": [
+        "24:2",
+        "24:3",
+        "24:4",
+        "24:5",
+        "24:6",
+        "24:7",
+        "24:8",
+        "24:9",
+        "I24:9;11:100",
+        "24:21",
+        "I24:21;11:100",
+        "24:31",
+        "24:32",
+        "I24:32;11:10",
+        "24:44",
+        "24:45",
+        "24:46",
+        "24:47",
+        "24:48",
+        "I24:48;11:100",
+        "24:57",
+        "I24:57;11:100",
+        "24:67",
+        "24:68",
+        "I24:68;11:10",
+        "24:76",
+        "24:77",
+        "24:78",
+        "24:79",
+        "24:80",
+        "I24:80;11:100",
+        "24:89",
+        "I24:89;11:130",
+        "24:100",
+        "24:101",
+        "I24:101;11:10",
+        "24:110",
+        "24:111",
+        "24:112",
+        "24:113",
+        "24:114",
+        "I24:114;11:100",
+        "24:123",
+        "I24:123;11:100",
+        "24:133",
+        "24:134",
+        "I24:134;11:10",
+        "24:143",
+        "24:144",
+        "24:145",
+        "24:146",
+        "24:147",
+        "I24:147;11:100",
+        "24:156",
+        "I24:156;11:100",
+        "24:166",
+        "24:167",
+        "I24:167;11:10",
+        "24:176",
+        "24:177",
+        "24:178",
+        "24:179",
+        "24:180",
+        "I24:180;11:100",
+        "24:189",
+        "I24:189;11:100",
+        "24:199",
+        "24:200",
+        "I24:200;11:10",
+        "24:209",
+        "24:210",
+        "24:211",
+        "24:212",
+        "24:213",
+        "I24:213;11:100",
+        "24:222",
+        "I24:222;11:100",
+        "24:232",
+        "24:233",
+        "I24:233;11:10",
+        "24:241",
+        "24:242",
+        "24:243",
+        "24:244",
+        "24:245",
+        "I24:245;11:100",
+        "24:254",
+        "I24:254;11:130",
+        "24:262",
+        "24:263",
+        "I24:263;11:10",
+        "24:272",
+        "24:273",
+        "24:274",
+        "24:275",
+        "24:276",
+        "I24:276;11:100",
+        "24:285",
+        "I24:285;11:100",
+        "24:295",
+        "24:296",
+        "I24:296;11:10",
+        "24:305",
+        "24:306",
+        "24:307",
+        "24:308",
+        "24:309",
+        "I24:309;11:100",
+        "24:318",
+        "I24:318;11:100",
+        "24:328",
+        "24:329",
+        "I24:329;11:10",
+        "24:338"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "DecisionRow",
+      "pageId": "7:15",
+      "setId": "25:33",
+      "variants": {
+        "Device=Desktop": "25:5",
+        "Device=Mobile": "25:19"
+      },
+      "createdNodeIds": [
+        "25:2",
+        "25:3",
+        "25:4",
+        "25:5",
+        "25:6",
+        "25:7",
+        "I25:7;10:75",
+        "I25:7;10:76",
+        "I25:7;10:77",
+        "I25:7;10:78",
+        "25:12",
+        "25:13",
+        "25:14",
+        "25:15",
+        "I25:15;10:37",
+        "I25:15;10:38",
+        "I25:15;10:39",
+        "25:19",
+        "25:20",
+        "25:21",
+        "I25:21;10:75",
+        "I25:21;10:76",
+        "I25:21;10:77",
+        "I25:21;10:78",
+        "25:26",
+        "25:27",
+        "25:28",
+        "25:29",
+        "I25:29;10:37",
+        "I25:29;10:38",
+        "I25:29;10:39",
+        "25:33"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "UtilityContent",
+      "pageId": "7:15",
+      "setId": "25:57",
+      "variants": {
+        "Device=Desktop": "25:37",
+        "Device=Mobile": "25:47"
+      },
+      "createdNodeIds": [
+        "25:34",
+        "25:35",
+        "25:36",
+        "25:37",
+        "25:38",
+        "25:39",
+        "25:40",
+        "25:41",
+        "25:42",
+        "25:43",
+        "25:44",
+        "25:45",
+        "25:46",
+        "25:47",
+        "25:48",
+        "25:49",
+        "25:50",
+        "25:51",
+        "25:52",
+        "25:53",
+        "25:54",
+        "25:55",
+        "25:56",
+        "25:57"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "TaskSummary",
+      "pageId": "7:15",
+      "setId": "25:75",
+      "variants": {
+        "Device=Desktop": "25:61",
+        "Device=Mobile": "25:68"
+      },
+      "createdNodeIds": [
+        "25:58",
+        "25:59",
+        "25:60",
+        "25:61",
+        "25:62",
+        "25:63",
+        "I25:63;10:88",
+        "I25:63;10:89",
+        "25:66",
+        "25:67",
+        "25:68",
+        "25:69",
+        "25:70",
+        "I25:70;10:88",
+        "I25:70;10:89",
+        "25:73",
+        "25:74",
+        "25:75"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "ProductCardContent",
+      "pageId": "7:9",
+      "setId": "28:451",
+      "variants": {
+        "Type=Decision, Device=Desktop": "28:383",
+        "Type=Utility, Device=Desktop": "28:398",
+        "Type=Task, Device=Desktop": "28:409",
+        "Type=Decision, Device=Mobile": "28:417",
+        "Type=Utility, Device=Mobile": "28:432",
+        "Type=Task, Device=Mobile": "28:443"
+      },
+      "createdNodeIds": [
+        "28:380",
+        "28:381",
+        "28:382",
+        "28:383",
+        "28:384",
+        "I28:384;25:6",
+        "I28:384;25:7",
+        "I28:384;25:7;10:75",
+        "I28:384;25:7;10:76",
+        "I28:384;25:7;10:77",
+        "I28:384;25:7;10:78",
+        "I28:384;25:12",
+        "I28:384;25:13",
+        "I28:384;25:14",
+        "I28:384;25:15",
+        "I28:384;25:15;10:37",
+        "I28:384;25:15;10:38",
+        "I28:384;25:15;10:39",
+        "28:398",
+        "28:399",
+        "I28:399;25:38",
+        "I28:399;25:39",
+        "I28:399;25:40",
+        "I28:399;25:41",
+        "I28:399;25:42",
+        "I28:399;25:43",
+        "I28:399;25:44",
+        "I28:399;25:45",
+        "I28:399;25:46",
+        "28:409",
+        "28:410",
+        "I28:410;25:62",
+        "I28:410;25:63",
+        "I28:410;25:63;10:88",
+        "I28:410;25:63;10:89",
+        "I28:410;25:66",
+        "I28:410;25:67",
+        "28:417",
+        "28:418",
+        "I28:418;25:20",
+        "I28:418;25:21",
+        "I28:418;25:21;10:75",
+        "I28:418;25:21;10:76",
+        "I28:418;25:21;10:77",
+        "I28:418;25:21;10:78",
+        "I28:418;25:26",
+        "I28:418;25:27",
+        "I28:418;25:28",
+        "I28:418;25:29",
+        "I28:418;25:29;10:37",
+        "I28:418;25:29;10:38",
+        "I28:418;25:29;10:39",
+        "28:432",
+        "28:433",
+        "I28:433;25:48",
+        "I28:433;25:49",
+        "I28:433;25:50",
+        "I28:433;25:51",
+        "I28:433;25:52",
+        "I28:433;25:53",
+        "I28:433;25:54",
+        "I28:433;25:55",
+        "I28:433;25:56",
+        "28:443",
+        "28:444",
+        "I28:444;25:69",
+        "I28:444;25:70",
+        "I28:444;25:70;10:88",
+        "I28:444;25:70;10:89",
+        "I28:444;25:73",
+        "I28:444;25:74",
+        "28:451"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "ProductCardFooter",
+      "pageId": "7:9",
+      "setId": "28:527",
+      "variants": {
+        "Type=Utility, Device=Desktop": "28:455",
+        "Type=Task, Device=Desktop": "28:481",
+        "Type=Utility, Device=Mobile": "28:494",
+        "Type=Task, Device=Mobile": "28:514"
+      },
+      "createdNodeIds": [
+        "28:452",
+        "28:453",
+        "28:454",
+        "28:455",
+        "28:456",
+        "I28:456;11:70",
+        "28:470",
+        "I28:470;11:10",
+        "28:481",
+        "28:482",
+        "I28:482;11:10",
+        "28:488",
+        "I28:488;11:70",
+        "28:494",
+        "28:495",
+        "I28:495;11:70",
+        "28:506",
+        "I28:506;11:10",
+        "28:514",
+        "28:515",
+        "I28:515;11:10",
+        "28:521",
+        "I28:521;11:70",
+        "28:527"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "ProductCard",
+      "pageId": "7:15",
+      "setId": "28:757",
+      "variants": {
+        "Type=Decision, Device=Desktop": "28:531",
+        "Type=Utility, Device=Desktop": "28:569",
+        "Type=Task, Device=Desktop": "28:610",
+        "Type=Decision, Device=Mobile": "28:647",
+        "Type=Utility, Device=Mobile": "28:679",
+        "Type=Task, Device=Mobile": "28:720"
+      },
+      "createdNodeIds": [
+        "28:528",
+        "28:529",
+        "28:530",
+        "28:531",
+        "28:532",
+        "I28:532;17:153",
+        "I28:532;28:12",
+        "I28:532;17:154",
+        "I28:532;17:155",
+        "I28:532;27:18",
+        "I28:532;27:18;27:7",
+        "I28:532;27:20",
+        "I28:532;27:20;27:9",
+        "I28:532;27:20;27:9;11:10",
+        "28:569",
+        "28:570",
+        "I28:570;17:153",
+        "I28:570;28:12",
+        "I28:570;17:154",
+        "I28:570;17:155",
+        "I28:570;27:18",
+        "I28:570;27:18;27:7",
+        "I28:570;27:20",
+        "I28:570;27:20;27:9",
+        "I28:570;27:20;27:9;11:10",
+        "28:610",
+        "28:611",
+        "I28:611;17:153",
+        "I28:611;28:12",
+        "I28:611;17:154",
+        "I28:611;17:155",
+        "I28:611;27:18",
+        "I28:611;27:18;27:7",
+        "I28:611;27:20",
+        "I28:611;27:20;27:9",
+        "I28:611;27:20;27:9;11:10",
+        "28:647",
+        "28:648",
+        "I28:648;17:153",
+        "I28:648;28:12",
+        "I28:648;17:154",
+        "I28:648;17:155",
+        "I28:648;27:18",
+        "I28:648;27:18;27:7",
+        "I28:648;27:20",
+        "I28:648;27:20;27:9",
+        "I28:648;27:20;27:9;11:10",
+        "28:679",
+        "28:680",
+        "I28:680;17:153",
+        "I28:680;28:12",
+        "I28:680;17:154",
+        "I28:680;17:155",
+        "I28:680;27:18",
+        "I28:680;27:18;27:7",
+        "I28:680;27:20",
+        "I28:680;27:20;27:9",
+        "I28:680;27:20;27:9;11:10",
+        "28:720",
+        "28:721",
+        "I28:721;17:153",
+        "I28:721;28:12",
+        "I28:721;17:154",
+        "I28:721;17:155",
+        "I28:721;27:18",
+        "I28:721;27:18;27:7",
+        "I28:721;27:20",
+        "I28:721;27:20;27:9",
+        "I28:721;27:20;27:9;11:10",
+        "28:757"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "AssetRow",
+      "pageId": "7:12",
+      "setId": "29:659",
+      "variants": {
+        "Status=ok, Device=Desktop": "29:611",
+        "Status=attention, Device=Desktop": "29:617",
+        "Status=in_progress, Device=Desktop": "29:623",
+        "Status=needs_master, Device=Desktop": "29:629",
+        "Status=ok, Device=Mobile": "29:635",
+        "Status=attention, Device=Mobile": "29:641",
+        "Status=in_progress, Device=Mobile": "29:647",
+        "Status=needs_master, Device=Mobile": "29:653"
+      },
+      "createdNodeIds": [
+        "29:608",
+        "29:609",
+        "29:610",
+        "29:611",
+        "29:612",
+        "I29:612;16:34",
+        "29:614",
+        "29:615",
+        "29:616",
+        "29:617",
+        "29:618",
+        "I29:618;16:36",
+        "29:620",
+        "29:621",
+        "29:622",
+        "29:623",
+        "29:624",
+        "I29:624;16:38",
+        "29:626",
+        "29:627",
+        "29:628",
+        "29:629",
+        "29:630",
+        "I29:630;16:40",
+        "29:632",
+        "29:633",
+        "29:634",
+        "29:635",
+        "29:636",
+        "I29:636;16:34",
+        "29:638",
+        "29:639",
+        "29:640",
+        "29:641",
+        "29:642",
+        "I29:642;16:36",
+        "29:644",
+        "29:645",
+        "29:646",
+        "29:647",
+        "29:648",
+        "I29:648;16:38",
+        "29:650",
+        "29:651",
+        "29:652",
+        "29:653",
+        "29:654",
+        "I29:654;16:40",
+        "29:656",
+        "29:657",
+        "29:658",
+        "29:659"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "EventTask",
+      "pageId": "7:12",
+      "setId": "29:712",
+      "variants": {
+        "State=Open, Device=Desktop": "29:663",
+        "State=Closed, Device=Desktop": "29:683",
+        "State=Open, Device=Mobile": "29:689",
+        "State=Closed, Device=Mobile": "29:706"
+      },
+      "createdNodeIds": [
+        "29:660",
+        "29:661",
+        "29:662",
+        "29:663",
+        "29:664",
+        "29:665",
+        "29:666",
+        "29:667",
+        "29:668",
+        "29:669",
+        "29:670",
+        "29:671",
+        "29:672",
+        "I29:672;20:46",
+        "29:674",
+        "I29:674;11:100",
+        "29:683",
+        "29:684",
+        "29:685",
+        "29:686",
+        "29:687",
+        "29:688",
+        "29:689",
+        "29:690",
+        "29:691",
+        "29:692",
+        "29:693",
+        "29:694",
+        "29:695",
+        "29:696",
+        "29:697",
+        "29:698",
+        "I29:698;20:46",
+        "29:700",
+        "I29:700;11:100",
+        "29:706",
+        "29:707",
+        "29:708",
+        "29:709",
+        "29:710",
+        "29:711",
+        "29:712"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Command",
+      "pageId": "7:11",
+      "setId": "30:713",
+      "variants": {
+        "State=Results, Device=Desktop": "30:656",
+        "State=Empty, Device=Desktop": "30:676",
+        "State=Results, Device=Mobile": "30:686",
+        "State=Empty, Device=Mobile": "30:703"
+      },
+      "createdNodeIds": [
+        "30:653",
+        "30:654",
+        "30:655",
+        "30:656",
+        "30:657",
+        "30:658",
+        "30:662",
+        "I30:662;10:47",
+        "I30:662;10:48",
+        "I30:662;10:49",
+        "30:666",
+        "30:667",
+        "30:668",
+        "30:669",
+        "30:670",
+        "30:671",
+        "30:672",
+        "30:673",
+        "30:674",
+        "30:675",
+        "30:676",
+        "30:677",
+        "30:678",
+        "30:679",
+        "I30:679;10:47",
+        "I30:679;10:48",
+        "I30:679;10:49",
+        "30:683",
+        "30:684",
+        "30:685",
+        "30:686",
+        "30:687",
+        "30:688",
+        "30:689",
+        "I30:689;10:47",
+        "I30:689;10:48",
+        "I30:689;10:49",
+        "30:693",
+        "30:694",
+        "30:695",
+        "30:696",
+        "30:697",
+        "30:698",
+        "30:699",
+        "30:700",
+        "30:701",
+        "30:702",
+        "30:703",
+        "30:704",
+        "30:705",
+        "30:706",
+        "I30:706;10:47",
+        "I30:706;10:48",
+        "I30:706;10:49",
+        "30:710",
+        "30:711",
+        "30:712",
+        "30:713"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "ScrollArea",
+      "pageId": "7:14",
+      "setId": "30:731",
+      "variants": {
+        "State=Overflow": "30:717"
+      },
+      "createdNodeIds": [
+        "30:714",
+        "30:715",
+        "30:716",
+        "30:717",
+        "30:718",
+        "30:719",
+        "30:720",
+        "30:721",
+        "30:722",
+        "30:723",
+        "30:724",
+        "30:725",
+        "30:726",
+        "30:727",
+        "30:728",
+        "30:729",
+        "30:730",
+        "30:731"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "AttachmentRemove",
+      "pageId": "7:13",
+      "setId": "33:177",
+      "variants": {
+        "Variant=Inline": "33:159",
+        "Variant=Grid": "33:164",
+        "Variant=List": "33:172"
+      },
+      "createdNodeIds": [
+        "33:156",
+        "33:157",
+        "33:158",
+        "33:159",
+        "33:160",
+        "I33:160;10:11",
+        "I33:160;10:12",
+        "I33:160;10:13",
+        "33:164",
+        "33:168",
+        "I33:168;10:11",
+        "I33:168;10:12",
+        "I33:168;10:13",
+        "33:172",
+        "33:173",
+        "I33:173;10:11",
+        "I33:173;10:12",
+        "I33:173;10:13",
+        "33:177"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Attachment",
+      "pageId": "7:13",
+      "setId": "33:345",
+      "variants": {
+        "Variant=Inline, Type=PDF, State=Default": "33:181",
+        "Variant=Inline, Type=PDF, State=Hover": "33:196",
+        "Variant=Inline, Type=ImageFallback, State=Default": "33:211",
+        "Variant=Inline, Type=ImageFallback, State=Hover": "33:224",
+        "Variant=List, Type=PDF, State=Default": "33:237",
+        "Variant=List, Type=PDF, State=Hover": "33:252",
+        "Variant=List, Type=ImageFallback, State=Default": "33:267",
+        "Variant=List, Type=ImageFallback, State=Hover": "33:280",
+        "Variant=Grid, Type=PDF, State=Default": "33:293",
+        "Variant=Grid, Type=PDF, State=Hover": "33:307",
+        "Variant=Grid, Type=ImageFallback, State=Default": "33:321",
+        "Variant=Grid, Type=ImageFallback, State=Hover": "33:333"
+      },
+      "createdNodeIds": [
+        "33:178",
+        "33:179",
+        "33:180",
+        "33:181",
+        "33:182",
+        "33:183",
+        "I33:183;10:111",
+        "I33:183;10:112",
+        "I33:183;10:113",
+        "I33:183;10:114",
+        "I33:183;10:115",
+        "I33:183;10:116",
+        "33:190",
+        "33:191",
+        "I33:191;33:160",
+        "I33:191;33:160;10:11",
+        "I33:191;33:160;10:12",
+        "I33:191;33:160;10:13",
+        "33:196",
+        "33:197",
+        "33:198",
+        "I33:198;10:111",
+        "I33:198;10:112",
+        "I33:198;10:113",
+        "I33:198;10:114",
+        "I33:198;10:115",
+        "I33:198;10:116",
+        "33:205",
+        "33:206",
+        "I33:206;33:160",
+        "I33:206;33:160;10:11",
+        "I33:206;33:160;10:12",
+        "I33:206;33:160;10:13",
+        "33:211",
+        "33:212",
+        "33:213",
+        "I33:213;10:119",
+        "I33:213;10:120",
+        "I33:213;10:121",
+        "I33:213;10:122",
+        "33:218",
+        "33:219",
+        "I33:219;33:160",
+        "I33:219;33:160;10:11",
+        "I33:219;33:160;10:12",
+        "I33:219;33:160;10:13",
+        "33:224",
+        "33:225",
+        "33:226",
+        "I33:226;10:119",
+        "I33:226;10:120",
+        "I33:226;10:121",
+        "I33:226;10:122",
+        "33:231",
+        "33:232",
+        "I33:232;33:160",
+        "I33:232;33:160;10:11",
+        "I33:232;33:160;10:12",
+        "I33:232;33:160;10:13",
+        "33:237",
+        "33:238",
+        "33:239",
+        "I33:239;10:111",
+        "I33:239;10:112",
+        "I33:239;10:113",
+        "I33:239;10:114",
+        "I33:239;10:115",
+        "I33:239;10:116",
+        "33:246",
+        "33:247",
+        "I33:247;33:173",
+        "I33:247;33:173;10:11",
+        "I33:247;33:173;10:12",
+        "I33:247;33:173;10:13",
+        "33:252",
+        "33:253",
+        "33:254",
+        "I33:254;10:111",
+        "I33:254;10:112",
+        "I33:254;10:113",
+        "I33:254;10:114",
+        "I33:254;10:115",
+        "I33:254;10:116",
+        "33:261",
+        "33:262",
+        "I33:262;33:173",
+        "I33:262;33:173;10:11",
+        "I33:262;33:173;10:12",
+        "I33:262;33:173;10:13",
+        "33:267",
+        "33:268",
+        "33:269",
+        "I33:269;10:119",
+        "I33:269;10:120",
+        "I33:269;10:121",
+        "I33:269;10:122",
+        "33:274",
+        "33:275",
+        "I33:275;33:173",
+        "I33:275;33:173;10:11",
+        "I33:275;33:173;10:12",
+        "I33:275;33:173;10:13",
+        "33:280",
+        "33:281",
+        "33:282",
+        "I33:282;10:119",
+        "I33:282;10:120",
+        "I33:282;10:121",
+        "I33:282;10:122",
+        "33:287",
+        "33:288",
+        "I33:288;33:173",
+        "I33:288;33:173;10:11",
+        "I33:288;33:173;10:12",
+        "I33:288;33:173;10:13",
+        "33:293",
+        "33:294",
+        "33:295",
+        "I33:295;10:111",
+        "I33:295;10:112",
+        "I33:295;10:113",
+        "I33:295;10:114",
+        "I33:295;10:115",
+        "I33:295;10:116",
+        "33:302",
+        "I33:302;33:168",
+        "I33:302;33:168;10:11",
+        "I33:302;33:168;10:12",
+        "I33:302;33:168;10:13",
+        "33:307",
+        "33:308",
+        "33:309",
+        "I33:309;10:111",
+        "I33:309;10:112",
+        "I33:309;10:113",
+        "I33:309;10:114",
+        "I33:309;10:115",
+        "I33:309;10:116",
+        "33:316",
+        "I33:316;33:168",
+        "I33:316;33:168;10:11",
+        "I33:316;33:168;10:12",
+        "I33:316;33:168;10:13",
+        "33:321",
+        "33:322",
+        "33:323",
+        "I33:323;10:119",
+        "I33:323;10:120",
+        "I33:323;10:121",
+        "I33:323;10:122",
+        "33:328",
+        "I33:328;33:168",
+        "I33:328;33:168;10:11",
+        "I33:328;33:168;10:12",
+        "I33:328;33:168;10:13",
+        "33:333",
+        "33:334",
+        "33:335",
+        "I33:335;10:119",
+        "I33:335;10:120",
+        "I33:335;10:121",
+        "I33:335;10:122",
+        "33:340",
+        "I33:340;33:168",
+        "I33:340;33:168;10:11",
+        "I33:340;33:168;10:12",
+        "I33:340;33:168;10:13",
+        "33:345"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Tooltip",
+      "pageId": "7:11",
+      "setId": "33:405",
+      "variants": {
+        "Side=Top": "33:393",
+        "Side=Bottom": "33:396",
+        "Side=Left": "33:399",
+        "Side=Right": "33:402"
+      },
+      "createdNodeIds": [
+        "33:390",
+        "33:391",
+        "33:392",
+        "33:393",
+        "33:394",
+        "33:395",
+        "33:396",
+        "33:397",
+        "33:398",
+        "33:399",
+        "33:400",
+        "33:401",
+        "33:402",
+        "33:403",
+        "33:404",
+        "33:405"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Navigation",
+      "pageId": "7:10",
+      "setId": "34:980",
+      "variants": {
+        "Mode=Expanded": "34:769",
+        "Mode=Collapsed": "34:870",
+        "Mode=Mobile": "34:963"
+      },
+      "createdNodeIds": [
+        "34:766",
+        "34:767",
+        "34:768",
+        "34:769",
+        "34:770",
+        "I34:770;19:170",
+        "I34:770;19:170;10:170",
+        "I34:770;19:170;10:171",
+        "I34:770;19:170;10:172",
+        "I34:770;19:170;10:173",
+        "I34:770;19:170;10:174",
+        "I34:770;19:176",
+        "34:783",
+        "I34:783;19:162",
+        "I34:783;19:162;10:170",
+        "I34:783;19:162;10:171",
+        "I34:783;19:162;10:172",
+        "I34:783;19:162;10:173",
+        "I34:783;19:162;10:174",
+        "I34:783;19:168",
+        "34:795",
+        "I34:795;19:162",
+        "I34:795;19:162;10:170",
+        "I34:795;19:162;10:171",
+        "I34:795;19:162;10:172",
+        "I34:795;19:162;10:173",
+        "I34:795;19:162;10:174",
+        "I34:795;19:168",
+        "34:810",
+        "I34:810;19:162",
+        "I34:810;19:162;10:170",
+        "I34:810;19:162;10:171",
+        "I34:810;19:162;10:172",
+        "I34:810;19:162;10:173",
+        "I34:810;19:162;10:174",
+        "I34:810;19:168",
+        "34:820",
+        "I34:820;19:162",
+        "I34:820;19:162;10:170",
+        "I34:820;19:162;10:171",
+        "I34:820;19:162;10:172",
+        "I34:820;19:162;10:173",
+        "I34:820;19:162;10:174",
+        "I34:820;19:168",
+        "34:834",
+        "I34:834;19:162",
+        "I34:834;19:162;10:170",
+        "I34:834;19:162;10:171",
+        "I34:834;19:162;10:172",
+        "I34:834;19:162;10:173",
+        "I34:834;19:162;10:174",
+        "I34:834;19:168",
+        "34:847",
+        "I34:847;19:162",
+        "I34:847;19:162;10:170",
+        "I34:847;19:162;10:171",
+        "I34:847;19:162;10:172",
+        "I34:847;19:162;10:173",
+        "I34:847;19:162;10:174",
+        "I34:847;19:168",
+        "34:859",
+        "I34:859;19:162",
+        "I34:859;19:162;10:170",
+        "I34:859;19:162;10:171",
+        "I34:859;19:162;10:172",
+        "I34:859;19:162;10:173",
+        "I34:859;19:162;10:174",
+        "I34:859;19:168",
+        "34:870",
+        "34:871",
+        "I34:871;19:185",
+        "I34:871;19:185;10:170",
+        "I34:871;19:185;10:171",
+        "I34:871;19:185;10:172",
+        "I34:871;19:185;10:173",
+        "I34:871;19:185;10:174",
+        "34:883",
+        "I34:883;19:178",
+        "I34:883;19:178;10:170",
+        "I34:883;19:178;10:171",
+        "I34:883;19:178;10:172",
+        "I34:883;19:178;10:173",
+        "I34:883;19:178;10:174",
+        "34:894",
+        "I34:894;19:178",
+        "I34:894;19:178;10:170",
+        "I34:894;19:178;10:171",
+        "I34:894;19:178;10:172",
+        "I34:894;19:178;10:173",
+        "I34:894;19:178;10:174",
+        "34:908",
+        "I34:908;19:178",
+        "I34:908;19:178;10:170",
+        "I34:908;19:178;10:171",
+        "I34:908;19:178;10:172",
+        "I34:908;19:178;10:173",
+        "I34:908;19:178;10:174",
+        "34:917",
+        "I34:917;19:178",
+        "I34:917;19:178;10:170",
+        "I34:917;19:178;10:171",
+        "I34:917;19:178;10:172",
+        "I34:917;19:178;10:173",
+        "I34:917;19:178;10:174",
+        "34:930",
+        "I34:930;19:178",
+        "I34:930;19:178;10:170",
+        "I34:930;19:178;10:171",
+        "I34:930;19:178;10:172",
+        "I34:930;19:178;10:173",
+        "I34:930;19:178;10:174",
+        "34:942",
+        "I34:942;19:178",
+        "I34:942;19:178;10:170",
+        "I34:942;19:178;10:171",
+        "I34:942;19:178;10:172",
+        "I34:942;19:178;10:173",
+        "I34:942;19:178;10:174",
+        "34:953",
+        "I34:953;19:178",
+        "I34:953;19:178;10:170",
+        "I34:953;19:178;10:171",
+        "I34:953;19:178;10:172",
+        "I34:953;19:178;10:173",
+        "I34:953;19:178;10:174",
+        "34:963",
+        "34:964",
+        "I34:964;19:194",
+        "34:966",
+        "I34:966;19:192",
+        "34:968",
+        "I34:968;19:192",
+        "34:970",
+        "I34:970;19:192",
+        "34:972",
+        "I34:972;19:192",
+        "34:974",
+        "I34:974;19:192",
+        "34:976",
+        "I34:976;19:192",
+        "34:978",
+        "I34:978;19:192",
+        "34:980"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "MobileHeader",
+      "pageId": "7:10",
+      "setId": "34:1014",
+      "variants": {
+        "Width=360": "34:984",
+        "Width=390": "34:999"
+      },
+      "createdNodeIds": [
+        "34:981",
+        "34:982",
+        "34:983",
+        "34:984",
+        "34:985",
+        "I34:985;31:3",
+        "I34:985;31:4",
+        "I34:985;31:5",
+        "I34:985;31:6",
+        "I34:985;31:7",
+        "I34:985;31:8",
+        "I34:985;31:9",
+        "I34:985;31:10",
+        "34:994",
+        "34:995",
+        "I34:995;19:208",
+        "I34:995;19:209",
+        "I34:995;19:210",
+        "34:999",
+        "34:1000",
+        "I34:1000;31:3",
+        "I34:1000;31:4",
+        "I34:1000;31:5",
+        "I34:1000;31:6",
+        "I34:1000;31:7",
+        "I34:1000;31:8",
+        "I34:1000;31:9",
+        "I34:1000;31:10",
+        "34:1009",
+        "34:1010",
+        "I34:1010;19:208",
+        "I34:1010;19:209",
+        "I34:1010;19:210",
+        "34:1014"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": [
+          {
+            "id": "I34:985;31:3",
+            "name": "Frame"
+          },
+          {
+            "id": "I34:1000;31:3",
+            "name": "Frame"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AssistantPanel",
+      "pageId": "7:13",
+      "setId": "35:1047",
+      "variants": {
+        "Device=Desktop, State=Open": "35:898",
+        "Device=Mobile, State=Open": "35:966",
+        "Device=Mobile, State=Closed": "35:1031"
+      },
+      "createdNodeIds": [
+        "35:895",
+        "35:896",
+        "35:897",
+        "35:898",
+        "35:899",
+        "35:900",
+        "I35:900;10:92",
+        "I35:900;10:93",
+        "I35:900;10:94",
+        "I35:900;10:95",
+        "I35:900;10:96",
+        "I35:900;10:97",
+        "I35:900;10:98",
+        "35:908",
+        "35:909",
+        "35:910",
+        "35:911",
+        "35:912",
+        "I35:912;23:6",
+        "I35:912;23:7",
+        "I35:912;23:8",
+        "I35:912;23:9",
+        "35:917",
+        "I35:917;23:11",
+        "I35:917;23:12",
+        "I35:917;23:13",
+        "I35:917;23:14",
+        "35:922",
+        "35:923",
+        "I35:923;11:10",
+        "35:932",
+        "I35:932;11:70",
+        "35:941",
+        "35:942",
+        "I35:942;24:6",
+        "I35:942;24:7",
+        "I35:942;24:8",
+        "I35:942;24:9",
+        "I35:942;24:9;11:96",
+        "I35:942;24:9;11:96;10:6",
+        "I35:942;24:9;11:96;10:7",
+        "I35:942;24:9;11:96;10:8",
+        "I35:942;24:21",
+        "I35:942;24:21;11:96",
+        "I35:942;24:21;11:96;10:101",
+        "I35:942;24:21;11:96;10:102",
+        "I35:942;24:21;11:96;10:103",
+        "I35:942;24:21;11:96;10:104",
+        "I35:942;24:31",
+        "I35:942;24:32",
+        "I35:942;24:32;11:6",
+        "I35:942;24:32;11:6;22:3",
+        "I35:942;24:32;11:6;22:4",
+        "I35:942;24:32;11:6;22:5",
+        "35:966",
+        "35:967",
+        "35:968",
+        "I35:968;10:92",
+        "I35:968;10:93",
+        "I35:968;10:94",
+        "I35:968;10:95",
+        "I35:968;10:96",
+        "I35:968;10:97",
+        "I35:968;10:98",
+        "35:976",
+        "35:977",
+        "35:978",
+        "35:979",
+        "I35:979;10:20",
+        "I35:979;10:21",
+        "35:982",
+        "35:983",
+        "I35:983;23:16",
+        "I35:983;23:17",
+        "I35:983;23:18",
+        "I35:983;23:19",
+        "35:988",
+        "I35:988;23:21",
+        "I35:988;23:22",
+        "I35:988;23:23",
+        "I35:988;23:24",
+        "35:993",
+        "35:994",
+        "I35:994;11:10",
+        "35:1000",
+        "I35:1000;11:70",
+        "35:1006",
+        "35:1007",
+        "I35:1007;24:177",
+        "I35:1007;24:178",
+        "I35:1007;24:179",
+        "I35:1007;24:180",
+        "I35:1007;24:180;11:96",
+        "I35:1007;24:180;11:96;10:6",
+        "I35:1007;24:180;11:96;10:7",
+        "I35:1007;24:180;11:96;10:8",
+        "I35:1007;24:189",
+        "I35:1007;24:189;11:96",
+        "I35:1007;24:189;11:96;10:101",
+        "I35:1007;24:189;11:96;10:102",
+        "I35:1007;24:189;11:96;10:103",
+        "I35:1007;24:189;11:96;10:104",
+        "I35:1007;24:199",
+        "I35:1007;24:200",
+        "I35:1007;24:200;11:6",
+        "I35:1007;24:200;11:6;22:3",
+        "I35:1007;24:200;11:6;22:4",
+        "I35:1007;24:200;11:6;22:5",
+        "35:1031",
+        "35:1032",
+        "35:1033",
+        "I35:1033;10:92",
+        "I35:1033;10:93",
+        "I35:1033;10:94",
+        "I35:1033;10:95",
+        "I35:1033;10:96",
+        "I35:1033;10:97",
+        "I35:1033;10:98",
+        "35:1041",
+        "35:1042",
+        "35:1043",
+        "35:1044",
+        "I35:1044;10:24",
+        "I35:1044;10:25",
+        "35:1047"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "ButtonGroup",
+      "pageId": "7:5",
+      "setId": "37:74",
+      "variants": {
+        "Orientation=Horizontal": "37:42",
+        "Orientation=Vertical": "37:61"
+      },
+      "createdNodeIds": [
+        "37:39",
+        "37:40",
+        "37:41",
+        "37:42",
+        "37:43",
+        "I37:43;11:70",
+        "37:52",
+        "I37:52;11:10",
+        "37:61",
+        "37:62",
+        "I37:62;11:70",
+        "37:68",
+        "I37:68;11:10",
+        "37:74"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "StatusSelect",
+      "pageId": "7:7",
+      "setId": "38:61",
+      "variants": {
+        "Status=ok, Device=Desktop": "38:13",
+        "Status=attention, Device=Desktop": "38:19",
+        "Status=in_progress, Device=Desktop": "38:25",
+        "Status=needs_master, Device=Desktop": "38:31",
+        "Status=ok, Device=Mobile": "38:37",
+        "Status=attention, Device=Mobile": "38:43",
+        "Status=in_progress, Device=Mobile": "38:49",
+        "Status=needs_master, Device=Mobile": "38:55"
+      },
+      "createdNodeIds": [
+        "38:10",
+        "38:11",
+        "38:12",
+        "38:13",
+        "38:14",
+        "38:15",
+        "38:16",
+        "I38:16;10:20",
+        "I38:16;10:21",
+        "38:19",
+        "38:20",
+        "38:21",
+        "38:22",
+        "I38:22;10:20",
+        "I38:22;10:21",
+        "38:25",
+        "38:26",
+        "38:27",
+        "38:28",
+        "I38:28;10:20",
+        "I38:28;10:21",
+        "38:31",
+        "38:32",
+        "38:33",
+        "38:34",
+        "I38:34;10:20",
+        "I38:34;10:21",
+        "38:37",
+        "38:38",
+        "38:39",
+        "38:40",
+        "I38:40;10:20",
+        "I38:40;10:21",
+        "38:43",
+        "38:44",
+        "38:45",
+        "38:46",
+        "I38:46;10:20",
+        "I38:46;10:21",
+        "38:49",
+        "38:50",
+        "38:51",
+        "38:52",
+        "I38:52;10:20",
+        "I38:52;10:21",
+        "38:55",
+        "38:56",
+        "38:57",
+        "38:58",
+        "I38:58;10:20",
+        "I38:58;10:21",
+        "38:61"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "ApartmentSwitcher",
+      "pageId": "7:10",
+      "setId": "40:271",
+      "variants": {
+        "State=Selected, Device=Desktop": "40:170",
+        "State=Loading, Device=Desktop": "40:190",
+        "State=Empty, Device=Desktop": "40:207",
+        "State=Selected, Device=Mobile": "40:222",
+        "State=Loading, Device=Mobile": "40:239",
+        "State=Empty, Device=Mobile": "40:256"
+      },
+      "createdNodeIds": [
+        "40:167",
+        "40:168",
+        "40:169",
+        "40:170",
+        "40:171",
+        "I40:171;15:59",
+        "I40:171;15:60",
+        "I40:171;15:60;10:20",
+        "I40:171;15:60;10:21",
+        "40:178",
+        "I40:178;11:70",
+        "40:190",
+        "40:191",
+        "I40:191;15:74",
+        "I40:191;15:75",
+        "I40:191;15:75;10:20",
+        "I40:191;15:75;10:21",
+        "40:198",
+        "I40:198;11:70",
+        "40:207",
+        "40:208",
+        "I40:208;15:74",
+        "I40:208;15:75",
+        "I40:208;15:75;10:20",
+        "I40:208;15:75;10:21",
+        "40:213",
+        "I40:213;11:70",
+        "40:222",
+        "40:223",
+        "I40:223;15:84",
+        "I40:223;15:85",
+        "I40:223;15:85;10:20",
+        "I40:223;15:85;10:21",
+        "40:230",
+        "I40:230;11:70",
+        "40:239",
+        "40:240",
+        "I40:240;15:99",
+        "I40:240;15:100",
+        "I40:240;15:100;10:20",
+        "I40:240;15:100;10:21",
+        "40:247",
+        "I40:247;11:70",
+        "40:256",
+        "40:257",
+        "I40:257;15:99",
+        "I40:257;15:100",
+        "I40:257;15:100;10:20",
+        "I40:257;15:100;10:21",
+        "40:262",
+        "I40:262;11:70",
+        "40:271"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    },
+    {
+      "name": "Sidebar",
+      "pageId": "7:10",
+      "setId": "42:512",
+      "variants": {
+        "Mode=Expanded": "42:232",
+        "Mode=Narrow": "42:339",
+        "Mode=Collapsed": "42:440"
+      },
+      "createdNodeIds": [
+        "42:229",
+        "42:230",
+        "42:231",
+        "42:232",
+        "42:233",
+        "42:234",
+        "42:235",
+        "I42:235;31:3",
+        "I42:235;31:4",
+        "I42:235;31:5",
+        "I42:235;31:6",
+        "I42:235;31:7",
+        "I42:235;31:8",
+        "I42:235;31:9",
+        "I42:235;31:10",
+        "42:244",
+        "I42:244;11:100",
+        "42:257",
+        "I42:257;40:171",
+        "I42:257;40:171;15:59",
+        "I42:257;40:171;15:60",
+        "I42:257;40:171;15:60;10:20",
+        "I42:257;40:171;15:60;10:21",
+        "I42:257;40:178",
+        "I42:257;40:178;11:66",
+        "I42:257;40:178;11:66;10:6",
+        "I42:257;40:178;11:66;10:7",
+        "I42:257;40:178;11:66;10:8",
+        "42:269",
+        "I42:269;15:108",
+        "I42:269;15:108;10:47",
+        "I42:269;15:108;10:48",
+        "I42:269;15:108;10:49",
+        "I42:269;15:112",
+        "42:278",
+        "I42:278;34:770",
+        "I42:278;34:770;19:170",
+        "I42:278;34:770;19:170;10:170",
+        "I42:278;34:770;19:170;10:171",
+        "I42:278;34:770;19:170;10:172",
+        "I42:278;34:770;19:170;10:173",
+        "I42:278;34:770;19:170;10:174",
+        "I42:278;34:770;19:176",
+        "I42:278;34:783",
+        "I42:278;34:783;19:162",
+        "I42:278;34:783;19:162;10:177",
+        "I42:278;34:783;19:162;10:178",
+        "I42:278;34:783;19:162;10:179",
+        "I42:278;34:783;19:162;10:180",
+        "I42:278;34:783;19:168",
+        "I42:278;34:795",
+        "I42:278;34:795;19:162",
+        "I42:278;34:795;19:162;10:183",
+        "I42:278;34:795;19:162;10:184",
+        "I42:278;34:795;19:162;10:185",
+        "I42:278;34:795;19:162;10:186",
+        "I42:278;34:795;19:162;10:187",
+        "I42:278;34:795;19:162;10:188",
+        "I42:278;34:795;19:162;10:189",
+        "I42:278;34:795;19:168",
+        "I42:278;34:810",
+        "I42:278;34:810;19:162",
+        "I42:278;34:810;19:162;10:16",
+        "I42:278;34:810;19:162;10:17",
+        "I42:278;34:810;19:168",
+        "I42:278;34:820",
+        "I42:278;34:820;19:162",
+        "I42:278;34:820;19:162;10:111",
+        "I42:278;34:820;19:162;10:112",
+        "I42:278;34:820;19:162;10:113",
+        "I42:278;34:820;19:162;10:114",
+        "I42:278;34:820;19:162;10:115",
+        "I42:278;34:820;19:162;10:116",
+        "I42:278;34:820;19:168",
+        "I42:278;34:834",
+        "I42:278;34:834;19:162",
+        "I42:278;34:834;19:162;10:81",
+        "I42:278;34:834;19:162;10:82",
+        "I42:278;34:834;19:162;10:83",
+        "I42:278;34:834;19:162;10:84",
+        "I42:278;34:834;19:162;10:85",
+        "I42:278;34:834;19:168",
+        "I42:278;34:847",
+        "I42:278;34:847;19:162",
+        "I42:278;34:847;19:162;10:192",
+        "I42:278;34:847;19:162;10:193",
+        "I42:278;34:847;19:162;10:194",
+        "I42:278;34:847;19:162;10:195",
+        "I42:278;34:847;19:168",
+        "I42:278;34:859",
+        "I42:278;34:859;19:162",
+        "I42:278;34:859;19:162;10:198",
+        "I42:278;34:859;19:162;10:199",
+        "I42:278;34:859;19:162;10:200",
+        "I42:278;34:859;19:168",
+        "42:339",
+        "42:340",
+        "42:341",
+        "42:342",
+        "I42:342;31:3",
+        "I42:342;31:4",
+        "I42:342;31:5",
+        "I42:342;31:6",
+        "I42:342;31:7",
+        "I42:342;31:8",
+        "I42:342;31:9",
+        "I42:342;31:10",
+        "42:351",
+        "I42:351;11:100",
+        "42:361",
+        "I42:361;40:171",
+        "I42:361;40:171;15:59",
+        "I42:361;40:171;15:60",
+        "I42:361;40:171;15:60;10:20",
+        "I42:361;40:171;15:60;10:21",
+        "I42:361;40:178",
+        "I42:361;40:178;11:66",
+        "I42:361;40:178;11:66;10:6",
+        "I42:361;40:178;11:66;10:7",
+        "I42:361;40:178;11:66;10:8",
+        "42:373",
+        "I42:373;15:108",
+        "I42:373;15:108;10:47",
+        "I42:373;15:108;10:48",
+        "I42:373;15:108;10:49",
+        "I42:373;15:112",
+        "42:379",
+        "I42:379;34:770",
+        "I42:379;34:770;19:170",
+        "I42:379;34:770;19:170;10:170",
+        "I42:379;34:770;19:170;10:171",
+        "I42:379;34:770;19:170;10:172",
+        "I42:379;34:770;19:170;10:173",
+        "I42:379;34:770;19:170;10:174",
+        "I42:379;34:770;19:176",
+        "I42:379;34:783",
+        "I42:379;34:783;19:162",
+        "I42:379;34:783;19:162;10:177",
+        "I42:379;34:783;19:162;10:178",
+        "I42:379;34:783;19:162;10:179",
+        "I42:379;34:783;19:162;10:180",
+        "I42:379;34:783;19:168",
+        "I42:379;34:795",
+        "I42:379;34:795;19:162",
+        "I42:379;34:795;19:162;10:183",
+        "I42:379;34:795;19:162;10:184",
+        "I42:379;34:795;19:162;10:185",
+        "I42:379;34:795;19:162;10:186",
+        "I42:379;34:795;19:162;10:187",
+        "I42:379;34:795;19:162;10:188",
+        "I42:379;34:795;19:162;10:189",
+        "I42:379;34:795;19:168",
+        "I42:379;34:810",
+        "I42:379;34:810;19:162",
+        "I42:379;34:810;19:162;10:16",
+        "I42:379;34:810;19:162;10:17",
+        "I42:379;34:810;19:168",
+        "I42:379;34:820",
+        "I42:379;34:820;19:162",
+        "I42:379;34:820;19:162;10:111",
+        "I42:379;34:820;19:162;10:112",
+        "I42:379;34:820;19:162;10:113",
+        "I42:379;34:820;19:162;10:114",
+        "I42:379;34:820;19:162;10:115",
+        "I42:379;34:820;19:162;10:116",
+        "I42:379;34:820;19:168",
+        "I42:379;34:834",
+        "I42:379;34:834;19:162",
+        "I42:379;34:834;19:162;10:81",
+        "I42:379;34:834;19:162;10:82",
+        "I42:379;34:834;19:162;10:83",
+        "I42:379;34:834;19:162;10:84",
+        "I42:379;34:834;19:162;10:85",
+        "I42:379;34:834;19:168",
+        "I42:379;34:847",
+        "I42:379;34:847;19:162",
+        "I42:379;34:847;19:162;10:192",
+        "I42:379;34:847;19:162;10:193",
+        "I42:379;34:847;19:162;10:194",
+        "I42:379;34:847;19:162;10:195",
+        "I42:379;34:847;19:168",
+        "I42:379;34:859",
+        "I42:379;34:859;19:162",
+        "I42:379;34:859;19:162;10:198",
+        "I42:379;34:859;19:162;10:199",
+        "I42:379;34:859;19:162;10:200",
+        "I42:379;34:859;19:168",
+        "42:440",
+        "42:441",
+        "42:442",
+        "42:443",
+        "I42:443;41:3",
+        "I42:443;41:4",
+        "I42:443;41:5",
+        "I42:443;41:6",
+        "I42:443;41:7",
+        "42:449",
+        "I42:449;11:100",
+        "42:459",
+        "I42:459;34:871",
+        "I42:459;34:871;19:185",
+        "I42:459;34:871;19:185;10:170",
+        "I42:459;34:871;19:185;10:171",
+        "I42:459;34:871;19:185;10:172",
+        "I42:459;34:871;19:185;10:173",
+        "I42:459;34:871;19:185;10:174",
+        "I42:459;34:883",
+        "I42:459;34:883;19:178",
+        "I42:459;34:883;19:178;10:177",
+        "I42:459;34:883;19:178;10:178",
+        "I42:459;34:883;19:178;10:179",
+        "I42:459;34:883;19:178;10:180",
+        "I42:459;34:894",
+        "I42:459;34:894;19:178",
+        "I42:459;34:894;19:178;10:183",
+        "I42:459;34:894;19:178;10:184",
+        "I42:459;34:894;19:178;10:185",
+        "I42:459;34:894;19:178;10:186",
+        "I42:459;34:894;19:178;10:187",
+        "I42:459;34:894;19:178;10:188",
+        "I42:459;34:894;19:178;10:189",
+        "I42:459;34:908",
+        "I42:459;34:908;19:178",
+        "I42:459;34:908;19:178;10:16",
+        "I42:459;34:908;19:178;10:17",
+        "I42:459;34:917",
+        "I42:459;34:917;19:178",
+        "I42:459;34:917;19:178;10:111",
+        "I42:459;34:917;19:178;10:112",
+        "I42:459;34:917;19:178;10:113",
+        "I42:459;34:917;19:178;10:114",
+        "I42:459;34:917;19:178;10:115",
+        "I42:459;34:917;19:178;10:116",
+        "I42:459;34:930",
+        "I42:459;34:930;19:178",
+        "I42:459;34:930;19:178;10:81",
+        "I42:459;34:930;19:178;10:82",
+        "I42:459;34:930;19:178;10:83",
+        "I42:459;34:930;19:178;10:84",
+        "I42:459;34:930;19:178;10:85",
+        "I42:459;34:942",
+        "I42:459;34:942;19:178",
+        "I42:459;34:942;19:178;10:192",
+        "I42:459;34:942;19:178;10:193",
+        "I42:459;34:942;19:178;10:194",
+        "I42:459;34:942;19:178;10:195",
+        "I42:459;34:953",
+        "I42:459;34:953;19:178",
+        "I42:459;34:953;19:178;10:198",
+        "I42:459;34:953;19:178;10:199",
+        "I42:459;34:953;19:178;10:200",
+        "42:512"
+      ],
+      "audit": {
+        "unstyled": [],
+        "unbound": []
+      }
+    }
+  ],
+  "unownedChanges": {
+    "labelDefault": {
+      "previousSize": 14,
+      "currentSize": 12,
+      "styleId": "S:bd3ce3150e50ece40425dc515a18eeda10700f88,"
+    },
+    "cardInstance": "4:646",
+    "frame": "4:645",
+    "rawPrimary": "VariableID:6:78"
+  },
+  "scopeLimits": [
+    "No automatic Figma-to-code synchronization",
+    "No production UI changes in this export",
+    "Figma instance edits do not update master components",
+    "Not a published team library or Code Connect integration"
+  ]
+}

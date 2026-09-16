@@ -1,0 +1,244 @@
+{
+  "sourceHash": "3fbb3c9b612b55357216636e2b72f6e18d402be28e1bfb4f0f2c727b23c106fe",
+  "raw": {
+    "isReceipt": true,
+    "service": "ЖКХ",
+    "providerKey": "RU:INN:7841310500",
+    "documentDate": "2026-09-05",
+    "documentPeriod": "2026-09",
+    "requestedPeriod": "2026-08",
+    "currency": "RUB",
+    "accrued": "8204.65",
+    "accruedConfident": true,
+    "payable": "7616.24",
+    "credit": "588.41",
+    "debt": null,
+    "dueDate": "2026-10-10",
+    "lines": [
+      {
+        "label": "Административно-управленческие расходы (АУР)",
+        "amount": "372.77",
+        "kind": "service"
+      },
+      {
+        "label": "Текущий ремонт общего имущества",
+        "amount": "597.98",
+        "kind": "service"
+      },
+      {
+        "label": "Содержание придомовой территории",
+        "amount": "226.63",
+        "kind": "service"
+      },
+      {
+        "label": "Содержание и текущий ремонт системы газоснабжения",
+        "amount": "67.78",
+        "kind": "service"
+      },
+      {
+        "label": "Содержание общего имущества многоквартирного дома",
+        "amount": "736.36",
+        "kind": "service"
+      },
+      {
+        "label": "Содержание и ремонт ПЗУ",
+        "amount": "24.71",
+        "kind": "service"
+      },
+      {
+        "label": "Эксплуатация общедомовых приборов учета",
+        "amount": "50.83",
+        "kind": "service"
+      },
+      {
+        "label": "ХВС",
+        "amount": "388.17",
+        "kind": "service"
+      },
+      {
+        "label": "ГВС",
+        "amount": "1479.70",
+        "kind": "service"
+      },
+      {
+        "label": "Водоотведение",
+        "amount": "819.47",
+        "kind": "service"
+      },
+      {
+        "label": "Твердые бытовые отходы",
+        "amount": "693.29",
+        "kind": "service"
+      },
+      {
+        "label": "Телетрансляция",
+        "amount": "229.00",
+        "kind": "service"
+      },
+      {
+        "label": "Радиовещание",
+        "amount": "176.00",
+        "kind": "service"
+      },
+      {
+        "label": "Охрана территории и общего имущества",
+        "amount": "7.06",
+        "kind": "service"
+      },
+      {
+        "label": "Кап.ремонт общего имущества",
+        "amount": "917.09",
+        "kind": "service"
+      },
+      {
+        "label": "Пени",
+        "amount": "1417.81",
+        "kind": "penalty"
+      }
+    ],
+    "linesComplete": true,
+    "repeatedPanel": true,
+    "warnings": []
+  },
+  "responseId": "resp_0bd9cdd636b8924b006aa42df2e91487d1b47869881543f31b",
+  "model": "gpt-5.5",
+  "verification": {
+    "lines": [
+      {
+        "label": "Пени",
+        "amount": "1417.81",
+        "kind": "penalty"
+      }
+    ],
+    "confident": true,
+    "responseId": "resp_0364d078fa7fab1c006aa42e11436887d1bd1036768fc78caf"
+  },
+  "calculation": {
+    "version": 1,
+    "raw": {
+      "isReceipt": true,
+      "service": "ЖКХ",
+      "providerKey": "RU:INN:7841310500",
+      "documentDate": "2026-09-05",
+      "documentPeriod": "2026-09",
+      "requestedPeriod": "2026-08",
+      "currency": "RUB",
+      "accrued": "8204.65",
+      "accruedConfident": true,
+      "payable": "7616.24",
+      "credit": "588.41",
+      "debt": null,
+      "dueDate": "2026-10-10",
+      "lines": [
+        {
+          "label": "Административно-управленческие расходы (АУР)",
+          "amount": "372.77",
+          "kind": "service"
+        },
+        {
+          "label": "Текущий ремонт общего имущества",
+          "amount": "597.98",
+          "kind": "service"
+        },
+        {
+          "label": "Содержание придомовой территории",
+          "amount": "226.63",
+          "kind": "service"
+        },
+        {
+          "label": "Содержание и текущий ремонт системы газоснабжения",
+          "amount": "67.78",
+          "kind": "service"
+        },
+        {
+          "label": "Содержание общего имущества многоквартирного дома",
+          "amount": "736.36",
+          "kind": "service"
+        },
+        {
+          "label": "Содержание и ремонт ПЗУ",
+          "amount": "24.71",
+          "kind": "service"
+        },
+        {
+          "label": "Эксплуатация общедомовых приборов учета",
+          "amount": "50.83",
+          "kind": "service"
+        },
+        {
+          "label": "ХВС",
+          "amount": "388.17",
+          "kind": "service"
+        },
+        {
+          "label": "ГВС",
+          "amount": "1479.70",
+          "kind": "service"
+        },
+        {
+          "label": "Водоотведение",
+          "amount": "819.47",
+          "kind": "service"
+        },
+        {
+          "label": "Твердые бытовые отходы",
+          "amount": "693.29",
+          "kind": "service"
+        },
+        {
+          "label": "Телетрансляция",
+          "amount": "229.00",
+          "kind": "service"
+        },
+        {
+          "label": "Радиовещание",
+          "amount": "176.00",
+          "kind": "service"
+        },
+        {
+          "label": "Охрана территории и общего имущества",
+          "amount": "7.06",
+          "kind": "service"
+        },
+        {
+          "label": "Кап.ремонт общего имущества",
+          "amount": "917.09",
+          "kind": "service"
+        },
+        {
+          "label": "Пени",
+          "amount": "1417.81",
+          "kind": "penalty"
+        }
+      ],
+      "linesComplete": true,
+      "repeatedPanel": true,
+      "warnings": []
+    },
+    "policy": {
+      "id": "owner-confirmed-2026-09-11/RU:INN:7841310500",
+      "excludePenalties": true,
+      "periodOffset": -1,
+      "optionalIncluded": true
+    },
+    "accruedMinor": 820465,
+    "rowTotalMinor": 820465,
+    "exclusions": [
+      {
+        "label": "Пени",
+        "amount": "1417.81",
+        "kind": "penalty",
+        "minor": 141781
+      }
+    ],
+    "creditMinor": 58841,
+    "payableMinor": 761624,
+    "debtMinor": null,
+    "excludedMinor": 141781,
+    "tenantPeriod": "2026-08",
+    "periodRule": "owner-confirmed-2026-09-11/RU:INN:7841310500:offset=-1",
+    "formula": "820465 - 141781 = 678684 (коп.)",
+    "problems": [],
+    "tenantMinor": 678684
+  }
+}
