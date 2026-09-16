@@ -8,7 +8,12 @@ import {
   type TelegramOwnerAccount,
 } from "@/lib/server/telegram-context";
 import { createUtilityBillRecord, normalizeBillPayload } from "@/lib/server/utility-bills";
+import { prepareTenantStatement, handleStatementDecision } from "@/lib/server/telegram-statements";
+import { statementDecision } from "@/lib/server/tenant-statement";
 import { normalizeUtilityPeriod } from "@/lib/utility-period";
+import { calculateReceipt, receiptMinor, renderReceiptCalculation, type ReceiptCalculation } from "@/lib/receipt-calculation";
+import { extractReceipt } from "@/lib/server/receipt-extraction";
+import { utilityDraftReply } from "@/lib/server/assistant-replies";
 
 type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_id: string;
@@ -57,6 +62,13 @@ const assetStatusLabels: Record<string, string> = {
 };
 
 const tools = [
+  {
+    type: "function",
+    name: "prepare_tenant_statement",
+    description: "Сформировать готовое сообщение арендатору по сохранённым счетам квартиры за месяц. Только предпросмотр; инструмент никогда не отправляет в группу. Используй для просьб сформировать счёт/сводку/напоминание арендатору или отправить существующий месячный счёт. Не создавай новые начисления вместо этого инструмента.",
+    parameters: { type: "object", properties: { period: { type: "string", description: "Месяц и год, например Сентябрь 2026. Если период не указан, уточни." } }, required: ["period"], additionalProperties: false },
+    strict: true,
+  },
   {
     type: "function",
     name: "list_apartments",
@@ -264,9 +276,9 @@ async function createResponse(input: unknown, previousResponseId: string | null,
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
       instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Настройка добровольного страхования: ${account.apartment_utility_insurance_included === false ? "исключать" : "включать по умолчанию"}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning.
 
-ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ ДЛЯ ЛЮБОЙ СТРАНЫ, ЯЗЫКА И ПОСТАВЩИКА: жильцу выставляется только стоимость ресурсов и обязательных услуг, начисленных за указанный расчётный период. Название поля может быть «Начислено», charges for period, current charges, new charges, billed this period или иным — определяй его по смыслу и арифметике документа, а не только по слову. Всегда отдельно классифицируй: 1) начисление текущего периода; 2) входящий/предыдущий баланс и старый долг; 3) оплаты; 4) перерасчёты текущего периода; 5) пени; 6) переплату/кредит счёта; 7) добровольные услуги; 8) конечный баланс/итого к оплате поставщику. Проверяй арифметику сверки, но никогда не переноси входящий баланс, старый долг, пени, накопленную переплату, платежи или конечное «к оплате» на жильца. Если в документе одновременно есть текущее начисление и более крупный итог к оплате, всегда используй текущее начисление. Если документ содержит только итог, его можно признать начислением текущего периода лишь когда из документа ясно, что предыдущий баланс равен нулю и итог образован только услугами этого периода. Иначе periodChargeAmount=0 и задай один короткий вопрос. Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений. Сумму жильца сервер сам рассчитает из periodChargeAmount; amount и tenantAmount не пытайся подменять общим итогом. Накопленную переплату не вычитай из начисления жильцу. Добровольную страховку и другие необязательные строки отделяй от periodChargeAmount, включай по умолчанию согласно настройке, заполняй optionalChargeLabel/optionalChargeAmount/optionalChargeIncluded и не останавливай черновик вопросом.
+ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ: базой служит исходное «Начислено» за период, без подмены итогом поставщику. Входящий баланс, старый долг, накопленную переплату и платежи никогда автоматически не переноси на жильца. Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений. Распознавание документов и арифметика выполняются отдельным серверным обработчиком. Используй сохранённые receiptCalculation.raw, policy, formula для объяснения. Каждое исключение, в том числе пени, допустимо только по подтверждённой настройке объекта. Капремонт самостоятельно не исключай. Не изменяй проверенные суммы посредством prepare_utility_bill; предложи редактирование исходных данных и повторную проверку. Период документа и период жильцу различаются только по подтверждённому правилу конкретного объекта и поставщика. На вопрос о расчёте отвечай по существу, не повторяй сводку вместо объяснения.
 
-Для счёта или квитанции извлеки только услугу, расчётный период, начисление текущего периода и срок оплаты. При любой достоверной положительной сумме сразу вызывай prepare_utility_bill; если начисление текущего периода не удаётся надёжно выделить, задай один блокирующий вопрос и не создавай сумму из общего итога. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. Новая квитанция того же периода обязательно дополняет текущий черновик или уже созданный месячный счёт. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Если на коммунальной фотографии виден счётчик с показаниями, анализируй только сам счётчик и цифры на табло. Автоматы, УЗО, щиток, провода и подписи линий считай фоном: никогда не упоминай их и не предлагай ремонт или осмотр, если владелец прямо не сообщил о неисправности. Не описывай содержимое фотографии, адрес, поставщика, лицевой счёт, ЕРЦ/СПБ и прочие реквизиты. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения. Как только обязательных данных достаточно, обязательно вызови соответствующий prepare-инструмент. Интерфейс сам сформирует краткое резюме коммунального черновика и кнопки: никогда не проси подтверждать текстом. Никогда не создавай окончательную запись без явного подтверждения. Мастера и клинеры работают по гостевым ссылкам. Форматируй ответ как обычный текст Telegram без Markdown, звёздочек и решёток. Денежные суммы обозначай только знаком валюты, для рублей только «₽», никогда RUB, rub., rubs или «руб.». Не показывай технические идентификаторы и английские статусы. Не повторяй просьбу или вывод.`,
+Для счёта или квитанции извлеки только услугу, расчётный период, начисление текущего периода и срок оплаты. При любой достоверной положительной сумме сразу вызывай prepare_utility_bill; если начисление текущего периода не удаётся надёжно выделить, задай один блокирующий вопрос и не создавай сумму из общего итога. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. Новая квитанция того же периода обязательно дополняет текущий черновик или уже созданный месячный счёт. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Если на коммунальной фотографии виден счётчик с показаниями, анализируй только сам счётчик и цифры на табло. Автоматы, УЗО, щиток, провода и подписи линий считай фоном: никогда не упоминай их и не предлагай ремонт или осмотр, если владелец прямо не сообщил о неисправности. Не описывай содержимое фотографии, адрес, поставщика, лицевой счёт, ЕРЦ/СПБ и прочие реквизиты. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения. Как только обязательных данных достаточно, обязательно вызови соответствующий prepare-инструмент. Интерфейс сам сформирует краткое резюме коммунального черновика и кнопки: никогда не проси подтверждать текстом. Никогда не создавай окончательную запись без явного подтверждения. Для готового сообщения со счётом арендатору используй prepare_tenant_statement по выбранному месяцу, а не prepare_utility_bill. Это только предпросмотр: отправку в группу выполняет отдельная кнопка или явный ответ владельца после предпросмотра. Если месяц неизвестен, уточни. Мастера и клинеры работают по гостевым ссылкам. Форматируй ответ как обычный текст Telegram без Markdown, звёздочек и решёток. Денежные суммы обозначай только знаком валюты, для рублей только «₽», никогда RUB, rub., rubs или «руб.». Не показывай технические идентификаторы и английские статусы. Не повторяй просьбу или вывод.`,
       input,
       tools,
       tool_choice: "auto",
@@ -297,8 +309,13 @@ async function executeTool(
   attachment?: TelegramAssistantAttachment,
   existingReceiptStoragePath?: string,
   existingPendingAction?: Record<string, unknown> | null,
+  verifiedReceipt?: ReceiptCalculation,
 ) {
   const args = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
+  if (call.name === "prepare_tenant_statement") {
+    const result = await prepareTenantStatement(admin, account, account.apartment_id, String(args.period ?? ""));
+    return { ok: Boolean(result.deliveryId), ...result, instruction: "Покажи готовый текст. Система сама предложит отправку. Ничего не отправлено." };
+  }
   if (call.name === "list_apartments") {
     const result = await listTelegramApartments(admin, account);
     if ("error" in result) return { ok: false, error: result.error };
@@ -510,13 +527,19 @@ async function executeTool(
   }
 
   if (call.name === "prepare_utility_bill") {
+    if (attachment && !verifiedReceipt) return { ok: false, error: "Квитанция требует отдельного проверенного извлечения и расчёта." };
+    const currentPayload = existingPendingAction?.payload as Record<string, unknown> | undefined;
+    if (!verifiedReceipt && currentPayload?.receiptCalculation) {
+      return { ok: false, error: "Нельзя перезаписывать проверенный расчёт предположениями. Измените исходные данные или настройки и повторите проверку квитанции." };
+    }
     const documentKind = String(args.documentKind ?? "other");
     const periodChargeAmount = Number(args.periodChargeAmount ?? 0);
     const requestedOptionalAmount = Number(args.optionalChargeAmount ?? 0);
     const requestedOptionalIncluded = Boolean(args.optionalChargeIncluded && requestedOptionalAmount > 0);
     const excludesOptionalCharge = account.apartment_utility_insurance_included === false && requestedOptionalIncluded;
     const includedOptionalAmount = requestedOptionalIncluded && !excludesOptionalCharge ? requestedOptionalAmount : 0;
-    const storedAmount = Math.max(0, periodChargeAmount + includedOptionalAmount);
+    const storedAmount = verifiedReceipt?.tenantMinor !== undefined && verifiedReceipt.tenantMinor !== null
+      ? verifiedReceipt.tenantMinor / 100 : Math.max(0, periodChargeAmount + includedOptionalAmount);
     const tenantReceipt = Boolean(attachment && ["housing", "electricity", "water"].includes(documentKind));
     const item: Record<string, unknown> = {
       ...args,
@@ -529,6 +552,7 @@ async function executeTool(
       receiptStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
       receiptFilename: attachment?.filename,
       receiptMediaType: attachment?.mimeType,
+      ...(verifiedReceipt ? { receiptCalculation: verifiedReceipt, note: renderReceiptCalculation(verifiedReceipt) } : {}),
     };
     const validation = normalizeBillPayload(item);
     if ("error" in validation) {
@@ -665,6 +689,16 @@ export async function runTelegramAssistant(
     apartment_locale: context.apartment.locale,
   };
   const normalized = message.trim().toLocaleLowerCase("ru-RU");
+  if (conversation.pending_action?.type === "send_utility_statement") {
+    const id = String(conversation.pending_action.deliveryId ?? "");
+    const decision = attachment ? null : statementDecision(message);
+    if (decision) return handleStatementDecision(admin, ownerAccount, id, decision);
+    // Any other request ends the implicit yes/no context; an unrelated later "yes" cannot send.
+    await admin.from("telegram_statement_deliveries").update({status:"cancelled"}).eq("id",id).eq("telegram_user_id",account.telegram_user_id).eq("status","prepared");
+    await saveConversation(admin,account,{pending_action:null,previous_response_id:null});
+    conversation.pending_action=null;
+    conversation.previous_response_id=null;
+  }
 
   if (!attachment && conversation.pending_action?.type === "create_utility_bill" && /страховк/u.test(normalized)) {
     const excludesInsurance = /(?:не\s+включ|исключ|убер|отказ)/u.test(normalized);
@@ -683,6 +717,13 @@ export async function runTelegramAssistant(
         const wasIncluded = Boolean(item.optionalChargeIncluded);
         if (wasIncluded === !excludesInsurance) return item;
         changed = true;
+        if (item.receiptCalculation) {
+          const previous = item.receiptCalculation as ReceiptCalculation;
+          const next = calculateReceipt(previous.raw, { ...previous.policy, optionalIncluded: !excludesInsurance });
+          if (next.tenantMinor === null) throw new Error("Не удалось проверить новый расчёт.");
+          return { ...item, amount: next.tenantMinor / 100, tenantAmount: next.tenantMinor / 100,
+            receiptCalculation: next, optionalChargeIncluded: !excludesInsurance, note: renderReceiptCalculation(next) };
+        }
         const direction = excludesInsurance ? -1 : 1;
         return {
           ...item,
@@ -720,7 +761,9 @@ export async function runTelegramAssistant(
         .update({ utility_insurance_included: !excludesInsurance })
         .eq("id", account.apartment_id);
       if (preferenceError) throw new Error(preferenceError.message);
-      return excludesInsurance ? "Страхование исключено. Черновик пересчитан." : "Страхование включено. Черновик пересчитан.";
+      const insuranceReply = excludesInsurance ? "Страхование исключено." : "Страхование включено.";
+      return `${insuranceReply}\n\n${utilityDraftReply({ ...conversation.pending_action, payload: { ...payload, ...latest, items } },
+        account.apartment_currency, account.apartment_timezone) ?? "Черновик пересчитан."}`;
     }
   }
 
@@ -859,7 +902,8 @@ export async function runTelegramAssistant(
         (sum, item) => sum + Number(item.tenantAmount ?? item.tenant_amount ?? 0),
         0,
       );
-      return `Счёт за ${normalizeUtilityPeriod(billPayload.period)} создан. Жилец должен: ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: draftApartment.currency }).format(tenantTotal)}.`;
+      const statement = await prepareTenantStatement(admin, ownerAccount, draftApartment.id, normalizeUtilityPeriod(billPayload.period));
+      return statement.deliveryId ? statement.reply : `Счёт создан. Жилец должен: ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: draftApartment.currency }).format(tenantTotal)}.\n${statement.reply}`;
     }
     if (pending.type === "create_work_order") {
       const payload = pending.payload as Record<string, unknown>;
@@ -1069,6 +1113,61 @@ export async function runTelegramAssistant(
   }
 
   const keepsUtilityDraft = attachment && conversation.pending_action?.type === "create_utility_bill";
+  if (attachment) {
+    const extracted = await extractReceipt(attachment, message);
+    if (extracted.raw.isReceipt) {
+      if (extracted.raw.currency !== account.apartment_currency) {
+        extracted.raw.warnings.push("Валюта квитанции отличается от валюты квартиры. Уточните валюту расчёта; автоматическая конвертация не выполняется.");
+      }
+      const { data: settings, error: settingsError } = await admin.from("apartments")
+        .select("receipt_exclude_penalties").eq("id", account.apartment_id).single();
+      if (settingsError) throw new Error(settingsError.message);
+      const { data: rules, error: rulesError } = await admin.from("receipt_provider_rules")
+        .select("provider_key,period_offset").eq("apartment_id", account.apartment_id);
+      if (rulesError) throw new Error(rulesError.message);
+      const rule = rules?.find((entry) => entry.provider_key === extracted.raw.providerKey);
+      const calculation = calculateReceipt(extracted.raw, {
+        id: `${account.apartment_id}/${extracted.raw.providerKey ?? "unknown"}`,
+        excludePenalties: settings.receipt_exclude_penalties,
+        periodOffset: rule?.period_offset ?? null,
+        optionalIncluded: account.apartment_utility_insurance_included !== false,
+      });
+      const { error: auditError } = await admin.from("receipt_processing_audit").insert({
+        apartment_id: account.apartment_id, storage_path: attachment.storagePath,
+        content_hash: createHash("sha256").update(attachment.dataUrl).digest("hex"),
+        response_id: extracted.responseId, model: extracted.model,
+        extraction: { ...extracted.raw, verification: extracted.verification }, calculation,
+      });
+      if (auditError) throw new Error(auditError.message);
+      if (calculation.tenantMinor === null) {
+        await saveConversation(admin, account, { previous_response_id: null,
+          pending_action: { type: "collect_utility_bill", apartmentId: account.apartment_id,
+            payload: { receiptStoragePath: attachment.storagePath, receiptCalculation: calculation,
+              previousDraft: conversation.pending_action } } });
+        return renderReceiptCalculation(calculation);
+      }
+      const optionalMinor = extracted.raw.lines.filter((line) => line.kind === "insurance")
+        .reduce((sum, line) => sum + (receiptMinor(line.amount) ?? 0), 0);
+      const optionalIncluded = account.apartment_utility_insurance_included !== false;
+      const args = {
+        service: extracted.raw.service, period: calculation.tenantPeriod,
+        documentKind: "housing", allocation: "tenant", tenantAmount: calculation.tenantMinor / 100,
+        periodChargeAmount: (calculation.tenantMinor - (optionalIncluded ? optionalMinor : 0)) / 100,
+        optionalChargeLabel: extracted.raw.lines.filter((line) => line.kind === "insurance").map((line) => line.label).join(", "),
+        optionalChargeAmount: optionalMinor / 100, optionalChargeIncluded: optionalIncluded,
+        dueDate: extracted.raw.dueDate ?? "",
+      };
+      const result = await executeTool(admin, account, { type: "function_call", name: "prepare_utility_bill", arguments: JSON.stringify(args) },
+        attachment, undefined, conversation.pending_action, calculation);
+      if (!result.ok) return "error" in result ? String(result.error) : "Не удалось сохранить черновик.";
+      await saveConversation(admin, account, { previous_response_id: null });
+      const { data: saved, error: savedError } = await admin.from("telegram_conversations").select("pending_action")
+        .eq("telegram_user_id", account.telegram_user_id).single();
+      if (savedError) throw new Error(savedError.message);
+      return saved.pending_action ? utilityDraftReply(saved.pending_action, account.apartment_currency, account.apartment_timezone)
+        ?? renderReceiptCalculation(calculation) : renderReceiptCalculation(calculation);
+    }
+  }
   if (attachment && conversation.pending_action && !keepsUtilityDraft) {
     await removePendingAttachment(admin, conversation.pending_action);
     await saveConversation(admin, account, { previous_response_id: null, pending_action: null });

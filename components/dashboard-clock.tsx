@@ -16,7 +16,7 @@ function formatDateTime(date: Date, timeZone: string, compact = false) {
       date: new Intl.DateTimeFormat("ru-RU", {
         day: "numeric",
         month: compact ? "short" : "long",
-        year: compact ? undefined : "numeric",
+        year: "numeric",
         timeZone,
       }).format(date),
       time: new Intl.DateTimeFormat("ru-RU", {
@@ -51,9 +51,9 @@ export function DashboardClock({ timeZone, compact = false }: { timeZone: string
     <div className={`dashboard-clock${compact ? " dashboard-clock-compact" : ""}`} aria-label={`Дата и время, ${timezoneLabels[timeZone] ?? timeZone}`}>
       <Clock3 aria-hidden="true" />
       <div>
-        <time dateTime={now?.toISOString()}>{formatted?.date ?? "Сегодня"}</time>
+        <time dateTime={now?.toISOString()}>{compact ? formatted?.time ?? "--:--" : formatted?.date ?? "Сегодня"}</time>
         <span>
-          {formatted?.time ?? "--:--"}{!compact && ` · ${timezoneLabels[timeZone] ?? timeZone}`}
+          {compact ? formatted?.date ?? "Сегодня" : `${formatted?.time ?? "--:--"} · ${timezoneLabels[timeZone] ?? timeZone}`}
         </span>
       </div>
     </div>

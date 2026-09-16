@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -36,6 +37,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import styles from "./ui-lab.module.css";
 
+const catalog = [
+  { id: "foundations", title: "Основа", component: "Foundations", file: "app/globals.css", selectors: ":root · .dark · --background · --foreground", mobile: "Цвета общие для всех размеров экрана. Тема переключается в шапке." },
+  { id: "buttons", title: "Кнопки", component: "Button", file: "components/ui/button.tsx", selectors: "[data-slot=button] · [data-variant] · [data-size]", mobile: "Default: 40 px, текст 13/20. XS, SM и Large показаны отдельно, это не обозначения мобильных размеров." },
+  { id: "inputs", title: "Поля ввода", component: "Input", file: "components/ui/input.tsx", selectors: "[data-slot=input] · :disabled · [aria-invalid]", mobile: "Высота 44 px, редактируемый текст 16 px." },
+  { id: "selects", title: "Выбор", component: "Select", file: "components/ui/select.tsx", selectors: "[data-slot=select-trigger] · [data-slot=select-item]", mobile: "Поле и пункты списка высотой не менее 44 px." },
+  { id: "tabs", title: "Вкладки", component: "Tabs", file: "components/ui/tabs.tsx", selectors: "[data-slot=tabs-list] · [data-slot=tabs-trigger] · [data-state=active]", mobile: "Сегменты 36 px внутри полосы 44 px. Одна строка с горизонтальной прокруткой." },
+  { id: "badges", title: "Статусы", component: "Badge", file: "components/ui/badge.tsx", selectors: "[data-slot=badge] · [data-variant]", mobile: "Тот же компонент. Статус не является кнопкой." },
+  { id: "cards", title: "Карточки", component: "Card", file: "components/ui/card.tsx", selectors: "[data-slot=card] · [data-slot=card-header] · [data-slot=card-content]", mobile: "Примеры переходят в одну колонку. Высота определяется содержимым." },
+];
+
+function Foundations() {
+  const tokens = ["background", "foreground", "card", "primary", "primary-foreground", "secondary", "muted", "muted-foreground", "border", "input", "ring", "destructive", "status-success-bg", "status-success-fg", "status-warning-bg", "status-warning-fg"];
+  return <div className={styles.foundations}>
+    <h3>Цвета</h3>
+    <div className={styles.swatchGrid}>{tokens.map(token => <div key={token} className={styles.swatch}><span style={{ background: `var(--${token})` }} /><code>--{token}</code></div>)}</div>
+    <h3>Типографика · Geist</h3>
+    <div className={styles.typeSamples}>
+      {[[22, 28, 500, "Заголовок страницы"], [16, 24, 500, "Заголовок карточки"], [14, 20, 400, "Основной текст"], [12, 16, 400, "Подпись"]].map(([size, line, weight, label]) => <div key={String(label)}><span style={{fontSize: Number(size), lineHeight: `${line}px`, fontWeight: Number(weight)}}>{label}</span><code>{size}/{line} · {weight}</code></div>)}
+    </div>
+    <h3>Геометрия</h3>
+    <div className={styles.row}><code>Контролы: radius 8 px</code><code>Карточки: radius 16 px</code><code>Tabs: radius 10 / 6 px</code></div>
+  </div>;
+}
+
 function Specimen({
   children,
   description,
@@ -45,6 +70,7 @@ function Specimen({
   description: string;
   title: string;
 }) {
+  const entry = catalog.find(item => item.component === title);
   return (
     <section className={styles.specimen}>
       <header className={styles.specimenHeader}>
@@ -52,9 +78,16 @@ function Specimen({
           <h2>{title}</h2>
           <p>{description}</p>
         </div>
-        <Badge variant="outline">Кандидат</Badge>
+        {entry && <a className={styles.sectionLink} href={`#${entry.id}`} aria-label={`Ссылка на раздел ${entry.title}`}>#</a>}
       </header>
       {children}
+      {entry && <footer className={styles.componentReference}>
+        <div><span>Компонент</span><code>{entry.component}</code></div>
+        <div><span>Источник</span><code>{entry.file}</code></div>
+        <div><span>Селекторы</span><code>{entry.selectors}</code></div>
+        <div><span>Мобильная версия</span><p>{entry.mobile}</p></div>
+        <div><span>Примеры витрины</span><code>app/ui-lab/ui-lab.module.css</code></div>
+      </footer>}
     </section>
   );
 }
@@ -63,24 +96,33 @@ function DemoLabel({ children }: { children: React.ReactNode }) {
   return <span className={styles.demoLabel}>{children}</span>;
 }
 
-function CandidateButton({
-  className = "",
-  ...props
-}: React.ComponentProps<typeof Button>) {
-  return (
-    <Button className={`${styles.candidateButton} ${className}`} {...props} />
-  );
-}
-
 export default function UiLabPage() {
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState("foundations");
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const threshold = window.matchMedia("(max-width: 760px)").matches ? 140 : 40;
+        const reached = catalog.filter(({id}) => (document.getElementById(id)?.getBoundingClientRect().top ?? Infinity) <= threshold);
+        setActive(reached.at(-1)?.id ?? "foundations");
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, {passive: true});
+    window.addEventListener("resize", update);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
+  }, []);
+  const results = catalog.filter(item => `${item.title} ${item.component} ${item.file}`.toLowerCase().includes(query.trim().toLowerCase()));
   return (
     <TooltipProvider>
       <main className={styles.page}>
         <header className={styles.pageHeader}>
           <div className={styles.headerCopy}>
-            <Badge variant="secondary">Черновик на согласование</Badge>
+            <Badge variant="secondary">Библиотека приложения</Badge>
             <h1>Компоненты FixPlan</h1>
-            <p>Geist, shadcn/Radix и проверяемая геометрия Quadratic UI.</p>
+            <p>Библиотека интерфейса · Geist · shadcn/Radix</p>
           </div>
           <div className={styles.headerActions}>
             <ThemeToggle />
@@ -101,16 +143,16 @@ export default function UiLabPage() {
           </div>
         </header>
 
-        <nav aria-label="Компоненты" className={styles.anchorNav}>
-          <a href="#buttons">Button</a>
-          <a href="#inputs">Input</a>
-          <a href="#selects">Select</a>
-          <a href="#tabs">Tabs</a>
-          <a href="#badges">Badge</a>
-          <a href="#cards">Card</a>
-        </nav>
-
+        <div className={styles.catalogLayout}>
+        <aside className={styles.catalogAside}>
+          <Input aria-label="Найти компонент" placeholder="Найти компонент…" value={query} onChange={event => setQuery(event.target.value)} />
+          <nav aria-label="Разделы каталога" className={styles.anchorNav}>
+            {results.map(item => <a key={item.id} href={`#${item.id}`} aria-current={active === item.id ? "location" : undefined} onClick={() => setActive(item.id)}><span>{item.title}</span><small>{item.component}</small></a>)}
+          </nav>
+          {!results.length && <p className={styles.emptySearch}>Раздел не найден</p>}
+        </aside>
         <div className={styles.content}>
+          <div id="foundations"><Specimen title="Foundations" description="Цвета, типографика и геометрия текущей веб-библиотеки."><Foundations /></Specimen></div>
           <div id="buttons">
             <Specimen
               description="Четыре размера, основные варианты, состояния и расположение иконок."
@@ -119,58 +161,58 @@ export default function UiLabPage() {
               <div className={styles.demoGroup}>
                 <DemoLabel>Размеры</DemoLabel>
                 <div className={styles.row}>
-                  <CandidateButton className={styles.buttonXs}>
+                  <Button size="xs">
                     Extra Small · 32
-                  </CandidateButton>
-                  <CandidateButton className={styles.buttonSm}>
+                  </Button>
+                  <Button size="sm">
                     Small · 36
-                  </CandidateButton>
-                  <CandidateButton className={styles.buttonMd}>
+                  </Button>
+                  <Button>
                     Default · 36
-                  </CandidateButton>
-                  <CandidateButton className={styles.buttonLg}>
+                  </Button>
+                  <Button size="lg">
                     Large · 48
-                  </CandidateButton>
+                  </Button>
                 </div>
               </div>
 
               <div className={styles.demoGroup}>
                 <DemoLabel>Варианты</DemoLabel>
                 <div className={styles.row}>
-                  <CandidateButton className={styles.buttonMd}>
+                  <Button>
                     Основная
-                  </CandidateButton>
-                  <CandidateButton
-                    className={styles.buttonMd}
+                  </Button>
+                  <Button
+
                     variant="secondary"
                   >
                     Вторичная
-                  </CandidateButton>
-                  <CandidateButton
-                    className={styles.buttonMd}
+                  </Button>
+                  <Button
+
                     variant="outline"
                   >
                     Контурная
-                  </CandidateButton>
-                  <CandidateButton className={styles.buttonMd} variant="ghost">
+                  </Button>
+                  <Button  variant="ghost">
                     Прозрачная
-                  </CandidateButton>
-                  <CandidateButton
-                    className={styles.buttonMd}
+                  </Button>
+                  <Button
+
                     variant="destructive"
                   >
                     Удалить
-                  </CandidateButton>
-                  <CandidateButton
-                    className={`${styles.buttonMd} ${styles.successButton}`}
+                  </Button>
+                  <Button
+                    variant="success"
                   >
                     Готово
-                  </CandidateButton>
-                  <CandidateButton
-                    className={`${styles.buttonMd} ${styles.warningButton}`}
+                  </Button>
+                  <Button
+                    variant="warning"
                   >
                     Требует внимания
-                  </CandidateButton>
+                  </Button>
                 </div>
               </div>
 
@@ -178,38 +220,38 @@ export default function UiLabPage() {
                 <DemoLabel>Состояния</DemoLabel>
                 <div className={styles.stateGrid}>
                   <div>
-                    <CandidateButton className={styles.buttonMd}>
+                    <Button>
                       Default
-                    </CandidateButton>
+                    </Button>
                     <small>Default</small>
                   </div>
                   <div>
-                    <CandidateButton
-                      className={`${styles.buttonMd} ${styles.forcedHover}`}
+                    <Button
+                      className={styles.forcedHover}
                     >
                       Hover
-                    </CandidateButton>
+                    </Button>
                     <small>Hover</small>
                   </div>
                   <div>
-                    <CandidateButton
-                      className={`${styles.buttonMd} ${styles.forcedFocus}`}
+                    <Button
+                      className={styles.forcedFocus}
                     >
                       Focus
-                    </CandidateButton>
+                    </Button>
                     <small>Focus</small>
                   </div>
                   <div>
-                    <CandidateButton className={styles.buttonMd} disabled>
+                    <Button  disabled>
                       Disabled
-                    </CandidateButton>
+                    </Button>
                     <small>Disabled</small>
                   </div>
                   <div>
-                    <CandidateButton className={styles.buttonMd} disabled>
+                    <Button  disabled>
                       <LoaderCircle className={styles.spinner} />
                       Загрузка
-                    </CandidateButton>
+                    </Button>
                     <small>Loading</small>
                   </div>
                 </div>
@@ -218,25 +260,25 @@ export default function UiLabPage() {
               <div className={styles.demoGroup}>
                 <DemoLabel>Иконки</DemoLabel>
                 <div className={styles.row}>
-                  <CandidateButton className={styles.buttonMd}>
+                  <Button>
                     <Plus />
                     Добавить
-                  </CandidateButton>
-                  <CandidateButton className={styles.buttonMd}>
+                  </Button>
+                  <Button>
                     Продолжить
                     <ArrowRight />
-                  </CandidateButton>
-                  <CandidateButton
+                  </Button>
+                  <Button
                     aria-label="Сохранить"
-                    className={`${styles.buttonMd} ${styles.iconButton}`}
+                    size="icon"
                   >
                     <Save />
-                  </CandidateButton>
+                  </Button>
                 </div>
               </div>
 
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · default 36</DemoLabel>
+                <DemoLabel>Общий компонент · default 36</DemoLabel>
                 <div className={styles.row}>
                   <Button>Основная</Button>
                   <Button variant="secondary">Вторичная</Button>
@@ -249,14 +291,14 @@ export default function UiLabPage() {
 
           <div id="inputs">
             <Specimen
-              description="Основная форма 36 px, крупная 48 px и все рабочие состояния."
+              description="Общие поля приложения: заполненное, фокус, ошибка, отключено и только чтение."
               title="Input"
             >
               <div className={styles.fieldGrid}>
                 <label className={styles.field} htmlFor="lab-input-default">
                   <span>Default</span>
                   <Input
-                    className={styles.candidateInput}
+
                     id="lab-input-default"
                     placeholder="Название узла"
                   />
@@ -264,7 +306,7 @@ export default function UiLabPage() {
                 <label className={styles.field} htmlFor="lab-input-filled">
                   <span>Filled</span>
                   <Input
-                    className={styles.candidateInput}
+
                     defaultValue="Бойлер"
                     id="lab-input-filled"
                   />
@@ -272,7 +314,7 @@ export default function UiLabPage() {
                 <label className={styles.field} htmlFor="lab-input-focus">
                   <span>Focus</span>
                   <Input
-                    className={`${styles.candidateInput} ${styles.forcedInputFocus}`}
+                    className={styles.forcedInputFocus}
                     defaultValue="Шпалерная, 34Б"
                     id="lab-input-focus"
                   />
@@ -282,7 +324,7 @@ export default function UiLabPage() {
                   <Input
                     aria-describedby="lab-input-error-message"
                     aria-invalid="true"
-                    className={styles.candidateInput}
+
                     defaultValue="Неверное значение"
                     id="lab-input-error"
                   />
@@ -296,23 +338,23 @@ export default function UiLabPage() {
                 <label className={styles.field} htmlFor="lab-input-disabled">
                   <span>Disabled</span>
                   <Input
-                    className={styles.candidateInput}
+
                     disabled
                     defaultValue="Недоступно"
                     id="lab-input-disabled"
                   />
                 </label>
                 <label className={styles.field} htmlFor="lab-input-large">
-                  <span>Large · 48</span>
+                  <span>Read only</span>
                   <Input
-                    className={`${styles.candidateInput} ${styles.inputLarge}`}
+                    readOnly defaultValue="Только чтение"
                     id="lab-input-large"
-                    placeholder="Крупное поле"
+
                   />
                 </label>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · 36</DemoLabel>
+                <DemoLabel>Общий компонент · 36</DemoLabel>
                 <Input
                   className={styles.baselineControl}
                   placeholder="Название узла"
@@ -331,26 +373,26 @@ export default function UiLabPage() {
                   <label htmlFor="lab-select-default">Default</label>
                   <Select>
                     <SelectTrigger
-                      className={styles.candidateSelect}
+
                       id="lab-select-default"
                     >
                       <SelectValue placeholder="Выберите статус" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem
-                        className={styles.candidateSelectItem}
+
                         value="ok"
                       >
                         Исправно
                       </SelectItem>
                       <SelectItem
-                        className={styles.candidateSelectItem}
+
                         value="attention"
                       >
                         Требует внимания
                       </SelectItem>
                       <SelectItem
-                        className={styles.candidateSelectItem}
+
                         value="work"
                       >
                         В работе
@@ -362,26 +404,26 @@ export default function UiLabPage() {
                   <label htmlFor="lab-select-filled">Filled</label>
                   <Select defaultValue="attention">
                     <SelectTrigger
-                      className={styles.candidateSelect}
+
                       id="lab-select-filled"
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem
-                        className={styles.candidateSelectItem}
+
                         value="ok"
                       >
                         Исправно
                       </SelectItem>
                       <SelectItem
-                        className={styles.candidateSelectItem}
+
                         value="attention"
                       >
                         Требует внимания
                       </SelectItem>
                       <SelectItem
-                        className={styles.candidateSelectItem}
+
                         value="work"
                       >
                         В работе
@@ -393,14 +435,14 @@ export default function UiLabPage() {
                   <label htmlFor="lab-select-disabled">Disabled</label>
                   <Select disabled defaultValue="ok">
                     <SelectTrigger
-                      className={styles.candidateSelect}
+
                       id="lab-select-disabled"
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem
-                        className={styles.candidateSelectItem}
+
                         value="ok"
                       >
                         Исправно
@@ -410,7 +452,7 @@ export default function UiLabPage() {
                 </div>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · 36</DemoLabel>
+                <DemoLabel>Общий компонент · 36</DemoLabel>
                 <Select defaultValue="ok">
                   <SelectTrigger className={styles.baselineControl}>
                     <SelectValue />
@@ -430,27 +472,27 @@ export default function UiLabPage() {
             >
               <div className={styles.tabExamples}>
                 <Tabs defaultValue="overview">
-                  <TabsList className={styles.candidateTabsList}>
+                  <TabsList >
                     <TabsTrigger
-                      className={styles.candidateTab}
+
                       value="overview"
                     >
                       Обзор
                     </TabsTrigger>
                     <TabsTrigger
-                      className={styles.candidateTab}
+
                       value="history"
                     >
                       История
                     </TabsTrigger>
                     <TabsTrigger
-                      className={styles.candidateTab}
+
                       value="documents"
                     >
                       Документы
                     </TabsTrigger>
                     <TabsTrigger
-                      className={styles.candidateTab}
+
                       disabled
                       value="access"
                     >
@@ -481,7 +523,7 @@ export default function UiLabPage() {
                 </Tabs>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · list 40</DemoLabel>
+                <DemoLabel>Общий компонент · list 40</DemoLabel>
                 <Tabs defaultValue="one">
                   <TabsList>
                     <TabsTrigger value="one">Обзор</TabsTrigger>
@@ -494,34 +536,34 @@ export default function UiLabPage() {
 
           <div id="badges">
             <Specimen
-              description="Высота 28 px, текст 14/20 и семантические цветовые роли."
+              description="Высота 28 px, подписи и цвета из общего компонента Badge."
               title="Badge"
             >
               <div className={styles.row}>
-                <Badge className={styles.candidateBadge}>Основной</Badge>
-                <Badge className={styles.candidateBadge} variant="secondary">
+                <Badge>Основной</Badge>
+                <Badge  variant="secondary">
                   Вторичный
                 </Badge>
-                <Badge className={styles.candidateBadge} variant="outline">
+                <Badge  variant="outline">
                   Контурный
                 </Badge>
                 <Badge
-                  className={`${styles.candidateBadge} ${styles.successBadge}`}
+                  variant="success"
                 >
                   <Check />
                   Исправно
                 </Badge>
                 <Badge
-                  className={`${styles.candidateBadge} ${styles.warningBadge}`}
+                  variant="warning"
                 >
                   В работе
                 </Badge>
-                <Badge className={styles.candidateBadge} variant="destructive">
+                <Badge  variant="destructive">
                   Требует внимания
                 </Badge>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база · 20</DemoLabel>
+                <DemoLabel>Общий компонент · 28</DemoLabel>
                 <div className={styles.row}>
                   <Badge>Основной</Badge>
                   <Badge variant="secondary">Вторичный</Badge>
@@ -537,9 +579,9 @@ export default function UiLabPage() {
               title="Card"
             >
               <div className={styles.cardGrid}>
-                <Card className={styles.candidateCard}>
-                  <CardHeader className={styles.candidateCardHeader}>
-                    <CardTitle className={styles.candidateCardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Требует решения
                     </CardTitle>
                     <CardDescription>
@@ -549,7 +591,7 @@ export default function UiLabPage() {
                       <Badge variant="destructive">Важно</Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardContent className={styles.candidateCardContent}>
+                  <CardContent>
                     <button className={styles.decisionRow} type="button">
                       <span className={styles.cardIcon}>
                         <AlertTriangle />
@@ -563,22 +605,22 @@ export default function UiLabPage() {
                   </CardContent>
                 </Card>
 
-                <Card className={styles.candidateCard}>
-                  <CardHeader className={styles.candidateCardHeader}>
-                    <CardTitle className={styles.candidateCardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Коммуналка · Август 2026
                     </CardTitle>
                     <CardDescription>
                       Две квитанции включены в счёт.
                     </CardDescription>
                     <CardAction>
-                      <Badge className={styles.warningBadge}>
+                      <Badge variant="warning">
                         Счёт выставлен
                       </Badge>
                     </CardAction>
                   </CardHeader>
                   <CardContent
-                    className={`${styles.candidateCardContent} ${styles.utilityContent}`}
+                    className={` ${styles.utilityContent}`}
                   >
                     <div>
                       <span>ЖКХ</span>
@@ -593,34 +635,34 @@ export default function UiLabPage() {
                       <strong>8 819,24 ₽</strong>
                     </div>
                   </CardContent>
-                  <CardFooter className={styles.candidateCardFooter}>
-                    <CandidateButton
-                      className={styles.buttonMd}
+                  <CardFooter>
+                    <Button
+
                       variant="outline"
                     >
                       <ReceiptText />
                       Квитанции
-                    </CandidateButton>
-                    <CandidateButton className={styles.buttonMd}>
+                    </Button>
+                    <Button>
                       <Check />
                       Оплата получена
-                    </CandidateButton>
+                    </Button>
                   </CardFooter>
                 </Card>
 
-                <Card className={styles.candidateCard}>
-                  <CardHeader className={styles.candidateCardHeader}>
-                    <CardTitle className={styles.candidateCardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Задание #4 · Алексей
                     </CardTitle>
                     <CardDescription>
                       Ремонт бойлера · четверг, 15:00
                     </CardDescription>
                     <CardAction>
-                      <Badge className={styles.successBadge}>В работе</Badge>
+                      <Badge variant="success">В работе</Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardContent className={styles.candidateCardContent}>
+                  <CardContent>
                     <div className={styles.taskSummary}>
                       <span className={styles.cardIcon}>
                         <Wrench />
@@ -628,21 +670,21 @@ export default function UiLabPage() {
                       <p>Диагностика, ремонт и итоговая проверка работы.</p>
                     </div>
                   </CardContent>
-                  <CardFooter className={styles.candidateCardFooter}>
-                    <CandidateButton className={styles.buttonMd}>
+                  <CardFooter>
+                    <Button>
                       Открыть задание
-                    </CandidateButton>
-                    <CandidateButton
-                      className={styles.buttonMd}
+                    </Button>
+                    <Button
+
                       variant="outline"
                     >
                       Редактировать
-                    </CandidateButton>
+                    </Button>
                   </CardFooter>
                 </Card>
 
                 <Card
-                  className={`${styles.candidateCard} ${styles.metricCard}`}
+                  className={` ${styles.metricCard}`}
                 >
                   <CardContent className={styles.metricContent}>
                     <span>Осталось получить</span>
@@ -652,7 +694,7 @@ export default function UiLabPage() {
                 </Card>
               </div>
               <div className={styles.baseline}>
-                <DemoLabel>Текущая база</DemoLabel>
+                <DemoLabel>Общий компонент</DemoLabel>
                 <Card className={styles.baselineCard}>
                   <CardHeader>
                     <CardTitle>Карточка текущей базы</CardTitle>
@@ -665,6 +707,7 @@ export default function UiLabPage() {
               </div>
             </Specimen>
           </div>
+        </div>
         </div>
       </main>
     </TooltipProvider>

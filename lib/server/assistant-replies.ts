@@ -31,16 +31,18 @@ export function utilityDraftReply(pendingAction: Record<string, unknown>, curren
     ? bill.existingItems.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
     : [];
   const statementItems = [
-    ...existingItems.map((entry) => ({ service: entry.service, tenantAmount: entry.tenant_amount })),
-    ...items.map((entry) => ({ service: entry.service, tenantAmount: entry.tenantAmount })),
+    ...existingItems.map((entry) => ({ service: entry.service, tenantAmount: entry.tenant_amount, previous: true })),
+    ...items.map((entry) => ({ service: entry.service, tenantAmount: entry.tenantAmount, previous: false })),
   ];
-  const tenantTotal = statementItems.reduce((sum, entry) => sum + Number(entry.tenantAmount ?? 0), 0);
+  const tenantTotal = statementItems.reduce((sum, entry) => sum + Math.round(Number(entry.tenantAmount ?? 0) * 100), 0) / 100;
   const hasPreviousItems = statementItems.length > 1;
   const createdAt = typeof bill.draftCreatedAt === "string" ? new Date(bill.draftCreatedAt) : null;
   const createdLabel = createdAt && !Number.isNaN(createdAt.valueOf())
     ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: timezone }).format(createdAt)
     : "сегодня";
-  const extracted = [
+  const extracted = latest.receiptCalculation ? [
+    renderReceiptCalculation(latest.receiptCalculation as ReceiptCalculation), "",
+  ] : [
     `Что удалось извлечь из вложения (${latestService}, ${period.toLocaleLowerCase("ru-RU")}):`,
     `• Период начисления: за ${period.toLocaleLowerCase("ru-RU")}`,
     `• Начислено за месяц: ${currencyLabel(amount, currency)}`,
@@ -55,7 +57,7 @@ export function utilityDraftReply(pendingAction: Record<string, unknown>, curren
     extracted.push(
       existingItems.length ? `Подготовил дополнение к счёту за ${period.toLocaleLowerCase("ru-RU")}.` : `Дополнил черновик от ${createdLabel}.`,
       `• Период: за ${period.toLocaleLowerCase("ru-RU")}`,
-      ...statementItems.map((entry) => `• ${String(entry.service ?? "Услуга")}: ${currencyLabel(entry.tenantAmount, currency)}`),
+      ...statementItems.map((entry) => `• ${String(entry.service ?? "Услуга")}: ${currencyLabel(entry.tenantAmount, currency)}${entry.previous ? " (ранее сохранённый счёт, не извлечён из нового вложения)" : ""}`),
       `Жилец должен всего: ${currencyLabel(tenantTotal, currency)}`,
       "",
     );
@@ -65,3 +67,4 @@ export function utilityDraftReply(pendingAction: Record<string, unknown>, curren
   extracted.push("Чтобы добавить другие ресурсы, пришлите дополнительные квитанции.");
   return extracted.join("\n");
 }
+import { renderReceiptCalculation, type ReceiptCalculation } from "@/lib/receipt-calculation";

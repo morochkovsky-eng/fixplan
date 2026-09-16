@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+export const maxDuration = 300;
 import { requireApartmentAccess } from "../assets/access";
 import { recordAssistantMessage } from "@/lib/server/assistant-messages";
-import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
 import type { TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import { cleanTelegramDraftText, cleanTelegramText, transcribeAudioFile } from "@/lib/server/telegram";
@@ -138,13 +138,7 @@ export async function POST(request: Request) {
     if (conversationResult.error) throw new Error(conversationResult.error.message);
     if (apartmentResult.error) throw new Error(apartmentResult.error.message);
     const pending = conversationResult.data?.pending_action as Record<string, unknown> | null;
-    const conciseAnswer = pending?.type
-      ? utilityDraftReply(
-          pending,
-          apartmentResult.data?.currency ?? "RUB",
-          apartmentResult.data?.timezone ?? "Europe/Moscow",
-        ) ?? cleanTelegramDraftText(answer)
-      : answer;
+    const conciseAnswer = pending?.type ? cleanTelegramDraftText(answer) : answer;
     await recordAssistantMessage(access.admin, {
       ownerUserId: access.userId,
       apartmentId: access.apartmentId,

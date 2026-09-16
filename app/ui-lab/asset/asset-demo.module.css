@@ -2,27 +2,11 @@
   min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  padding: 28px clamp(20px, 4vw, 56px) 72px;
+  max-width: 1288px;
+  margin-inline: auto;
+  padding: 0 24px 72px;
   font-size: 14px;
   line-height: 20px;
-}
-
-/* Density candidate scoped to the lab; production primitives stay unchanged. */
-.page [data-slot="button"],
-.page [data-slot="select-trigger"],
-.page [data-slot="input"] {
-  height: 36px;
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.page [data-slot="button"] {
-  padding-inline: 12px;
-}
-
-.page [data-slot="button"] svg {
-  width: 16px;
-  height: 16px;
 }
 
 .labHeader {
@@ -31,7 +15,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  margin: 0 auto 20px;
+  margin: 0 auto;
 }
 
 .labHeader > div:first-child {
@@ -50,15 +34,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.card,
-.heroCard {
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding-block: 0;
-  box-shadow: none;
 }
 
 .heroCard,
@@ -149,21 +124,6 @@
   margin-top: 24px;
 }
 
-.tabsList {
-  display: grid;
-  width: min(100%, 440px);
-  height: 40px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-radius: 10px;
-  padding: 4px;
-}
-
-.tab {
-  height: 32px;
-  border-radius: 6px;
-  padding-inline: 10px;
-}
-
 .tabPanel {
   margin-top: 8px;
 }
@@ -183,31 +143,6 @@
   gap: 24px;
 }
 
-.cardHeader {
-  gap: 6px;
-  padding: 20px 24px;
-}
-
-.cardTitle {
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
-}
-
-.cardContent {
-  padding: 0 24px 24px;
-}
-
-.cardFooter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  border-top: 1px solid var(--border);
-  border-radius: 0 0 16px 16px;
-  background: transparent;
-  padding: 20px 24px 24px;
-}
-
 .leadText,
 .bodyText {
   margin: 0;
@@ -222,7 +157,7 @@
   margin-top: 16px;
   border: 1px solid color-mix(in oklch, var(--destructive) 24%, transparent);
   border-radius: 8px;
-  background: color-mix(in oklch, var(--destructive) 7%, var(--background));
+  background: var(--asset-notice-background);
   padding: 12px;
 }
 
@@ -240,6 +175,8 @@
 
 .notice strong {
   margin-bottom: 2px;
+  font-size: var(--font-label-size);
+  line-height: 20px;
   font-weight: 500;
 }
 
@@ -533,24 +470,9 @@
 }
 
 @media (max-width: 680px) {
-  .page [data-slot="select-trigger"],
-  .page [data-slot="input"] {
-    height: 44px;
-  }
-
-  .page [data-slot="button"] {
-    height: 40px;
-    min-height: 40px;
-    font-size: 13px;
-    padding-inline: 10px;
-  }
-
-  .page [data-slot="input"] {
-    font-size: 16px;
-  }
 
   .page {
-    padding: 12px 12px 56px;
+    padding: 0 12px 56px;
   }
 
   .labHeader {
@@ -574,14 +496,13 @@
     justify-content: space-between;
   }
 
-  .heroHeader,
-  .cardHeader {
+  .heroHeader{
     padding: 20px 16px;
   }
 
   .heroHeader {
-    padding: 12px;
-    gap: 12px;
+    padding: 16px;
+    gap: 20px;
   }
 
   .heroIdentity {
@@ -618,31 +539,6 @@
     width: 40px !important;
   }
 
-  .tabsList {
-    display: flex;
-    width: 100%;
-    height: 44px;
-    justify-content: flex-start;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    gap: 2px;
-    scrollbar-width: none;
-    touch-action: pan-x;
-  }
-
-  .tabsList::-webkit-scrollbar {
-    display: none;
-  }
-
-  .tab {
-    width: auto;
-    min-width: max-content;
-    flex: 0 0 auto;
-    height: 36px;
-    min-height: 36px;
-    font-size: 13px;
-  }
-
   .detailGrid,
   .sideColumn {
     grid-template-columns: minmax(0, 1fr);
@@ -655,20 +551,6 @@
 
   .detailGrid > div:first-child {
     border-top: 0;
-  }
-
-  .cardContent {
-    padding: 0 16px 20px;
-  }
-
-  .cardFooter {
-    display: flex;
-    padding: 16px;
-  }
-
-  .cardFooter button {
-    width: auto;
-    max-width: 100%;
   }
 
   .detailGrid > div {

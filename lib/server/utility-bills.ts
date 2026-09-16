@@ -86,6 +86,7 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
           ? body.receiptStoragePath.trim()
           : null,
       note: typeof body.note === "string" && body.note.trim() ? body.note.trim() : null,
+      ...(body.receiptCalculation ? { receipt_calculation: body.receiptCalculation } : {}),
       allocation,
       tenant_amount: tenantAmount,
       optional_charge_label: String(body.optionalChargeLabel ?? "").trim() || null,

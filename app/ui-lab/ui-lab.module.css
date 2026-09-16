@@ -42,21 +42,42 @@
   gap: 8px;
 }
 
+.catalogLayout {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  gap: 32px;
+  max-width: 1380px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.pageHeader { max-width: 1380px; }
+.catalogAside { position: sticky; top: 20px; min-width: 0; max-height: calc(100dvh - 40px); overflow-y: auto; }
 .anchorNav {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  max-width: 1180px;
+  display: grid;
   gap: 4px;
-  margin: 0 auto 20px;
-  overflow-x: auto;
-  border-block: 1px solid var(--border);
-  background: color-mix(in oklch, var(--background) 94%, transparent);
+  margin-top: 12px;
   padding: 8px 0;
-  backdrop-filter: blur(12px);
   scrollbar-width: none;
 }
+.anchorNav a { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.anchorNav small { font-size: 11px; font-weight: 400; }
+.anchorNav a[aria-current] { background: var(--muted); color: var(--foreground); }
+.content { min-width: 0; width: 100%; }
+.content > div[id] { scroll-margin-top: 20px; }
+.componentReference { display: grid; gap: 10px; margin-top: 24px; padding: 16px 24px; border-top: 1px solid var(--border); }
+.componentReference > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; font-size: 12px; line-height: 18px; }
+.componentReference span, .emptySearch { color: var(--muted-foreground); }
+.componentReference p { margin: 0; }
+.componentReference code, .foundations code { overflow-wrap: anywhere; font-family: var(--font-geist-mono), monospace; font-size: 12px; }
+.sectionLink { color: var(--muted-foreground); padding: 4px 8px; }
+.foundations { display: grid; gap: 16px; padding: 24px; }
+.foundations h3 { font-size: 14px; font-weight: 500; margin: 0; }
+.swatchGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+.swatch { min-width: 0; display: grid; gap: 8px; }
+.swatch > span { height: 56px; border: 1px solid var(--border); border-radius: 6px; }
+.typeSamples { display: grid; gap: 16px; }
+.typeSamples > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 
 .anchorNav::-webkit-scrollbar {
   display: none;
@@ -127,62 +148,6 @@
   line-height: 16px;
 }
 
-.candidateButton {
-  border-radius: 8px;
-  letter-spacing: 0;
-}
-
-.buttonXs {
-  height: 32px;
-  padding-inline: 10px;
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.buttonSm {
-  height: 36px;
-  padding-inline: 12px;
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.buttonMd {
-  height: 36px;
-  padding-inline: 12px;
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.buttonLg {
-  height: 48px;
-  padding-inline: 16px;
-  font-size: 16px;
-  line-height: 24px;
-}
-
-.iconButton {
-  width: 36px;
-  padding: 0;
-}
-
-.successButton {
-  background: #008a2e;
-  color: #fff;
-}
-
-.successButton:hover {
-  background: #007a29;
-}
-
-.warningButton {
-  background: #dc7609;
-  color: #fff;
-}
-
-.warningButton:hover {
-  background: #c56808;
-}
-
 .forcedHover {
   background: color-mix(in oklch, var(--primary) 80%, transparent);
 }
@@ -247,34 +212,6 @@
   line-height: 20px;
 }
 
-.candidateInput,
-.candidateSelect {
-  width: 100%;
-  height: 36px;
-  border-radius: 8px;
-  padding-inline: 12px;
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.candidateSelect {
-  padding-right: 10px;
-}
-
-.candidateSelectItem {
-  min-height: 40px;
-  padding-block: 8px;
-  padding-left: 10px;
-}
-
-.inputLarge {
-  height: 48px;
-  border-radius: 10px;
-  padding-inline: 14px;
-  font-size: 16px;
-  line-height: 24px;
-}
-
 .errorText {
   color: var(--destructive);
   font-size: 12px;
@@ -293,28 +230,6 @@
   padding: 20px 24px 0;
 }
 
-.candidateTabsList {
-  max-width: 100%;
-  height: 40px;
-  overflow-x: auto;
-  border-radius: 10px;
-  padding: 4px;
-  scrollbar-width: none;
-}
-
-.candidateTabsList::-webkit-scrollbar {
-  display: none;
-}
-
-.candidateTab {
-  min-width: max-content;
-  height: 32px;
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-size: 14px;
-  line-height: 20px;
-}
-
 .lineTabs {
   max-width: 100%;
   overflow-x: auto;
@@ -328,72 +243,12 @@
   color: var(--muted-foreground);
 }
 
-.candidateBadge {
-  height: 28px;
-  gap: 6px;
-  border-radius: 9999px;
-  padding-inline: 10px;
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.candidateBadge svg {
-  width: 14px;
-  height: 14px;
-}
-
-.successBadge {
-  border-color: #d3fde5;
-  background: #ecfdf3;
-  color: #008a2e;
-}
-
-.warningBadge {
-  border-color: #fdf5d3;
-  background: #fffcf0;
-  color: #a95605;
-}
-
 .cardGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
   gap: 24px;
   padding: 20px 24px 0;
-}
-
-.candidateCard {
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding-block: 0;
-  box-shadow: none;
-}
-
-.candidateCardHeader {
-  gap: 6px;
-  border-radius: 16px 16px 0 0;
-  padding: 20px 24px;
-}
-
-.candidateCardTitle {
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
-}
-
-.candidateCardContent {
-  padding: 0 24px 24px;
-}
-
-.candidateCardFooter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  border-top: 1px solid var(--border);
-  border-radius: 0 0 16px 16px;
-  background: transparent;
-  padding: 20px 24px 24px;
 }
 
 .decisionRow {
@@ -503,28 +358,6 @@
   width: min(100%, 420px);
 }
 
-:global(.dark) .successButton {
-  background: #59f3a6;
-  color: #001f0f;
-}
-
-:global(.dark) .warningButton {
-  background: #f3cf58;
-  color: #1d1f00;
-}
-
-:global(.dark) .successBadge {
-  border-color: #003d1c;
-  background: #001f0f;
-  color: #59f3a6;
-}
-
-:global(.dark) .warningBadge {
-  border-color: #3d3d00;
-  background: #1d1f00;
-  color: #f3cf58;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation: none;
@@ -551,9 +384,19 @@
   }
 
   .anchorNav {
-    margin-inline: -12px;
-    padding-inline: 12px;
+    display: flex;
+    overflow-x: auto;
+    margin: 0;
+    padding: 4px 0;
   }
+  .anchorNav small { display: none; }
+  .catalogLayout { display: block; }
+  .catalogAside { top: 0; z-index: 10; margin: 0 -12px 20px; padding: 8px 12px; background: var(--background); border-block: 1px solid var(--border); overflow: visible; max-height: none; }
+  .catalogAside > input { height: 40px; font-size: 16px; margin-bottom: 4px; }
+  .content > div[id] { scroll-margin-top: 116px; }
+  .componentReference, .foundations { padding: 16px; }
+  .componentReference > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .typeSamples > div { align-items: start; flex-direction: column; gap: 4px; }
 
   .specimenHeader,
   .demoGroup,
@@ -565,7 +408,7 @@
   }
 
   .specimenHeader {
-    display: grid;
+    display: flex;
   }
 
   .fieldGrid,
@@ -576,43 +419,5 @@
 
   .stateGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .candidateTabsList {
-    display: flex;
-    width: 100%;
-    height: 44px;
-    overflow-x: auto;
-    gap: 2px;
-    justify-content: flex-start;
-  }
-
-  .candidateTab {
-    width: auto;
-    min-width: max-content;
-    flex: 0 0 auto;
-    height: 36px;
-    min-height: 36px;
-    font-size: 13px;
-  }
-
-  .page .buttonMd { height: 40px; min-height: 40px; font-size: 13px; padding-inline: 10px; }
-
-
-  .page .candidateInput,
-  .page .candidateSelect {
-    height: 44px;
-  }
-
-  .page .candidateInput {
-    font-size: 16px;
-  }
-
-  .page .iconButton {
-    width: 40px;
-  }
-
-  .candidateSelectItem {
-    min-height: 44px;
   }
 }

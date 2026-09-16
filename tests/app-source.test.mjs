@@ -63,7 +63,7 @@ test("uses the system color scheme by default and exposes the theme controls", (
   assert.match(themeToggleSource, /Системная/);
   assert.match(themeToggleSource, /Светлая/);
   assert.match(themeToggleSource, /Тёмная/);
-  assert.match(pageSource, /DashboardClock timeZone=\{state\.config\.timezone\}/);
+  assert.match(pageSource, /DashboardClock compact timeZone=\{state\.config\.timezone\}/);
   assert.match(dashboardClockSource, /Intl\.DateTimeFormat\("ru-RU"/);
   assert.match(globalCssSource, /\.dark \{[\s\S]*--content:/);
   assert.match(layoutSource, /export const viewport: Viewport/);
@@ -206,7 +206,7 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /значение строки «Начислено»/);
   assert.match(telegramAssistantSource, /ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ/);
   assert.match(telegramAssistantSource, /Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений/);
-  assert.match(telegramAssistantSource, /никогда не переноси входящий баланс, старый долг, пени, накопленную переплату, платежи или конечное «к оплате» на жильца/);
+  assert.match(telegramAssistantSource, /Каждое исключение, в том числе пени, допустимо только по подтверждённой настройке объекта/);
   assert.match(telegramAssistantSource, /Страхование исключено/);
   assert.match(telegramAssistantSource, /existingItems/);
   assert.match(telegramAssistantSource, /draftCreatedAt/);
@@ -239,14 +239,17 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /String\(pendingAction\.type\)\.startsWith\("create_"\)/);
   assert.match(telegramWebhookSource, /hasReadyDraft \? draftKeyboard/);
   assert.match(telegramWebhookSource, /cleanTelegramDraftText\(text\)/);
-  assert.match(telegramWebhookSource, /utilityDraftReply/);
+  assert.match(telegramAssistantSource, /utilityDraftReply/);
+  assert.doesNotMatch(telegramWebhookSource, /reply = utilityDraftReply/);
   assert.match(assistantRepliesSource, /Что удалось извлечь из вложения/);
   assert.match(telegramWebhookSource, /Создать счёт/);
   assert.match(telegramWebhookSource, /Удалить черновик/);
   assert.match(assistantRepliesSource, /Чтобы добавить другие ресурсы/);
   assert.match(telegramWebhookSource, /Исключить страховку/);
   assert.match(assistantRepliesSource, /Начислено за месяц/);
-  assert.match(telegramWebhookSource, /media-group-companion/);
+  assert.doesNotMatch(telegramWebhookSource, /ignored: "media-group-companion"/);
+  assert.match(telegramWebhookSource, /claim_telegram_processing/);
+  assert.match(telegramWebhookSource, /status: 503/);
   assert.match(telegramClientSource, /media_group_id/);
   assert.match(telegramClientSource, /cleanTelegramText/);
   assert.match(telegramClientSource, /export function cleanTelegramDraftText/);
@@ -717,12 +720,14 @@ test("shows one searchable journal across apartment workflows", () => {
   assert.match(pageSource, /documentTypeLabel\(item\.documentType!\)/);
 });
 
-test("uses the Figma FixPlan logo and compact menu glyph in headers", () => {
+test("uses the Figma FixPlan logo and shared mobile navigation", () => {
   assert.match(logoSource, /<svg width="133" height="18"/);
   assert.match(pageSource, /function BrandMark/);
   assert.match(pageSource, /src="\/fixplan-logo\.svg"/);
-  assert.match(pageSource, /function MenuGlyph/);
-  assert.match(pageSource, /mobile-menu-button/);
+  assert.match(pageSource, /function AppNavigation/);
+  assert.match(pageSource, /<ProductHeader/);
+  assert.match(fs.readFileSync("components/product-header.tsx", "utf8"), /product-navigation/);
+  assert.match(globalCssSource, /\.product-navigation[^}]*overflow-x: auto/);
   assert.doesNotMatch(pageSource, /\bMenu,/);
 
   assert.match(guestSource, /guest-brand-mark/);
@@ -807,7 +812,9 @@ test("keeps the owner assistant persistent across web and Telegram", () => {
   assert.doesNotMatch(pageSource, /send\("создавай"\)/);
   assert.match(pageSource, /MediaRecorder/);
   assert.match(pageSource, /Голосовой ввод/);
-  assert.match(pageSource, /sidebar-collapsed/);
+  assert.match(pageSource, /assistant-floating/);
+  assert.match(pageSource, /hidden=\{!mobileExpanded\}/);
+  assert.match(pageSource, /aria-expanded=\{mobileExpanded\}/);
   assert.match(pageSource, /Требует решения/);
   assert.match(pageSource, /Активные работы/);
   assert.doesNotMatch(pageSource, /label="Всего узлов"/);

@@ -12,7 +12,7 @@ export type TelegramUpdate = {
   message?: {
     message_id: number;
     media_group_id?: string;
-    chat: { id: number; type: string };
+    chat: { id: number; type: string; title?: string };
     from?: TelegramUser;
     text?: string;
     caption?: string;
@@ -30,7 +30,7 @@ export type TelegramUpdate = {
     from: TelegramUser;
     message?: {
       message_id: number;
-      chat: { id: number; type: string };
+      chat: { id: number; type: string; title?: string };
     };
     data?: string;
   };
@@ -100,7 +100,9 @@ export async function sendTelegramMessage(
         : undefined,
     }),
   });
-  if (!response.ok) throw new Error(`Telegram sendMessage failed with ${response.status}`);
+  const payload = await response.json() as { ok: boolean; result?: { message_id: number }; error_code?: number };
+  if (!response.ok || !payload.ok || !payload.result) throw new TelegramSendError(payload.error_code ?? response.status);
+  return payload.result;
 }
 
 export async function answerTelegramCallbackQuery(callbackQueryId: string, text?: string) {
@@ -175,4 +177,17 @@ export async function transcribeAudioFile(bytes: Uint8Array, filename: string, m
   const text = transcription.text?.trim();
   if (!text) throw new Error("Voice transcription is empty");
   return text;
+}
+
+export class TelegramSendError extends Error {
+  constructor(public code: number) { super(`Telegram rejected message: ${code}`); }
+}
+
+export async function getTelegramChat(chatId: number | string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("Telegram is not configured");
+  const response = await fetch(`${telegramApi}/bot${token}/getChat`, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({chat_id:chatId})});
+  const payload = await response.json() as {ok:boolean; result?:{id:number; type:string; title?:string}};
+  if (!response.ok || !payload.ok || !payload.result) throw new Error("Группа недоступна. Проверьте, что бот добавлен в группу.");
+  return payload.result;
 }
