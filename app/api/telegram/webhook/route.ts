@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAssistantMessage } from "@/lib/server/assistant-messages";
+import { handleStatementDecision } from "@/lib/server/telegram-statements";
 import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
@@ -11,6 +12,7 @@ import {
   clearTelegramInlineKeyboard,
   downloadTelegramFile,
   sendTelegramMessage,
+  getTelegramChat,
   transcribeTelegramVoice,
   type TelegramInlineButton,
   type TelegramUpdate,
@@ -161,6 +163,20 @@ async function sendAssistantReply(
     }
     reply = utilityDraftReply(pendingAction, currency, timezone) ?? reply;
   }
+  if (pendingAction?.type === "send_utility_statement") {
+    const {data:delivery,error:deliveryError}=await admin.from("telegram_statement_deliveries").select("id,body,group_title,chat_id,status").eq("id",pendingAction.deliveryId).eq("telegram_user_id",telegramUserId).maybeSingle();
+    if(deliveryError)throw new Error(deliveryError.message);
+    if(delivery?.status === "prepared") {
+      await sendTelegramMessage(chatId,delivery.body);
+      await sendTelegramMessage(chatId,delivery.chat_id ? `Отправить этот счёт в группу «${delivery.group_title}»? Можно ответить «да, отправляем» или оставить текст у себя.` : "Счёт готов для копирования. Чтобы отправлять его через бота, подключите группу в настройках квартиры → Telegram → Чат с арендатором.", {inlineKeyboard:[
+        ...(delivery.chat_id ? [[{text:"Отправить в группу",callback_data:`statement:send:${delivery.id}`}]] : []),
+        [{text:"Текст для копирования",callback_data:`statement:copy:${delivery.id}`},{text:"Оставить у меня",callback_data:`statement:cancel:${delivery.id}`}],
+      ]});
+      const {data:owner}=await admin.from("telegram_accounts").select("owner_user_id").eq("telegram_user_id",telegramUserId).single();
+      if(owner)await recordAssistantMessage(admin,{ownerUserId:owner.owner_user_id,apartmentId:String(pendingAction.apartmentId),role:"assistant",channel:"telegram",content:delivery.body});
+      return;
+    }
+  }
   await sendTelegramMessage(chatId, reply, {
     inlineKeyboard: pendingAction?.type === "create_utility_bill"
       ? (() => {
@@ -198,7 +214,21 @@ export async function POST(request: Request) {
   const user = message?.from ?? callback?.from;
   const chat = message?.chat ?? callback?.message?.chat;
   if (!update || !user || !chat) return NextResponse.json({ ok: true });
-  if (chat.type !== "private") return NextResponse.json({ ok: true, ignored: "group-mode-not-enabled" });
+  if (chat.type !== "private") {
+    const code=message?.text?.trim().match(/^\/start(?:@[a-z0-9_]+)?\s+(group_[A-Za-z0-9_-]+)$/i)?.[1];
+    if(!code || !["group","supergroup"].includes(chat.type))return NextResponse.json({ok:true,ignored:"group-conversation"});
+    const account=await getTelegramAccount(admin,user.id);
+    if(!account)return NextResponse.json({ok:true,ignored:"unpaired-owner"});
+    try {
+      const info=await getTelegramChat(chat.id);
+      const {data:connected,error:connectError}=await admin.rpc("connect_telegram_apartment_group",{p_hash:createHash("sha256").update(code).digest("hex"),p_user:user.id,p_chat:chat.id,p_title:info.title??"Чат квартиры"});
+      if(connectError)throw new Error(connectError.message);
+      await sendTelegramMessage(user.id,connected ? `Группа «${info.title??"Чат квартиры"}» подключена. Сформируйте счёт здесь, в личном чате. Перед отправкой покажу сумму и спрошу подтверждение.` : "Ссылка группы устарела или уже использована. Создайте новую в настройках квартиры.");
+    } catch {
+      await sendTelegramMessage(user.id,"Не удалось подключить группу. Проверьте, что бот добавлен, а группа не подключена к другой квартире. Создайте новую ссылку в настройках.");
+    }
+    return NextResponse.json({ok:true});
+  }
 
   const { error: updateError } = await admin.from("telegram_updates").insert({ update_id: update.update_id, telegram_user_id: user.id });
   if (updateError) {
@@ -217,12 +247,16 @@ export async function POST(request: Request) {
   try {
     if (callback) {
       await answerTelegramCallbackQuery(callback.id);
-      if (callback.message) {
+      if (callback.message && !callback.data?.startsWith("statement:")) {
         await clearTelegramInlineKeyboard(callback.message.chat.id, callback.message.message_id);
       }
       const account = await getTelegramAccount(admin, user.id);
       if (!account) {
         await sendTelegramMessage(chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
+      } else if (/^statement:(send|cancel|copy):[0-9a-f-]{36}$/.test(callback.data??"")) {
+        const [,decision,id]=callback.data!.split(":");
+        const answer=await handleStatementDecision(admin,account,id,decision as "send"|"cancel"|"copy");
+        await sendTelegramMessage(chat.id,answer);
       } else if (callback.data === "fixplan:pending:edit") {
         await sendTelegramMessage(chat.id, "Напишите одним сообщением, что изменить в черновике.", {
           inlineKeyboard: editDraftKeyboard,

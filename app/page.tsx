@@ -1,5 +1,6 @@
 "use client";
 
+import { TelegramGroupSettings } from "@/components/telegram-group-settings";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
@@ -37,7 +38,9 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardAction,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -70,6 +73,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DashboardClock } from "@/components/dashboard-clock";
+import { ProductHeader } from "@/components/product-header";
 import { SystemDialogProvider, useSystemDialog } from "@/components/system-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cleaningStatusLabels, cleaningTypeLabels, type Cleaning } from "@/lib/cleanings";
@@ -87,6 +91,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Bot,
+  Wrench,
   Check,
   ClipboardCheck,
   ChevronDown,
@@ -104,8 +109,6 @@ import {
   List,
   Map as MapIcon,
   Mic,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   ArrowLeft,
   Pencil,
@@ -1731,8 +1734,6 @@ function HomeContent() {
   const [planFilter, setPlanFilter] = useState<AssetFilter>("all");
   const [newEventText, setNewEventText] = useState("");
   const [inspectionIndex, setInspectionIndex] = useState(0);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [planEditMode, setPlanEditMode] = useState(false);
   const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
@@ -1759,17 +1760,12 @@ function HomeContent() {
     window.history.pushState(null, "", appRouteHref(route));
   }
 
-  function toggleSidebar() {
-    setSidebarCollapsed((current) => !current);
-  }
-
   useEffect(() => {
     let cancelled = false;
 
     function handlePopState() {
       skipRouteSync.current = true;
       applyRoute(parseAppRoute(window.location));
-      setMobileMenuOpen(false);
     }
 
     queueMicrotask(() => {
@@ -1947,14 +1943,12 @@ function HomeContent() {
     setSelectedAssetId(id);
     setAssetReturnView(view === "asset" ? assetReturnView : view);
     setView("asset");
-    setMobileMenuOpen(false);
   }
 
   function openReport(id: string) {
     pushRoute({ view: "report", selectedInspectionId: id });
     setSelectedInspectionId(id);
     setView("report");
-    setMobileMenuOpen(false);
   }
 
   function createContractorFlowFromAssets(assetIds: string[], workflow: Workflow) {
@@ -1974,7 +1968,6 @@ function HomeContent() {
       },
     }));
     setView("contractor");
-    setMobileMenuOpen(false);
   }
 
   function createInspectionFromAssets(assetIds: string[]) {
@@ -1997,7 +1990,6 @@ function HomeContent() {
     );
     pushRoute({ view: "plan" });
     setView("plan");
-    setMobileMenuOpen(false);
   }
 
   function editAssetFromCatalog(assetId: string) {
@@ -2009,7 +2001,6 @@ function HomeContent() {
     selectAssetForEditing(asset);
     pushRoute({ view: "plan" });
     setView("plan");
-    setMobileMenuOpen(false);
   }
 
   function navigate(viewName: View) {
@@ -2022,7 +2013,6 @@ function HomeContent() {
       utilityPeriod,
     });
     setView(viewName);
-    setMobileMenuOpen(false);
   }
 
   function rememberDirtyAsset(assetId: string) {
@@ -3009,76 +2999,35 @@ function HomeContent() {
   return (
     <TooltipProvider>
       <a className="skip-link" href="#main-content">К содержимому</a>
-      <main className={`app-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
-      <header className="mobile-header">
+      <main className="app-shell figma-shell">
+      <ProductHeader brand={
         <button
-          aria-label="Выбрать квартиру"
-          aria-expanded={mobileMenuOpen}
-          className="mobile-brand"
-          onClick={() => setMobileMenuOpen((value) => !value)}
+          aria-label="Открыть дашборд"
+          className="product-brand"
+          onClick={() => navigate("dashboard")}
           type="button"
         >
           <BrandMark objectName={state.config.objectName} />
         </button>
-        <DashboardClock compact timeZone={state.config.timezone} />
-      </header>
-      {mobileMenuOpen && (
-        <div className="mobile-menu">
-          <ApartmentSwitcher compact />
-        </div>
-      )}
-      <nav className="mobile-section-nav" aria-label="Мобильная навигация">
-        <AppNavigation activeView={view === "asset" ? "assets" : view} navigate={navigate} />
-      </nav>
-      <aside className="sidebar">
-        <div className="sidebar-heading">
-          <button
-            aria-label="Открыть дашборд"
-            className="brand"
-            onClick={() => navigate("dashboard")}
-            type="button"
-          >
-            {sidebarCollapsed ? (
-              <Image alt="FixPlan" height={32} src="/favicon.svg" unoptimized width={32} />
-            ) : (
-              <BrandMark objectName={state.config.objectName} />
-            )}
-          </button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                aria-label={sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}
-                onClick={toggleSidebar}
-                size="icon-sm"
-                type="button"
-                variant="ghost"
-              >
-                {sidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">{sidebarCollapsed ? "Развернуть меню" : "Свернуть меню"}</TooltipContent>
-          </Tooltip>
-        </div>
-        {!sidebarCollapsed && <ApartmentSwitcher />}
-        {!sidebarCollapsed && <SidebarSearch assets={state.assets} openAsset={openAsset} />}
-        <nav className="nav-list" aria-label="Главная навигация">
-          <AppNavigation activeView={view} compact={sidebarCollapsed} navigate={navigate} />
-        </nav>
-      </aside>
+      } navigation={
+          <AppNavigation activeView={view === "asset" ? "assets" : view} navigate={navigate} />
+      } tools={<>
+          <DashboardClock compact timeZone={state.config.timezone} />
+          <ApartmentSwitcher />
+      </>} />
 
       <section className="workspace" id="main-content" tabIndex={-1}>
-        <header className="topbar">
+        {view !== "asset" && <header className="topbar">
           <div>
             <h1>{viewTitle(view, selectedAsset)}</h1>
             {!(["plan", "assets", "utilities"] as View[]).includes(view) && <p>{viewSubtitle(view)}</p>}
           </div>
           {view === "dashboard" && (
             <div className="topbar-tools">
-              <DashboardClock timeZone={state.config.timezone} />
               <ThemeToggle />
             </div>
           )}
-        </header>
+        </header>}
 
         {view === "dashboard" && (
           <Dashboard
@@ -3158,7 +3107,10 @@ function HomeContent() {
 
         {view === "asset" && selectedAsset && (
           <AssetDetail
+            key={selectedAsset.id}
             asset={selectedAsset}
+            inspections={state.inspections}
+            openReport={openReport}
             events={selectedEvents}
             media={state.media}
             newEventText={newEventText}
@@ -3437,6 +3389,18 @@ function WebAssistant({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const assistantToggleRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!mobileExpanded) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      setMobileExpanded(false);
+      assistantToggleRef.current?.focus();
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [mobileExpanded]);
 
   const screenContext = selectedAsset && view === "asset"
     ? `Открыт узел ${selectedAsset.code} · ${selectedAsset.name}, ${roomName(selectedAsset.roomId)}.`
@@ -3466,7 +3430,7 @@ function WebAssistant({
   }, []);
 
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView({ block: "end" });
+    if (mobileExpanded) messageEndRef.current?.scrollIntoView({ block: "end" });
   }, [messages, mobileExpanded]);
 
   useEffect(() => () => {
@@ -3592,20 +3556,14 @@ function WebAssistant({
   const hasPendingCreate = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
 
   return (
-    <aside className={`assistant-panel${mobileExpanded ? " mobile-expanded" : ""}`}>
-      <div className="assistant-desktop-header">
-        <div className="flex items-center gap-2">
-          <Bot className="size-4" />
-          <strong className="text-sm">FixPlan</strong>
-        </div>
-        <span className="text-muted-foreground text-xs">Веб и Telegram</span>
-      </div>
-      <Button aria-expanded={mobileExpanded} className="assistant-mobile-toggle" onClick={() => setMobileExpanded((value) => !value)} type="button" variant="ghost">
+    <aside className={`assistant-panel assistant-floating${mobileExpanded ? " mobile-expanded" : ""}`} aria-label="Ассистент FixPlan">
+      <Button ref={assistantToggleRef} aria-controls="fixplan-assistant-body" aria-expanded={mobileExpanded} className="assistant-mobile-toggle" onClick={() => setMobileExpanded((value) => !value)} type="button" variant="ghost">
         <span className="flex items-center gap-2"><Bot className="size-4" /> FixPlan</span>
+        {mobileExpanded && <span className="assistant-channel">Веб и Telegram</span>}
         <span className="flex items-center gap-2 text-muted-foreground">{mobileExpanded ? "Свернуть" : "Написать"}{mobileExpanded ? <ChevronDown /> : <ChevronUp />}</span>
       </Button>
 
-      <div className="assistant-panel-body">
+      <div className="assistant-panel-body" id="fixplan-assistant-body" hidden={!mobileExpanded}>
         <ScrollArea className="assistant-message-list">
           <div aria-busy={status === "submitted"} aria-live="polite" className="grid gap-3 p-3">
             {messages.map((message) => (
@@ -3630,7 +3588,7 @@ function WebAssistant({
 
         {error && <div className="border-t px-3 py-2 text-destructive text-sm" role="alert">{error}</div>}
         {hasPendingCreate && (
-          <div className="flex flex-wrap gap-2 border-t bg-background px-3 py-2">
+          <div className="assistant-pending-actions flex flex-wrap gap-2 border-t bg-background px-3 py-2">
             <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("confirm")} size="sm" type="button">Создать</Button>
             <Button disabled={status === "submitted"} onClick={() => void resolvePendingAction("cancel")} size="sm" type="button" variant="outline">Удалить черновик</Button>
           </div>
@@ -3840,6 +3798,10 @@ function ApartmentSwitcher({ compact = false }: { compact?: boolean }) {
   }, []);
 
   async function switchApartment(apartmentId: string) {
+    if (apartmentId === "__create__") {
+      setCreateOpen(true);
+      return;
+    }
     if (!apartmentId || apartmentId === selectedId) return;
     setSelectedId(apartmentId);
     setError("");
@@ -3891,6 +3853,7 @@ function ApartmentSwitcher({ compact = false }: { compact?: boolean }) {
               {apartment.name || apartment.address}
             </SelectItem>
           ))}
+          <SelectItem value="__create__">Добавить объект…</SelectItem>
         </SelectContent>
       </Select>
       <Tooltip>
@@ -3941,62 +3904,6 @@ function ApartmentSwitcher({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function SidebarSearch({
-  assets,
-  openAsset,
-}: {
-  assets: Asset[];
-  openAsset: (id: string) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const results = useMemo(
-    () =>
-      query.trim()
-        ? assets
-            .filter((asset) => matchesAssetSearch(asset, query))
-            .slice(0, 5)
-        : [],
-    [assets, query],
-  );
-
-  return (
-    <div className="sidebar-search">
-      <div className="sidebar-search-field">
-        <Search size={16} />
-        <Input
-          aria-label="Поиск узла"
-          onChange={(event) => setQuery(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && results[0]) {
-              openAsset(results[0].id);
-              setQuery("");
-            }
-          }}
-          placeholder="Найти узел"
-          value={query}
-        />
-      </div>
-      {results.length > 0 && (
-        <div className="sidebar-search-results">
-          {results.map((asset) => (
-            <button
-              key={asset.id}
-              onClick={() => {
-                openAsset(asset.id);
-                setQuery("");
-              }}
-              type="button"
-            >
-              <strong>{asset.code} · {asset.name}</strong>
-              <span>{roomName(asset.roomId)} · {categoryLabel(asset.category)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AppNavigation({
   activeView,
   compact = false,
@@ -4009,8 +3916,8 @@ function AppNavigation({
   return (
     <>
       <NavButton active={activeView === "dashboard"} compact={compact} icon={<LayoutDashboard size={16} />} label="Дашборд" navigate={navigate} target="dashboard" />
-      <NavButton active={activeView === "plan"} compact={compact} icon={<MapIcon size={16} />} label="План" navigate={navigate} target="plan" />
       <NavButton active={activeView === "assets"} compact={compact} icon={<List size={16} />} label="Узлы" navigate={navigate} target="assets" />
+      <NavButton active={activeView === "plan"} compact={compact} icon={<MapIcon size={16} />} label="План" navigate={navigate} target="plan" />
       <NavButton
         active={["work_orders", "inspections", "contractor", "report", "inspection"].includes(activeView)}
         compact={compact}
@@ -5543,6 +5450,12 @@ function SettingsView({
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <Card className="lg:col-span-2">
         <CardHeader>
+          <CardTitle>Оформление</CardTitle>
+          <CardAction><ThemeToggle /></CardAction>
+        </CardHeader>
+      </Card>
+      <Card className="lg:col-span-2">
+        <CardHeader>
           <CardTitle>Объект</CardTitle>
           <CardDescription>
             Основные данные квартиры и параметры, которые используются в счетах, документах и уведомлениях.
@@ -5629,6 +5542,7 @@ function SettingsView({
       </Card>
 
       <TelegramSettings />
+      <TelegramGroupSettings key={config.apartmentName} />
     </div>
   );
 }
@@ -5725,6 +5639,8 @@ function TelegramSettings() {
 
 function AssetDetail({
   asset,
+  inspections,
+  openReport,
   events,
   media,
   newEventText,
@@ -5739,6 +5655,8 @@ function AssetDetail({
   goBack,
 }: {
   asset: Asset;
+  inspections: Inspection[];
+  openReport: (id: string) => void;
   events: AssetEvent[];
   media: AssetMedia[];
   newEventText: string;
@@ -5761,6 +5679,11 @@ function AssetDetail({
   goBack: () => void;
 }) {
   const assetMedia = media.filter((item) => item.assetId === asset.id);
+  const [activeTab, setActiveTab] = useState("overview");
+  const assetWorkOrders = inspections.filter((item) => item.workflow === "work_order" && item.allowedAssetIds.includes(asset.id));
+  const activeWorkOrders = assetWorkOrders.filter((item) => !["completed", "accepted"].includes(item.status));
+  const latestIssue = events.find((event) => event.statusAfter && event.statusAfter !== "ok");
+  const expenses = events.reduce((sum, event) => sum + (event.cost ?? 0), 0);
   const documentEventIds = new Set(events.filter(isDocumentEvent).map((event) => event.id));
   const isDocumentMedia = (item: AssetMedia) => item.documentType !== undefined || !isImageMedia(item) || documentEventIds.has(item.eventId ?? "");
   const assetImages = assetMedia.filter((item) => isImageMedia(item) && !isDocumentMedia(item));
@@ -5771,7 +5694,7 @@ function AssetDetail({
   const [documentValidUntil, setDocumentValidUntil] = useState("");
   const mediaEvents = events.filter((event) => event.photo || assetMedia.some((item) => item.eventId === event.id));
   const historyContent = (
-    <ScrollArea className="h-[520px] pr-4 max-[980px]:h-auto max-[980px]:pr-0">
+    <div>
       <div className="space-y-5">
         {events.map((event) => {
           const eventMedia = mediaForEvent(event, assetMedia);
@@ -5788,10 +5711,10 @@ function AssetDetail({
           );
         })}
       </div>
-    </ScrollArea>
+    </div>
   );
   const passportContent = (
-    <dl className="grid grid-cols-[128px_1fr] gap-x-3 gap-y-2 text-sm">
+    <dl className="asset-passport-grid">
       <dt className="text-muted-foreground">Номер</dt><dd className="font-medium">{asset.code}</dd>
       <dt className="text-muted-foreground">Комната</dt><dd className="font-medium">{roomName(asset.roomId)}</dd>
       <dt className="text-muted-foreground">Категория</dt><dd className="font-medium">{categoryLabel(asset.category)}</dd>
@@ -5947,153 +5870,97 @@ function AssetDetail({
   );
 
   return (
-    <div className="asset-detail-page grid gap-6">
-      <Card className="col-span-full">
-        <CardHeader className="asset-detail-header grid-cols-[1fr_auto] gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-              {asset.status === "ok" ? <Check size={16} /> : <CircleAlert size={16} />}
-            </div>
-            <div className="min-w-0 space-y-2">
-              <div>
-                <CardTitle className="text-xl">{asset.code} · {asset.name}</CardTitle>
-                <CardDescription>
-                  {roomName(asset.roomId)} · {categoryLabel(asset.category)} · {assetKindLabels[assetKind(asset)]}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusSelect
-                  className="w-full sm:w-[260px]"
-                  value={asset.status}
-                  onValueChange={(status) =>
-                    setAssetStatus(
-                      asset.id,
-                      status,
-                      `Текущий статус изменен на «${statusLabels[status]}».`,
-                    )
-                  }
-                />
-              </div>
+    <div className="asset-page">
+      <Button className="asset-back" variant="ghost" onClick={goBack} type="button"><ArrowLeft size={16} />{returnLabel}</Button>
+      <Card>
+        <CardContent className="asset-identity">
+          <div className="asset-identity-heading">
+            <span className="asset-identity-icon" data-status={asset.status}>{asset.status === "ok" ? <Check size={20} /> : <CircleAlert size={20} />}</span>
+            <div className="min-w-0">
+              <p className="asset-eyebrow">{asset.code} · {roomName(asset.roomId)} · {categoryLabel(asset.category)}</p>
+              <h1>{asset.name}</h1>
+              {asset.photoNote && <p className="asset-description">{asset.photoNote}</p>}
             </div>
           </div>
-          <div className="asset-detail-actions flex flex-wrap justify-end gap-2">
-            <Button variant="secondary" onClick={goBack} type="button">
-              <ArrowLeft size={16} />
-              <span className="desktop-action-label">{returnLabel}</span><span className="mobile-action-label">Назад</span>
-            </Button>
-            <Button variant="secondary" onClick={editAsset} type="button">
-              <Pencil size={16} />
-              <span className="desktop-action-label">Редактировать</span><span className="mobile-action-label">Изменить</span>
-            </Button>
-            <Button onClick={createWorkOrder} type="button">
-              <Plus size={16} />
-              <span className="desktop-action-label">Создать задание</span><span className="mobile-action-label">Задание</span>
-            </Button>
+          <div className="asset-identity-actions">
+            <StatusSelect value={asset.status} onValueChange={(status) => setAssetStatus(asset.id, status, `Текущий статус изменен на «${statusLabels[status]}».`)} />
+            <Button aria-label="Редактировать паспорт" variant="outline" onClick={editAsset} type="button"><Pencil size={16} /><span className="desktop-action-label">Редактировать</span><span className="mobile-action-label">Изменить</span></Button>
+            <Button onClick={createWorkOrder} type="button"><Plus size={16} /><span className="desktop-action-label">Создать задание</span><span className="mobile-action-label">Задание</span></Button>
           </div>
-        </CardHeader>
-      </Card>
-
-      <Card className="asset-comment-mobile hidden">
-        <CardHeader>
-          <CardTitle>Быстрый комментарий</CardTitle>
-          <CardDescription>
-            Комментарий и фото сразу попадут в историю этого узла.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {commentContent}
         </CardContent>
       </Card>
-
-      <Card className="asset-history-desktop">
-        <CardHeader>
-          <CardTitle>История узла</CardTitle>
-          <CardDescription>
-            Комментарии, смены статуса, работы мастеров и фотографии собраны в одной ленте.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {historyContent}
-        </CardContent>
-      </Card>
-
-      <aside className="asset-side-desktop grid content-start gap-4">
-        <Tabs defaultValue="passport">
-          <Card>
-            <CardHeader>
-              <TabsList aria-label="Данные узла" className="grid w-full grid-cols-3">
-                <TabsTrigger value="passport">
-              Паспорт
-                </TabsTrigger>
-                <TabsTrigger value="media">
-              Медиа
-                </TabsTrigger>
-                <TabsTrigger value="documents">
-              Документы
-                </TabsTrigger>
-              </TabsList>
-            </CardHeader>
-            <CardContent>
-              <TabsContent value="passport" className="mt-0">
-                {passportContent}
-                <Button className="mt-4 w-full" onClick={editAsset} type="button" variant="secondary">
-                  <Pencil size={16} />
-                  Редактировать паспорт
-                </Button>
-              </TabsContent>
-              <TabsContent value="media" className="mt-0">
-                {mediaContent}
-              </TabsContent>
-              <TabsContent value="documents" className="mt-0">
-                {documentContent}
-              </TabsContent>
-            </CardContent>
-          </Card>
-        </Tabs>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Быстрый комментарий</CardTitle>
-            <CardDescription>
-              Текст и вложения попадут в новое событие истории.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {commentContent}
-          </CardContent>
-        </Card>
-      </aside>
-
-      <Card className="asset-tabs-mobile hidden">
-        <Tabs defaultValue="history">
-          <CardHeader className="gap-3">
-            <TabsList aria-label="Разделы карточки узла" className="grid w-full grid-cols-4">
-              <TabsTrigger value="history">История</TabsTrigger>
-              <TabsTrigger value="passport">Паспорт</TabsTrigger>
-              <TabsTrigger value="media">Медиа</TabsTrigger>
-              <TabsTrigger value="documents">Документы</TabsTrigger>
-            </TabsList>
-          </CardHeader>
-          <CardContent>
-            <TabsContent value="history" className="mt-0">
-              {historyContent}
-            </TabsContent>
-            <TabsContent value="passport" className="mt-0">
-              {passportContent}
-              <Button className="mt-4 w-full" onClick={editAsset} type="button" variant="secondary">
-                <Pencil size={16} />
-                Редактировать паспорт
-              </Button>
-            </TabsContent>
-            <TabsContent value="media" className="mt-0">
-              {mediaContent}
-            </TabsContent>
-            <TabsContent value="documents" className="mt-0">
-              {documentContent}
-            </TabsContent>
-          </CardContent>
-        </Tabs>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="asset-page-tabs">
+        <TabsList aria-label="Разделы узла">
+          <TabsTrigger value="overview">Обзор</TabsTrigger>
+          <TabsTrigger value="history">История</TabsTrigger>
+          <TabsTrigger value="documents">Документы</TabsTrigger>
+          <TabsTrigger value="tasks">Задания</TabsTrigger>
+          <TabsTrigger value="media">Медиа</TabsTrigger>
+        </TabsList>
+        <TabsContent value="overview">
+          <div className="asset-overview-columns">
+            <div className="asset-column">
+              {asset.status !== "ok" && <Card>
+                <CardHeader><CardTitle>Текущая проблема</CardTitle><CardDescription>{latestIssue?.date ?? asset.lastChecked}</CardDescription></CardHeader>
+                <CardContent><p className="asset-body">{latestIssue?.body || asset.photoNote || statusLabels[asset.status]}</p></CardContent>
+                <CardFooter>
+                  <Button onClick={activeWorkOrders[0] ? () => openReport(activeWorkOrders[0].id) : createWorkOrder}><Wrench size={16} />{activeWorkOrders[0] ? "Открыть задание" : "Создать задание"}</Button>
+                  <Button variant="outline" onClick={() => document.getElementById("asset-comment")?.scrollIntoView({ block: "center", behavior: "smooth" })}>Добавить комментарий</Button>
+                </CardFooter>
+              </Card>}
+              <Card>
+                <CardHeader><CardTitle>Паспорт узла</CardTitle><CardDescription>Технические и учётные данные оборудования.</CardDescription></CardHeader>
+                <CardContent>{passportContent}</CardContent>
+              </Card>
+              {activeWorkOrders.map((order) => <Card key={order.id}>
+                <CardHeader><CardTitle>{order.title || `Задание #${order.number}`}</CardTitle><CardDescription>{order.contractor}</CardDescription></CardHeader>
+                <CardContent><p className="asset-body">{order.assetInstructions?.[asset.id] || order.summary}</p></CardContent>
+                <CardFooter><Button onClick={() => openReport(order.id)}>Открыть задание</Button></CardFooter>
+              </Card>)}
+              <Card>
+                <CardHeader><CardTitle>История событий</CardTitle></CardHeader>
+                <CardContent>{events.length ? historyContent : <p className="text-muted-foreground">Событий пока нет.</p>}</CardContent>
+              </Card>
+            </div>
+            <aside className="asset-column">
+              <Card>
+                <CardHeader><CardTitle>Состояние</CardTitle></CardHeader>
+                <CardContent>
+                  <dl className="asset-summary-list">
+                    <div><dt>Статус</dt><dd><StatusBadge status={asset.status} /></dd></div>
+                    <div><dt>Последняя проверка</dt><dd>{asset.lastChecked || "Не указана"}</dd></div>
+                    <div><dt>Гарантия</dt><dd>{asset.warrantyUntil || "Не указана"}</dd></div>
+                    <div><dt>Мастер</dt><dd>{asset.master || "Не назначен"}</dd></div>
+                  </dl>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle>Документы</CardTitle><CardDescription>{assetDocuments.length ? `Файлов: ${assetDocuments.length}` : "Файлов пока нет."}</CardDescription></CardHeader>
+                {assetDocuments.length > 0 && <CardContent><DocumentList events={events} items={assetDocuments} /></CardContent>}
+                <CardFooter><Button variant="outline" onClick={() => setActiveTab("documents")}><Plus size={16} />Добавить документ</Button></CardFooter>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle>Расходы</CardTitle></CardHeader>
+                <CardContent><p className="asset-expenses">{moneyLabel(expenses)}</p></CardContent>
+              </Card>
+              <Card id="asset-comment">
+                <CardHeader><CardTitle>Комментарий</CardTitle></CardHeader>
+                <CardContent>{commentContent}</CardContent>
+              </Card>
+            </aside>
+          </div>
+        </TabsContent>
+        <TabsContent value="history"><Card><CardHeader><CardTitle>История узла</CardTitle></CardHeader><CardContent>{historyContent}</CardContent></Card></TabsContent>
+        <TabsContent value="documents"><Card><CardHeader><CardTitle>Документы</CardTitle></CardHeader><CardContent>{documentContent}</CardContent></Card></TabsContent>
+        <TabsContent value="tasks">
+          <div className="asset-column">
+            {assetWorkOrders.map((order) => <Card key={order.id}><CardHeader><CardTitle>{order.title || `Задание #${order.number}`}</CardTitle><CardDescription>{order.contractor}</CardDescription></CardHeader><CardContent><p>{order.assetInstructions?.[asset.id] || order.summary}</p></CardContent><CardFooter><Button onClick={() => openReport(order.id)}>Открыть задание</Button></CardFooter></Card>)}
+            {!assetWorkOrders.length && <p className="text-muted-foreground">Заданий пока нет.</p>}
+            <Button className="self-start" onClick={createWorkOrder}><Plus size={16} />Создать задание</Button>
+          </div>
+        </TabsContent>
+        <TabsContent value="media"><Card><CardHeader><CardTitle>Медиа</CardTitle></CardHeader><CardContent>{mediaContent}</CardContent></Card></TabsContent>
+      </Tabs>
     </div>
   );
 }

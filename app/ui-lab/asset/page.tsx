@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { ProductHeader } from "@/components/product-header";
+import { DashboardClock } from "@/components/dashboard-clock";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -43,7 +46,6 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import labStyles from "../ui-lab.module.css";
 import styles from "./asset-demo.module.css";
 
 const details = [
@@ -88,46 +90,27 @@ const events = [
   },
 ];
 
-function CandidateButton({
-  className = "",
-  ...props
-}: React.ComponentProps<typeof Button>) {
-  return (
-    <Button
-      className={`${labStyles.candidateButton} ${labStyles.buttonMd} ${className}`}
-      {...props}
-    />
-  );
-}
-
-function CandidateCard({
-  className = "",
-  ...props
-}: React.ComponentProps<typeof Card>) {
-  return <Card className={`${styles.card} ${className}`} {...props} />;
-}
-
 export default function AssetDemoPage() {
   return (
     <TooltipProvider>
+      <ProductHeader
+        brand={<Link aria-label="FixPlan" className="product-brand brand-mark" href="/ui-lab"><Image src="/fixplan-logo.svg" width={133} height={18} alt="FixPlan" /></Link>}
+        navigation={<>{[["Дашборд", "/dashboard"], ["Узлы", "/assets"], ["План", "/plan"], ["Задания", "/tasks"], ["Документы", "/documents"], ["Счета", "/utilities"], ["Журнал", "/log"], ["Настройки", "/settings"]].map(([label, href]) => <Button key={href} asChild variant="ghost"><Link aria-current={href === "/assets" ? "page" : undefined} href={href}>{label}</Link></Button>)}</>}
+        tools={<><DashboardClock compact timeZone="Europe/Moscow" /><div className="apartment-switcher"><Select defaultValue="sample"><SelectTrigger className="w-full" aria-label="Тестовый объект"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sample">Шпалерная, 34Б</SelectItem></SelectContent></Select></div></>}
+      />
       <main className={styles.page}>
+        {process.env.NODE_ENV === "development" && <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async />}
         <header className={styles.labHeader}>
-          <div>
-            <Badge variant="secondary">Тестовая страница</Badge>
-            <h1>Карточка узла</h1>
-          </div>
-          <div className={styles.headerActions}>
-            <ThemeToggle />
-            <Button asChild variant="outline">
+            <Button asChild variant="ghost">
               <Link href="/ui-lab">
                 <ArrowLeft />
                 Компоненты
               </Link>
             </Button>
-          </div>
+            <ThemeToggle />
         </header>
 
-        <CandidateCard className={styles.heroCard}>
+        <Card className={styles.heroCard}>
           <CardHeader className={styles.heroHeader}>
             <div className={styles.heroIdentity}>
               <span className={styles.heroIcon}>
@@ -159,14 +142,14 @@ export default function AssetDemoPage() {
                   <SelectItem value="master">Нужен мастер</SelectItem>
                 </SelectContent>
               </Select>
-              <CandidateButton variant="outline">
+              <Button variant="outline">
                 <Pencil />
                 <span className="desktop-action-label">Редактировать</span><span className="mobile-action-label">Изменить</span>
-              </CandidateButton>
-              <CandidateButton>
+              </Button>
+              <Button>
                 <Plus />
                 <span className="desktop-action-label">Создать задание</span><span className="mobile-action-label">Задание</span>
-              </CandidateButton>
+              </Button>
               <Button
                 aria-label="Другие действия"
                 className={styles.moreButton}
@@ -177,20 +160,20 @@ export default function AssetDemoPage() {
               </Button>
             </CardAction>
           </CardHeader>
-        </CandidateCard>
+        </Card>
 
         <Tabs className={styles.assetTabs} defaultValue="overview">
-          <TabsList aria-label="Разделы узла" className={styles.tabsList}>
-            <TabsTrigger className={styles.tab} value="overview">
+          <TabsList aria-label="Разделы узла" >
+            <TabsTrigger  value="overview">
               Обзор
             </TabsTrigger>
-            <TabsTrigger className={styles.tab} value="history">
+            <TabsTrigger  value="history">
               История
             </TabsTrigger>
-            <TabsTrigger className={styles.tab} value="documents">
+            <TabsTrigger  value="documents">
               Документы
             </TabsTrigger>
-            <TabsTrigger className={styles.tab} value="tasks">
+            <TabsTrigger  value="tasks">
               Задания
             </TabsTrigger>
           </TabsList>
@@ -198,9 +181,9 @@ export default function AssetDemoPage() {
           <TabsContent className={styles.tabPanel} value="overview">
             <div className={styles.layout}>
               <div className={styles.primaryColumn}>
-                <CandidateCard className={styles.issueCard}>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Текущая проблема
                     </CardTitle>
                     <CardDescription>
@@ -210,7 +193,7 @@ export default function AssetDemoPage() {
                       <Badge variant="destructive">Требует внимания</Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardContent className={styles.cardContent}>
+                  <CardContent>
                     <p className={styles.leadText}>
                       Бойлер включается, но не нагревает воду после длительного
                       простоя. Индикатор питания горит, автомат не выбивает,
@@ -227,28 +210,28 @@ export default function AssetDemoPage() {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className={styles.cardFooter}>
-                    <CandidateButton>
+                  <CardFooter>
+                    <Button>
                       <Wrench />
                       Открыть задание #4
-                    </CandidateButton>
-                    <CandidateButton variant="outline">
+                    </Button>
+                    <Button variant="outline">
                       <MessageSquare />
                       Добавить комментарий
-                    </CandidateButton>
+                    </Button>
                   </CardFooter>
-                </CandidateCard>
+                </Card>
 
-                <CandidateCard>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Паспорт узла
                     </CardTitle>
                     <CardDescription>
                       Технические и учётные данные оборудования.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className={styles.cardContent}>
+                  <CardContent>
                     <dl className={styles.detailGrid}>
                       {details.map(([label, value]) => (
                         <div key={label}>
@@ -258,21 +241,21 @@ export default function AssetDemoPage() {
                       ))}
                     </dl>
                   </CardContent>
-                </CandidateCard>
+                </Card>
 
-                <CandidateCard>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Активное задание
                     </CardTitle>
                     <CardDescription>
                       Мастер получил ссылку и подтвердил визит.
                     </CardDescription>
                     <CardAction>
-                      <Badge className={labStyles.successBadge}>В работе</Badge>
+                      <Badge variant="success">В работе</Badge>
                     </CardAction>
                   </CardHeader>
-                  <CardContent className={styles.cardContent}>
+                  <CardContent>
                     <div className={styles.taskHeader}>
                       <span className={styles.avatar}>А</span>
                       <div>
@@ -300,20 +283,20 @@ export default function AssetDemoPage() {
                       результата.
                     </p>
                   </CardContent>
-                  <CardFooter className={styles.cardFooter}>
-                    <CandidateButton>
+                  <CardFooter>
+                    <Button>
                       <Link2 />
                       Ссылка мастеру
-                    </CandidateButton>
-                    <CandidateButton variant="outline">
+                    </Button>
+                    <Button variant="outline">
                       Перенести визит
-                    </CandidateButton>
+                    </Button>
                   </CardFooter>
-                </CandidateCard>
+                </Card>
 
-                <CandidateCard>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Последние события
                     </CardTitle>
                     <CardDescription>
@@ -321,7 +304,7 @@ export default function AssetDemoPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent
-                    className={`${styles.cardContent} ${styles.timeline}`}
+                    className={`${styles.timeline}`}
                   >
                     {events.map((event) => {
                       const Icon = event.icon;
@@ -345,23 +328,23 @@ export default function AssetDemoPage() {
                       );
                     })}
                   </CardContent>
-                  <CardFooter className={styles.cardFooter}>
-                    <CandidateButton variant="outline">
+                  <CardFooter>
+                    <Button variant="outline">
                       Показать всю историю
                       <ChevronRight />
-                    </CandidateButton>
+                    </Button>
                   </CardFooter>
-                </CandidateCard>
+                </Card>
               </div>
 
               <aside className={styles.sideColumn}>
-                <CandidateCard>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Состояние
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className={styles.cardContent}>
+                  <CardContent>
                     <dl className={styles.summaryList}>
                       <div>
                         <dt>Статус</dt>
@@ -383,11 +366,11 @@ export default function AssetDemoPage() {
                       </div>
                     </dl>
                   </CardContent>
-                </CandidateCard>
+                </Card>
 
-                <CandidateCard>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Документы
                     </CardTitle>
                     <CardDescription>
@@ -395,7 +378,7 @@ export default function AssetDemoPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent
-                    className={`${styles.cardContent} ${styles.fileList}`}
+                    className={`${styles.fileList}`}
                   >
                     <button type="button">
                       <FileText />
@@ -428,22 +411,22 @@ export default function AssetDemoPage() {
                       <ChevronRight />
                     </button>
                   </CardContent>
-                  <CardFooter className={styles.cardFooter}>
-                    <CandidateButton variant="outline">
+                  <CardFooter>
+                    <Button variant="outline">
                       <Paperclip />
                       Добавить файл
-                    </CandidateButton>
+                    </Button>
                   </CardFooter>
-                </CandidateCard>
+                </Card>
 
-                <CandidateCard>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>Расходы</CardTitle>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Расходы</CardTitle>
                     <CardDescription>
                       По этому узлу за всё время.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className={styles.cardContent}>
+                  <CardContent>
                     <div className={styles.moneyBlock}>
                       <span>Работы и материалы</span>
                       <strong>18 430,00 ₽</strong>
@@ -463,18 +446,18 @@ export default function AssetDemoPage() {
                       </div>
                     </div>
                   </CardContent>
-                </CandidateCard>
+                </Card>
 
-                <CandidateCard>
-                  <CardHeader className={styles.cardHeader}>
-                    <CardTitle className={styles.cardTitle}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
                       Комментарий
                     </CardTitle>
                     <CardDescription>
                       Запись сразу появится в истории узла.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className={styles.cardContent}>
+                  <CardContent>
                     <label
                       className={styles.commentField}
                       htmlFor="asset-demo-comment"
@@ -486,13 +469,13 @@ export default function AssetDemoPage() {
                       />
                     </label>
                   </CardContent>
-                  <CardFooter className={styles.cardFooter}>
-                    <CandidateButton>
+                  <CardFooter>
+                    <Button>
                       <MessageSquare />
                       Добавить в историю
-                    </CandidateButton>
+                    </Button>
                   </CardFooter>
-                </CandidateCard>
+                </Card>
 
                 <Button className={styles.deleteButton} variant="destructive">
                   <Trash2 />
@@ -503,15 +486,15 @@ export default function AssetDemoPage() {
           </TabsContent>
 
           <TabsContent className={styles.tabPanel} value="history">
-            <CandidateCard>
-              <CardHeader className={styles.cardHeader}>
-                <CardTitle className={styles.cardTitle}>История узла</CardTitle>
+            <Card>
+              <CardHeader>
+                <CardTitle>История узла</CardTitle>
                 <CardDescription>
                   Отдельное состояние вкладки для проверки навигации.
                 </CardDescription>
               </CardHeader>
               <CardContent
-                className={`${styles.cardContent} ${styles.timeline}`}
+                className={`${styles.timeline}`}
               >
                 {events.map((event) => (
                   <p className={styles.bodyText} key={event.date}>
@@ -521,37 +504,37 @@ export default function AssetDemoPage() {
                   </p>
                 ))}
               </CardContent>
-            </CandidateCard>
+            </Card>
           </TabsContent>
           <TabsContent className={styles.tabPanel} value="documents">
-            <CandidateCard>
-              <CardHeader className={styles.cardHeader}>
-                <CardTitle className={styles.cardTitle}>
+            <Card>
+              <CardHeader>
+                <CardTitle>
                   Документы узла
                 </CardTitle>
               </CardHeader>
-              <CardContent className={styles.cardContent}>
+              <CardContent>
                 <p className={styles.bodyText}>
                   Инструкции, гарантии, чеки и акты собраны здесь. Длинные имена
                   файлов проверяются в правой колонке вкладки «Обзор».
                 </p>
               </CardContent>
-            </CandidateCard>
+            </Card>
           </TabsContent>
           <TabsContent className={styles.tabPanel} value="tasks">
-            <CandidateCard>
-              <CardHeader className={styles.cardHeader}>
-                <CardTitle className={styles.cardTitle}>
+            <Card>
+              <CardHeader>
+                <CardTitle>
                   Задания по узлу
                 </CardTitle>
               </CardHeader>
-              <CardContent className={styles.cardContent}>
+              <CardContent>
                 <p className={styles.bodyText}>
                   Одно задание в работе, два завершены. Все события также
                   остаются в общей истории узла.
                 </p>
               </CardContent>
-            </CandidateCard>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

@@ -63,7 +63,7 @@ test("uses the system color scheme by default and exposes the theme controls", (
   assert.match(themeToggleSource, /Системная/);
   assert.match(themeToggleSource, /Светлая/);
   assert.match(themeToggleSource, /Тёмная/);
-  assert.match(pageSource, /DashboardClock timeZone=\{state\.config\.timezone\}/);
+  assert.match(pageSource, /DashboardClock compact timeZone=\{state\.config\.timezone\}/);
   assert.match(dashboardClockSource, /Intl\.DateTimeFormat\("ru-RU"/);
   assert.match(globalCssSource, /\.dark \{[\s\S]*--content:/);
   assert.match(layoutSource, /export const viewport: Viewport/);
@@ -717,12 +717,14 @@ test("shows one searchable journal across apartment workflows", () => {
   assert.match(pageSource, /documentTypeLabel\(item\.documentType!\)/);
 });
 
-test("uses the Figma FixPlan logo and compact menu glyph in headers", () => {
+test("uses the Figma FixPlan logo and shared mobile navigation", () => {
   assert.match(logoSource, /<svg width="133" height="18"/);
   assert.match(pageSource, /function BrandMark/);
   assert.match(pageSource, /src="\/fixplan-logo\.svg"/);
-  assert.match(pageSource, /function MenuGlyph/);
-  assert.match(pageSource, /mobile-menu-button/);
+  assert.match(pageSource, /function AppNavigation/);
+  assert.match(pageSource, /<ProductHeader/);
+  assert.match(fs.readFileSync("components/product-header.tsx", "utf8"), /product-navigation/);
+  assert.match(globalCssSource, /\.product-navigation[^}]*overflow-x: auto/);
   assert.doesNotMatch(pageSource, /\bMenu,/);
 
   assert.match(guestSource, /guest-brand-mark/);
@@ -807,7 +809,9 @@ test("keeps the owner assistant persistent across web and Telegram", () => {
   assert.doesNotMatch(pageSource, /send\("создавай"\)/);
   assert.match(pageSource, /MediaRecorder/);
   assert.match(pageSource, /Голосовой ввод/);
-  assert.match(pageSource, /sidebar-collapsed/);
+  assert.match(pageSource, /assistant-floating/);
+  assert.match(pageSource, /hidden=\{!mobileExpanded\}/);
+  assert.match(pageSource, /aria-expanded=\{mobileExpanded\}/);
   assert.match(pageSource, /Требует решения/);
   assert.match(pageSource, /Активные работы/);
   assert.doesNotMatch(pageSource, /label="Всего узлов"/);
