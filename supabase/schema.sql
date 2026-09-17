@@ -462,10 +462,36 @@ create index assistant_messages_owner_apartment_created_idx
 create table public.telegram_updates (
   update_id bigint primary key,
   telegram_user_id bigint,
-  status text not null default 'processing' check (status in ('processing', 'processed', 'failed')),
+  chat_id bigint,
+  request_kind text,
+  payload jsonb,
+  processing_message_id bigint,
+  status text not null default 'queued' check (status in ('queued', 'running', 'processed', 'failed', 'needs_review')),
+  status_last_updated_at timestamptz,
+  claimed_at timestamptz,
+  lock_expires_at timestamptz,
+  attempts integer not null default 0,
+  delivery_state text not null default 'pending' check (delivery_state in ('pending', 'sending', 'delivered')),
+  response_message_id bigint,
+  status_finalized_at timestamptz,
+  cleanup_status text check (cleanup_status is null or cleanup_status in ('succeeded', 'failed')),
+  cleanup_attempts integer not null default 0,
   error text,
   received_at timestamptz not null default now(),
   processed_at timestamptz
+);
+
+create index telegram_updates_queue_idx on public.telegram_updates(status, received_at, update_id) where status = 'queued';
+create index telegram_updates_active_user_idx on public.telegram_updates(telegram_user_id, status, lock_expires_at) where status in ('queued', 'running');
+
+create table public.telegram_request_traces (
+  id bigint generated always as identity primary key,
+  update_id bigint not null references public.telegram_updates(update_id) on delete cascade,
+  event text not null,
+  status text not null check (status in ('started', 'succeeded', 'failed', 'skipped')),
+  duration_ms integer not null default 0,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
 );
 
 insert into storage.buckets (id, name, public)
@@ -526,6 +552,9 @@ alter table public.telegram_accounts enable row level security;
 alter table public.telegram_conversations enable row level security;
 alter table public.assistant_messages enable row level security;
 alter table public.telegram_updates enable row level security;
+alter table public.telegram_request_traces enable row level security;
+revoke all on public.telegram_request_traces from anon, authenticated;
+grant all on public.telegram_request_traces to service_role;
 
 create policy "members can read apartments"
 on public.apartments for select
@@ -863,6 +892,76 @@ begin
 end $$;
 revoke all on function public.connect_telegram_apartment_group(text,bigint,bigint,text) from public, anon, authenticated;
 grant execute on function public.connect_telegram_apartment_group(text,bigint,bigint,text) to service_role;
+
+create or replace function public.claim_next_telegram_update()
+returns setof public.telegram_updates
+language plpgsql security definer set search_path = '' as $$
+begin
+  return query
+  with candidate as (
+    select queued.update_id
+    from public.telegram_updates queued
+    where queued.status = 'queued'
+      and queued.payload is not null
+      and queued.chat_id is not null
+      and queued.delivery_state = 'pending'
+      and queued.update_id = (
+        select first_for_user.update_id
+        from public.telegram_updates first_for_user
+        where first_for_user.telegram_user_id = queued.telegram_user_id
+          and first_for_user.status = 'queued'
+        order by first_for_user.received_at, first_for_user.update_id
+        limit 1
+      )
+      and not exists (
+        select 1 from public.telegram_updates active
+        where active.telegram_user_id = queued.telegram_user_id
+          and active.status = 'running'
+          and active.lock_expires_at > now()
+      )
+    order by queued.received_at, queued.update_id
+    for update of queued skip locked
+    limit 1
+  )
+  update public.telegram_updates job
+  set status = 'running', claimed_at = now(),
+      lock_expires_at = now() + interval '5 minutes',
+      attempts = job.attempts + 1
+  from candidate
+  where job.update_id = candidate.update_id
+  returning job.*;
+end;
+$$;
+revoke all on function public.claim_next_telegram_update() from public, anon, authenticated;
+grant execute on function public.claim_next_telegram_update() to service_role;
+
+create or replace function public.recover_stale_telegram_updates()
+returns integer
+language plpgsql security definer set search_path = '' as $$
+declare
+  recovered integer;
+  requeued integer;
+begin
+  update public.telegram_updates
+  set status = 'needs_review', claimed_at = null, lock_expires_at = null
+  where status = 'running'
+    and lock_expires_at <= now()
+    and delivery_state = 'sending';
+  get diagnostics recovered = row_count;
+
+  update public.telegram_updates
+  set status = 'queued', claimed_at = null, lock_expires_at = null
+  where status = 'running'
+    and lock_expires_at <= now()
+    and delivery_state = 'pending'
+    and response_message_id is null;
+  get diagnostics requeued = row_count;
+  recovered = recovered + requeued;
+  return recovered;
+end;
+$$;
+revoke all on function public.recover_stale_telegram_updates() from public, anon, authenticated;
+grant execute on function public.recover_stale_telegram_updates() to service_role;
 
 create or replace function public.connect_telegram_apartment_group(p_hash text, p_user bigint, p_chat bigint, p_title text)
 returns boolean language plpgsql security definer set search_path = public as $$

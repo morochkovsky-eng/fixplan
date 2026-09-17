@@ -48,6 +48,92 @@ export type TelegramInlineButton = {
   url?: string;
 };
 
+const processingCustomEmojiId = "5269577632676092329";
+const processingFallbackEmoji = "🫥";
+
+function processingPayload(chatId: number | string, text: string) {
+  return {
+    chat_id: chatId,
+    text: `${processingFallbackEmoji} ${text}`,
+    entities: [
+      {
+        type: "custom_emoji",
+        offset: 0,
+        length: 2,
+        custom_emoji_id: processingCustomEmojiId,
+      },
+    ],
+    disable_notification: true,
+  };
+}
+
+async function callTelegram<T>(method: string, body: Record<string, unknown>) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
+  let response: Response;
+  try {
+    response = await fetch(`${telegramApi}/bot${token}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(3_000),
+    });
+  } catch {
+    throw new TelegramDeliveryUncertainError();
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | { ok: boolean; result?: T; error_code?: number }
+    | null;
+  if (!response.ok || !payload?.ok || payload.result === undefined) {
+    throw new TelegramSendError(payload?.error_code ?? response.status);
+  }
+  return payload.result;
+}
+
+export function sendTelegramProcessingMessage(
+  chatId: number | string,
+  text: string,
+) {
+  return callTelegram<{ message_id: number }>(
+    "sendMessage",
+    processingPayload(chatId, text),
+  );
+}
+
+export function updateTelegramProcessingMessage(
+  chatId: number | string,
+  messageId: number,
+  text: string,
+) {
+  return callTelegram<{ message_id: number }>("editMessageText", {
+    ...processingPayload(chatId, text),
+    message_id: messageId,
+  });
+}
+
+export function deleteTelegramMessage(
+  chatId: number | string,
+  messageId: number,
+) {
+  return callTelegram<boolean>("deleteMessage", {
+    chat_id: chatId,
+    message_id: messageId,
+  });
+}
+
+export function editTelegramMessageText(
+  chatId: number | string,
+  messageId: number,
+  text: string,
+) {
+  return callTelegram<{ message_id: number }>("editMessageText", {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    link_preview_options: { is_disabled: true },
+  });
+}
+
 export function cleanTelegramText(text: string) {
   return text
     .replace(/\*\*([\s\S]*?)\*\*/g, "$1")
@@ -83,26 +169,20 @@ export function cleanTelegramDraftText(text: string) {
 export async function sendTelegramMessage(
   chatId: number | string,
   text: string,
-  options: { inlineKeyboard?: TelegramInlineButton[][] } = {},
+  options: {
+    inlineKeyboard?: TelegramInlineButton[][];
+    disableNotification?: boolean;
+  } = {},
 ) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
-
-  const response = await fetch(`${telegramApi}/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text: cleanTelegramText(text),
-      link_preview_options: { is_disabled: true },
-      reply_markup: options.inlineKeyboard
-        ? { inline_keyboard: options.inlineKeyboard }
-        : undefined,
-    }),
+  return callTelegram<{ message_id: number }>("sendMessage", {
+    chat_id: chatId,
+    text: cleanTelegramText(text),
+    link_preview_options: { is_disabled: true },
+    reply_markup: options.inlineKeyboard
+      ? { inline_keyboard: options.inlineKeyboard }
+      : undefined,
+    disable_notification: options.disableNotification,
   });
-  const payload = await response.json() as { ok: boolean; result?: { message_id: number }; error_code?: number };
-  if (!response.ok || !payload.ok || !payload.result) throw new TelegramSendError(payload.error_code ?? response.status);
-  return payload.result;
 }
 
 export async function answerTelegramCallbackQuery(callbackQueryId: string, text?: string) {
@@ -181,6 +261,10 @@ export async function transcribeAudioFile(bytes: Uint8Array, filename: string, m
 
 export class TelegramSendError extends Error {
   constructor(public code: number) { super(`Telegram rejected message: ${code}`); }
+}
+
+export class TelegramDeliveryUncertainError extends Error {
+  constructor() { super("Telegram delivery is uncertain"); }
 }
 
 export async function getTelegramChat(chatId: number | string) {
