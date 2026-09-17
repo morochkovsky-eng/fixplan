@@ -1,11 +1,21 @@
 import { createHash, randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAssistantMessage } from "@/lib/server/assistant-messages";
 import { handleStatementDecision } from "@/lib/server/telegram-statements";
 import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
+import {
+  cleanupTelegramProcessingStatus,
+  createQueuedProcessingStatus,
+  markTelegramDeliveryUncertain,
+  shouldQueueTelegramUpdate,
+  telegramRequestKind,
+  traceTelegramProcessing,
+  triggerTelegramWorker,
+  type TelegramProcessingJob,
+} from "@/lib/server/telegram-processing";
 import {
   answerTelegramCallbackQuery,
   cleanTelegramDraftText,
@@ -39,6 +49,8 @@ const utilityInsuranceKeyboard: TelegramInlineButton[][] = [
 const editDraftKeyboard: TelegramInlineButton[][] = [[
   { text: "Отменить черновик", callback_data: "fixplan:pending:cancel" },
 ]];
+
+export const maxDuration = 300;
 
 function safeFilename(filename: string) {
   return filename.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 100) || "bill";
@@ -168,16 +180,22 @@ async function sendAssistantReply(
     if(deliveryError)throw new Error(deliveryError.message);
     if(delivery?.status === "prepared") {
       await sendTelegramMessage(chatId,delivery.body);
-      await sendTelegramMessage(chatId,delivery.chat_id ? `Отправить этот счёт в группу «${delivery.group_title}»? Можно ответить «да, отправляем» или оставить текст у себя.` : "Счёт готов для копирования. Чтобы отправлять его через бота, подключите группу в настройках квартиры → Telegram → Чат с арендатором.", {inlineKeyboard:[
+      const sent = await sendTelegramMessage(chatId,delivery.chat_id ? `Отправить этот счёт в группу «${delivery.group_title}»? Можно ответить «да, отправляем» или оставить текст у себя.` : "Счёт готов для копирования. Чтобы отправлять его через бота, подключите группу в настройках квартиры → Telegram → Чат с арендатором.", {inlineKeyboard:[
         ...(delivery.chat_id ? [[{text:"Отправить в группу",callback_data:`statement:send:${delivery.id}`}]] : []),
         [{text:"Текст для копирования",callback_data:`statement:copy:${delivery.id}`},{text:"Оставить у меня",callback_data:`statement:cancel:${delivery.id}`}],
       ]});
       const {data:owner}=await admin.from("telegram_accounts").select("owner_user_id").eq("telegram_user_id",telegramUserId).single();
-      if(owner)await recordAssistantMessage(admin,{ownerUserId:owner.owner_user_id,apartmentId:String(pendingAction.apartmentId),role:"assistant",channel:"telegram",content:delivery.body});
-      return;
+      if(owner) {
+        try {
+          await recordAssistantMessage(admin,{ownerUserId:owner.owner_user_id,apartmentId:String(pendingAction.apartmentId),role:"assistant",channel:"telegram",content:delivery.body});
+        } catch {
+          console.error("Unable to record delivered Telegram reply", { telegram_user_id: telegramUserId });
+        }
+      }
+      return sent;
     }
   }
-  await sendTelegramMessage(chatId, reply, {
+  const sent = await sendTelegramMessage(chatId, reply, {
     inlineKeyboard: pendingAction?.type === "create_utility_bill"
       ? (() => {
           const payload = pendingAction.payload as Record<string, unknown> | undefined;
@@ -193,19 +211,54 @@ async function sendAssistantReply(
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (account?.owner_user_id) {
-    await recordAssistantMessage(admin, {
-      ownerUserId: account.owner_user_id,
-      apartmentId: data?.active_apartment_id ?? account.default_apartment_id,
-      role: "assistant",
-      channel: "telegram",
-      content: reply,
-    });
+    try {
+      await recordAssistantMessage(admin, {
+        ownerUserId: account.owner_user_id,
+        apartmentId: data?.active_apartment_id ?? account.default_apartment_id,
+        role: "assistant",
+        channel: "telegram",
+        content: reply,
+      });
+    } catch {
+      console.error("Unable to record delivered Telegram reply", { telegram_user_id: telegramUserId });
+    }
   }
+  return sent;
+}
+
+async function beginTrackedDelivery(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  job: TelegramProcessingJob | null,
+) {
+  if (!job) return;
+  const { data, error } = await admin
+    .from("telegram_updates")
+    .update({ delivery_state: "sending" })
+    .eq("update_id", job.update_id)
+    .eq("telegram_user_id", job.telegram_user_id)
+    .eq("chat_id", job.chat_id)
+    .eq("status", "running")
+    .eq("delivery_state", "pending")
+    .select("update_id")
+    .maybeSingle();
+  if (error || !data) throw new Error("telegram_delivery_fence_unavailable");
+  job.delivery_state = "sending";
 }
 
 export async function POST(request: Request) {
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!expectedSecret || request.headers.get("x-telegram-bot-api-secret-token") !== expectedSecret) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const workerSecret = process.env.CRON_SECRET;
+  const internalJobId = request.headers.get("x-fixplan-telegram-job");
+  const workerAuthorized = Boolean(
+    internalJobId &&
+      workerSecret &&
+      request.headers.get("authorization") === `Bearer ${workerSecret}`,
+  );
+  const webhookAuthorized = Boolean(
+    expectedSecret &&
+      request.headers.get("x-telegram-bot-api-secret-token") === expectedSecret,
+  );
+  if (!workerAuthorized && !webhookAuthorized) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const admin = createAdminClient();
   if (!admin) return NextResponse.json({ error: "Supabase is not configured" }, { status: 500 });
   const update = (await request.json().catch(() => null)) as TelegramUpdate | null;
@@ -230,13 +283,76 @@ export async function POST(request: Request) {
     return NextResponse.json({ok:true});
   }
 
-  const { error: updateError } = await admin.from("telegram_updates").insert({ update_id: update.update_id, telegram_user_id: user.id });
-  if (updateError) {
-    if (updateError.code !== "23505") return NextResponse.json({ error: updateError.message }, { status: 500 });
-    const { data: existing } = await admin.from("telegram_updates").select("status").eq("update_id", update.update_id).maybeSingle();
-    if (existing?.status !== "failed") return NextResponse.json({ ok: true, duplicate: true });
-    const { error: retryError } = await admin.from("telegram_updates").update({ status: "processing", error: null, processed_at: null }).eq("update_id", update.update_id);
-    if (retryError) return NextResponse.json({ error: retryError.message }, { status: 500 });
+  let processingJob: TelegramProcessingJob | null = null;
+  if (workerAuthorized) {
+    if (String(update.update_id) !== internalJobId) {
+      return NextResponse.json({ error: "Job mismatch" }, { status: 409 });
+    }
+    const { data, error } = await admin
+      .from("telegram_updates")
+      .select("update_id,telegram_user_id,chat_id,payload,processing_message_id,status_last_updated_at,status,delivery_state")
+      .eq("update_id", update.update_id)
+      .eq("telegram_user_id", user.id)
+      .eq("chat_id", chat.id)
+      .eq("status", "running")
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!data) return NextResponse.json({ error: "Job unavailable" }, { status: 409 });
+    processingJob = data as TelegramProcessingJob;
+  } else if (shouldQueueTelegramUpdate(update)) {
+    const account = await getTelegramAccount(admin, user.id);
+    if (account) {
+      const { data: queued, error: queueError } = await admin
+        .from("telegram_updates")
+        .insert({
+          update_id: update.update_id,
+          telegram_user_id: user.id,
+          chat_id: chat.id,
+          request_kind: telegramRequestKind(update),
+          payload: update,
+          status: "queued",
+        })
+        .select("update_id")
+        .maybeSingle();
+      if (queueError) {
+        if (queueError.code === "23505") {
+          return NextResponse.json({ ok: true, duplicate: true });
+        }
+        return NextResponse.json({ error: queueError.message }, { status: 500 });
+      }
+      if (callback) {
+        try {
+          await answerTelegramCallbackQuery(callback.id);
+        } catch {
+          // The durable status below is independent from Telegram's short callback spinner.
+        }
+      }
+      if (queued) {
+        try {
+          await createQueuedProcessingStatus(admin, update.update_id, chat.id);
+        } catch {
+          await traceTelegramProcessing(
+            admin,
+            update.update_id,
+            "status.create",
+            "failed",
+            Date.now(),
+            { state: "queued" },
+          );
+        }
+      }
+      const origin = new URL(request.url).origin;
+      after(() => triggerTelegramWorker(origin));
+      return NextResponse.json({ ok: true, queued: true });
+    }
+  }
+
+  if (!workerAuthorized) {
+    const { error: updateError } = await admin.from("telegram_updates").insert({ update_id: update.update_id, telegram_user_id: user.id, chat_id: chat.id, payload: update, request_kind: telegramRequestKind(update), status: "running" });
+    if (updateError) {
+      if (updateError.code !== "23505") return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
   }
 
   if (message?.media_group_id && !message.caption?.trim()) {
@@ -244,15 +360,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, ignored: "media-group-companion" });
   }
 
+  let deliveredMessageId: number | undefined;
+  let deliveryStarted = false;
   try {
     if (callback) {
-      await answerTelegramCallbackQuery(callback.id);
+      if (!workerAuthorized) await answerTelegramCallbackQuery(callback.id);
       if (callback.message && !callback.data?.startsWith("statement:")) {
         await clearTelegramInlineKeyboard(callback.message.chat.id, callback.message.message_id);
       }
       const account = await getTelegramAccount(admin, user.id);
       if (!account) {
-        await sendTelegramMessage(chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
+        await beginTrackedDelivery(admin, processingJob);
+        deliveryStarted = Boolean(processingJob);
+        deliveredMessageId = (await sendTelegramMessage(chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.")).message_id;
       } else if (/^statement:(send|cancel|copy):[0-9a-f-]{36}$/.test(callback.data??"")) {
         const [,decision,id]=callback.data!.split(":");
         const answer=await handleStatementDecision(admin,account,id,decision as "send"|"cancel"|"copy");
@@ -272,7 +392,9 @@ export async function POST(request: Request) {
           callback.data.endsWith(":confirm") ? "создавай" : "отмена",
           new URL(request.url).origin,
         );
-        await sendAssistantReply(admin, user.id, chat.id, answer);
+        await beginTrackedDelivery(admin, processingJob);
+        deliveryStarted = Boolean(processingJob);
+        deliveredMessageId = (await sendAssistantReply(admin, user.id, chat.id, answer))?.message_id;
       } else if (callback.data === "fixplan:utility:insurance:keep" || callback.data === "fixplan:utility:insurance:exclude") {
         const active = await getActiveTelegramApartment(admin, account);
         if ("error" in active) throw new Error(active.error);
@@ -284,7 +406,9 @@ export async function POST(request: Request) {
           callback.data.endsWith(":exclude") ? "страховку не включаем" : "страховку включаем",
           new URL(request.url).origin,
         );
-        await sendAssistantReply(admin, user.id, chat.id, answer);
+        await beginTrackedDelivery(admin, processingJob);
+        deliveryStarted = Boolean(processingJob);
+        deliveredMessageId = (await sendAssistantReply(admin, user.id, chat.id, answer))?.message_id;
       } else {
         await sendTelegramMessage(chat.id, "Эта кнопка уже неактуальна.");
       }
@@ -297,7 +421,9 @@ export async function POST(request: Request) {
       } else {
         const account = await getTelegramAccount(admin, user.id);
         if (!account) {
-          await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.");
+          await beginTrackedDelivery(admin, processingJob);
+          deliveryStarted = Boolean(processingJob);
+          deliveredMessageId = (await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.")).message_id;
         } else if (message.voice || message.photo?.length || message.document || text) {
           const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
           const active = await getActiveTelegramApartment(admin, account);
@@ -318,18 +444,87 @@ export async function POST(request: Request) {
             new URL(request.url).origin,
             attachment,
           );
-          await sendAssistantReply(admin, user.id, message.chat.id, answer);
+          await beginTrackedDelivery(admin, processingJob);
+          deliveryStarted = Boolean(processingJob);
+          deliveredMessageId = (await sendAssistantReply(admin, user.id, message.chat.id, answer))?.message_id;
         }
       }
     }
-    await admin.from("telegram_updates").update({ status: "processed", processed_at: new Date().toISOString() }).eq("update_id", update.update_id);
+    const { error: completionError } = await admin.from("telegram_updates").update({ status: "processed", delivery_state: deliveredMessageId ? "delivered" : "pending", response_message_id: deliveredMessageId ?? null, processed_at: new Date().toISOString(), lock_expires_at: null }).eq("update_id", update.update_id);
+    if (processingJob) {
+      await traceTelegramProcessing(
+        admin,
+        update.update_id,
+        "delivery",
+        deliveredMessageId ? "succeeded" : "skipped",
+        Date.now(),
+        { delivered: Boolean(deliveredMessageId) },
+      );
+      if (completionError) {
+        return NextResponse.json(
+          { error: "Unable to persist confirmed Telegram delivery" },
+          { status: 503 },
+        );
+      }
+      await cleanupTelegramProcessingStatus(admin, processingJob, Boolean(deliveredMessageId));
+    }
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Unknown Telegram error";
-    await admin.from("telegram_updates").update({ status: "failed", error: detail.slice(0, 1000), processed_at: new Date().toISOString() }).eq("update_id", update.update_id);
+    if (processingJob && deliveryStarted) {
+      await admin
+        .from("telegram_updates")
+        .update({
+          status: "needs_review",
+          error: "telegram_delivery_uncertain",
+          lock_expires_at: null,
+        })
+        .eq("update_id", update.update_id)
+        .eq("telegram_user_id", user.id)
+        .eq("chat_id", chat.id);
+      await traceTelegramProcessing(
+        admin,
+        update.update_id,
+        "delivery",
+        "failed",
+        Date.now(),
+        { delivered: false, state: "uncertain" },
+      );
+      await markTelegramDeliveryUncertain(admin, processingJob);
+      return NextResponse.json(
+        { error: "Unable to confirm Telegram delivery" },
+        { status: 503 },
+      );
+    }
+    let errorDelivered = false;
+    let errorMessageId: number | undefined;
     try {
-      await sendTelegramMessage(chat.id, "Не удалось обработать запрос. Попробуйте ещё раз чуть позже.");
+      await beginTrackedDelivery(admin, processingJob);
+      deliveryStarted = Boolean(processingJob);
+      const sent = await sendTelegramMessage(chat.id, "Не удалось обработать запрос. Попробуйте ещё раз чуть позже.");
+      errorDelivered = true;
+      errorMessageId = sent.message_id;
     } catch (sendError) {
-      console.error("Unable to send Telegram error message", sendError);
+      console.error("Unable to send Telegram error message", {
+        update_id: update.update_id,
+        code: sendError instanceof Error ? sendError.name : "unknown",
+      });
+    }
+    const { error: failurePersistenceError } = await admin.from("telegram_updates").update({ status: errorDelivered ? "failed" : "needs_review", delivery_state: errorDelivered ? "delivered" : deliveryStarted ? "sending" : "pending", error: detail.slice(0, 1000), response_message_id: errorMessageId ?? null, processed_at: errorDelivered ? new Date().toISOString() : null, lock_expires_at: null }).eq("update_id", update.update_id);
+    if (processingJob) {
+      await traceTelegramProcessing(
+        admin,
+        update.update_id,
+        "delivery",
+        errorDelivered ? "succeeded" : "failed",
+        Date.now(),
+        { delivered: errorDelivered, kind: "error" },
+      );
+      if (!failurePersistenceError) {
+        await cleanupTelegramProcessingStatus(admin, processingJob, errorDelivered);
+      }
+      if (!errorDelivered) {
+        await markTelegramDeliveryUncertain(admin, processingJob);
+      }
     }
   }
   return NextResponse.json({ ok: true });
