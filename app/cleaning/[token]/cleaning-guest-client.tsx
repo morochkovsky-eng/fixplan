@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Camera, Check, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { HomoryLogo } from "@/components/homory-brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,7 +125,7 @@ export function CleaningGuestClient({ token }: { token: string }) {
 
   if (cleaning.status === "offered" || cleaning.status === "declined") {
     const declined = cleaning.status === "declined";
-    return <main className="min-h-screen bg-muted px-4 py-6 sm:py-10"><Card className="mx-auto w-full max-w-xl"><CardHeader className="gap-5"><div className="grid gap-1.5"><Image alt="FIXPLAN" height={18} priority src="/fixplan-logo.svg" width={133} /><span className="text-muted-foreground text-sm">Шпалерная, 34Б</span></div><div className="grid gap-2"><Badge className="w-fit" variant={declined ? "destructive" : "secondary"}>{cleaningStatusLabels[cleaning.status]}</Badge><CardTitle>{cleaning.title}</CardTitle><CardDescription>{cleaning.scheduledFor || "Дата не указана"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</CardDescription></div></CardHeader><CardContent className="grid gap-5">{declined ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Предложение отклонено</strong><p className="m-1 text-muted-foreground text-sm">Владелец увидит ваш ответ.</p></div> : <><section className="grid gap-2"><strong className="text-sm">Что нужно убрать</strong><div className="flex flex-wrap gap-2">{cleaning.zones.map((zone) => <Badge key={zone} variant="secondary">{zone}</Badge>)}</div></section><section className="grid gap-2"><strong className="text-sm">Состав работы</strong><ul className="m-0 grid gap-1 pl-5 text-sm">{cleaning.checklist.map((item) => <li key={item}>{item}</li>)}</ul></section>{cleaning.notes && <div className="rounded-lg bg-muted p-3 text-sm">{cleaning.notes}</div>}<div className="grid gap-2 sm:grid-cols-2"><Button disabled={saving} onClick={() => void patch([], "scheduled", [])} type="button">Принять задание</Button><Button disabled={saving} onClick={() => void patch([], "declined", [])} type="button" variant="outline">Отказаться</Button></div>{error && <p className="m-0 text-destructive text-sm">{error}</p>}</>}</CardContent></Card></main>;
+    return <main className="min-h-screen bg-muted px-4 py-6 sm:py-10"><Card className="mx-auto w-full max-w-xl"><CardHeader className="gap-5"><div className="grid gap-1.5"><HomoryLogo priority /><span className="text-muted-foreground text-sm">Шпалерная, 34Б</span></div><div className="grid gap-2"><Badge className="w-fit" variant={declined ? "destructive" : "secondary"}>{cleaningStatusLabels[cleaning.status]}</Badge><CardTitle>{cleaning.title}</CardTitle><CardDescription>{cleaning.scheduledFor || "Дата не указана"}{cleaning.cost !== undefined ? ` · ${cleaning.cost.toLocaleString("ru-RU")} ₽` : ""}</CardDescription></div></CardHeader><CardContent className="grid gap-5">{declined ? <div className="rounded-lg bg-muted p-4 text-center"><strong>Предложение отклонено</strong><p className="m-1 text-muted-foreground text-sm">Владелец увидит ваш ответ.</p></div> : <><section className="grid gap-2"><strong className="text-sm">Что нужно убрать</strong><div className="flex flex-wrap gap-2">{cleaning.zones.map((zone) => <Badge key={zone} variant="secondary">{zone}</Badge>)}</div></section><section className="grid gap-2"><strong className="text-sm">Состав работы</strong><ul className="m-0 grid gap-1 pl-5 text-sm">{cleaning.checklist.map((item) => <li key={item}>{item}</li>)}</ul></section>{cleaning.notes && <div className="rounded-lg bg-muted p-3 text-sm">{cleaning.notes}</div>}<div className="grid gap-2 sm:grid-cols-2"><Button disabled={saving} onClick={() => void patch([], "scheduled", [])} type="button">Принять задание</Button><Button disabled={saving} onClick={() => void patch([], "declined", [])} type="button" variant="outline">Отказаться</Button></div>{error && <p className="m-0 text-destructive text-sm">{error}</p>}</>}</CardContent></Card></main>;
   }
 
   const done = cleaning.status === "completed" || cleaning.status === "accepted";
@@ -143,7 +143,7 @@ export function CleaningGuestClient({ token }: { token: string }) {
     <main className="min-h-screen bg-muted px-4 py-6 sm:py-10">
       <Card className="mx-auto w-full max-w-xl">
         <CardHeader className="gap-5">
-          <div className="grid gap-1.5"><Image alt="FIXPLAN" height={18} priority src="/fixplan-logo.svg" unoptimized width={133} /><span className="text-muted-foreground text-sm">Шпалерная, 34Б</span></div>
+          <div className="grid gap-1.5"><HomoryLogo priority /><span className="text-muted-foreground text-sm">Шпалерная, 34Б</span></div>
           <div className="grid gap-2"><div className="flex flex-wrap items-center gap-2"><Badge variant="outline">{cleaningTypeLabels[cleaning.type]}</Badge><Badge variant="secondary">{cleaningStatusLabels[cleaning.status]}</Badge></div><CardTitle className="text-xl">{cleaning.title}</CardTitle><CardDescription>{cleaning.scheduledFor || "Без указанной даты"}{cleaning.cleaner ? ` · ${cleaning.cleaner}` : ""}</CardDescription></div>
         </CardHeader>
         <CardContent className="grid gap-5">

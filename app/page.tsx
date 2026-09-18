@@ -73,6 +73,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DashboardClock } from "@/components/dashboard-clock";
+import { HomoryLogo, HomorySymbol } from "@/components/homory-brand";
 import { ProductHeader } from "@/components/product-header";
 import { SystemDialogProvider, useSystemDialog } from "@/components/system-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -3569,7 +3570,7 @@ function WebAssistant({
         ) : (
           <span className="assistant-collapsed-content">
             <span className="assistant-expand-label">Развернуть <ChevronUp /></span>
-            <span className="assistant-collapsed-prompt"><ClipboardCheck /> <span>Назначь уборку на пятницу…</span><span className="assistant-collapsed-submit"><CornerDownLeftIcon /></span></span>
+            <span className="assistant-collapsed-prompt"><HomorySymbol /> <span>Назначь уборку на пятницу…</span><span className="assistant-collapsed-submit"><CornerDownLeftIcon /></span></span>
           </span>
         )}
       </Button>
@@ -3614,7 +3615,7 @@ function WebAssistant({
         >
           <ComposerAttachments />
           <PromptInputBody>
-            <ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" />
+            <HomorySymbol className="assistant-prompt-mark" />
             <PromptInputTextarea
               aria-label="Сообщение ассистенту"
               onChange={(event) => setDraft(event.currentTarget.value)}
@@ -3755,17 +3756,9 @@ function BrandMark({ objectName }: { objectName: string }) {
   return (
     <span
       className="brand-mark grid min-w-0 gap-1.5"
-      aria-label={`FIXPLAN, ${objectName}`}
+      aria-label={`Homory, ${objectName}`}
     >
-      <Image
-        alt="FIXPLAN"
-        height={18}
-        priority
-        src="/fixplan-logo.svg"
-        style={{ height: 18, width: 133 }}
-        unoptimized
-        width={133}
-      />
+      <HomoryLogo priority />
     </span>
   );
 }

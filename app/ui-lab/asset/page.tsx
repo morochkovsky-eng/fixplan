@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { ProductHeader } from "@/components/product-header";
 import { DashboardClock } from "@/components/dashboard-clock";
+import { HomoryLogo } from "@/components/homory-brand";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -94,7 +94,7 @@ export default function AssetDemoPage() {
   return (
     <TooltipProvider>
       <ProductHeader
-        brand={<Link aria-label="FixPlan" className="product-brand brand-mark" href="/ui-lab"><Image src="/fixplan-logo.svg" width={133} height={18} alt="FixPlan" /></Link>}
+        brand={<Link aria-label="Homory" className="product-brand brand-mark" href="/ui-lab"><HomoryLogo priority /></Link>}
         navigation={<>{[["Дашборд", "/dashboard"], ["Узлы", "/assets"], ["План", "/plan"], ["Задания", "/tasks"], ["Документы", "/documents"], ["Счета", "/utilities"], ["Журнал", "/log"], ["Настройки", "/settings"]].map(([label, href]) => <Button key={href} asChild variant="ghost"><Link aria-current={href === "/assets" ? "page" : undefined} href={href}>{label}</Link></Button>)}</>}
         tools={<><DashboardClock compact timeZone="Europe/Moscow" /><div className="apartment-switcher"><Select defaultValue="sample"><SelectTrigger className="w-full" aria-label="Тестовый объект"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sample">Шпалерная, 34Б</SelectItem></SelectContent></Select></div></>}
       />

@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
-  ClipboardCheck,
   LoaderCircle,
   Mic,
   Plus,
@@ -33,6 +32,7 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { HomorySymbol } from "@/components/homory-brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -880,7 +880,7 @@ export default function UiLabPage() {
                   <div className="assistant-composer">
                     <PromptInput onSubmit={() => undefined}>
                       <PromptInputBody>
-                        <ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" />
+                        <HomorySymbol className="assistant-prompt-mark" />
                         <PromptInputTextarea placeholder="Назначь уборку на пятницу…" />
                       </PromptInputBody>
                       <PromptInputFooter>
@@ -909,7 +909,7 @@ export default function UiLabPage() {
                         </Attachment>
                       </Attachments>
                       <PromptInputBody>
-                        <ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" />
+                        <HomorySymbol className="assistant-prompt-mark" />
                         <PromptInputTextarea placeholder="Назначь уборку на пятницу…" />
                       </PromptInputBody>
                       <PromptInputFooter>
@@ -948,7 +948,7 @@ export default function UiLabPage() {
                             <AttachmentRemove label="Убрать файл" />
                           </Attachment>
                         </Attachments>
-                        <PromptInputBody><ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" /><PromptInputTextarea placeholder="Назначь уборку на пятницу…" /></PromptInputBody>
+                        <PromptInputBody><HomorySymbol className="assistant-prompt-mark" /><PromptInputTextarea placeholder="Назначь уборку на пятницу…" /></PromptInputBody>
                         <PromptInputFooter><PromptInputTools><Button aria-label="Прикрепить файл" size="icon" type="button" variant="ghost"><Plus /></Button><Button aria-label="Голосовой ввод" size="icon" type="button" variant="ghost"><Mic /></Button></PromptInputTools><PromptInputSubmit /></PromptInputFooter>
                       </PromptInput>
                     </div>

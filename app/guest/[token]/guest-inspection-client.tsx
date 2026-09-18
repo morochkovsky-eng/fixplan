@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, Check, Loader2 } from "lucide-react";
+import { HomoryLogo } from "@/components/homory-brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -429,17 +430,9 @@ export function GuestInspectionClient({ token }: { token: string }) {
             <CardHeader className="guest-start-header">
               <div
                 className="guest-brand-mark grid min-w-0 gap-1.5"
-                aria-label="FIXPLAN, Шпалерная, 34Б"
+                aria-label="Homory, Шпалерная, 34Б"
               >
-                <Image
-                  alt="FIXPLAN"
-                  height={18}
-                  priority
-                  src="/fixplan-logo.svg"
-                  style={{ height: 18, width: 133 }}
-                  unoptimized
-                  width={133}
-                />
+                <HomoryLogo priority />
                 <span className="text-muted-foreground" style={{ fontSize: 14, lineHeight: "20px" }}>
                   Шпалерная, 34Б
                 </span>

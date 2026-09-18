@@ -55,7 +55,8 @@ const assistantRepliesSource = fs.readFileSync("lib/server/assistant-replies.ts"
 const assistantMessagesMigrationSource = fs.readFileSync("supabase/migrations/20260908120000_add_assistant_messages.sql", "utf8");
 const workOrderEventsMigrationSource = fs.readFileSync("supabase/migrations/20260908183000_add_work_order_creation_events.sql", "utf8");
 const cleaningServiceSource = fs.readFileSync("lib/server/cleanings.ts", "utf8");
-const logoSource = fs.readFileSync("public/fixplan-logo.svg", "utf8");
+const logoSource = fs.readFileSync("public/homory-logo.svg", "utf8");
+const homoryBrandSource = fs.readFileSync("components/homory-brand.tsx", "utf8");
 
 test("uses the system color scheme by default and exposes the theme controls", () => {
   assert.match(layoutSource, /defaultTheme="system"/);
@@ -718,19 +719,23 @@ test("shows one searchable journal across apartment workflows", () => {
 });
 
 test("uses the Figma brand mark and shared responsive navigation", () => {
-  assert.match(logoSource, /<svg width="133" height="18"/);
+  assert.match(logoSource, /<svg[^>]*width="2898\.5"[^>]*height="822\.04"/);
+  assert.match(homoryBrandSource, /src="\/homory-logo\.svg"/);
+  assert.match(homoryBrandSource, /src="\/homory-symbol\.svg"/);
   assert.match(pageSource, /function BrandMark/);
-  assert.match(pageSource, /src="\/fixplan-logo\.svg"/);
+  assert.match(pageSource, /<HomoryLogo priority/);
+  assert.match(pageSource, /<HomorySymbol className="assistant-prompt-mark"/);
   assert.match(pageSource, /function AppNavigation/);
   assert.match(pageSource, /<ProductHeader/);
   assert.match(fs.readFileSync("components/product-header.tsx", "utf8"), /product-navigation/);
   assert.match(globalCssSource, /\.product-navigation[^}]*overflow-x: auto/);
   assert.match(pageSource, /\bMenu,/);
   assert.match(pageSource, /assistant-mobile-menu/);
+  assert.match(globalCssSource, /\.assistant-mobile-menu \{[^}]*bottom: 64px;[^}]*padding: 8px;/);
   assert.match(globalCssSource, /\.product-navigation \{ display: none; \}/);
 
   assert.match(guestSource, /guest-brand-mark/);
-  assert.match(guestSource, /src="\/fixplan-logo\.svg"/);
+  assert.match(guestSource, /<HomoryLogo priority/);
 });
 
 test("treats work orders as a first-class master workflow", () => {
