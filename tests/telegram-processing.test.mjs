@@ -101,6 +101,69 @@ function restoreToken(value) {
   else process.env.TELEGRAM_BOT_TOKEN = value;
 }
 
+function restoreEnvironment(name, value) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
+test("internal requests include the Vercel automation bypass when configured", () => {
+  const previous = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  process.env.VERCEL_AUTOMATION_BYPASS_SECRET = "preview-bypass-secret";
+  try {
+    assert.deepEqual(
+      processing.telegramInternalRequestHeaders({ authorization: "Bearer worker" }),
+      {
+        authorization: "Bearer worker",
+        "x-vercel-protection-bypass": "preview-bypass-secret",
+      },
+    );
+  } finally {
+    restoreEnvironment("VERCEL_AUTOMATION_BYPASS_SECRET", previous);
+  }
+});
+
+test("internal requests omit the Vercel bypass header when it is unavailable", () => {
+  const previous = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  delete process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  try {
+    assert.deepEqual(
+      processing.telegramInternalRequestHeaders({ authorization: "Bearer worker" }),
+      { authorization: "Bearer worker" },
+    );
+  } finally {
+    restoreEnvironment("VERCEL_AUTOMATION_BYPASS_SECRET", previous);
+  }
+});
+
+test("an exhausted worker HTTP 401 is failed without creating a duplicate delivery", () => {
+  assert.equal(
+    processing.telegramWorkerFailureStatus({
+      deliveryPersistenceUncertain: false,
+      deliveryState: "pending",
+      responseMessageId: null,
+      attempts: 3,
+    }),
+    "failed",
+  );
+  assert.equal(
+    processing.telegramWorkerFailureStatus({
+      deliveryPersistenceUncertain: false,
+      deliveryState: "pending",
+      responseMessageId: null,
+      attempts: 2,
+    }),
+    "queued",
+  );
+});
+
+test("the Vercel bypass secret is used only as a request header", () => {
+  const helper = readFileSync("lib/server/telegram-processing.ts", "utf8");
+  const worker = readFileSync("app/api/telegram/worker/route.ts", "utf8");
+  assert.doesNotMatch(helper, /traceTelegramProcessing\([\s\S]{0,300}VERCEL_AUTOMATION_BYPASS_SECRET/);
+  assert.doesNotMatch(worker, /console\.(?:log|error)\([^\n]*VERCEL_AUTOMATION_BYPASS_SECRET/);
+  assert.doesNotMatch(worker, /details:\s*[^\n]*VERCEL_AUTOMATION_BYPASS_SECRET/);
+});
+
 test("ordinary request uses the NOMI emoji, edits one status, then removes it after delivery", async () => {
   const oldFetch = globalThis.fetch;
   const oldToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -230,7 +293,16 @@ test("a worker restart requeues only stale jobs without a confirmed response", (
   assert.match(worker, /pendingCleanup/);
   assert.match(worker, /cleanup_attempts", 2/);
   assert.match(worker, /cleanupTelegramProcessingStatus/);
-  assert.match(worker, /current\.delivery_state === "sending"/);
+  assert.match(worker, /telegramWorkerFailureStatus/);
+  assert.equal(
+    processing.telegramWorkerFailureStatus({
+      deliveryPersistenceUncertain: false,
+      deliveryState: "sending",
+      responseMessageId: null,
+      attempts: 1,
+    }),
+    "delivery_unknown",
+  );
   assert.match(worker, /markTelegramDeliveryUncertain/);
 });
 

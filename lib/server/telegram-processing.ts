@@ -14,6 +14,29 @@ export const runningProcessingText = "Обрабатываю…";
 export const processingStatusMinIntervalMs = 5_000;
 export const processingCleanupAttempts = 2;
 
+export function telegramInternalRequestHeaders(
+  headers: Record<string, string>,
+) {
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
+  return bypassSecret
+    ? { ...headers, "x-vercel-protection-bypass": bypassSecret }
+    : headers;
+}
+
+export function telegramWorkerFailureStatus(input: {
+  deliveryPersistenceUncertain: boolean;
+  deliveryState?: string | null;
+  responseMessageId?: number | null;
+  attempts: number;
+}) {
+  const uncertain =
+    input.deliveryPersistenceUncertain ||
+    input.deliveryState === "sending" ||
+    Boolean(input.responseMessageId);
+  if (uncertain) return "delivery_unknown" as const;
+  return input.attempts >= 3 ? ("failed" as const) : ("queued" as const);
+}
+
 export type TelegramProcessingJob = {
   update_id: number;
   telegram_user_id: number;
@@ -273,7 +296,9 @@ export async function triggerTelegramWorker(origin: string) {
   if (!secret) return;
   await fetch(new URL("/api/telegram/worker", origin), {
     method: "POST",
-    headers: { authorization: `Bearer ${secret}` },
+    headers: telegramInternalRequestHeaders({
+      authorization: `Bearer ${secret}`,
+    }),
     cache: "no-store",
   });
 }

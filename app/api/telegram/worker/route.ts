@@ -4,6 +4,8 @@ import {
   cleanupTelegramProcessingStatus,
   markTelegramDeliveryUncertain,
   markTelegramProcessingRunning,
+  telegramInternalRequestHeaders,
+  telegramWorkerFailureStatus,
   traceTelegramProcessing,
   type TelegramProcessingJob,
 } from "@/lib/server/telegram-processing";
@@ -89,11 +91,11 @@ async function run(request: Request) {
     try {
       const response = await fetch(new URL("/api/telegram/webhook", request.url), {
         method: "POST",
-        headers: {
+        headers: telegramInternalRequestHeaders({
           "content-type": "application/json",
           authorization: `Bearer ${process.env.CRON_SECRET}`,
           "x-fixplan-telegram-job": String(job.update_id),
-        },
+        }),
         body: JSON.stringify(job.payload),
         cache: "no-store",
       });
@@ -113,15 +115,16 @@ async function run(request: Request) {
         .eq("update_id", job.update_id)
         .maybeSingle();
       if (current?.status === "running") {
-        const uncertain =
-          deliveryPersistenceUncertain ||
-          current.delivery_state === "sending" ||
-          Boolean(current.response_message_id);
-        const exhausted = Number(current.attempts ?? 0) >= 3;
+        const nextStatus = telegramWorkerFailureStatus({
+          deliveryPersistenceUncertain,
+          deliveryState: current.delivery_state,
+          responseMessageId: current.response_message_id,
+          attempts: Number(current.attempts ?? 0),
+        });
         await admin
           .from("telegram_updates")
           .update({
-            status: uncertain ? "delivery_unknown" : exhausted ? "failed" : "queued",
+            status: nextStatus,
             lock_expires_at: null,
             claimed_at: null,
             error: error instanceof Error ? error.message.slice(0, 200) : "worker_failed",
