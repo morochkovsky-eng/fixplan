@@ -474,7 +474,7 @@ export async function POST(request: Request) {
       await admin
         .from("telegram_updates")
         .update({
-          status: "needs_review",
+          status: "delivery_unknown",
           error: "telegram_delivery_uncertain",
           lock_expires_at: null,
         })
@@ -509,7 +509,7 @@ export async function POST(request: Request) {
         code: sendError instanceof Error ? sendError.name : "unknown",
       });
     }
-    const { error: failurePersistenceError } = await admin.from("telegram_updates").update({ status: errorDelivered ? "failed" : "needs_review", delivery_state: errorDelivered ? "delivered" : deliveryStarted ? "sending" : "pending", error: detail.slice(0, 1000), response_message_id: errorMessageId ?? null, processed_at: errorDelivered ? new Date().toISOString() : null, lock_expires_at: null }).eq("update_id", update.update_id);
+    const { error: failurePersistenceError } = await admin.from("telegram_updates").update({ status: errorDelivered ? "failed" : "delivery_unknown", delivery_state: errorDelivered ? "delivered" : deliveryStarted ? "sending" : "pending", error: detail.slice(0, 1000), response_message_id: errorMessageId ?? null, processed_at: errorDelivered ? new Date().toISOString() : null, lock_expires_at: null }).eq("update_id", update.update_id);
     if (processingJob) {
       await traceTelegramProcessing(
         admin,

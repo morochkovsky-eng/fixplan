@@ -25,7 +25,7 @@ alter table public.telegram_updates
   add constraint telegram_updates_delivery_state_check
   check (delivery_state in ('pending', 'sending', 'delivered')),
   add constraint telegram_updates_status_check
-  check (status in ('queued', 'running', 'processed', 'failed', 'needs_review'));
+  check (status in ('queued', 'running', 'processed', 'failed', 'delivery_unknown'));
 
 alter table public.telegram_updates
   add constraint telegram_updates_cleanup_status_check
@@ -112,7 +112,7 @@ declare
   requeued integer;
 begin
   update public.telegram_updates
-  set status = 'needs_review', claimed_at = null, lock_expires_at = null
+  set status = 'delivery_unknown', claimed_at = null, lock_expires_at = null
   where status = 'running'
     and lock_expires_at <= now()
     and delivery_state = 'sending';
@@ -132,3 +132,64 @@ $$;
 
 revoke all on function public.recover_stale_telegram_updates() from public, anon, authenticated;
 grant execute on function public.recover_stale_telegram_updates() to service_role;
+
+create or replace function public.resolve_telegram_delivery_unknown(
+  p_update_id bigint,
+  p_resolution text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  resolved integer;
+begin
+  if p_resolution = 'retry' then
+    update public.telegram_updates
+    set status = 'queued',
+        delivery_state = 'pending',
+        claimed_at = null,
+        lock_expires_at = null,
+        status_finalized_at = null,
+        response_message_id = null,
+        error = null
+    where update_id = p_update_id
+      and status = 'delivery_unknown';
+  elsif p_resolution = 'mark_delivered' then
+    update public.telegram_updates
+    set status = 'processed',
+        delivery_state = 'delivered',
+        claimed_at = null,
+        lock_expires_at = null,
+        processed_at = coalesce(processed_at, now())
+    where update_id = p_update_id
+      and status = 'delivery_unknown';
+  elsif p_resolution = 'fail' then
+    update public.telegram_updates
+    set status = 'failed',
+        claimed_at = null,
+        lock_expires_at = null,
+        processed_at = coalesce(processed_at, now())
+    where update_id = p_update_id
+      and status = 'delivery_unknown';
+  else
+    raise exception 'Unsupported delivery resolution';
+  end if;
+
+  get diagnostics resolved = row_count;
+  if resolved = 1 then
+    insert into public.telegram_request_traces(update_id, event, status, details)
+    values (
+      p_update_id,
+      'delivery.recovery',
+      'succeeded',
+      jsonb_build_object('resolution', p_resolution)
+    );
+  end if;
+  return resolved = 1;
+end;
+$$;
+
+revoke all on function public.resolve_telegram_delivery_unknown(bigint, text) from public, anon, authenticated;
+grant execute on function public.resolve_telegram_delivery_unknown(bigint, text) to service_role;

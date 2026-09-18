@@ -466,7 +466,7 @@ create table public.telegram_updates (
   request_kind text,
   payload jsonb,
   processing_message_id bigint,
-  status text not null default 'queued' check (status in ('queued', 'running', 'processed', 'failed', 'needs_review')),
+  status text not null default 'queued' check (status in ('queued', 'running', 'processed', 'failed', 'delivery_unknown')),
   status_last_updated_at timestamptz,
   claimed_at timestamptz,
   lock_expires_at timestamptz,
@@ -943,7 +943,7 @@ declare
   requeued integer;
 begin
   update public.telegram_updates
-  set status = 'needs_review', claimed_at = null, lock_expires_at = null
+  set status = 'delivery_unknown', claimed_at = null, lock_expires_at = null
   where status = 'running'
     and lock_expires_at <= now()
     and delivery_state = 'sending';
@@ -962,6 +962,40 @@ end;
 $$;
 revoke all on function public.recover_stale_telegram_updates() from public, anon, authenticated;
 grant execute on function public.recover_stale_telegram_updates() to service_role;
+
+create or replace function public.resolve_telegram_delivery_unknown(p_update_id bigint, p_resolution text)
+returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare resolved integer;
+begin
+  if p_resolution = 'retry' then
+    update public.telegram_updates
+    set status='queued', delivery_state='pending', claimed_at=null, lock_expires_at=null,
+        status_finalized_at=null, response_message_id=null, error=null
+    where update_id=p_update_id and status='delivery_unknown';
+  elsif p_resolution = 'mark_delivered' then
+    update public.telegram_updates
+    set status='processed', delivery_state='delivered', claimed_at=null, lock_expires_at=null,
+        processed_at=coalesce(processed_at, now())
+    where update_id=p_update_id and status='delivery_unknown';
+  elsif p_resolution = 'fail' then
+    update public.telegram_updates
+    set status='failed', claimed_at=null, lock_expires_at=null,
+        processed_at=coalesce(processed_at, now())
+    where update_id=p_update_id and status='delivery_unknown';
+  else
+    raise exception 'Unsupported delivery resolution';
+  end if;
+  get diagnostics resolved = row_count;
+  if resolved=1 then
+    insert into public.telegram_request_traces(update_id,event,status,details)
+    values(p_update_id,'delivery.recovery','succeeded',jsonb_build_object('resolution',p_resolution));
+  end if;
+  return resolved=1;
+end;
+$$;
+revoke all on function public.resolve_telegram_delivery_unknown(bigint, text) from public, anon, authenticated;
+grant execute on function public.resolve_telegram_delivery_unknown(bigint, text) to service_role;
 
 create or replace function public.connect_telegram_apartment_group(p_hash text, p_user bigint, p_chat bigint, p_title text)
 returns boolean language plpgsql security definer set search_path = public as $$
