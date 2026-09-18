@@ -239,7 +239,11 @@ export async function markTelegramDeliveryUncertain(
     );
     await admin
       .from("telegram_updates")
-      .update({ status_finalized_at: new Date().toISOString() })
+      .update({
+        status: "delivery_unknown",
+        lock_expires_at: null,
+        status_finalized_at: new Date().toISOString(),
+      })
       .eq("update_id", job.update_id)
       .eq("telegram_user_id", job.telegram_user_id)
       .eq("chat_id", job.chat_id)

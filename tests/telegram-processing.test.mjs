@@ -221,7 +221,11 @@ test("a worker restart requeues only stale jobs without a confirmed response", (
   assert.match(migration, /response_message_id is null/);
   assert.match(migration, /set status = 'queued'/);
   assert.match(migration, /delivery_state = 'sending'/);
-  assert.match(migration, /set status = 'needs_review'/);
+  assert.match(migration, /set status = 'delivery_unknown'/);
+  assert.match(migration, /resolve_telegram_delivery_unknown/);
+  assert.match(migration, /p_resolution = 'retry'/);
+  assert.match(migration, /p_resolution = 'mark_delivered'/);
+  assert.match(migration, /p_resolution = 'fail'/);
   const worker = readFileSync("app/api/telegram/worker/route.ts", "utf8");
   assert.match(worker, /pendingCleanup/);
   assert.match(worker, /cleanup_attempts", 2/);

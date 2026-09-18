@@ -33,7 +33,7 @@ async function run(request: Request) {
   const { data: uncertainDeliveries } = await admin
     .from("telegram_updates")
     .select("update_id,telegram_user_id,chat_id,processing_message_id")
-    .eq("status", "needs_review")
+    .eq("status", "delivery_unknown")
     .eq("delivery_state", "sending")
     .is("status_finalized_at", null)
     .limit(20);
@@ -46,7 +46,7 @@ async function run(request: Request) {
   const { data: pendingCleanup } = await admin
     .from("telegram_updates")
     .select("update_id,telegram_user_id,chat_id,processing_message_id")
-    .in("status", ["processed", "failed", "needs_review"])
+    .in("status", ["processed", "failed", "delivery_unknown"])
     .not("response_message_id", "is", null)
     .not("processing_message_id", "is", null)
     .lt("cleanup_attempts", 2)
@@ -121,7 +121,7 @@ async function run(request: Request) {
         await admin
           .from("telegram_updates")
           .update({
-            status: uncertain ? "needs_review" : exhausted ? "failed" : "queued",
+            status: uncertain ? "delivery_unknown" : exhausted ? "failed" : "queued",
             lock_expires_at: null,
             claimed_at: null,
             error: error instanceof Error ? error.message.slice(0, 200) : "worker_failed",
