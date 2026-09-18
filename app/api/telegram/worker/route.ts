@@ -51,6 +51,7 @@ async function run(request: Request) {
     .in("status", ["processed", "failed", "delivery_unknown"])
     .not("response_message_id", "is", null)
     .not("processing_message_id", "is", null)
+    .or("cleanup_status.is.null,cleanup_status.eq.failed")
     .lt("cleanup_attempts", 2)
     .limit(20);
   for (const completed of pendingCleanup ?? []) {
