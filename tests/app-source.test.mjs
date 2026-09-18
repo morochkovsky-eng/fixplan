@@ -721,7 +721,7 @@ test("shows one searchable journal across apartment workflows", () => {
 test("uses the Figma brand mark and shared responsive navigation", () => {
   assert.match(logoSource, /<svg[^>]*width="2898\.5"[^>]*height="822\.04"/);
   assert.match(homoryBrandSource, /src="\/homory-logo\.svg"/);
-  assert.match(homoryBrandSource, /src="\/homory-symbol\.svg"/);
+  assert.match(globalCssSource, /mask: url\("\/homory-symbol\.svg"\)/);
   assert.match(pageSource, /function BrandMark/);
   assert.match(pageSource, /<HomoryLogo priority/);
   assert.match(pageSource, /<HomorySymbol className="assistant-prompt-mark"/);

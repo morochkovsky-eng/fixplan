@@ -22,14 +22,9 @@ export function HomoryLogo({
 
 export function HomorySymbol({ className }: { className?: string }) {
   return (
-    <Image
-      alt=""
+    <span
       aria-hidden="true"
-      className={className}
-      height={16}
-      src="/homory-symbol.svg"
-      unoptimized
-      width={16}
+      className={["homory-symbol", className].filter(Boolean).join(" ")}
     />
   );
 }
