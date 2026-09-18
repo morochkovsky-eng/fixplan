@@ -126,7 +126,7 @@ function Foundations() {
       {[[22, 28, 500, "Заголовок страницы"], [16, 24, 500, "Заголовок карточки"], [14, 20, 400, "Основной текст"], [12, 16, 400, "Подпись"]].map(([size, line, weight, label]) => <div key={String(label)}><span style={{fontSize: Number(size), lineHeight: `${line}px`, fontWeight: Number(weight)}}>{label}</span><code>{size}/{line} · {weight}</code></div>)}
     </div>
     <h3>Геометрия</h3>
-    <div className={styles.row}><code>Input: radius 8 px</code><code>Button / Select: radius 12 px</code><code>Карточки: radius 24 px</code><code>Tabs: radius 16 / 6 / 12 px</code><code>Badge: radius 9999 px</code></div>
+    <div className={styles.row}><code>Input: radius 8 px</code><code>Button / Select: radius 12 px</code><code>Карточки: radius 24 px</code><code>Tabs: radius 14 / 6 / 12 px</code><code>Badge: radius 9999 px</code></div>
   </div>;
 }
 

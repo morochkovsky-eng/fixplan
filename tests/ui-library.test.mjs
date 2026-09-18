@@ -21,7 +21,7 @@ test("shared primitives preserve the approved Figma radius hierarchy", () => {
     "--radius-textarea: 10px",
     "--radius-control: 12px",
     "--radius-card: 24px",
-    "--radius-tabs: 16px",
+    "--radius-tabs: 14px",
     "--radius-tab: 6px",
     "--radius-tab-active: 12px",
     "--radius-assistant-field: 14px",
