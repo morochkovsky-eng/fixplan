@@ -156,7 +156,7 @@
   gap: 10px;
   margin-top: 16px;
   border: 1px solid color-mix(in oklch, var(--destructive) 24%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--asset-notice-background);
   padding: 12px;
 }

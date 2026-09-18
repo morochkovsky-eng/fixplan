@@ -921,7 +921,7 @@ export const PromptInput = ({
         ref={formRef}
         {...props}
       >
-        <InputGroup className="overflow-hidden">{children}</InputGroup>
+        <InputGroup className="overflow-hidden rounded-[var(--radius-assistant-field)]">{children}</InputGroup>
       </form>
     </>
   );
@@ -1250,7 +1250,7 @@ export const PromptInputSubmit = ({
   return (
     <InputGroupButton
       aria-label={isGenerating ? "Остановить ответ" : "Отправить сообщение"}
-      className={cn(className)}
+      className={cn("rounded-[var(--radius-assistant)]", className)}
       onClick={handleClick}
       size={size}
       type={isGenerating && onStop ? "button" : "submit"}
