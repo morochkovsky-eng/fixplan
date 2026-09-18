@@ -94,10 +94,10 @@ const renderAttachmentImage = (
     <img
       alt={filename || "Image"}
       className="size-full object-cover"
-      height={96}
+      height={74}
       loading="lazy"
       src={url}
-      width={96}
+      width={74}
     />
   ) : (
     <img
@@ -206,15 +206,15 @@ export const Attachment = ({
       <div
         className={cn(
           "group relative",
-          variant === "grid" && "size-24 overflow-hidden rounded-lg",
+          variant === "grid" && "size-[74px] overflow-hidden rounded-[10px]",
           variant === "inline" && [
             "flex h-8 cursor-pointer select-none items-center gap-1.5",
-            "rounded-md border border-border px-1.5",
+            "rounded-lg border border-border px-1.5",
             "font-medium text-sm transition-all",
             "hover:bg-default-hover hover:text-foreground dark:hover:bg-default-hover",
           ],
           variant === "list" && [
-            "flex w-full items-center gap-3 rounded-lg border p-3",
+            "flex h-[74px] w-full items-center gap-3 rounded-[10px] border p-3",
             "hover:bg-default-hover",
           ],
           className
@@ -265,9 +265,9 @@ export const AttachmentPreview = ({
     <div
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden",
-        variant === "grid" && "size-full bg-default",
-        variant === "inline" && "size-5 rounded bg-background",
-        variant === "list" && "size-12 rounded bg-default",
+        variant === "grid" && "size-full rounded-xl bg-default",
+        variant === "inline" && "size-5 rounded-lg bg-background",
+        variant === "list" && "size-12 rounded-xl bg-default",
         className
       )}
       {...props}
@@ -342,18 +342,18 @@ export const AttachmentRemove = ({
       aria-label={label}
       className={cn(
         variant === "grid" && [
-          "absolute top-2 right-2 size-6 rounded-full p-0",
+          "absolute top-1 right-1 size-6 rounded-full p-0",
           "bg-background/80 backdrop-blur-sm",
           "opacity-0 transition-opacity group-hover:opacity-100",
           "hover:bg-background",
           "[&>svg]:size-3",
         ],
         variant === "inline" && [
-          "size-5 rounded p-0",
+          "size-5 rounded-lg p-0",
           "opacity-0 transition-opacity group-hover:opacity-100",
           "[&>svg]:size-2.5",
         ],
-        variant === "list" && ["size-8 shrink-0 rounded p-0", "[&>svg]:size-4"],
+        variant === "list" && ["size-8 shrink-0 rounded-xl p-0", "[&>svg]:size-4"],
         className
       )}
       onClick={handleClick}

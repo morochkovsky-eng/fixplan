@@ -917,11 +917,17 @@ export const PromptInput = ({
       />
       <form
         className={cn("w-full", className)}
+        data-has-attachments={files.length > 0 ? "true" : "false"}
         onSubmit={handleSubmit}
         ref={formRef}
         {...props}
       >
-        <InputGroup className="overflow-hidden rounded-[var(--radius-assistant-field)]">{children}</InputGroup>
+        <InputGroup
+          className="overflow-hidden rounded-[var(--radius-assistant-field)]"
+          data-has-attachments={files.length > 0 ? "true" : "false"}
+        >
+          {children}
+        </InputGroup>
       </form>
     </>
   );

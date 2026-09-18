@@ -94,6 +94,7 @@ import {
   Wrench,
   Check,
   ClipboardCheck,
+  CornerDownLeftIcon,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -108,6 +109,7 @@ import {
   LayoutDashboard,
   List,
   Map as MapIcon,
+  Menu,
   Mic,
   Plus,
   ArrowLeft,
@@ -3334,6 +3336,7 @@ function HomeContent() {
         )}
       </section>
       <WebAssistant
+        navigate={navigate}
         onMutation={() => setDataRefreshKey((current) => current + 1)}
         selectedAsset={selectedAsset}
         view={view}
@@ -3356,7 +3359,7 @@ function ComposerAttachments() {
   const attachments = usePromptInputAttachments();
   if (!attachments.files.length) return null;
   return (
-    <Attachments className="px-2 pt-2" variant="inline">
+    <Attachments className="assistant-attachments" variant="list">
       {attachments.files.map((file) => (
         <Attachment data={file} key={file.id} onRemove={() => attachments.remove(file.id)}>
           <AttachmentPreview />
@@ -3369,10 +3372,12 @@ function ComposerAttachments() {
 }
 
 function WebAssistant({
+  navigate,
   onMutation,
   selectedAsset,
   view,
 }: {
+  navigate: (view: View) => void;
   onMutation: () => void;
   selectedAsset?: Asset;
   view: View;
@@ -3382,6 +3387,7 @@ function WebAssistant({
   const [status, setStatus] = useState<"ready" | "submitted" | "error">("ready");
   const [error, setError] = useState("");
   const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [recording, setRecording] = useState(false);
   const [pendingAction, setPendingAction] = useState<Record<string, unknown> | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -3390,15 +3396,16 @@ function WebAssistant({
   const assistantToggleRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    if (!mobileExpanded) return;
+    if (!mobileExpanded && !mobileMenuOpen) return;
     function handleEscape(event: KeyboardEvent) {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       setMobileExpanded(false);
+      setMobileMenuOpen(false);
       assistantToggleRef.current?.focus();
     }
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [mobileExpanded]);
+  }, [mobileExpanded, mobileMenuOpen]);
 
   const screenContext = selectedAsset && view === "asset"
     ? `Открыт узел ${selectedAsset.code} · ${selectedAsset.name}, ${roomName(selectedAsset.roomId)}.`
@@ -3554,20 +3561,26 @@ function WebAssistant({
   const hasPendingCreate = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
 
   return (
-    <aside className={`assistant-panel assistant-floating${mobileExpanded ? " mobile-expanded" : ""}`} aria-label="Ассистент FixPlan">
-      <Button ref={assistantToggleRef} aria-controls="fixplan-assistant-body" aria-expanded={mobileExpanded} className="assistant-mobile-toggle" onClick={() => setMobileExpanded((value) => !value)} type="button" variant="ghost">
-        <span className="flex items-center gap-2"><Bot className="size-4" /> FixPlan</span>
-        {mobileExpanded && <span className="assistant-channel">Веб и Telegram</span>}
-        <span className="flex items-center gap-2 text-muted-foreground">{mobileExpanded ? "Свернуть" : "Написать"}{mobileExpanded ? <ChevronDown /> : <ChevronUp />}</span>
+    <div className={`assistant-dock${mobileExpanded ? " mobile-expanded" : ""}${mobileMenuOpen ? " menu-open" : ""}`}>
+    <aside className={`assistant-panel assistant-floating${mobileExpanded ? " mobile-expanded" : ""}`} aria-label="Ассистент Homory">
+      <Button ref={assistantToggleRef} aria-controls="homory-assistant-body" aria-expanded={mobileExpanded} className="assistant-mobile-toggle" onClick={() => { setMobileMenuOpen(false); setMobileExpanded((value) => !value); }} type="button" variant="ghost">
+        {mobileExpanded ? (
+          <span className="assistant-collapse-label">Свернуть <ChevronDown /></span>
+        ) : (
+          <span className="assistant-collapsed-content">
+            <span className="assistant-expand-label">Развернуть <ChevronUp /></span>
+            <span className="assistant-collapsed-prompt"><ClipboardCheck /> <span>Назначь уборку на пятницу…</span><span className="assistant-collapsed-submit"><CornerDownLeftIcon /></span></span>
+          </span>
+        )}
       </Button>
 
-      <div className="assistant-panel-body" id="fixplan-assistant-body" hidden={!mobileExpanded}>
+      <div className="assistant-panel-body" id="homory-assistant-body" hidden={!mobileExpanded}>
         <ScrollArea className="assistant-message-list">
           <div aria-busy={status === "submitted"} aria-live="polite" className="grid gap-3 p-3">
             {messages.map((message) => (
               <div className={message.role === "user" ? "assistant-message user" : "assistant-message"} key={message.id}>
                 <div className="mb-1 flex items-center justify-between gap-3 text-muted-foreground text-xs">
-                  <span>{message.role === "user" ? "Вы" : "FixPlan"}</span>
+                  <span>{message.role === "user" ? "Вы" : "Homory"}</span>
                   <span>{message.channel === "telegram" ? "Telegram" : "Веб"}</span>
                 </div>
                 <MessageResponse className="assistant-response text-sm leading-5" components={{ a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{typeof children === "string" && children.startsWith("https://") ? "Открыть ссылку" : children}</a> }}>{message.content}</MessageResponse>
@@ -3576,10 +3589,10 @@ function WebAssistant({
             {status === "submitted" && (
               <div className="assistant-message flex items-center gap-2 text-muted-foreground">
                 <Spinner />
-                <span className="text-sm">FixPlan обрабатывает запрос…</span>
+                <span className="text-sm">Homory обрабатывает запрос…</span>
               </div>
             )}
-            {!messages.length && <p className="py-8 text-center text-muted-foreground text-sm">Начните диалог с FixPlan.</p>}
+            {!messages.length && <p className="py-8 text-center text-muted-foreground text-sm">Начните диалог с Homory.</p>}
             <div ref={messageEndRef} />
           </div>
         </ScrollArea>
@@ -3601,10 +3614,11 @@ function WebAssistant({
         >
           <ComposerAttachments />
           <PromptInputBody>
+            <ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" />
             <PromptInputTextarea
               aria-label="Сообщение ассистенту"
               onChange={(event) => setDraft(event.currentTarget.value)}
-              placeholder="Напишите FixPlan или приложите квитанцию"
+              placeholder="Напишите Homory или приложите квитанцию"
               value={draft}
             />
           </PromptInputBody>
@@ -3631,6 +3645,17 @@ function WebAssistant({
         </div>
       </div>
     </aside>
+    {!mobileExpanded && (
+      <Button aria-expanded={mobileMenuOpen} aria-label={mobileMenuOpen ? "Закрыть меню" : "Открыть меню"} className="assistant-menu-toggle" onClick={() => setMobileMenuOpen((value) => !value)} size="icon" type="button">
+        {mobileMenuOpen ? <X /> : <Menu />}
+      </Button>
+    )}
+    {mobileMenuOpen && (
+      <nav aria-label="Мобильная навигация" className="assistant-mobile-menu">
+        <AppNavigation activeView={view === "asset" ? "assets" : view} navigate={(nextView) => { setMobileMenuOpen(false); navigate(nextView); }} />
+      </nav>
+    )}
+    </div>
   );
 }
 

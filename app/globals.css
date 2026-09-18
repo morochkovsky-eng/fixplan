@@ -3909,20 +3909,40 @@ select:focus-visible {
 [data-slot="button"][data-size="default"], [data-slot="button"][data-size="sm"], [data-slot="button"][data-size="xs"], [data-slot="badge"], [data-slot="tabs-trigger"] { font-size: var(--font-label-size); }
 [data-slot="tabs-list"][data-variant="default"] [data-slot="tabs-trigger"][data-state="active"] { box-shadow: var(--shadow-tabs-active); }
 
-/* Figma 4:4151 / 4:4606; a non-modal panel keeps page navigation available. */
-.figma-shell .assistant-floating { position: fixed; inset: auto auto 20px 50%; z-index: 40; translate: -50% 0; display: flex; flex-direction: column; width: min(360px, calc(100% - 24px)); height: 44px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-assistant); background: var(--secondary); }
-.figma-shell .assistant-floating.mobile-expanded { width: min(548px, calc(100% - 24px)); height: min(642px, calc(100dvh - 80px)); bottom: 8px; background: var(--content); box-shadow: var(--shadow-tabs-active); }
-.assistant-floating .assistant-mobile-toggle { display: flex; flex: 0 0 44px; justify-content: space-between; width: 100%; height: 44px; min-height: 44px; padding: 0 14px; border-radius: var(--radius-control); font-size: 12px; }
-.assistant-floating .assistant-mobile-toggle > :last-child { font-size: 14px; font-weight: 400; }
-.assistant-floating.mobile-expanded .assistant-mobile-toggle { border-bottom: 1px solid var(--border); }
-.assistant-floating .assistant-channel { color: var(--muted-foreground); font-size: 12px; font-weight: 400; }
+/* Figma AssistantPanel 35:1047 and PromptInput 24:338. */
+.assistant-dock { position: fixed; z-index: 40; left: 50%; bottom: 20px; display: flex; width: min(600px, calc(100% - 24px)); align-items: flex-end; gap: 12px; transform: translateX(-50%); pointer-events: none; }
+.assistant-dock > * { pointer-events: auto; }
+.figma-shell .assistant-floating { position: relative; inset: auto; display: flex; width: 100%; height: 76px; flex-direction: column; overflow: hidden; border: 0; border-radius: var(--radius-assistant); padding: 4px; background: var(--primary); box-shadow: var(--shadow-tabs-active); translate: none; }
+.figma-shell .assistant-floating.mobile-expanded { width: 100%; height: min(642px, calc(100dvh - 80px)); background: var(--content); }
+.assistant-floating .assistant-mobile-toggle { display: flex; width: 100%; height: 68px; min-height: 68px; align-items: stretch; justify-content: stretch; border-radius: calc(var(--radius-assistant) - 4px); padding: 0; font-size: 14px; }
+.assistant-floating.mobile-expanded .assistant-mobile-toggle { height: 24px; min-height: 24px; justify-content: flex-end; border-radius: var(--radius-control); padding: 0 8px; }
+.assistant-collapse-label { display: flex; height: 20px; align-items: center; gap: 4px; color: var(--muted-foreground); font-size: 14px; font-weight: 400; line-height: 20px; }
+.assistant-collapse-label svg { width: 16px; height: 16px; }
+.assistant-collapsed-content { display: grid; width: 100%; height: 68px; grid-template-rows: 20px 44px; gap: 0; }
+.assistant-expand-label { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding-right: 8px; color: var(--muted-foreground); font-size: 14px; font-weight: 400; line-height: 20px; }
+.assistant-expand-label svg { width: 16px; height: 16px; }
+.assistant-collapsed-prompt { display: grid; height: 44px; grid-template-columns: 16px minmax(0, 1fr) 28px; align-items: center; gap: 6px; overflow: hidden; border-radius: var(--radius-assistant-field); background: var(--content); padding: 0 8px; color: var(--text-muted); text-align: left; font-size: 14px; font-weight: 400; line-height: 20px; }
+.assistant-collapsed-prompt > svg { width: 16px; height: 16px; color: var(--foreground); }
+.assistant-collapsed-prompt > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-collapsed-submit { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 16px; background: var(--primary); color: var(--primary-foreground); }
+.assistant-collapsed-submit svg { width: 16px; height: 16px; }
 .assistant-floating .assistant-panel-body { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 .assistant-floating .assistant-panel-body[hidden] { display: none; }
 .assistant-floating .assistant-message-list { flex: 1; min-height: 0; }
 .assistant-floating .assistant-message { max-width: min(100%, 400px); border-radius: 16px; }
-.assistant-floating .assistant-pending-actions > button { flex: 1; }
-.assistant-floating .assistant-composer { flex-shrink: 0; padding: 12px; }
-.assistant-floating .assistant-composer textarea[data-slot] { min-height: 96px; }
+.assistant-floating .assistant-pending-actions { margin-top: 0; padding: 8px 0; background: transparent; }
+.assistant-floating .assistant-pending-actions > button { flex: 1; height: 40px; }
+.assistant-floating .assistant-composer { flex-shrink: 0; border-top: 0; padding: 0; }
+.assistant-floating .assistant-composer [data-slot="input-group"] { position: relative; display: block; width: 100%; height: 44px !important; min-height: 44px; border-color: var(--border); border-radius: var(--radius-assistant-field); background: var(--content); padding: 0 8px; }
+.assistant-floating .assistant-composer [data-slot="input-group"][data-has-attachments="true"] { height: 130px !important; }
+.assistant-floating .assistant-composer textarea[data-slot] { position: absolute; bottom: 0; left: 0; width: 100%; height: 44px; min-height: 44px; max-height: 44px; padding: 12px 112px 12px 30px; overflow: hidden; font-size: 14px; line-height: 20px; }
+.assistant-prompt-mark { position: absolute; z-index: 1; bottom: 14px; left: 8px; width: 16px; height: 16px; color: var(--foreground); pointer-events: none; }
+.assistant-floating .assistant-composer [data-slot="input-group-addon"] { position: absolute; z-index: 2; right: 6px; bottom: 6px; width: auto; height: 32px; gap: 4px; padding: 0; }
+.assistant-floating .assistant-composer [data-slot="input-group-addon"] [data-slot="button"] { width: 28px; height: 28px; min-height: 28px; border-radius: var(--radius-compact); padding: 0; }
+.assistant-floating .assistant-composer [data-slot="input-group-addon"] button[type="submit"] { border-radius: 16px; }
+.assistant-attachments { display: flex; width: 100%; height: 86px; flex-flow: row nowrap; gap: 6px; overflow-x: auto; overscroll-behavior-inline: contain; padding: 8px 0 4px; scrollbar-width: none; }
+.assistant-attachments > * { width: 336px; max-width: calc(100vw - 48px); flex: 0 0 336px; }
+.assistant-menu-toggle, .assistant-mobile-menu { display: none; }
 
 .asset-page { display: grid; gap: 0; min-width: 0; }
 .asset-back[data-slot="button"] { justify-self: start; padding: 0; margin-bottom: 0; }
@@ -3962,12 +3982,16 @@ select:focus-visible {
   .product-navigation { grid-row: 2; grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
-  .product-header { padding: 12px 12px 4px; gap: 10px 16px; }
-  .product-header-tools { width: 100%; }
-  .product-header .apartment-switcher { width: 100%; min-width: 0; }
-  .product-header .apartment-switcher [aria-label="Добавить объект"], .product-header .dashboard-clock { display: none; }
+  .product-header { display: grid; min-height: 60px; grid-template-columns: minmax(0, 1fr) auto; padding: 8px 12px; gap: 16px; }
+  .product-brand img { width: 124px !important; height: auto !important; }
+  .product-header-tools { width: auto; }
+  .product-header .apartment-switcher { display: none; }
+  .product-header .dashboard-clock { display: flex; height: 36px; min-height: 36px; border-radius: 12px; padding: 0 8px; background: var(--control); }
+  .product-header .dashboard-clock svg { width: 16px; height: 16px; }
+  .product-header .dashboard-clock time, .product-header .dashboard-clock span { font-size: 12px; line-height: 20px; }
+  .product-header .dashboard-clock span { padding-left: 6px; }
   .product-header [data-slot="select-trigger"] { height: 36px; min-height: 36px; font-size: 14px; }
-  .product-navigation { padding: 4px 0; }
+  .product-navigation { display: none; }
   .product-navigation [data-slot="button"] { height: 36px; min-height: 36px; font-size: 13px; }
   .figma-shell > .workspace { padding: 16px 12px 80px; }
   .asset-identity { padding: 16px; }
@@ -3977,7 +4001,15 @@ select:focus-visible {
   .asset-page [data-slot="card"] { --card-spacing: 16px; }
   .asset-page [data-slot="card-header"] { padding-top: 16px; padding-bottom: 16px; }
   [data-slot="button"][data-size="default"], [data-slot="button"][data-size="sm"], [data-slot="button"][data-size="xs"], [data-slot="tabs-trigger"] { font-size: var(--font-label-mobile-size); }
-  .figma-shell .assistant-floating { bottom: max(8px, env(safe-area-inset-bottom)); }
-  .figma-shell .assistant-floating.mobile-expanded { width: 100%; height: min(576px, calc(100dvh - 64px)); bottom: 0; border-radius: 0; padding-bottom: env(safe-area-inset-bottom); }
-  .assistant-floating .assistant-channel { display: none; }
+  .assistant-dock { bottom: max(8px, env(safe-area-inset-bottom)); width: min(399px, calc(100% - 24px)); gap: 12px; }
+  .assistant-dock:not(.mobile-expanded) .assistant-floating { width: calc(100% - 64px); flex: 0 0 calc(100% - 64px); }
+  .assistant-dock.mobile-expanded { width: min(375px, calc(100% - 16px)); }
+  .figma-shell .assistant-floating.mobile-expanded { width: 100%; height: min(642px, calc(100dvh - 72px)); border-radius: var(--radius-assistant); padding-bottom: 4px; }
+  .assistant-menu-toggle { position: relative; z-index: 2; display: grid; width: 52px; height: 52px; min-height: 52px; flex: 0 0 52px; place-items: center; border-radius: 16px; padding: 0; box-shadow: var(--shadow-tabs-active); }
+  .assistant-menu-toggle svg { width: 16px; height: 16px; }
+  .assistant-mobile-menu { position: absolute; z-index: 1; right: 0; bottom: 0; display: grid; width: 224px; gap: 4px; border: 1px solid var(--border); border-radius: var(--radius-assistant); background: var(--content); padding: 8px 8px 60px; box-shadow: var(--shadow-tabs-active); }
+  .assistant-mobile-menu [data-slot="button"] { width: 100%; height: 40px; justify-content: flex-start; border-radius: var(--radius-compact); padding: 0 8px; }
+  .assistant-mobile-menu [data-slot="button"] svg { display: block; width: 16px; height: 16px; }
+  .assistant-floating .assistant-message { max-width: 288px; }
+  .assistant-floating .assistant-composer textarea[data-slot] { font-size: 16px; line-height: 20px; }
 }

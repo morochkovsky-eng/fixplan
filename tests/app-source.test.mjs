@@ -717,7 +717,7 @@ test("shows one searchable journal across apartment workflows", () => {
   assert.match(pageSource, /documentTypeLabel\(item\.documentType!\)/);
 });
 
-test("uses the Figma FixPlan logo and shared mobile navigation", () => {
+test("uses the Figma brand mark and shared responsive navigation", () => {
   assert.match(logoSource, /<svg width="133" height="18"/);
   assert.match(pageSource, /function BrandMark/);
   assert.match(pageSource, /src="\/fixplan-logo\.svg"/);
@@ -725,7 +725,9 @@ test("uses the Figma FixPlan logo and shared mobile navigation", () => {
   assert.match(pageSource, /<ProductHeader/);
   assert.match(fs.readFileSync("components/product-header.tsx", "utf8"), /product-navigation/);
   assert.match(globalCssSource, /\.product-navigation[^}]*overflow-x: auto/);
-  assert.doesNotMatch(pageSource, /\bMenu,/);
+  assert.match(pageSource, /\bMenu,/);
+  assert.match(pageSource, /assistant-mobile-menu/);
+  assert.match(globalCssSource, /\.product-navigation \{ display: none; \}/);
 
   assert.match(guestSource, /guest-brand-mark/);
   assert.match(guestSource, /src="\/fixplan-logo\.svg"/);
@@ -804,7 +806,7 @@ test("keeps the owner assistant persistent across web and Telegram", () => {
   assert.match(pageSource, /<PromptInput/);
   assert.match(pageSource, /assistant-message-list/);
   assert.match(pageSource, /optimistic-\$\{crypto\.randomUUID\(\)\}/);
-  assert.match(pageSource, /FixPlan обрабатывает запрос/);
+  assert.match(pageSource, /Homory обрабатывает запрос/);
   assert.match(pageSource, /method: "PATCH"/);
   assert.doesNotMatch(pageSource, /send\("создавай"\)/);
   assert.match(pageSource, /MediaRecorder/);

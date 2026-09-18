@@ -7,12 +7,31 @@ import {
   ArrowRight,
   AlertTriangle,
   Check,
+  ChevronDown,
+  ClipboardCheck,
   LoaderCircle,
+  Mic,
   Plus,
   ReceiptText,
   Save,
   Wrench,
 } from "lucide-react";
+import {
+  Attachment,
+  type AttachmentData,
+  AttachmentInfo,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+} from "@/components/ai-elements/attachments";
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+} from "@/components/ai-elements/prompt-input";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +64,26 @@ const catalog = [
   { id: "tabs", title: "Вкладки", component: "Tabs", file: "components/ui/tabs.tsx", selectors: "[data-slot=tabs-list] · [data-slot=tabs-trigger] · [data-state=active]", mobile: "Сегменты 36 px внутри полосы 44 px. Одна строка с горизонтальной прокруткой." },
   { id: "badges", title: "Статусы", component: "Badge", file: "components/ui/badge.tsx", selectors: "[data-slot=badge] · [data-variant]", mobile: "Тот же компонент. Статус не является кнопкой." },
   { id: "cards", title: "Карточки", component: "Card", file: "components/ui/card.tsx", selectors: "[data-slot=card] · [data-slot=card-header] · [data-slot=card-content]", mobile: "Примеры переходят в одну колонку. Высота определяется содержимым." },
+  { id: "attachments", title: "Вложения", component: "Attachment", file: "components/ai-elements/attachments.tsx", selectors: "Attachment · AttachmentPreview · AttachmentRemove", mobile: "List прокручивается горизонтально внутри поля ассистента; Grid имеет формат 74 × 74 px." },
+  { id: "prompt-input", title: "Поле ассистента", component: "PromptInput", file: "components/ai-elements/prompt-input.tsx", selectors: "[data-slot=input-group] · [data-has-attachments]", mobile: "Обычное состояние 44 px. С вложениями — 130 px; нижняя строка остаётся 44 px." },
+  { id: "assistant", title: "Ассистент", component: "AssistantPanel", file: "app/page.tsx · app/globals.css", selectors: ".assistant-dock · .assistant-floating · .assistant-mobile-menu", mobile: "Свёрнутая строка и отдельная кнопка меню закреплены снизу; открытая панель не блокирует страницу." },
 ];
+
+const attachmentImage: AttachmentData = {
+  id: "ui-lab-image",
+  type: "file",
+  filename: "Фото узла.jpg",
+  mediaType: "image/jpeg",
+  url: "",
+};
+
+const attachmentPdf: AttachmentData = {
+  id: "ui-lab-pdf",
+  type: "file",
+  filename: "Инструкция.pdf",
+  mediaType: "application/pdf",
+  url: "",
+};
 
 type Token = { name: string; light: string; dark: string };
 type TokenGroup = { title: string; tokens: Token[] };
@@ -789,6 +827,133 @@ export default function UiLabPage() {
                   </CardHeader>
                   <CardContent>Содержимое карточки FixPlan.</CardContent>
                 </Card>
+              </div>
+            </Specimen>
+          </div>
+
+          <div id="attachments">
+            <Specimen
+              description="Inline, List и Grid из общего AI-компонента. Радиусы и размеры синхронизированы с Figma."
+              title="Attachment"
+            >
+              <div className={styles.attachmentExamples}>
+                <div>
+                  <DemoLabel>Inline · 32</DemoLabel>
+                  <Attachments variant="inline">
+                    <Attachment data={attachmentPdf} onRemove={() => undefined}>
+                      <AttachmentPreview />
+                      <AttachmentInfo />
+                      <AttachmentRemove label="Убрать файл" />
+                    </Attachment>
+                  </Attachments>
+                </div>
+                <div>
+                  <DemoLabel>List · 336 × 74 · radius 10</DemoLabel>
+                  <Attachments variant="list">
+                    <Attachment data={attachmentImage} onRemove={() => undefined}>
+                      <AttachmentPreview />
+                      <AttachmentInfo />
+                      <AttachmentRemove label="Убрать файл" />
+                    </Attachment>
+                  </Attachments>
+                </div>
+                <div>
+                  <DemoLabel>Grid · 74 × 74 · radius 10</DemoLabel>
+                  <Attachments variant="grid">
+                    <Attachment data={attachmentPdf} onRemove={() => undefined}>
+                      <AttachmentPreview />
+                      <AttachmentRemove label="Убрать файл" />
+                    </Attachment>
+                  </Attachments>
+                </div>
+              </div>
+            </Specimen>
+          </div>
+
+          <div id="prompt-input">
+            <Specimen
+              description="Компактная строка ассистента и состояние с горизонтальной лентой прикреплённых файлов."
+              title="PromptInput"
+            >
+              <div className={styles.promptExamples}>
+                <div className={`assistant-floating ${styles.promptFrame}`}>
+                  <div className="assistant-composer">
+                    <PromptInput onSubmit={() => undefined}>
+                      <PromptInputBody>
+                        <ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" />
+                        <PromptInputTextarea placeholder="Назначь уборку на пятницу…" />
+                      </PromptInputBody>
+                      <PromptInputFooter>
+                        <PromptInputTools>
+                          <Button aria-label="Прикрепить файл" size="icon" type="button" variant="ghost"><Plus /></Button>
+                          <Button aria-label="Голосовой ввод" size="icon" type="button" variant="ghost"><Mic /></Button>
+                        </PromptInputTools>
+                        <PromptInputSubmit />
+                      </PromptInputFooter>
+                    </PromptInput>
+                  </div>
+                </div>
+                <div className={`assistant-floating ${styles.promptFrame}`}>
+                  <div className="assistant-composer">
+                    <PromptInput className={styles.promptHasAttachments} onSubmit={() => undefined}>
+                      <Attachments className="assistant-attachments" variant="list">
+                        <Attachment data={attachmentImage} onRemove={() => undefined}>
+                          <AttachmentPreview />
+                          <AttachmentInfo />
+                          <AttachmentRemove label="Убрать файл" />
+                        </Attachment>
+                        <Attachment data={attachmentPdf} onRemove={() => undefined}>
+                          <AttachmentPreview />
+                          <AttachmentInfo />
+                          <AttachmentRemove label="Убрать файл" />
+                        </Attachment>
+                      </Attachments>
+                      <PromptInputBody>
+                        <ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" />
+                        <PromptInputTextarea placeholder="Назначь уборку на пятницу…" />
+                      </PromptInputBody>
+                      <PromptInputFooter>
+                        <PromptInputTools>
+                          <Button aria-label="Прикрепить файл" size="icon" type="button" variant="ghost"><Plus /></Button>
+                          <Button aria-label="Голосовой ввод" size="icon" type="button" variant="ghost"><Mic /></Button>
+                        </PromptInputTools>
+                        <PromptInputSubmit />
+                      </PromptInputFooter>
+                    </PromptInput>
+                  </div>
+                </div>
+              </div>
+            </Specimen>
+          </div>
+
+          <div id="assistant">
+            <Specimen
+              description="Открытое desktop-состояние: история остаётся видимой, а файлы располагаются над строкой ввода."
+              title="AssistantPanel"
+            >
+              <div className={styles.assistantExample}>
+                <div className={styles.assistantPreview}>
+                  <div className={styles.assistantPreviewHeader}>Свернуть <ChevronDown /></div>
+                  <div className={styles.assistantPreviewHistory}>
+                    <div className={styles.userBubble}>Запланируй ремонт бойлера.<small>Веб, 12:10</small></div>
+                    <div className={styles.assistantBubble}>Черновик задания создан. Мастер: Алексей.<small>Homory <span>Веб, 12:11</span></small></div>
+                  </div>
+                  <div className={`assistant-floating ${styles.promptFrame}`}>
+                    <div className="assistant-composer">
+                      <PromptInput className={styles.promptHasAttachments} onSubmit={() => undefined}>
+                        <Attachments className="assistant-attachments" variant="list">
+                          <Attachment data={attachmentImage} onRemove={() => undefined}>
+                            <AttachmentPreview />
+                            <AttachmentInfo />
+                            <AttachmentRemove label="Убрать файл" />
+                          </Attachment>
+                        </Attachments>
+                        <PromptInputBody><ClipboardCheck aria-hidden="true" className="assistant-prompt-mark" /><PromptInputTextarea placeholder="Назначь уборку на пятницу…" /></PromptInputBody>
+                        <PromptInputFooter><PromptInputTools><Button aria-label="Прикрепить файл" size="icon" type="button" variant="ghost"><Plus /></Button><Button aria-label="Голосовой ввод" size="icon" type="button" variant="ghost"><Mic /></Button></PromptInputTools><PromptInputSubmit /></PromptInputFooter>
+                      </PromptInput>
+                    </div>
+                  </div>
+                </div>
               </div>
             </Specimen>
           </div>

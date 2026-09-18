@@ -358,6 +358,115 @@
   width: min(100%, 420px);
 }
 
+.attachmentExamples,
+.promptExamples {
+  display: grid;
+  gap: 24px;
+  padding: 20px 24px;
+}
+
+.attachmentExamples {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+
+.attachmentExamples > div {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.promptExamples {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.promptFrame {
+  width: 100%;
+  min-width: 0;
+}
+
+.promptFrame .promptHasAttachments :global([data-slot="input-group"][data-has-attachments]) {
+  height: 130px !important;
+}
+
+.assistantExample {
+  padding: 20px 24px;
+}
+
+.assistantPreview {
+  display: flex;
+  width: min(100%, 600px);
+  height: 642px;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-assistant);
+  padding: 4px;
+  background: var(--content);
+  box-shadow: var(--shadow-tabs-active);
+}
+
+.assistantPreviewHeader {
+  display: flex;
+  height: 24px;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 8px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.assistantPreviewHeader svg {
+  width: 16px;
+  height: 16px;
+}
+
+.assistantPreviewHistory {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.userBubble,
+.assistantBubble {
+  display: grid;
+  width: fit-content;
+  max-width: min(92%, 370px);
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.userBubble {
+  align-self: flex-end;
+  background: var(--default);
+}
+
+.assistantBubble {
+  align-self: flex-start;
+}
+
+.userBubble small,
+.assistantBubble small {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.assistantBubble small {
+  justify-content: space-between;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation: none;
@@ -413,8 +522,16 @@
 
   .fieldGrid,
   .tabExamples,
-  .cardGrid {
+  .cardGrid,
+  .attachmentExamples,
+  .promptExamples {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .attachmentExamples,
+  .promptExamples,
+  .assistantExample {
+    padding-inline: 16px;
   }
 
   .stateGrid {
