@@ -111,6 +111,10 @@ Telegram routes:
 - `/api/telegram/webhook`
 - `/api/telegram/worker`
 
+Preview-only evaluation route:
+
+- `/api/internal/utility-eval` accepts one authenticated image/PDF and returns the intercepted `prepare_utility_bill` arguments without calling Supabase or Storage. It returns `404` in Production and requires `UTILITY_EVAL_TOKEN` outside Production.
+
 See [`TELEGRAM.md`](TELEGRAM.md) for queue semantics.
 
 ## Data flow map

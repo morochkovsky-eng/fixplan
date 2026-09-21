@@ -11,6 +11,7 @@ import { createUtilityBillRecord, normalizeBillPayload } from "@/lib/server/util
 import { prepareTenantStatement, handleStatementDecision } from "@/lib/server/telegram-statements";
 import { statementDecision } from "@/lib/server/tenant-statement";
 import { normalizeUtilityPeriod } from "@/lib/utility-period";
+import { utilityBillTool } from "@/lib/server/utility-eval";
 
 type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_id: string;
@@ -228,33 +229,7 @@ const tools = [
     },
     strict: true,
   },
-  {
-    type: "function",
-    name: "prepare_utility_bill",
-    description: "Сразу создать или дополнить коммунальный черновик, когда известна положительная сумма. Черновик сохраняется без подтверждения; кнопка подтверждения создаёт окончательный счёт. Если суммы нет, задай один вопрос и не вызывай инструмент.",
-    parameters: {
-      type: "object",
-      properties: {
-        service: { type: "string", description: "Название услуги или поставщика" },
-        documentKind: { type: "string", enum: ["housing", "electricity", "water", "other"], description: "Тип квитанции: ЖКХ, электричество, вода или другое" },
-        period: { type: "string", description: "Расчётный период в понятном пользователю виде" },
-        amount: { type: "number", description: "Предварительная сумма жильца. Сервер не доверяет этому полю и пересчитывает его из periodChargeAmount и включённой добровольной услуги" },
-        periodChargeAmount: { type: "number", description: "Только подтверждённая стоимость ресурсов и обязательных услуг, начисленных внутри указанного расчётного периода: значение строки «Начислено» или её смыслового аналога. Исключить входящий долг, прошлое сальдо, оплаты, пени, переплату и добровольные услуги. Если текущую часть нельзя надёжно выделить, передать 0" },
-        providerBalanceAmount: { type: "number", description: "Общий итог расчётов владельца с поставщиком: «к оплате», closing balance, amount due, задолженность или сальдо; 0 если отсутствует. Никогда не является суммой жильца автоматически" },
-        creditAmount: { type: "number", description: "Накопленная переплата или кредит лицевого счёта из сверки с поставщиком; 0 если отсутствует. Не вычитать из начисления жильцу" },
-        dueDate: { type: "string", description: "Срок оплаты в понятном пользователю виде, пустая строка если не указан" },
-        allocation: { type: "string", enum: ["owner", "tenant", "split"], description: "На кого относится расход. По умолчанию owner, если пользователь не уточнил другое" },
-        tenantAmount: { type: "number", description: "Итоговый долг жильца; при allocation tenant равен amount и включает добровольную строку, если optionalChargeIncluded=true" },
-        optionalChargeLabel: { type: "string", description: "Название добровольной дополнительной услуги, например страхования; пустая строка если её нет" },
-        optionalChargeAmount: { type: "number", description: "Сумма добровольной дополнительной услуги; 0 если её нет" },
-        optionalChargeIncluded: { type: "boolean", description: "Добровольная услуга включена в сумму по умолчанию; false если её нет или пользователь ранее отказался" },
-        note: { type: "string", description: "Короткие важные детали квитанции, пустая строка если их нет" },
-      },
-      required: ["service", "documentKind", "period", "amount", "periodChargeAmount", "providerBalanceAmount", "creditAmount", "dueDate", "allocation", "tenantAmount", "optionalChargeLabel", "optionalChargeAmount", "optionalChargeIncluded", "note"],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
+  utilityBillTool,
 ];
 
 function plainText(response: OpenAIResponse) {

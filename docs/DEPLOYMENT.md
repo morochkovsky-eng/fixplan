@@ -42,8 +42,11 @@ AI and Telegram:
 - `TELEGRAM_WEBHOOK_SECRET`
 - `CRON_SECRET`
 - `VERCEL_AUTOMATION_BYPASS_SECRET` when protected automated requests require it
+- `UTILITY_EVAL_TOKEN` in Preview only for the no-write utility receipt evaluation route
 
 Server-only values must never use a `NEXT_PUBLIC_` prefix. Do not print values in commands, chat, build output, traces, or reports.
+
+`/api/internal/utility-eval` is hard-disabled with `404` when `VERCEL_ENV=production`. Configure its token only in Preview (and optionally local development), never in Production.
 
 ## Standard release order
 

@@ -66,6 +66,7 @@ Tenant group delivery is prepared privately for the owner and sent only after ex
 - Voice uses the configured transcription model before assistant processing.
 - Photos and documents are downloaded server-side and stored in the private `asset-media` bucket when needed.
 - AI prepares drafts; server code performs authoritative calculations and persistence where implemented.
+- The Preview-only `/api/internal/utility-eval` route reuses the same `prepare_utility_bill` tool schema for blind receipt baselines, but intercepts the tool call and never reads or writes Supabase, Storage, Telegram state, or the production webhook.
 
 ## Environment variable names
 
@@ -79,6 +80,7 @@ Values must never be documented or requested in chat.
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `OPENAI_TRANSCRIBE_MODEL`
+- `UTILITY_EVAL_TOKEN` (Preview/local only; protects the no-write receipt evaluation route)
 - Supabase server/public variables listed in [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
 ## Smoke test and canary

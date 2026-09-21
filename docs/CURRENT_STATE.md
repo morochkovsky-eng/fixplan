@@ -71,6 +71,7 @@ See [`BRAND.md`](BRAND.md).
 - The experimental iOS prototype and its `iOS Concept` link remain physically present under `app/ui-lab/ios/`. Remove or archive them only after explicit confirmation that they are no longer needed.
 - Unused legacy sidebar selectors remain in `app/globals.css`. Remove them only after checking for hidden dependencies and visual regression.
 - The GitHub repository and Vercel project are still named `fixplan`; renaming is a separate infrastructure change.
+- Utility receipt extraction has a Preview-only, token-protected no-write evaluation route. The first baseline intentionally exposes only the current `prepare_utility_bill` schema; line items, meter detail, evidence, penalties, adjustments, and uncertainty fields remain future extraction work after benchmark results.
 
 ## Agreed next stages
 
