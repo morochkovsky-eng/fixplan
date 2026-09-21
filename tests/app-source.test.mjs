@@ -48,6 +48,7 @@ const telegramNotificationBaselineSource = fs.readFileSync("supabase/migrations/
 const telegramWebhookSource = fs.readFileSync("app/api/telegram/webhook/route.ts", "utf8");
 const telegramPairingSource = fs.readFileSync("app/api/telegram/pairing/route.ts", "utf8");
 const telegramAssistantSource = fs.readFileSync("lib/server/telegram-assistant.ts", "utf8");
+const utilityEvalSource = fs.readFileSync("lib/server/utility-eval.ts", "utf8");
 const telegramContextSource = fs.readFileSync("lib/server/telegram-context.ts", "utf8");
 const telegramClientSource = fs.readFileSync("lib/server/telegram.ts", "utf8");
 const assistantRouteSource = fs.readFileSync("app/api/assistant/route.ts", "utf8");
@@ -195,16 +196,16 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramAssistantSource, /prepare_cleaning/);
   assert.match(telegramAssistantSource, /prepare_utility_bill/);
   assert.match(telegramAssistantSource, /periodChargeAmount/);
-  assert.match(telegramAssistantSource, /providerBalanceAmount/);
+  assert.match(utilityEvalSource, /providerBalanceAmount/);
   assert.match(telegramAssistantSource, /periodChargeAmount \+ includedOptionalAmount/);
   assert.doesNotMatch(telegramAssistantSource, /documentKind === "housing" \? periodChargeAmount/);
   assert.match(telegramAssistantSource, /status: "draft"/);
   assert.match(telegramAssistantSource, /draftBillId/);
-  assert.match(telegramAssistantSource, /Черновик сохраняется без подтверждения/);
+  assert.match(utilityEvalSource, /Черновик сохраняется без подтверждения/);
   assert.match(telegramAssistantSource, /item\.tenantAmount \?\? item\.tenant_amount/);
-  assert.match(telegramAssistantSource, /creditAmount/);
+  assert.match(utilityEvalSource, /creditAmount/);
   assert.match(telegramAssistantSource, /optionalChargeIncluded/);
-  assert.match(telegramAssistantSource, /значение строки «Начислено»/);
+  assert.match(utilityEvalSource, /значение строки «Начислено»/);
   assert.match(telegramAssistantSource, /ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ/);
   assert.match(telegramAssistantSource, /Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений/);
   assert.match(telegramAssistantSource, /никогда не переноси входящий баланс, старый долг, пени, накопленную переплату, платежи или конечное «к оплате» на жильца/);
