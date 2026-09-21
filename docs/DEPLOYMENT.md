@@ -1,12 +1,12 @@
 # Homory deployment
 
-**Verified:** 2026-09-19.
+**Verified:** 2026-09-21.
 
 ## Current contour
 
 | Layer | Current role |
 | --- | --- |
-| GitHub | Source and review history in the existing `morochkovsky-eng/fixplan` repository |
+| GitHub | Source and review history in `morochkovsky-eng/fixplan`; canonical default branch: `main` |
 | Vercel Preview | Immutable build and UI/product smoke target for each change |
 | Vercel deployment | Build promoted by alias only after verification |
 | Production alias | [https://fixplan-iota.vercel.app](https://fixplan-iota.vercel.app) |
@@ -14,6 +14,8 @@
 | Supabase | Auth, Postgres, private Storage, queue state, and migrations |
 
 The current alias points to deployment `dpl_3hU8pCeP2jq9xchtrMLa1mDdYDUz`, built from commit `dd848eb330b68dc2169fe717b2b21ce753ef9a23`. It originated as a Git Preview and was assigned to the production alias without rebuilding.
+
+`vercel.json` disables automatic Git deployment for `main`. This keeps a merge into the GitHub default branch from becoming a Production release. Other branches remain eligible for Vercel Preview deployments. Production must continue through a separately created, verified deployment followed by explicit alias promotion.
 
 The repository and Vercel project are still named `fixplan`. `homory.vercel.app` is only a planned address; availability and migration have not been confirmed.
 

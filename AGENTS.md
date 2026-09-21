@@ -27,6 +27,8 @@ Then read only the documents relevant to the task:
 
 Always inspect the current implementation. These documents guide work; they do not replace code inspection.
 
+Start new work from the current `main` branch unless the user explicitly specifies another verified base.
+
 Do not change without explicit user approval:
 
 - Production or Vercel aliases;
