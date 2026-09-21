@@ -1,3 +1,7 @@
+# Homory
+
+Start with the compact agent context in [`docs/PROJECT.md`](docs/PROJECT.md) and the current operational snapshot in [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md). Repository-level working rules are in [`AGENTS.md`](AGENTS.md).
+
 # vinext-starter
 
 A clean full-stack starter running on
