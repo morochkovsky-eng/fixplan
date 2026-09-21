@@ -1,6 +1,6 @@
 # Homory: current state
 
-**Verified:** 2026-09-19 against production deployment metadata and commit `dd848eb330b68dc2169fe717b2b21ce753ef9a23`.
+**Verified:** 2026-09-21 against GitHub, production deployment metadata, and commit `dd848eb330b68dc2169fe717b2b21ce753ef9a23`.
 
 This is the single replace-in-place operational snapshot. Do not append a release diary here.
 
@@ -17,6 +17,13 @@ This is the single replace-in-place operational snapshot. Do not append a releas
 - Telegram Preview rollback: `dpl_DKfG3jWmp1Jxr8iXAMtHXPrQGGd5`
 
 Release and rollback procedures are in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+## Repository baseline
+
+- Canonical GitHub default branch: `main`.
+- New tasks branch from the current `main` head unless another verified base is explicitly required.
+- Automatic Vercel Git deployment is disabled for `main`; PR and feature branches remain eligible for Preview deployments.
+- Production remains an explicitly verified and promoted deployment rather than an automatic consequence of merging to `main`.
 
 ## Working web product
 
