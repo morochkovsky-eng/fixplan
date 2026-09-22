@@ -5,6 +5,7 @@ import { recordAssistantMessage } from "@/lib/server/assistant-messages";
 import { handleStatementDecision } from "@/lib/server/telegram-statements";
 import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
+import { replyForDocument, type DocumentReply } from "@/lib/server/telegram-receipt-state";
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import {
   cleanupTelegramProcessingStatus,
@@ -74,7 +75,8 @@ async function uploadTelegramAttachment(
   if (file.bytes.byteLength > 20 * 1024 * 1024) {
     throw new Error("Telegram attachment is too large");
   }
-  const storagePath = `${apartmentId}/telegram/inbox/${randomUUID()}-${safeFilename(file.filename)}`;
+  const fingerprint = createHash("sha256").update(file.bytes).digest("hex");
+  const storagePath = `${apartmentId}/telegram/inbox/${fingerprint}-${randomUUID()}-${safeFilename(file.filename)}`;
   const { error } = await admin.storage.from("asset-media").upload(storagePath, file.bytes, {
     contentType: file.mimeType,
     upsert: false,
@@ -85,6 +87,7 @@ async function uploadTelegramAttachment(
     filename: file.filename,
     mimeType: file.mimeType,
     storagePath,
+    fingerprint,
   } satisfies TelegramAssistantAttachment;
 }
 
@@ -153,7 +156,7 @@ async function sendAssistantReply(
   admin: NonNullable<ReturnType<typeof createAdminClient>>,
   telegramUserId: number,
   chatId: number,
-  text: string,
+  answer: string | DocumentReply,
 ) {
   const { data, error } = await admin
     .from("telegram_conversations")
@@ -161,9 +164,10 @@ async function sendAssistantReply(
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  const pendingAction = data?.pending_action as Record<string, unknown> | null;
+  const scoped = replyForDocument(answer, data?.pending_action as Record<string, unknown> | null);
+  const pendingAction = scoped.pending;
   const hasReadyDraft = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
-  let reply = hasReadyDraft ? cleanTelegramDraftText(text) : text;
+  let reply = hasReadyDraft ? cleanTelegramDraftText(scoped.text) : scoped.text;
   if (pendingAction?.type === "create_utility_bill") {
     const apartmentId = typeof pendingAction.apartmentId === "string" ? pendingAction.apartmentId : "";
     let currency = "RUB";
@@ -429,21 +433,28 @@ export async function POST(request: Request) {
           const active = await getActiveTelegramApartment(admin, account);
           if ("error" in active) throw new Error(active.error);
           const attachment = await uploadTelegramAttachment(admin, active.apartment.id, message);
-          await recordAssistantMessage(admin, {
-            ownerUserId: account.owner_user_id,
-            apartmentId: active.apartment.id,
-            role: "user",
-            channel: "telegram",
-            content: message.caption?.trim() || userMessage || attachment?.filename || "Вложение",
-            attachments: attachment ? [{ filename: attachment.filename, mimeType: attachment.mimeType, storagePath: attachment.storagePath }] : [],
-          });
           const answer = await runTelegramAssistant(
             admin,
             account,
             message.caption?.trim() || userMessage,
             new URL(request.url).origin,
             attachment,
+            { updateId: update.update_id },
           );
+          try {
+            await recordAssistantMessage(admin, {
+              ownerUserId: account.owner_user_id,
+              apartmentId: typeof answer === "string" ? active.apartment.id : answer.apartmentId ?? active.apartment.id,
+              role: "user",
+              channel: "telegram",
+              content: message.caption?.trim() || userMessage || attachment?.filename || "Вложение",
+              attachments: attachment && (typeof answer === "string" || answer.state === "prepared" || answer.state === "other")
+                ? [{ filename: attachment.filename, mimeType: attachment.mimeType, storagePath: attachment.storagePath }]
+                : [],
+            });
+          } catch {
+            console.warn("telegram_user_message_record_failed", { update_id: update.update_id });
+          }
           await beginTrackedDelivery(admin, processingJob);
           deliveryStarted = Boolean(processingJob);
           deliveredMessageId = (await sendAssistantReply(admin, user.id, message.chat.id, answer))?.message_id;

@@ -66,6 +66,8 @@ Tenant group delivery is prepared privately for the owner and sent only after ex
 - Voice uses the configured transcription model before assistant processing.
 - Photos and documents are downloaded server-side and stored in the private `asset-media` bucket when needed.
 - AI prepares drafts; server code performs authoritative calculations and persistence where implemented.
+- Each new Telegram attachment is processed without an earlier response or pending utility draft in the model input. A receipt reply and its buttons are scoped to the current update and file. If extraction does not prepare a bill, the earlier confirmation is closed without deleting an already saved draft record.
+- A receipt binds automatically only when its extracted address uniquely matches an accessible apartment. Its file is stored under that apartment's `asset-media` path before the bill is saved. Separate receipts for one apartment and month remain separate bill records; the draft reply shows their combined mandatory charges. An exact file duplicate is rejected; a possible corrected receipt requires manual review and a fresh upload because automatic replacement is not yet supported.
 - The Preview-only `/api/internal/utility-eval` route reuses the same `prepare_utility_bill` tool schema for blind receipt baselines, but intercepts the tool call and never reads or writes Supabase, Storage, Telegram state, or the production webhook.
 
 ## Environment variable names

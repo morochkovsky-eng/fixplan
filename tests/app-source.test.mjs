@@ -240,7 +240,8 @@ test("keeps Telegram actions behind pairing, idempotency, and confirmation", () 
   assert.match(telegramWebhookSource, /callback_query/);
   assert.match(telegramWebhookSource, /String\(pendingAction\.type\)\.startsWith\("create_"\)/);
   assert.match(telegramWebhookSource, /hasReadyDraft \? draftKeyboard/);
-  assert.match(telegramWebhookSource, /cleanTelegramDraftText\(text\)/);
+  assert.match(telegramWebhookSource, /replyForDocument\(answer,/);
+  assert.match(telegramWebhookSource, /cleanTelegramDraftText\(scoped\.text\)/);
   assert.match(telegramWebhookSource, /utilityDraftReply/);
   assert.match(assistantRepliesSource, /Что удалось извлечь из вложения/);
   assert.match(telegramWebhookSource, /Создать счёт/);
