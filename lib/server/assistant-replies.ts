@@ -1,3 +1,5 @@
+import { mandatoryTotalCents } from "@/lib/server/telegram-receipt-state";
+
 export function currencyLabel(value: unknown, currency: string) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "";
@@ -30,11 +32,8 @@ export function utilityDraftReply(pendingAction: Record<string, unknown>, curren
   const existingItems = Array.isArray(bill.existingItems)
     ? bill.existingItems.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
     : [];
-  const statementItems = [
-    ...existingItems.map((entry) => ({ service: entry.service, tenantAmount: entry.tenant_amount })),
-    ...items.map((entry) => ({ service: entry.service, tenantAmount: entry.tenantAmount })),
-  ];
-  const tenantTotal = statementItems.reduce((sum, entry) => sum + Number(entry.tenantAmount ?? 0), 0);
+  const statementItems = [...existingItems, ...items];
+  const mandatoryTotal = mandatoryTotalCents(statementItems) / 100;
   const hasPreviousItems = statementItems.length > 1;
   const createdAt = typeof bill.draftCreatedAt === "string" ? new Date(bill.draftCreatedAt) : null;
   const createdLabel = createdAt && !Number.isNaN(createdAt.valueOf())
@@ -55,8 +54,8 @@ export function utilityDraftReply(pendingAction: Record<string, unknown>, curren
     extracted.push(
       existingItems.length ? `Подготовил дополнение к счёту за ${period.toLocaleLowerCase("ru-RU")}.` : `Дополнил черновик от ${createdLabel}.`,
       `• Период: за ${period.toLocaleLowerCase("ru-RU")}`,
-      ...statementItems.map((entry) => `• ${String(entry.service ?? "Услуга")}: ${currencyLabel(entry.tenantAmount, currency)}`),
-      `Жилец должен всего: ${currencyLabel(tenantTotal, currency)}`,
+      ...statementItems.map((entry) => `• ${String(entry.service ?? "Услуга")}: ${currencyLabel(mandatoryTotalCents([entry]) / 100, currency)}`),
+      `Обязательные начисления всего: ${currencyLabel(mandatoryTotal, currency)}`,
       "",
     );
   } else {

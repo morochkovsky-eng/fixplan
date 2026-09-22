@@ -12,6 +12,14 @@ import { prepareTenantStatement, handleStatementDecision } from "@/lib/server/te
 import { statementDecision } from "@/lib/server/tenant-statement";
 import { normalizeUtilityPeriod } from "@/lib/utility-period";
 import { utilityBillTool } from "@/lib/server/utility-eval";
+import {
+  documentReply,
+  matchReceiptApartment,
+  receiptGrouping,
+  receiptMonth,
+  type DocumentReply,
+  type ReceiptDocument,
+} from "@/lib/server/telegram-receipt-state";
 
 type ActiveTelegramAccount = TelegramOwnerAccount & {
   apartment_id: string;
@@ -48,6 +56,7 @@ export type TelegramAssistantAttachment = {
   filename: string;
   mimeType: string;
   storagePath: string;
+  fingerprint?: string;
 };
 
 const confirmationWords = new Set(["да", "подтверждаю", "создавай", "создать", "да, создавай", "ок, создавай"]);
@@ -229,7 +238,17 @@ const tools = [
     },
     strict: true,
   },
-  utilityBillTool,
+  {
+    ...utilityBillTool,
+    parameters: {
+      ...utilityBillTool.parameters,
+      properties: {
+        ...utilityBillTool.parameters.properties,
+        documentAddress: { type: "string", description: "Полный адрес объекта, напечатанный именно в текущем документе; пустая строка, если его нет или он неразборчив. Не копируй адрес выбранного объекта из контекста." },
+      },
+      required: [...utilityBillTool.parameters.required, "documentAddress"],
+    },
+  },
 ];
 
 function plainText(response: OpenAIResponse) {
@@ -237,7 +256,7 @@ function plainText(response: OpenAIResponse) {
   return (response.output ?? []).flatMap((item) => item.content ?? []).filter((item) => item.type === "output_text").map((item) => item.text ?? "").join("\n").trim();
 }
 
-async function createResponse(input: unknown, previousResponseId: string | null, account: ActiveTelegramAccount) {
+async function createResponse(input: unknown, previousResponseId: string | null, account: ActiveTelegramAccount, isolatedAttachment = false) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
   const today = new Intl.DateTimeFormat("ru-RU", { dateStyle: "full", timeStyle: "short", timeZone: account.apartment_timezone }).format(new Date());
@@ -246,7 +265,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
-      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Настройка добровольного страхования: ${account.apartment_utility_insurance_included === false ? "исключать" : "включать по умолчанию"}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning.
+      instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${isolatedAttachment ? "не предоставлен для распознавания вложения" : account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Настройка добровольного страхования: ${account.apartment_utility_insurance_included === false ? "исключать" : "включать по умолчанию"}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning.
 
 ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ ДЛЯ ЛЮБОЙ СТРАНЫ, ЯЗЫКА И ПОСТАВЩИКА: жильцу выставляется только стоимость ресурсов и обязательных услуг, начисленных за указанный расчётный период. Название поля может быть «Начислено», charges for period, current charges, new charges, billed this period или иным — определяй его по смыслу и арифметике документа, а не только по слову. Всегда отдельно классифицируй: 1) начисление текущего периода; 2) входящий/предыдущий баланс и старый долг; 3) оплаты; 4) перерасчёты текущего периода; 5) пени; 6) переплату/кредит счёта; 7) добровольные услуги; 8) конечный баланс/итого к оплате поставщику. Проверяй арифметику сверки, но никогда не переноси входящий баланс, старый долг, пени, накопленную переплату, платежи или конечное «к оплате» на жильца. Если в документе одновременно есть текущее начисление и более крупный итог к оплате, всегда используй текущее начисление. Если документ содержит только итог, его можно признать начислением текущего периода лишь когда из документа ясно, что предыдущий баланс равен нулю и итог образован только услугами этого периода. Иначе periodChargeAmount=0 и задай один короткий вопрос. Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений. Сумму жильца сервер сам рассчитает из periodChargeAmount; amount и tenantAmount не пытайся подменять общим итогом. Накопленную переплату не вычитай из начисления жильцу. Добровольную страховку и другие необязательные строки отделяй от periodChargeAmount, включай по умолчанию согласно настройке, заполняй optionalChargeLabel/optionalChargeAmount/optionalChargeIncluded и не останавливай черновик вопросом.
 
@@ -281,6 +300,7 @@ async function executeTool(
   attachment?: TelegramAssistantAttachment,
   existingReceiptStoragePath?: string,
   existingPendingAction?: Record<string, unknown> | null,
+  document?: ReceiptDocument,
 ) {
   const args = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
   if (call.name === "prepare_tenant_statement") {
@@ -427,6 +447,7 @@ async function executeTool(
       photoStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
       photoFilename: attachment?.filename,
       photoMediaType: attachment?.mimeType,
+      ...(document ? { sourceUpdateId: document.updateId, sourceFingerprint: document.fingerprint } : {}),
     };
     await saveConversation(admin, account, {
       pending_action: { type: "create_utility_reading", apartmentId: account.apartment_id, payload },
@@ -471,6 +492,7 @@ async function executeTool(
       photoStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
       photoFilename: attachment?.filename,
       photoMediaType: attachment?.mimeType,
+      ...(document ? { sourceUpdateId: document.updateId, sourceFingerprint: document.fingerprint } : {}),
     };
     await saveConversation(admin, account, {
       pending_action: { type: "create_asset_event", apartmentId: account.apartment_id, payload },
@@ -498,6 +520,18 @@ async function executeTool(
   }
 
   if (call.name === "prepare_utility_bill") {
+    if (document && attachment) {
+      const available = await listTelegramApartments(admin, account);
+      if ("error" in available) return { ok: false, reason: "apartment_lookup_failed" };
+      const match = matchReceiptApartment(String(args.documentAddress ?? ""), available.apartments);
+      if (match.kind !== "matched") return { ok: false, reason: `address_${match.kind}` };
+      account.apartment_id = match.apartment.id;
+      account.apartment_name = match.apartment.name;
+      account.apartment_address = match.apartment.address;
+      account.apartment_currency = match.apartment.currency;
+      account.apartment_timezone = match.apartment.timezone;
+      account.apartment_utility_insurance_included = match.apartment.utility_insurance_included;
+    }
     const documentKind = String(args.documentKind ?? "other");
     const periodChargeAmount = Number(args.periodChargeAmount ?? 0);
     const requestedOptionalAmount = Number(args.optionalChargeAmount ?? 0);
@@ -517,6 +551,7 @@ async function executeTool(
       receiptStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
       receiptFilename: attachment?.filename,
       receiptMediaType: attachment?.mimeType,
+      ...(document ? { sourceUpdateId: document.updateId, sourceFingerprint: document.fingerprint } : {}),
     };
     const validation = normalizeBillPayload(item);
     if ("error" in validation) {
@@ -531,54 +566,52 @@ async function executeTool(
       };
     }
     const period = normalizeUtilityPeriod(item.period);
-    const previousPayload = existingPendingAction?.type === "create_utility_bill" && existingPendingAction.payload && typeof existingPendingAction.payload === "object"
+    const previousPayload = existingPendingAction?.type === "create_utility_bill" && existingPendingAction.apartmentId === account.apartment_id && existingPendingAction.payload && typeof existingPendingAction.payload === "object"
       ? existingPendingAction.payload as Record<string, unknown>
       : null;
-    const previousItems = previousPayload && normalizeUtilityPeriod(previousPayload.period) === period
+    const previousItems = previousPayload && receiptMonth(previousPayload.period) === receiptMonth(period)
       ? (Array.isArray(previousPayload.items) ? previousPayload.items : [previousPayload]).filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
       : [];
-    const serviceKey = String(item.service ?? "").trim().toLocaleLowerCase("ru-RU");
-    const previousSameService = previousItems.find((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU") === serviceKey);
     const { data: existingBills, error: existingBillsError } = await admin
       .from("utility_bills")
-      .select("id,service,period,amount,tenant_amount,due_date_label,status")
+      .select("id,service,period,amount,tenant_amount,due_date_label,status,receipt_storage_path,optional_charge_amount,optional_charge_included")
       .eq("apartment_id", account.apartment_id)
-      .eq("period", period)
-      .neq("status", "paid");
+      .ilike("period", `${receiptMonth(period)}%`);
     if (existingBillsError) return { ok: false, error: existingBillsError.message };
-    const previousDraftId = String(previousSameService?.draftBillId ?? "").trim();
-    const matchingConfirmed = (existingBills ?? []).find((bill) => bill.status !== "draft" && String(bill.service).trim().toLocaleLowerCase("ru-RU") === serviceKey);
-    let draftBillId = previousDraftId;
-    if (previousDraftId) {
-      const { error: updateDraftError } = await admin
-        .from("utility_bills")
-        .update({ ...validation.bill, updated_at: new Date().toISOString() })
-        .eq("apartment_id", account.apartment_id)
-        .eq("id", previousDraftId);
-      if (updateDraftError) return { ok: false, error: updateDraftError.message };
-    } else {
-      const draftResult = await createUtilityBillRecord(admin, { apartmentId: account.apartment_id, payload: item });
-      if ("error" in draftResult || !draftResult.row) return { ok: false, error: draftResult.error ?? "Не удалось сохранить черновик." };
-      draftBillId = String(draftResult.row.id);
+    if (document) {
+      const grouped = receiptGrouping(
+        previousItems.map((entry) => ({ ...entry, apartmentId: account.apartment_id })),
+        (existingBills ?? []).map((bill) => ({ ...bill, apartmentId: account.apartment_id })),
+        { apartmentId: account.apartment_id, period, service: String(item.service), fingerprint: document.fingerprint },
+      );
+      if (grouped.decision !== "new") return { ok: false, reason: grouped.decision };
+      const destination = `${account.apartment_id}/telegram/inbox/${attachment!.storagePath.split("/").at(-1)}`;
+      if (attachment!.storagePath !== destination) {
+        const { error: moveError } = await admin.storage.from("asset-media").move(attachment!.storagePath, destination);
+        if (moveError) return { ok: false, reason: "storage_move_failed" };
+        attachment!.storagePath = destination;
+        document.storagePath = destination;
+        item.receiptStoragePath = destination;
+      }
     }
+    const draftResult = await createUtilityBillRecord(admin, { apartmentId: account.apartment_id, payload: item });
+    if ("error" in draftResult || !draftResult.row) return { ok: false, error: draftResult.error ?? "Не удалось сохранить черновик." };
+    const draftBillId = String(draftResult.row.id);
     const savedItem: Record<string, unknown> = {
       ...item,
       draftBillId,
-      replaceBillId: matchingConfirmed?.id,
     };
-    const items = [
-      ...previousItems.filter((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU") !== serviceKey),
-      savedItem,
-    ];
-    const pendingServiceKeys = new Set(items.map((entry) => String(entry.service ?? "").trim().toLocaleLowerCase("ru-RU")));
+    const items = [...previousItems, savedItem];
+    const pendingBillIds = new Set(items.map((entry) => String(entry.draftBillId ?? "")));
     const payload = {
       ...savedItem,
       period,
       items,
-      existingItems: (existingBills ?? []).filter((bill) => bill.status !== "draft" && !pendingServiceKeys.has(String(bill.service).trim().toLocaleLowerCase("ru-RU"))),
+      existingItems: (existingBills ?? []).filter((bill) => !pendingBillIds.has(String(bill.id))),
       draftCreatedAt: previousPayload?.draftCreatedAt ?? new Date().toISOString(),
     };
     await saveConversation(admin, account, {
+      active_apartment_id: account.apartment_id,
       pending_action: { type: "create_utility_bill", apartmentId: account.apartment_id, payload },
     });
     return {
@@ -622,7 +655,7 @@ function attachmentInput(message: string, attachment: TelegramAssistantAttachmen
       content: [
         {
           type: "input_text",
-          text: message || "Определи намерение по контексту диалога и подготовь подходящий черновик. Коммунальный черновик сохраняй сразу, а окончательный счёт — только по кнопке. Если на фото есть коммунальный счётчик, работай только с показанием на табло; автоматы, УЗО и щиток игнорируй, если пользователь не сообщил о неисправности.",
+          text: message || "Определи содержимое только этого вложения и подготовь подходящий черновик. Если это квитанция, укажи адрес только при уверенном чтении с самого документа. Не используй сведения из предыдущих вложений. Если на фото есть коммунальный счётчик, работай только с показанием на табло; автоматы, УЗО и щиток игнорируй, если пользователь не сообщил о неисправности.",
         },
         fileContent,
       ],
@@ -630,13 +663,36 @@ function attachmentInput(message: string, attachment: TelegramAssistantAttachmen
   ];
 }
 
+export function runTelegramAssistant(
+  admin: SupabaseClient,
+  ownerAccount: TelegramOwnerAccount,
+  message: string,
+  appOrigin: string,
+  attachment?: TelegramAssistantAttachment,
+): Promise<string>;
+export function runTelegramAssistant(
+  admin: SupabaseClient,
+  ownerAccount: TelegramOwnerAccount,
+  message: string,
+  appOrigin: string,
+  attachment: TelegramAssistantAttachment | undefined,
+  request: { updateId: number },
+): Promise<string | DocumentReply>;
 export async function runTelegramAssistant(
   admin: SupabaseClient,
   ownerAccount: TelegramOwnerAccount,
   message: string,
   appOrigin: string,
   attachment?: TelegramAssistantAttachment,
-) {
+  request?: { updateId: number },
+): Promise<string | DocumentReply> {
+  if (attachment && request && (!Number.isSafeInteger(request.updateId) || !attachment.fingerprint)) {
+    console.warn("telegram_document_unrecognized", { reason: "missing_request_identity" });
+    return documentReply({ updateId: request?.updateId ?? -1, storagePath: attachment.storagePath, fingerprint: attachment.fingerprint ?? "" }, "unrecognized");
+  }
+  const document: ReceiptDocument | undefined = attachment && request
+    ? { updateId: request.updateId, storagePath: attachment.storagePath, fingerprint: attachment.fingerprint! }
+    : undefined;
   const { data, error: conversationError } = await admin.from("telegram_conversations").select("active_apartment_id,previous_response_id,pending_action").eq("telegram_user_id", ownerAccount.telegram_user_id).maybeSingle();
   if (conversationError) throw new Error(conversationError.message);
   const conversation = (data ?? { active_apartment_id: null, previous_response_id: null, pending_action: null }) as Conversation;
@@ -1073,7 +1129,7 @@ export async function runTelegramAssistant(
     await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
   }
 
-  const contextualMessage = conversation.pending_action
+  const contextualMessage = !attachment && conversation.pending_action
     ? `${message}\n\nТекущий неподтверждённый черновик: ${JSON.stringify(conversation.pending_action)}`
     : message;
   let attachmentClaimed = false;
@@ -1084,10 +1140,13 @@ export async function runTelegramAssistant(
         (pendingPayload as Record<string, unknown>).photoStoragePath
       : undefined;
   try {
+    let receiptState: DocumentReply["state"] = "unrecognized";
+    let failureReason = "no_tool_call";
     let response = await createResponse(
       attachment ? attachmentInput(contextualMessage, attachment) : contextualMessage,
       attachment ? null : conversation.previous_response_id,
       account,
+      Boolean(attachment),
     );
     for (let turn = 0; turn < 3; turn += 1) {
       const calls = (response.output ?? []).filter((item) => item.type === "function_call" && item.call_id);
@@ -1101,22 +1160,39 @@ export async function runTelegramAssistant(
           attachment,
           typeof existingAttachmentStoragePath === "string" ? existingAttachmentStoragePath : undefined,
           conversation.pending_action,
+          document,
         );
+        if (attachment && call.name === "prepare_utility_bill") {
+          if (result.ok && "attachmentClaimed" in result && result.attachmentClaimed) receiptState = "prepared";
+          else if (receiptState !== "prepared" && "reason" in result) {
+            failureReason = String(result.reason);
+            receiptState = failureReason.startsWith("address_") ? "needs_apartment"
+              : failureReason === "duplicate" || failureReason === "possible_correction" ? failureReason : "unrecognized";
+          } else if (receiptState !== "prepared") failureReason = "bill_validation_failed";
+        }
         if (
           (call.name === "prepare_utility_bill" || call.name === "prepare_utility_reading" || call.name === "prepare_asset_event") &&
           attachment &&
           "attachmentClaimed" in result &&
-          result.attachmentClaimed
+          result.attachmentClaimed && result.ok
         ) {
           attachmentClaimed = true;
+          if (call.name !== "prepare_utility_bill" && receiptState !== "prepared") receiptState = "other";
         }
         outputs.push({ type: "function_call_output", call_id: call.call_id, output: JSON.stringify(result) });
       }
-      response = await createResponse(outputs, response.id, account);
+      response = await createResponse(outputs, response.id, account, Boolean(attachment));
     }
     await saveConversation(admin, account, { previous_response_id: response.id });
     if (attachment && !attachmentClaimed) {
       await admin.storage.from("asset-media").remove([attachment.storagePath]);
+    }
+    if (document) {
+      if (receiptState !== "prepared" && receiptState !== "other") {
+        await saveConversation(admin, account, { pending_action: null, previous_response_id: null });
+        console.warn("telegram_document_unrecognized", { update_id: document.updateId, reason: failureReason });
+      }
+      return documentReply(document, receiptState, receiptState === "prepared" || receiptState === "other" ? plainText(response) : "", receiptState === "prepared" || receiptState === "other" ? account.apartment_id : undefined);
     }
     return plainText(response) || "Не получилось сформировать ответ. Попробуйте переформулировать запрос.";
   } catch (error) {
