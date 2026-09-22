@@ -12,7 +12,7 @@ registerHooks({
 await import("tsx/esm");
 process.env.OPENAI_API_KEY = "local-test-key";
 const { runTelegramAssistant } = await import("../lib/server/telegram-assistant.ts");
-const { replyForDocument, matchReceiptApartment, receiptGrouping, mandatoryTotalCents } = await import("../lib/server/telegram-receipt-state.ts");
+const { replyForDocument, replyForUpdate, isExplicitDraftRequest, matchReceiptApartment, receiptGrouping, mandatoryTotalCents } = await import("../lib/server/telegram-receipt-state.ts");
 const { utilityDraftReply } = await import("../lib/server/assistant-replies.ts");
 
 const owner = { telegram_user_id: 7, owner_user_id: "owner", owner_email: "owner@example.invalid", default_apartment_id: "apt-a", display_name: "Owner" };
@@ -39,6 +39,7 @@ function database(available = apartments) {
       async move(source, destination) { moved.push({ source, destination }); return { error: null }; },
     }; } },
     from(table) {
+      rows[table] ??= [];
       let action = "select", values = null;
       const filters = [];
       const query = {
@@ -119,6 +120,81 @@ async function run(db, updateId, calls = []) {
     globalThis.fetch = originalFetch;
   }
 }
+
+async function runText(db, updateId, message, calls = []) {
+  const originalFetch = globalThis.fetch;
+  let step = 0;
+  globalThis.fetch = async (_url, init) => {
+    const payload = JSON.parse(init.body);
+    if (step === 0 && !isExplicitDraftRequest(message)) {
+      assert.equal(payload.input, message);
+      assert.doesNotMatch(JSON.stringify(payload.input), /Текущий неподтверждённый черновик/);
+    }
+    const output = step++ === 0 ? calls : [];
+    return Response.json({ id: `text-${updateId}-${step}`, output, output_text: output.length ? "" : `Ответ на: ${message}` });
+  };
+  try {
+    return await runTelegramAssistant(db, owner, message, "https://example.invalid", undefined, { updateId });
+  } finally { globalThis.fetch = originalFetch; }
+}
+
+test("an old utility pending cannot replace an unrelated text reply or attach its buttons", async () => {
+  const db = database();
+  await run(db, 701, [billCall()]);
+  const before = structuredClone(db.rows.telegram_conversations[0].pending_action);
+  const answer = await runText(db, 702, "Как дела сегодня?");
+  const shown = replyForUpdate(answer, db.rows.telegram_conversations[0].pending_action, before);
+  assert.equal(shown.text, "Ответ на: Как дела сегодня?");
+  assert.equal(shown.pending, null);
+  assert.deepEqual(db.rows.telegram_conversations[0].pending_action, before);
+  assert.equal(db.rows.utility_bills.length, 1);
+});
+
+test("a utility draft prepared by this text update appears once with the current action", async () => {
+  const db = database();
+  const before = null;
+  const answer = await runText(db, 703, "Добавь коммунальный счёт", [billCall()]);
+  const shown = replyForUpdate(answer, db.rows.telegram_conversations[0].pending_action, before);
+  assert.equal(shown.pending.type, "create_utility_bill");
+  assert.match(utilityDraftReply(shown.pending, "RUB", "Europe/Moscow"), /Электричество/);
+  assert.equal(db.rows.utility_bills.length, 1);
+});
+
+test("a newly prepared non-utility action cannot surface the older utility receipt", async () => {
+  const db = database();
+  await run(db, 704, [billCall()]);
+  const before = structuredClone(db.rows.telegram_conversations[0].pending_action);
+  const answer = await runText(db, 705, "Запланируй уборку", [{
+    type: "function_call", name: "prepare_cleaning", call_id: "cleaning-1",
+    arguments: JSON.stringify({ title: "Тестовая уборка", scheduledAt: "2026-10-01T10:00:00", cleaner: "Тест", zones: ["кухня"], checklist: ["Убрать кухню"] }),
+  }]);
+  const shown = replyForUpdate(answer, db.rows.telegram_conversations[0].pending_action, before);
+  assert.equal(shown.pending?.type, "create_cleaning");
+  assert.doesNotMatch(shown.text, /Электричество|100/);
+});
+
+test("a current pending callback confirms without displaying an obsolete draft", async () => {
+  const db = database();
+  await run(db, 706, [billCall()]);
+  const before = structuredClone(db.rows.telegram_conversations[0].pending_action);
+  const answer = await runTelegramAssistant(db, owner, "создавай", "https://example.invalid");
+  const shown = replyForUpdate(answer, db.rows.telegram_conversations[0].pending_action, before);
+  assert.equal(shown.pending?.type, "send_utility_statement");
+  assert.notDeepEqual(shown.pending, before);
+  assert.equal(db.rows.utility_bills[0].status, "due");
+});
+
+test("explicitly viewing the pending draft remains possible without changing it", async () => {
+  const db = database();
+  await run(db, 707, [billCall()]);
+  const before = structuredClone(db.rows.telegram_conversations[0].pending_action);
+  const message = "Покажи текущий черновик";
+  assert.equal(isExplicitDraftRequest(message), true);
+  const answer = await runText(db, 708, message);
+  const shown = replyForUpdate(answer, db.rows.telegram_conversations[0].pending_action, before, isExplicitDraftRequest(message));
+  assert.equal(shown.pending?.type, "create_utility_bill");
+  assert.deepEqual(db.rows.telegram_conversations[0].pending_action, before);
+});
 
 test("T05 then T06: no tool call cannot reuse the earlier draft or create another bill", async () => {
   const db = database();
