@@ -14,6 +14,7 @@ import { normalizeUtilityPeriod } from "@/lib/utility-period";
 import { utilityBillTool } from "@/lib/server/utility-eval";
 import {
   documentReply,
+  isExplicitDraftRequest,
   matchReceiptApartment,
   receiptGrouping,
   receiptMonth,
@@ -1129,7 +1130,7 @@ export async function runTelegramAssistant(
     await saveConversation(admin, account, { previous_response_id: null, pending_action: null });
   }
 
-  const contextualMessage = !attachment && conversation.pending_action
+  const contextualMessage = !attachment && conversation.pending_action && isExplicitDraftRequest(message)
     ? `${message}\n\nТекущий неподтверждённый черновик: ${JSON.stringify(conversation.pending_action)}`
     : message;
   let attachmentClaimed = false;

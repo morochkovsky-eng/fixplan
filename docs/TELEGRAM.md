@@ -56,6 +56,8 @@ Status updates, deletion, and delivery are recorded in `telegram_request_traces`
 
 Conversation state is stored in `telegram_conversations`, including `pending_action` and the active apartment. The assistant prepares actions, then inline callbacks allow the owner to confirm, edit, or cancel. Confirmed actions are executed through the same assistant/tool path; cancellation removes the draft without creating product data.
 
+For every incoming update, reply assembly compares the pending action before and after assistant processing. A pre-existing pending action cannot replace or attach buttons to an unrelated text reply. Its card appears only if the current update created or changed it, or the owner explicitly requested to view/continue the draft; otherwise the pending action remains available for its existing callbacks. Unrelated text is not augmented with the old draft's JSON in the model input. Attachment replies retain their separate update/file identity checks.
+
 Long confirmation/cancellation and utility-option callbacks are queued. Telegram's short callback spinner is acknowledged separately from the durable Homory processing status.
 
 Tenant group delivery is prepared privately for the owner and sent only after explicit approval. Group pairing and statement delivery have separate service-role tables and deduplication.

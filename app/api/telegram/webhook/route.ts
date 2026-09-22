@@ -5,7 +5,7 @@ import { recordAssistantMessage } from "@/lib/server/assistant-messages";
 import { handleStatementDecision } from "@/lib/server/telegram-statements";
 import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
-import { replyForDocument, type DocumentReply } from "@/lib/server/telegram-receipt-state";
+import { isExplicitDraftRequest, replyForUpdate, type DocumentReply } from "@/lib/server/telegram-receipt-state";
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import {
   cleanupTelegramProcessingStatus,
@@ -157,6 +157,8 @@ async function sendAssistantReply(
   telegramUserId: number,
   chatId: number,
   answer: string | DocumentReply,
+  previousPending: Record<string, unknown> | null,
+  explicitDraftRequest = false,
 ) {
   const { data, error } = await admin
     .from("telegram_conversations")
@@ -164,7 +166,7 @@ async function sendAssistantReply(
     .eq("telegram_user_id", telegramUserId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  const scoped = replyForDocument(answer, data?.pending_action as Record<string, unknown> | null);
+  const scoped = replyForUpdate(answer, data?.pending_action as Record<string, unknown> | null, previousPending, explicitDraftRequest);
   const pendingAction = scoped.pending;
   const hasReadyDraft = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
   let reply = hasReadyDraft ? cleanTelegramDraftText(scoped.text) : scoped.text;
@@ -228,6 +230,16 @@ async function sendAssistantReply(
     }
   }
   return sent;
+}
+
+async function getPendingAction(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  telegramUserId: number,
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await admin.from("telegram_conversations")
+    .select("pending_action").eq("telegram_user_id", telegramUserId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.pending_action as Record<string, unknown> | null | undefined) ?? null;
 }
 
 async function beginTrackedDelivery(
@@ -388,6 +400,7 @@ export async function POST(request: Request) {
       } else if (callback.data === "fixplan:pending:confirm" || callback.data === "fixplan:pending:cancel") {
         const active = await getActiveTelegramApartment(admin, account);
         if ("error" in active) throw new Error(active.error);
+        const previousPending = await getPendingAction(admin, user.id);
         const callbackText = callback.data.endsWith(":confirm") ? "Создать" : "Удалить черновик";
         await recordAssistantMessage(admin, { ownerUserId: account.owner_user_id, apartmentId: active.apartment.id, role: "user", channel: "telegram", content: callbackText });
         const answer = await runTelegramAssistant(
@@ -398,10 +411,11 @@ export async function POST(request: Request) {
         );
         await beginTrackedDelivery(admin, processingJob);
         deliveryStarted = Boolean(processingJob);
-        deliveredMessageId = (await sendAssistantReply(admin, user.id, chat.id, answer))?.message_id;
+        deliveredMessageId = (await sendAssistantReply(admin, user.id, chat.id, answer, previousPending))?.message_id;
       } else if (callback.data === "fixplan:utility:insurance:keep" || callback.data === "fixplan:utility:insurance:exclude") {
         const active = await getActiveTelegramApartment(admin, account);
         if ("error" in active) throw new Error(active.error);
+        const previousPending = await getPendingAction(admin, user.id);
         const callbackText = callback.data.endsWith(":exclude") ? "Исключить страховку" : "Оставить страховку";
         await recordAssistantMessage(admin, { ownerUserId: account.owner_user_id, apartmentId: active.apartment.id, role: "user", channel: "telegram", content: callbackText });
         const answer = await runTelegramAssistant(
@@ -412,7 +426,7 @@ export async function POST(request: Request) {
         );
         await beginTrackedDelivery(admin, processingJob);
         deliveryStarted = Boolean(processingJob);
-        deliveredMessageId = (await sendAssistantReply(admin, user.id, chat.id, answer))?.message_id;
+        deliveredMessageId = (await sendAssistantReply(admin, user.id, chat.id, answer, previousPending, true))?.message_id;
       } else {
         await sendTelegramMessage(chat.id, "Эта кнопка уже неактуальна.");
       }
@@ -429,6 +443,7 @@ export async function POST(request: Request) {
           deliveryStarted = Boolean(processingJob);
           deliveredMessageId = (await sendTelegramMessage(message.chat.id, "Сначала подключите FixPlan по персональной ссылке из веб-интерфейса.")).message_id;
         } else if (message.voice || message.photo?.length || message.document || text) {
+          const previousPending = await getPendingAction(admin, user.id);
           const userMessage = message.voice ? await transcribeTelegramVoice(message.voice.file_id) : text;
           const active = await getActiveTelegramApartment(admin, account);
           if ("error" in active) throw new Error(active.error);
@@ -457,7 +472,10 @@ export async function POST(request: Request) {
           }
           await beginTrackedDelivery(admin, processingJob);
           deliveryStarted = Boolean(processingJob);
-          deliveredMessageId = (await sendAssistantReply(admin, user.id, message.chat.id, answer))?.message_id;
+          deliveredMessageId = (await sendAssistantReply(
+            admin, user.id, message.chat.id, answer, previousPending,
+            !attachment && isExplicitDraftRequest(message.caption?.trim() || userMessage),
+          ))?.message_id;
         }
       }
     }

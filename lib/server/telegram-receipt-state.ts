@@ -70,6 +70,23 @@ export function replyForDocument(
   return { text: result.text, pending };
 }
 
+export function isExplicitDraftRequest(message: string) {
+  const normalized = message.toLocaleLowerCase("ru-RU");
+  return /(?:покажи|открой|продолжи|измени|исправь|дополни|отредактируй).{0,100}черновик/u.test(normalized) ||
+    /черновик.{0,100}(?:покажи|открой|продолжи|измени|исправь|дополни|отредактируй)/u.test(normalized);
+}
+
+export function replyForUpdate(
+  result: string | DocumentReply,
+  pending: Record<string, unknown> | null,
+  previousPending: Record<string, unknown> | null,
+  explicitDraftRequest = false,
+) {
+  if (typeof result !== "string") return replyForDocument(result, pending);
+  const changed = JSON.stringify(pending) !== JSON.stringify(previousPending);
+  return { text: result, pending: pending && (changed || explicitDraftRequest) ? pending : null };
+}
+
 function normalizedAddress(value: string) {
   return value.toLocaleLowerCase("ru-RU")
     .replace(/(^|\s)(?:город|г\.?|улица|ул\.?|дом|д\.?|квартира|кв\.?)(?=\s|[,;])/gu, "$1")
