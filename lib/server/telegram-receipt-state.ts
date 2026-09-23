@@ -1,4 +1,5 @@
 import { normalizeUtilityPeriod } from "@/lib/utility-period";
+import { moneyToMinor } from "@/lib/server/receipt-money";
 
 export type ReceiptDocument = {
   updateId: number;
@@ -36,7 +37,7 @@ export function documentReply(
 }
 
 export function isCurrentReceiptDraft(pending: Record<string, unknown> | null, document: ReceiptDocument) {
-  if (pending?.type !== "create_utility_bill") return false;
+  if (pending?.type !== "create_utility_bill" && pending?.type !== "collect_utility_bill") return false;
   const payload = pending.payload;
   if (!payload || typeof payload !== "object") return false;
   const bill = payload as Record<string, unknown>;
@@ -117,6 +118,8 @@ type ReceiptItem = {
   tenant_amount?: number | string;
   tenantAmount?: number | string;
   periodChargeAmount?: number | string;
+  mandatoryDueAmount?: number | string;
+  mandatory_due_minor?: number | string;
   optional_charge_amount?: number | string;
   optional_charge_included?: boolean;
   optionalChargeAmount?: number | string;
@@ -153,9 +156,32 @@ export function receiptGrouping(
 
 export function mandatoryTotalCents(items: ReceiptItem[]) {
   return items.reduce((sum, item) => {
-    const charged = Number(item.periodChargeAmount ?? item.tenantAmount ?? item.tenant_amount ?? item.amount ?? 0);
-    const optional = Number(item.optionalChargeAmount ?? item.optional_charge_amount ?? 0);
+    if (item.mandatory_due_minor !== undefined && item.mandatory_due_minor !== null) {
+      return sum + BigInt(String(item.mandatory_due_minor));
+    }
+    const charged = moneyToMinor(item.mandatoryDueAmount ?? item.periodChargeAmount ?? item.tenantAmount ?? item.tenant_amount ?? item.amount) ?? BigInt(0);
+    const optional = moneyToMinor(item.optionalChargeAmount ?? item.optional_charge_amount) ?? BigInt(0);
     const included = item.optionalChargeIncluded ?? item.optional_charge_included ?? false;
-    return sum + Math.round((charged - (item.periodChargeAmount === undefined && included ? optional : 0)) * 100);
-  }, 0);
+    return sum + charged - (item.mandatoryDueAmount === undefined && item.periodChargeAmount === undefined && included ? optional : BigInt(0));
+  }, BigInt(0));
+}
+
+const russianMonths = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+const monthForms: Record<string, number> = {
+  январь: 1, января: 1, февраль: 2, февраля: 2, март: 3, марта: 3, апрель: 4, апреля: 4,
+  май: 5, мая: 5, июнь: 6, июня: 6, июль: 7, июля: 7, август: 8, августа: 8,
+  сентябрь: 9, сентября: 9, октябрь: 10, октября: 10, ноябрь: 11, ноября: 11, декабрь: 12, декабря: 12,
+};
+
+export function parseBillingMonth(message: string) {
+  const value = message.trim().toLocaleLowerCase("ru-RU");
+  const iso = value.match(/^(\d{4})[-/.](0?[1-9]|1[0-2])$/u);
+  const named = value.match(/^([а-яё]+)\s+(20\d{2})$/u);
+  const month = iso ? Number(iso[2]) : named ? monthForms[named[1]] : undefined;
+  const year = iso ? Number(iso[1]) : named ? Number(named[2]) : undefined;
+  if (!month || !year) return null;
+  return {
+    periodMonth: `${year}-${String(month).padStart(2, "0")}`,
+    period: `${russianMonths[month - 1][0].toLocaleUpperCase("ru-RU")}${russianMonths[month - 1].slice(1)} ${year}`,
+  };
 }

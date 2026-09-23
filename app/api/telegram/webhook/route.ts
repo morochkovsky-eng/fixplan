@@ -23,6 +23,7 @@ import {
   clearTelegramInlineKeyboard,
   downloadTelegramFile,
   sendTelegramMessage,
+  sendTelegramMessageChunks,
   getTelegramChat,
   transcribeTelegramVoice,
   type TelegramInlineButton,
@@ -170,7 +171,7 @@ async function sendAssistantReply(
   const pendingAction = scoped.pending;
   const hasReadyDraft = Boolean(pendingAction?.type && String(pendingAction.type).startsWith("create_"));
   let reply = hasReadyDraft ? cleanTelegramDraftText(scoped.text) : scoped.text;
-  if (pendingAction?.type === "create_utility_bill") {
+  if (pendingAction?.type === "create_utility_bill" || pendingAction?.type === "collect_utility_bill") {
     const apartmentId = typeof pendingAction.apartmentId === "string" ? pendingAction.apartmentId : "";
     let currency = "RUB";
     let timezone = "Europe/Moscow";
@@ -201,12 +202,14 @@ async function sendAssistantReply(
       return sent;
     }
   }
-  const sent = await sendTelegramMessage(chatId, reply, {
+  const sent = await sendTelegramMessageChunks(chatId, reply, {
     inlineKeyboard: pendingAction?.type === "create_utility_bill"
       ? (() => {
           const payload = pendingAction.payload as Record<string, unknown> | undefined;
           const items = Array.isArray(payload?.items) ? payload.items : payload ? [payload] : [];
-          const hasInsurance = items.some((item) => item && typeof item === "object" && Number((item as Record<string, unknown>).optionalChargeAmount ?? 0) > 0);
+          const hasInsurance = items.some((item) => item && typeof item === "object" &&
+            !Array.isArray((item as Record<string, unknown>).optionalCharges) &&
+            Number((item as Record<string, unknown>).optionalChargeAmount ?? 0) > 0);
           return hasInsurance ? utilityInsuranceKeyboard : utilityDraftKeyboard;
         })()
       : hasReadyDraft ? draftKeyboard : undefined,

@@ -75,13 +75,18 @@ Apartment
 │   ├── CleaningMedia
 │   └── guest_token
 ├── UtilityBill
-│   └── AssetMedia receipt
+│   ├── AssetMedia receipt
+│   ├── UtilityBillLineItem
+│   ├── UtilityBillMeterEntry
+│   └── UtilityBillOptionalCharge
 ├── UtilityMeter
 │   └── UtilityReading
 └── NotificationEvent
 ```
 
 Telegram adds account, conversation, group pairing, statement delivery, update queue, and trace records linked back to the owner and apartment.
+
+Telegram receipt drafts retain their source update ID, Storage path, SHA-256 fingerprint, printed reference metadata, billing month, and financial values in integer minor units. Normalized child rows preserve service lines, document meter entries, and optional charges. Monthly summaries are calculated views over separate bill rows; they are not persisted as synthetic aggregate bills.
 
 ## Supabase storage
 
