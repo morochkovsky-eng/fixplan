@@ -280,6 +280,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
       safety_identifier: createHash("sha256").update(String(account.telegram_user_id)).digest("hex").slice(0, 64),
       max_output_tokens: 2200,
     }),
+    signal: AbortSignal.timeout(240_000),
   });
   if (!response.ok) throw new Error(`OpenAI Responses API failed with ${response.status}`);
   return response.json() as Promise<OpenAIResponse>;

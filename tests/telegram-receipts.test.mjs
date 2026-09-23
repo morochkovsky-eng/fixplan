@@ -86,7 +86,7 @@ function attachment(updateId, fingerprint = updateId.toString(16).padStart(64, "
     mimeType: "application/pdf",
     storagePath: `apt-a/telegram/inbox/${fingerprint}-${updateId}-receipt.pdf`,
     fingerprint,
-    quality: { sourceType: "document", byteSize: 4, width: null, height: null, sharpness: null, brightness: null, contrast: null, brightPixelRatio: null, darkPixelRatio: null },
+    quality: { sourceType: "document", mediaKind: "pdf", byteSize: 4, width: null, height: null, pageCount: 1, sharpness: null, brightness: null, contrast: null, brightPixelRatio: null, darkPixelRatio: null, analysisError: null },
   };
 }
 
@@ -110,7 +110,9 @@ function billCall({ service = "Электричество", address = apartments
       service, documentAddress: address, documentKind: kind, providerName: provider, accountNumber: "0001", period, periodMonth,
       documentDate: "", dueDate, periodChargeAmount: String(amount), openingDebtAmount: openingDebt, openingCreditAmount: "",
       paidAmount: "", recalculationAmount: "", benefitAmount: "", penaltyAmount: "",
-      mandatoryDueAmount: String(amount), printedDueAmount: String(amount), allocation: "tenant", lineItems, meters,
+      mandatoryDueAmount: String(amount), printedDueAmount: String(amount), allocation: "tenant",
+      lineItems: lineItems.map((item) => ({ calculationMode: "printed_total", ...item })),
+      meters,
       optionalCharges: Number(optional) > 0 ? [{ label: "Добровольная услуга", kind: "insurance", amount: String(optional), includedInMandatory: false }] : [],
       warnings: [], note: "", quality: readableQuality(),
     }),
@@ -395,7 +397,7 @@ test("quality rejection creates no bill, pending action, or retained Storage obj
     ...attachment(905),
     mimeType: "image/jpeg",
     filename: "compressed-photo.jpg",
-    quality: { sourceType: "photo", byteSize: 80_000, width: 520, height: 900, sharpness: 2, brightness: 35, contrast: 16, brightPixelRatio: 0.02, darkPixelRatio: 0.5 },
+    quality: { sourceType: "photo", mediaKind: "image", byteSize: 80_000, width: 520, height: 900, pageCount: 1, sharpness: 2, brightness: 35, contrast: 16, brightPixelRatio: 0.02, darkPixelRatio: 0.5, analysisError: null },
   };
   const result = await run(db, 905, [call], current);
   assert.equal(result.state, "unrecognized");
@@ -403,12 +405,27 @@ test("quality rejection creates no bill, pending action, or retained Storage obj
   assert.equal(db.rows.telegram_conversations[0].pending_action, null);
   assert.deepEqual(db.removed, [current.storagePath]);
   assert.match(result.text, /оригинал как файл без сжатия/i);
+
+  const timeoutDb = database();
+  const timeoutAttachment = attachment(906);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new DOMException("timed out", "TimeoutError"); };
+  try {
+    await assert.rejects(
+      runTelegramAssistant(timeoutDb, owner, "", "https://example.invalid", timeoutAttachment, { updateId: 906 }),
+      /timed out/u,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.deepEqual(timeoutDb.removed, [timeoutAttachment.storagePath]);
+  assert.equal(timeoutDb.rows.telegram_conversations[0]?.pending_action ?? null, null);
 });
 
 test("line totals and volume by tariff contradictions block persistence", async () => {
   for (const lineItems of [
     [{ name: "Услуга A", unit: "ед.", volume: "", tariff: "", chargeAmount: "80.00", recalculationAmount: "", benefitAmount: "", totalAmount: "80.00" }],
-    [{ name: "Услуга B", unit: "м²", volume: "10", tariff: "3.00", chargeAmount: "40.00", recalculationAmount: "", benefitAmount: "", totalAmount: "100.00" }],
+    [{ name: "Услуга B", unit: "м²", volume: "10", tariff: "3.00", calculationMode: "simple", chargeAmount: "40.00", recalculationAmount: "", benefitAmount: "", totalAmount: "100.00" }],
   ]) {
     const db = database();
     const result = await run(db, 910, [billCall({ amount: "100.00", lineItems })]);
@@ -420,8 +437,9 @@ test("line totals and volume by tariff contradictions block persistence", async 
 
 test("a readable Telegram photo and an original document both pass the quality gate", async () => {
   for (const [updateId, current] of [
-    [920, { ...attachment(920), mimeType: "image/jpeg", filename: "clear-photo.jpg", quality: { sourceType: "photo", byteSize: 600_000, width: 1600, height: 2400, sharpness: 18, brightness: 142, contrast: 52, brightPixelRatio: 0.08, darkPixelRatio: 0.04 } }],
+    [920, { ...attachment(920), mimeType: "image/jpeg", filename: "clear-photo.jpg", quality: { sourceType: "photo", mediaKind: "image", byteSize: 600_000, width: 1600, height: 2400, pageCount: 1, sharpness: 18, brightness: 142, contrast: 52, brightPixelRatio: 0.08, darkPixelRatio: 0.04, analysisError: null } }],
     [921, attachment(921)],
+    [922, { ...attachment(922), mimeType: "image/png", filename: "original.png", quality: { sourceType: "document", mediaKind: "image", byteSize: 900_000, width: 1800, height: 2600, pageCount: 1, sharpness: 20, brightness: 138, contrast: 48, brightPixelRatio: 0.05, darkPixelRatio: 0.03, analysisError: null } }],
   ]) {
     const db = database();
     const result = await run(db, updateId, [billCall()], current);

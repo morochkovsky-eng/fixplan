@@ -2,14 +2,17 @@ import { moneyToMinor } from "@/lib/server/receipt-money";
 
 export type ReceiptAttachmentQuality = {
   sourceType: "photo" | "document";
+  mediaKind: "image" | "pdf" | "other";
   byteSize: number;
   width: number | null;
   height: number | null;
+  pageCount: number | null;
   sharpness: number | null;
   brightness: number | null;
   contrast: number | null;
   brightPixelRatio: number | null;
   darkPixelRatio: number | null;
+  analysisError: "decode_failed" | null;
 };
 
 export type ReceiptValidationFailure = {
@@ -76,41 +79,73 @@ export async function analyzeReceiptAttachment(
 ): Promise<ReceiptAttachmentQuality> {
   const base = {
     sourceType,
+    mediaKind: mimeType.startsWith("image/") ? "image" as const
+      : mimeType === "application/pdf" ? "pdf" as const : "other" as const,
     byteSize: bytes.byteLength,
     width: null,
     height: null,
+    pageCount: null,
     sharpness: null,
     brightness: null,
     contrast: null,
     brightPixelRatio: null,
     darkPixelRatio: null,
+    analysisError: null,
   } satisfies ReceiptAttachmentQuality;
+  if (mimeType === "application/pdf") {
+    try {
+      const { PDFDocument } = await import("pdf-lib");
+      const document = await PDFDocument.load(bytes, {
+        ignoreEncryption: true,
+        throwOnInvalidObject: false,
+        updateMetadata: false,
+      });
+      return { ...base, pageCount: document.getPageCount() };
+    } catch {
+      return { ...base, analysisError: "decode_failed" };
+    }
+  }
   if (!mimeType.startsWith("image/")) return base;
 
   try {
     const { default: sharp } = await import("sharp");
-    const image = sharp(bytes, { failOn: "none" }).rotate();
+    const image = sharp(bytes, {
+      failOn: "none",
+      limitInputPixels: 40_000_000,
+      pages: 1,
+      sequentialRead: true,
+    }).rotate();
     const metadata = await image.metadata();
     const sample = image.clone().resize({ width: 1400, height: 1400, fit: "inside", withoutEnlargement: true }).greyscale();
     const stats = await sample.stats();
+    const { data: pixels } = await sample.clone().raw().toBuffer({ resolveWithObject: true });
     const edgeStats = await sample.clone().convolve({
       width: 3,
       height: 3,
       kernel: [0, 1, 0, 1, -4, 1, 0, 1, 0],
     }).stats();
+    let brightPixels = 0;
+    let darkPixels = 0;
+    for (const value of pixels) {
+      if (value >= 245) brightPixels += 1;
+      if (value <= 20) darkPixels += 1;
+    }
     return {
       sourceType,
+      mediaKind: "image",
       byteSize: bytes.byteLength,
       width: metadata.width ?? null,
       height: metadata.height ?? null,
+      pageCount: metadata.pages ?? 1,
       sharpness: edgeStats.channels[0]?.stdev ?? null,
       brightness: stats.channels[0]?.mean ?? null,
       contrast: stats.channels[0]?.stdev ?? null,
-      brightPixelRatio: null,
-      darkPixelRatio: null,
+      brightPixelRatio: pixels.length ? brightPixels / pixels.length : null,
+      darkPixelRatio: pixels.length ? darkPixels / pixels.length : null,
+      analysisError: null,
     };
   } catch {
-    return base;
+    return { ...base, analysisError: "decode_failed" };
   }
 }
 
@@ -135,7 +170,14 @@ export function validateReceiptReadability(
     }
   }
 
-  if (attachment?.sourceType === "photo" && attachment.width && attachment.height) {
+  if (attachment?.analysisError) issues.push("technical_image_decode_failed");
+  if (attachment?.mediaKind === "image" && (attachment.pageCount ?? 1) > 1) {
+    issues.push("technical_image_page_limit_exceeded");
+  }
+  if (attachment?.mediaKind === "pdf" && (attachment.pageCount ?? 0) > 30) {
+    issues.push("technical_pdf_page_limit_exceeded");
+  }
+  if (attachment?.width && attachment.height) {
     const shortEdge = Math.min(attachment.width, attachment.height);
     const compressedSmallText = shortEdge < 900 && attachment.byteSize < 180_000;
     const blurredLowContrast = attachment.sharpness !== null && attachment.contrast !== null &&
@@ -164,6 +206,7 @@ export function validateReceiptArithmetic(args: Record<string, unknown>): { ok: 
   }
 
   for (const [index, line] of lineItems.entries()) {
+    if (line.calculationMode !== "simple") continue;
     const expected = roundedProductMinor(line.volume, line.tariff);
     const actual = moneyToMinor(line.chargeAmount);
     if (expected !== null && actual !== null && differenceTooLarge(expected, actual)) {
