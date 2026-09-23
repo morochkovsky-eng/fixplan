@@ -1,4 +1,5 @@
 const telegramApi = "https://api.telegram.org";
+const maxTelegramFileBytes = 20 * 1024 * 1024;
 
 export type TelegramUser = {
   id: number;
@@ -247,21 +248,46 @@ export async function downloadTelegramFile(
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
 
-  const metadataResponse = await fetch(`${telegramApi}/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`);
+  const metadataResponse = await fetch(`${telegramApi}/bot${token}/getFile?file_id=${encodeURIComponent(fileId)}`, {
+    signal: AbortSignal.timeout(15_000),
+  });
   if (!metadataResponse.ok) throw new Error(`Telegram getFile failed with ${metadataResponse.status}`);
   const metadata = (await metadataResponse.json()) as { ok: boolean; result?: { file_path?: string; file_size?: number } };
   const path = metadata.result?.file_path;
   if (!metadata.ok || !path) throw new Error("Telegram file is unavailable");
-  if ((metadata.result?.file_size ?? 0) > 20 * 1024 * 1024) throw new Error("Telegram file is too large");
+  if ((metadata.result?.file_size ?? 0) > maxTelegramFileBytes) throw new Error("Telegram file is too large");
 
-  const fileResponse = await fetch(`${telegramApi}/file/bot${token}/${path}`);
+  const fileResponse = await fetch(`${telegramApi}/file/bot${token}/${path}`, {
+    signal: AbortSignal.timeout(30_000),
+  });
   if (!fileResponse.ok) throw new Error(`Telegram file download failed with ${fileResponse.status}`);
-  const blob = await fileResponse.blob();
+  const declaredSize = Number(fileResponse.headers.get("content-length") ?? 0);
+  if (declaredSize > maxTelegramFileBytes) throw new Error("Telegram file is too large");
+  if (!fileResponse.body) throw new Error("Telegram file is unavailable");
+  const chunks: Uint8Array[] = [];
+  const reader = fileResponse.body.getReader();
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxTelegramFileBytes) {
+      await reader.cancel();
+      throw new Error("Telegram file is too large");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   const fallbackName = path.split("/").at(-1) ?? "telegram-file";
   return {
-    bytes: new Uint8Array(await blob.arrayBuffer()),
+    bytes,
     filename: options.filename?.trim() || fallbackName,
-    mimeType: options.mimeType?.trim() || blob.type || "application/octet-stream",
+    mimeType: options.mimeType?.trim() || fileResponse.headers.get("content-type") || "application/octet-stream",
   } satisfies TelegramFile;
 }
 

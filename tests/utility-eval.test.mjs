@@ -71,21 +71,33 @@ test("utility evaluation returns the intercepted draft without persistence", asy
               period: "Август 2026",
               documentDate: "2026-09-01",
               dueDate: "",
-              periodChargeAmount: "1419.05",
+              periodChargeAmount: "123.45",
               openingDebtAmount: "",
               openingCreditAmount: "",
               paidAmount: "",
               recalculationAmount: "",
               benefitAmount: "",
               penaltyAmount: "",
-              mandatoryDueAmount: "1419.05",
-              printedDueAmount: "1419.05",
+              mandatoryDueAmount: "123.45",
+              printedDueAmount: "123.45",
               allocation: "tenant",
               lineItems: [],
               meters: [],
-              optionalCharges: [{ label: "Страхование", kind: "insurance", amount: "385.00", includedInMandatory: false }],
+              optionalCharges: [{ label: "Добровольная услуга", kind: "other", amount: "25.00", includedInMandatory: false }],
               warnings: [],
               note: "",
+              quality: {
+                readable: true,
+                issues: [],
+                criticalFields: [
+                  { field: "document_kind", confidence: "high", evidence: "Счёт" },
+                  { field: "billing_period", confidence: "high", evidence: "Август 2026" },
+                  { field: "period_charge", confidence: "high", evidence: "Начислено 123,45" },
+                  { field: "mandatory_due", confidence: "high", evidence: "К оплате 123,45" },
+                  { field: "due_date", confidence: "absent", evidence: null },
+                  { field: "provider", confidence: "high", evidence: "Поставщик" },
+                ],
+              },
             }),
           }],
         });
@@ -93,7 +105,7 @@ test("utility evaluation returns the intercepted draft without persistence", asy
     );
     assert.equal(result.responseId, "resp_test");
     assert.equal(result.model, "test-model");
-    assert.equal(result.draft.periodChargeAmount, "1419.05");
+    assert.equal(result.draft.periodChargeAmount, "123.45");
     assert.equal(result.draft.optionalCharges[0].includedInMandatory, false);
     assert.equal(result.question, null);
     assert.equal(requestBody.tools.length, 1);

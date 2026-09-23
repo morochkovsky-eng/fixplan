@@ -86,6 +86,20 @@ function attachment(updateId, fingerprint = updateId.toString(16).padStart(64, "
     mimeType: "application/pdf",
     storagePath: `apt-a/telegram/inbox/${fingerprint}-${updateId}-receipt.pdf`,
     fingerprint,
+    quality: { sourceType: "document", mediaKind: "pdf", byteSize: 4, width: null, height: null, pageCount: 1, sharpness: null, brightness: null, contrast: null, brightPixelRatio: null, darkPixelRatio: null, analysisError: null },
+  };
+}
+
+function readableQuality(overrides = {}) {
+  return {
+    readable: true,
+    issues: [],
+    criticalFields: [
+      ["document_kind", "Квитанция"], ["billing_period", "Март 2026"],
+      ["period_charge", "Начислено 100,00"], ["mandatory_due", "К оплате 100,00"],
+      ["due_date", null], ["provider", "Поставщик"],
+    ].map(([field, evidence]) => ({ field, confidence: evidence ? "high" : "absent", evidence })),
+    ...overrides,
   };
 }
 
@@ -96,14 +110,16 @@ function billCall({ service = "Электричество", address = apartments
       service, documentAddress: address, documentKind: kind, providerName: provider, accountNumber: "0001", period, periodMonth,
       documentDate: "", dueDate, periodChargeAmount: String(amount), openingDebtAmount: openingDebt, openingCreditAmount: "",
       paidAmount: "", recalculationAmount: "", benefitAmount: "", penaltyAmount: "",
-      mandatoryDueAmount: String(amount), printedDueAmount: String(amount), allocation: "tenant", lineItems, meters,
+      mandatoryDueAmount: String(amount), printedDueAmount: String(amount), allocation: "tenant",
+      lineItems: lineItems.map((item) => ({ calculationMode: "printed_total", ...item })),
+      meters,
       optionalCharges: Number(optional) > 0 ? [{ label: "Добровольная услуга", kind: "insurance", amount: String(optional), includedInMandatory: false }] : [],
-      warnings: [], note: "",
+      warnings: [], note: "", quality: readableQuality(),
     }),
   };
 }
 
-async function run(db, updateId, calls = []) {
+async function run(db, updateId, calls = [], currentAttachment = attachment(updateId)) {
   const originalFetch = globalThis.fetch;
   let step = 0;
   globalThis.fetch = async (_url, init) => {
@@ -117,7 +133,7 @@ async function run(db, updateId, calls = []) {
     return Response.json({ id: `response-${updateId}-${step}`, output, output_text: output.length ? "" : "Непроверенный ответ модели" });
   };
   try {
-    return await runTelegramAssistant(db, owner, "", "https://example.invalid", attachment(updateId), { updateId });
+    return await runTelegramAssistant(db, owner, "", "https://example.invalid", currentAttachment, { updateId });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -198,7 +214,7 @@ test("explicitly viewing the pending draft remains possible without changing it"
   assert.deepEqual(db.rows.telegram_conversations[0].pending_action, before);
 });
 
-test("T05 then T06: no tool call cannot reuse the earlier draft or create another bill", async () => {
+test("a recognized receipt followed by an unrecognized attachment cannot reuse the earlier draft", async () => {
   const db = database();
   const first = await run(db, 105, [billCall()]);
   assert.equal(first.state, "prepared");
@@ -213,12 +229,12 @@ test("T05 then T06: no tool call cannot reuse the earlier draft or create anothe
   assert.equal(db.rows.utility_bills.length, 1);
   assert.equal(db.rows.telegram_conversations[0].pending_action, null);
   const sent = replyForDocument(second, db.rows.telegram_conversations[0].pending_action);
-  assert.match(sent.text, /не удалось уверенно распознать/i);
+  assert.match(sent.text, /не удалось надёжно прочитать/i);
   assert.doesNotMatch(sent.text, /Электричество|100/);
   assert.equal(sent.pending, null);
 });
 
-test("T07 then T08: an unreadable PDF cannot repeat the previous reply", async () => {
+test("an unreadable PDF after another receipt cannot repeat the previous reply", async () => {
   const db = database();
   await run(db, 107, [billCall({ service: "Капремонт", amount: 636.48 })]);
   const second = await run(db, 108);
@@ -363,51 +379,73 @@ test("a missing billing month keeps the document and accepts a later month witho
   assert.equal(db.rows.utility_bills[0].period, "Август 2026");
 });
 
-test("T05-T07 remain separate August drafts with an exact 5218.56 monthly total", async () => {
+test("quality rejection creates no bill, pending action, or retained Storage object", async () => {
   const db = database();
-  await run(db, 905, [billCall({
-    service: "Электричество", kind: "electricity", period: "Август 2026", periodMonth: "2026-08", amount: "1419.05", optional: "385.00", dueDate: "2026-09-15",
-    lineItems: [
-      { name: "Электроэнергия день", unit: "кВт·ч", volume: "197.27", tariff: "6.08", chargeAmount: "1199.40", recalculationAmount: "", benefitAmount: "", totalAmount: "1199.40" },
-      { name: "Электроэнергия ночь", unit: "кВт·ч", volume: "66.36", tariff: "3.31", chargeAmount: "219.65", recalculationAmount: "", benefitAmount: "", totalAmount: "219.65" },
-    ],
-    meters: [
-      { resource: "Электроэнергия день", meterNumber: "E-1", previousValue: "16256", currentValue: "", consumption: "", unit: "кВт·ч", tariff: "6.08" },
-      { resource: "Электроэнергия ночь", meterNumber: "E-1", previousValue: "6253", currentValue: "", consumption: "", unit: "кВт·ч", tariff: "3.31" },
-    ],
-  })]);
-  const housingLines = [
-    ["Водоотведение ХВС ОДН", "12.20"], ["Водоотведение ГВС ОДН", "7.54"], ["ХВС ОДН", "12.20"],
-    ["ГВС ОДН", "25.87"], ["Коммунальное освещение", "111.15"], ["Вывоз мусора", "259.35"],
-    ["АППЗ", "39.00"], ["АУР", "343.20"], ["Диспетчеризация", "417.30"], ["Лифт", "222.30"],
-    ["ПЗУ и видеонаблюдение", "46.80"], ["Содержание домохозяйства", "177.45"], ["Содержание территории", "269.10"],
-    ["Текущий ремонт", "705.90"], ["Техническое обслуживание", "142.35"], ["ТО КУУ тепла", "42.90"],
-    ["Уборка лестничных клеток", "132.60"], ["Кабельное телевидение", "180.00"], ["Ведение расчётного счёта", "15.82"],
-  ];
-  await run(db, 906, [billCall({
-    service: "ЖКУ", kind: "housing", period: "Август 2026", periodMonth: "2026-08", amount: "3163.03", dueDate: "2026-09-25",
-    lineItems: housingLines.map(([name, totalAmount]) => ({ name, unit: "", volume: "", tariff: "", chargeAmount: totalAmount, recalculationAmount: "", benefitAmount: "", totalAmount })),
-    meters: Array.from({ length: 4 }, (_, index) => ({ resource: `Счётчик ${index + 1}`, meterNumber: `M-${index + 1}`, previousValue: "", currentValue: "", consumption: "", unit: "", tariff: "" })),
-  })]);
-  await run(db, 907, [billCall({
-    service: "Капитальный ремонт", kind: "capital_repair", period: "Август 2026", periodMonth: "2026-08", amount: "636.48", openingDebt: "0.00", dueDate: "2026-09-25",
-    lineItems: [{ name: "Капитальный ремонт", unit: "м²", volume: "39", tariff: "16.32", chargeAmount: "636.48", recalculationAmount: "", benefitAmount: "", totalAmount: "636.48" }],
-  })]);
-  assert.equal(db.rows.utility_bills.length, 3);
-  assert.equal(new Set(db.rows.utility_bills.map((row) => row.source_update_id)).size, 3);
-  assert.equal(new Set(db.rows.utility_bills.map((row) => row.receipt_storage_path)).size, 3);
-  assert.equal(mandatoryTotalCents(db.rows.telegram_conversations[0].pending_action.payload.items), 521856n);
-  assert.equal(db.rows.utility_bill_line_items.length, 22);
-  assert.equal(db.rows.utility_bill_meter_entries.length, 6);
-  assert.equal(db.rows.utility_bill_optional_charges.length, 1);
-  assert.equal(db.rows.utility_bill_optional_charges[0].included_in_mandatory, false);
-  assert.equal(db.rows.utility_bill_line_items.filter((row) => row.utility_bill_id === db.rows.utility_bills[1].id).reduce((sum, row) => sum + BigInt(row.total_minor), 0n), 316303n);
-  assert.equal(db.rows.utility_bills[0].due_date, "2026-09-15");
-  assert.equal(db.rows.utility_bills[1].due_date, "2026-09-25");
-  assert.equal(db.rows.utility_bill_meter_entries[0].current_value, null);
-  assert.equal(db.rows.utility_bill_meter_entries[1].current_value, null);
-  assert.equal(db.rows.utility_bills[2].opening_debt_minor, "0");
-  assert.equal(db.rows.utility_bills[2].due_date, "2026-09-25");
+  const call = billCall();
+  const args = JSON.parse(call.arguments);
+  Object.assign(args, {
+    service: null, documentKind: null, providerName: null, periodMonth: null, period: null,
+    dueDate: null, periodChargeAmount: null, mandatoryDueAmount: null, printedDueAmount: null,
+    quality: readableQuality({
+      readable: false,
+      issues: ["blur", "compression", "small_text"],
+      criticalFields: readableQuality().criticalFields.map((item) => ({ ...item, confidence: "unreadable", evidence: null })),
+    }),
+  });
+  call.arguments = JSON.stringify(args);
+  const current = {
+    ...attachment(905),
+    mimeType: "image/jpeg",
+    filename: "compressed-photo.jpg",
+    quality: { sourceType: "photo", mediaKind: "image", byteSize: 80_000, width: 520, height: 900, pageCount: 1, sharpness: 2, brightness: 35, contrast: 16, brightPixelRatio: 0.02, darkPixelRatio: 0.5, analysisError: null },
+  };
+  const result = await run(db, 905, [call], current);
+  assert.equal(result.state, "unrecognized");
+  assert.equal(db.rows.utility_bills.length, 0);
+  assert.equal(db.rows.telegram_conversations[0].pending_action, null);
+  assert.deepEqual(db.removed, [current.storagePath]);
+  assert.match(result.text, /оригинал как файл без сжатия/i);
+
+  const timeoutDb = database();
+  const timeoutAttachment = attachment(906);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new DOMException("timed out", "TimeoutError"); };
+  try {
+    await assert.rejects(
+      runTelegramAssistant(timeoutDb, owner, "", "https://example.invalid", timeoutAttachment, { updateId: 906 }),
+      /timed out/u,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.deepEqual(timeoutDb.removed, [timeoutAttachment.storagePath]);
+  assert.equal(timeoutDb.rows.telegram_conversations[0]?.pending_action ?? null, null);
+});
+
+test("line totals and volume by tariff contradictions block persistence", async () => {
+  for (const lineItems of [
+    [{ name: "Услуга A", unit: "ед.", volume: "", tariff: "", chargeAmount: "80.00", recalculationAmount: "", benefitAmount: "", totalAmount: "80.00" }],
+    [{ name: "Услуга B", unit: "м²", volume: "10", tariff: "3.00", calculationMode: "simple", chargeAmount: "40.00", recalculationAmount: "", benefitAmount: "", totalAmount: "100.00" }],
+  ]) {
+    const db = database();
+    const result = await run(db, 910, [billCall({ amount: "100.00", lineItems })]);
+    assert.equal(result.state, "unrecognized");
+    assert.equal(db.rows.utility_bills.length, 0);
+    assert.equal(db.rows.telegram_conversations[0].pending_action, null);
+  }
+});
+
+test("a readable Telegram photo and an original document both pass the quality gate", async () => {
+  for (const [updateId, current] of [
+    [920, { ...attachment(920), mimeType: "image/jpeg", filename: "clear-photo.jpg", quality: { sourceType: "photo", mediaKind: "image", byteSize: 600_000, width: 1600, height: 2400, pageCount: 1, sharpness: 18, brightness: 142, contrast: 52, brightPixelRatio: 0.08, darkPixelRatio: 0.04, analysisError: null } }],
+    [921, attachment(921)],
+    [922, { ...attachment(922), mimeType: "image/png", filename: "original.png", quality: { sourceType: "document", mediaKind: "image", byteSize: 900_000, width: 1800, height: 2600, pageCount: 1, sharpness: 20, brightness: 138, contrast: 48, brightPixelRatio: 0.05, darkPixelRatio: 0.03, analysisError: null } }],
+  ]) {
+    const db = database();
+    const result = await run(db, updateId, [billCall()], current);
+    assert.equal(result.state, "prepared");
+    assert.equal(db.rows.utility_bills.length, 1);
+  }
 });
 
 test("T08 keeps debt, payment, recalculation and penalty separate from printed due", async () => {

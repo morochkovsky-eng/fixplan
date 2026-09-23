@@ -14,7 +14,7 @@ const telegram = await import("../lib/server/telegram.ts");
 test("receipt money uses exact decimal-to-minor arithmetic", () => {
   assert.equal(money.moneyToMinor("14 995,84"), 1499584n);
   assert.equal(money.moneyToMinor("-256.17"), -25617n);
-  assert.equal(money.minorToDecimal(521856n), "5218.56");
+  assert.equal(money.minorToDecimal(123456n), "1234.56");
   assert.equal(money.calculatedProviderDue({ currentCharge: "14405.63", openingDebt: "75590.21", openingCredit: "0", paid: "75000.00" }), 1499584n);
 });
 
