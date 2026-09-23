@@ -334,6 +334,21 @@ test("configured receipt apartment must exist and belong to the Telegram owner",
   }
 });
 
+test("receipt processing fails closed when the apartment configuration is missing", async () => {
+  const previous = process.env.TELEGRAM_RECEIPT_APARTMENT_ID;
+  delete process.env.TELEGRAM_RECEIPT_APARTMENT_ID;
+  try {
+    const db = database();
+    const result = await run(db, 803, [billCall()]);
+    assert.equal(result.state, "unrecognized");
+    assert.equal(db.rows.utility_bills.length, 0);
+    assert.deepEqual(db.removed, [attachment(803).storagePath]);
+  } finally {
+    if (previous === undefined) delete process.env.TELEGRAM_RECEIPT_APARTMENT_ID;
+    else process.env.TELEGRAM_RECEIPT_APARTMENT_ID = previous;
+  }
+});
+
 test("a missing billing month keeps the document and accepts a later month without re-upload", async () => {
   const db = database();
   const result = await run(db, 802, [billCall({ period: "", periodMonth: "", amount: "50.00" })]);

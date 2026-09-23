@@ -35,5 +35,8 @@ test("receipt migration creates normalized child tables with owner membership RL
   assert.equal((migration.match(/public\.is_apartment_member\(apartment_id\)/g) ?? []).length, 6);
   assert.match(migration, /on delete cascade/g);
   assert.match(migration, /utility_bills_source_fingerprint_unique/);
+  assert.match(migration, /for all\s+to authenticated/);
+  assert.match(migration, /grant select, insert, update, delete on public\.utility_bill_line_items to authenticated/);
+  assert.doesNotMatch(migration, /security definer/i);
   assert.match(migration, /utility_bills_source_update_unique/);
 });

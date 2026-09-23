@@ -948,12 +948,18 @@ create index if not exists utility_bill_optional_charges_bill_idx on public.util
 alter table public.utility_bill_line_items enable row level security;
 alter table public.utility_bill_meter_entries enable row level security;
 alter table public.utility_bill_optional_charges enable row level security;
-create policy "members can manage utility bill line items" on public.utility_bill_line_items for all using(public.is_apartment_member(apartment_id)) with check(public.is_apartment_member(apartment_id));
-create policy "members can manage utility bill meter entries" on public.utility_bill_meter_entries for all using(public.is_apartment_member(apartment_id)) with check(public.is_apartment_member(apartment_id));
-create policy "members can manage utility bill optional charges" on public.utility_bill_optional_charges for all using(public.is_apartment_member(apartment_id)) with check(public.is_apartment_member(apartment_id));
+create policy "members can manage utility bill line items" on public.utility_bill_line_items for all to authenticated using(public.is_apartment_member(apartment_id)) with check(public.is_apartment_member(apartment_id));
+create policy "members can manage utility bill meter entries" on public.utility_bill_meter_entries for all to authenticated using(public.is_apartment_member(apartment_id)) with check(public.is_apartment_member(apartment_id));
+create policy "members can manage utility bill optional charges" on public.utility_bill_optional_charges for all to authenticated using(public.is_apartment_member(apartment_id)) with check(public.is_apartment_member(apartment_id));
 revoke all on public.utility_bill_line_items from anon;
 revoke all on public.utility_bill_meter_entries from anon;
 revoke all on public.utility_bill_optional_charges from anon;
+grant select,insert,update,delete on public.utility_bill_line_items to authenticated;
+grant select,insert,update,delete on public.utility_bill_meter_entries to authenticated;
+grant select,insert,update,delete on public.utility_bill_optional_charges to authenticated;
+grant all on public.utility_bill_line_items to service_role;
+grant all on public.utility_bill_meter_entries to service_role;
+grant all on public.utility_bill_optional_charges to service_role;
 
 create or replace function public.claim_next_telegram_update()
 returns setof public.telegram_updates
