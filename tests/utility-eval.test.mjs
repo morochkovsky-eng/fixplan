@@ -64,17 +64,27 @@ test("utility evaluation returns the intercepted draft without persistence", asy
             arguments: JSON.stringify({
               service: "Электричество",
               documentKind: "electricity",
+              providerName: "Поставщик",
+              documentAddress: "",
+              accountNumber: "",
+              periodMonth: "2026-08",
               period: "Август 2026",
-              amount: 1419.05,
-              periodChargeAmount: 1419.05,
-              providerBalanceAmount: 1419.05,
-              creditAmount: 0,
+              documentDate: "2026-09-01",
               dueDate: "",
+              periodChargeAmount: "1419.05",
+              openingDebtAmount: "",
+              openingCreditAmount: "",
+              paidAmount: "",
+              recalculationAmount: "",
+              benefitAmount: "",
+              penaltyAmount: "",
+              mandatoryDueAmount: "1419.05",
+              printedDueAmount: "1419.05",
               allocation: "tenant",
-              tenantAmount: 1419.05,
-              optionalChargeLabel: "Страхование",
-              optionalChargeAmount: 385,
-              optionalChargeIncluded: false,
+              lineItems: [],
+              meters: [],
+              optionalCharges: [{ label: "Страхование", kind: "insurance", amount: "385.00", includedInMandatory: false }],
+              warnings: [],
               note: "",
             }),
           }],
@@ -83,13 +93,13 @@ test("utility evaluation returns the intercepted draft without persistence", asy
     );
     assert.equal(result.responseId, "resp_test");
     assert.equal(result.model, "test-model");
-    assert.equal(result.draft.periodChargeAmount, 1419.05);
-    assert.equal(result.draft.optionalChargeIncluded, false);
+    assert.equal(result.draft.periodChargeAmount, "1419.05");
+    assert.equal(result.draft.optionalCharges[0].includedInMandatory, false);
     assert.equal(result.question, null);
     assert.equal(requestBody.tools.length, 1);
     assert.equal(requestBody.tools[0].name, "prepare_utility_bill");
     assert.equal(requestBody.tool_choice, "auto");
-    assert.equal(requestBody.max_output_tokens, 280);
+    assert.equal(requestBody.max_output_tokens, 2200);
     assert.match(requestBody.instructions, /ничего не сохраняй/i);
     assert.match(requestBody.instructions, /исключать/);
   } finally {

@@ -15,32 +15,42 @@ export const utilityEvalMaxFileBytes = 20 * 1024 * 1024;
 export const utilityBillTool = {
   type: "function",
   name: "prepare_utility_bill",
-  description: "Сразу создать или дополнить коммунальный черновик, когда известна положительная сумма. Черновик сохраняется без подтверждения; кнопка подтверждения создаёт окончательный счёт. Если суммы нет, задай один вопрос и не вызывай инструмент.",
+  description: "Подготовить отдельный проверяемый черновик по текущему платёжному документу. Денежные значения передаются десятичными строками с точностью до копейки. Не объединять разные вложения в одну запись.",
   parameters: {
     type: "object",
     properties: {
-      service: { type: "string", description: "Название услуги или поставщика" },
-      documentKind: { type: "string", enum: ["housing", "electricity", "water", "other"], description: "Тип квитанции: ЖКХ, электричество, вода или другое" },
-      period: { type: "string", description: "Расчётный период в понятном пользователю виде" },
-      amount: { type: "number", description: "Предварительная сумма жильца. Сервер не доверяет этому полю и пересчитывает его из periodChargeAmount и включённой добровольной услуги" },
-      periodChargeAmount: { type: "number", description: "Только подтверждённая стоимость ресурсов и обязательных услуг, начисленных внутри указанного расчётного периода: значение строки «Начислено» или её смыслового аналога. Исключить входящий долг, прошлое сальдо, оплаты, пени, переплату и добровольные услуги. Если текущую часть нельзя надёжно выделить, передать 0" },
-      providerBalanceAmount: { type: "number", description: "Общий итог расчётов владельца с поставщиком: «к оплате», closing balance, amount due, задолженность или сальдо; 0 если отсутствует. Никогда не является суммой жильца автоматически" },
-      creditAmount: { type: "number", description: "Накопленная переплата или кредит лицевого счёта из сверки с поставщиком; 0 если отсутствует. Не вычитать из начисления жильцу" },
-      dueDate: { type: "string", description: "Срок оплаты в понятном пользователю виде, пустая строка если не указан" },
+      service: { type: "string", description: "Краткое название документа или основной услуги" },
+      documentKind: { type: "string", enum: ["housing", "electricity", "water", "capital_repair", "other"], description: "Тип платёжного документа" },
+      providerName: { type: "string", description: "Поставщик; пустая строка, если не подтверждён" },
+      documentAddress: { type: "string", description: "Адрес с текущего документа только как справочное поле; пустая строка, если не подтверждён" },
+      accountNumber: { type: "string", description: "Лицевой счёт без догадок; пустая строка, если не подтверждён" },
+      periodMonth: { type: "string", description: "Расчётный месяц строго YYYY-MM; пустая строка, если отсутствует или неоднозначен" },
+      period: { type: "string", description: "Печатное обозначение расчётного периода; пустая строка, если не подтверждено" },
+      documentDate: { type: "string", description: "Дата документа YYYY-MM-DD; пустая строка, если не указана" },
+      dueDate: { type: "string", description: "Срок оплаты YYYY-MM-DD; пустая строка, если не указан" },
+      periodChargeAmount: { type: "string", description: "Начислено за период как десятичная строка; пустая строка, если не подтверждено" },
+      openingDebtAmount: { type: "string", description: "Входящий долг как неотрицательная десятичная строка; пустая строка, если отсутствует" },
+      openingCreditAmount: { type: "string", description: "Входящий аванс/переплата как неотрицательная десятичная строка; пустая строка, если отсутствует" },
+      paidAmount: { type: "string", description: "Оплачено как неотрицательная десятичная строка; пустая строка, если отсутствует" },
+      recalculationAmount: { type: "string", description: "Перерасчёт со знаком как десятичная строка; пустая строка, если отсутствует" },
+      benefitAmount: { type: "string", description: "Льготы/субсидии как неотрицательная десятичная строка; пустая строка, если отсутствует" },
+      penaltyAmount: { type: "string", description: "Пени как неотрицательная десятичная строка; пустая строка, если отсутствует" },
+      mandatoryDueAmount: { type: "string", description: "Напечатанная обязательная сумма к оплате без добровольных услуг; пустая строка, если не подтверждена" },
+      printedDueAmount: { type: "string", description: "Итог «к оплате» поставщику как напечатан; пустая строка, если отсутствует" },
       allocation: { type: "string", enum: ["owner", "tenant", "split"], description: "На кого относится расход. По умолчанию owner, если пользователь не уточнил другое" },
-      tenantAmount: { type: "number", description: "Итоговый долг жильца; при allocation tenant равен amount и включает добровольную строку, если optionalChargeIncluded=true" },
-      optionalChargeLabel: { type: "string", description: "Название добровольной дополнительной услуги, например страхования; пустая строка если её нет" },
-      optionalChargeAmount: { type: "number", description: "Сумма добровольной дополнительной услуги; 0 если её нет" },
-      optionalChargeIncluded: { type: "boolean", description: "Добровольная услуга включена в сумму по умолчанию; false если её нет или пользователь ранее отказался" },
+      lineItems: { type: "array", description: "Все подтверждённые строки услуг", items: { type: "object", properties: { name: { type: "string" }, unit: { type: "string" }, volume: { type: "string" }, tariff: { type: "string" }, chargeAmount: { type: "string" }, recalculationAmount: { type: "string" }, benefitAmount: { type: "string" }, totalAmount: { type: "string" } }, required: ["name", "unit", "volume", "tariff", "chargeAmount", "recalculationAmount", "benefitAmount", "totalAmount"], additionalProperties: false } },
+      meters: { type: "array", description: "Счётчики и показания. Пустое текущее показание оставить пустым", items: { type: "object", properties: { resource: { type: "string" }, meterNumber: { type: "string" }, previousValue: { type: "string" }, currentValue: { type: "string" }, consumption: { type: "string" }, unit: { type: "string" }, tariff: { type: "string" } }, required: ["resource", "meterNumber", "previousValue", "currentValue", "consumption", "unit", "tariff"], additionalProperties: false } },
+      optionalCharges: { type: "array", description: "Добровольные услуги отдельно от обязательного итога", items: { type: "object", properties: { label: { type: "string" }, kind: { type: "string" }, amount: { type: "string" }, includedInMandatory: { type: "boolean" } }, required: ["label", "kind", "amount", "includedInMandatory"], additionalProperties: false } },
+      warnings: { type: "array", items: { type: "string" }, description: "Краткие предупреждения о неуверенно прочитанных или противоречивых данных" },
       note: { type: "string", description: "Короткие важные детали квитанции, пустая строка если их нет" },
     },
-    required: ["service", "documentKind", "period", "amount", "periodChargeAmount", "providerBalanceAmount", "creditAmount", "dueDate", "allocation", "tenantAmount", "optionalChargeLabel", "optionalChargeAmount", "optionalChargeIncluded", "note"],
+    required: ["service", "documentKind", "providerName", "documentAddress", "accountNumber", "periodMonth", "period", "documentDate", "dueDate", "periodChargeAmount", "openingDebtAmount", "openingCreditAmount", "paidAmount", "recalculationAmount", "benefitAmount", "penaltyAmount", "mandatoryDueAmount", "printedDueAmount", "allocation", "lineItems", "meters", "optionalCharges", "warnings", "note"],
     additionalProperties: false,
   },
   strict: true,
 } as const;
 
-export const utilityDocumentClassificationRules = `ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ ДЛЯ ЛЮБОЙ СТРАНЫ, ЯЗЫКА И ПОСТАВЩИКА: жильцу выставляется только стоимость ресурсов и обязательных услуг, начисленных за указанный расчётный период. Название поля может быть «Начислено», charges for period, current charges, new charges, billed this period или иным — определяй его по смыслу и арифметике документа, а не только по слову. Всегда отдельно классифицируй: 1) начисление текущего периода; 2) входящий/предыдущий баланс и старый долг; 3) оплаты; 4) перерасчёты текущего периода; 5) пени; 6) переплату/кредит счёта; 7) добровольные услуги; 8) конечный баланс/итого к оплате поставщику. Проверяй арифметику сверки, но никогда не переноси входящий баланс, старый долг, пени, накопленную переплату, платежи или конечное «к оплате» на жильца. Если в документе одновременно есть текущее начисление и более крупный итог к оплате, всегда используй текущее начисление. Если документ содержит только итог, его можно признать начислением текущего периода лишь когда из документа ясно, что предыдущий баланс равен нулю и итог образован только услугами этого периода. Иначе periodChargeAmount=0 и задай один короткий вопрос. Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений. Сумму жильца сервер сам рассчитает из periodChargeAmount; amount и tenantAmount не пытайся подменять общим итогом. Накопленную переплату не вычитай из начисления жильцу. Добровольную страховку и другие необязательные строки отделяй от periodChargeAmount, включай по умолчанию согласно настройке, заполняй optionalChargeLabel/optionalChargeAmount/optionalChargeIncluded и не останавливай черновик вопросом.`;
+export const utilityDocumentClassificationRules = `Извлекай только напечатанные данные текущего документа и не переноси сведения из истории. Все денежные поля передавай строкой с точностью до копейки. Раздельно извлекай начисление текущего периода, входящий долг, входящий аванс, оплаты, перерасчёт со знаком, льготы, пени, добровольные услуги, напечатанное «к оплате» и обязательный итог. Начисление и «к оплате» — разные величины. Добровольные услуги не включай в mandatoryDueAmount без явного указания документа. Сохраняй каждую строку услуг и каждый счётчик; пустые показания не додумывай. Расчётный месяц передавай строго YYYY-MM, а при отсутствии или противоречии оставляй пустым. Не выдумывай адрес, лицевой счёт, даты, тарифы, объёмы или показания.`;
 
 type ResponseItem = {
   type: string;
@@ -129,7 +139,7 @@ export async function runUtilityBillEvaluation(
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       model,
-      instructions: `Ты выполняешь изолированную проверку распознавания коммунальной квитанции в Homory. Ничего не сохраняй и не утверждай, что создал запись. Валюта объекта: ${input.currency || "RUB"}. Настройка добровольного страхования: ${input.insuranceIncluded === false ? "исключать" : "включать по умолчанию"}.\n\n${utilityDocumentClassificationRules}\n\nИзвлеки только поля инструмента prepare_utility_bill. Не включай в service, note или ответ имя плательщика, адрес, лицевой счёт, банковские реквизиты, QR-код или другие персональные данные. При любой достоверной положительной сумме вызови prepare_utility_bill. Если начисление текущего периода нельзя надёжно выделить, не вызывай инструмент и задай один короткий блокирующий вопрос. Не додумывай неразборчивые значения.`,
+      instructions: `Ты выполняешь изолированную проверку распознавания коммунальной квитанции в Homory. Ничего не сохраняй и не утверждай, что создал запись. Валюта объекта: ${input.currency || "RUB"}. Настройка добровольного страхования: ${input.insuranceIncluded === false ? "исключать" : "включать по умолчанию"}.\n\n${utilityDocumentClassificationRules}\n\nИзвлеки только поля инструмента prepare_utility_bill. Адрес и лицевой счёт допустимы только в предназначенных для них структурированных полях; имя плательщика, банковские реквизиты и QR-код не извлекай. При любой достоверной положительной обязательной сумме вызови prepare_utility_bill, даже если месяц неясен. Не додумывай неразборчивые значения.`,
       input: [{
         role: "user",
         content: [
@@ -141,7 +151,7 @@ export async function runUtilityBillEvaluation(
       tool_choice: "auto",
       parallel_tool_calls: false,
       safety_identifier: createHash("sha256").update("homory-utility-eval").digest("hex"),
-      max_output_tokens: 280,
+      max_output_tokens: 2200,
     }),
   });
   if (!response.ok) throw new Error(`OpenAI Responses API failed with ${response.status}`);

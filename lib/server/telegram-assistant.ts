@@ -12,10 +12,13 @@ import { prepareTenantStatement, handleStatementDecision } from "@/lib/server/te
 import { statementDecision } from "@/lib/server/tenant-statement";
 import { normalizeUtilityPeriod } from "@/lib/utility-period";
 import { utilityBillTool } from "@/lib/server/utility-eval";
+import { calculatedProviderDue, moneyToMinor, minorToDecimal } from "@/lib/server/receipt-money";
+import { receiptRoutingMode, resolveConfiguredReceiptApartment } from "@/lib/server/telegram-receipt-routing";
 import {
   documentReply,
   isExplicitDraftRequest,
   matchReceiptApartment,
+  parseBillingMonth,
   receiptGrouping,
   receiptMonth,
   type DocumentReply,
@@ -241,14 +244,6 @@ const tools = [
   },
   {
     ...utilityBillTool,
-    parameters: {
-      ...utilityBillTool.parameters,
-      properties: {
-        ...utilityBillTool.parameters.properties,
-        documentAddress: { type: "string", description: "Полный адрес объекта, напечатанный именно в текущем документе; пустая строка, если его нет или он неразборчив. Не копируй адрес выбранного объекта из контекста." },
-      },
-      required: [...utilityBillTool.parameters.required, "documentAddress"],
-    },
   },
 ];
 
@@ -268,16 +263,16 @@ async function createResponse(input: unknown, previousResponseId: string | null,
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
       instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${isolatedAttachment ? "не предоставлен для распознавания вложения" : account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Настройка добровольного страхования: ${account.apartment_utility_insurance_included === false ? "исключать" : "включать по умолчанию"}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning.
 
-ЖЕЛЕЗНОЕ ПРАВИЛО КОММУНАЛЬНЫХ ДОКУМЕНТОВ ДЛЯ ЛЮБОЙ СТРАНЫ, ЯЗЫКА И ПОСТАВЩИКА: жильцу выставляется только стоимость ресурсов и обязательных услуг, начисленных за указанный расчётный период. Название поля может быть «Начислено», charges for period, current charges, new charges, billed this period или иным — определяй его по смыслу и арифметике документа, а не только по слову. Всегда отдельно классифицируй: 1) начисление текущего периода; 2) входящий/предыдущий баланс и старый долг; 3) оплаты; 4) перерасчёты текущего периода; 5) пени; 6) переплату/кредит счёта; 7) добровольные услуги; 8) конечный баланс/итого к оплате поставщику. Проверяй арифметику сверки, но никогда не переноси входящий баланс, старый долг, пени, накопленную переплату, платежи или конечное «к оплате» на жильца. Если в документе одновременно есть текущее начисление и более крупный итог к оплате, всегда используй текущее начисление. Если документ содержит только итог, его можно признать начислением текущего периода лишь когда из документа ясно, что предыдущий баланс равен нулю и итог образован только услугами этого периода. Иначе periodChargeAmount=0 и задай один короткий вопрос. Для отдельной готовой квитанции за электричество, воду или другой ресурс действует то же правило, без исключений. Сумму жильца сервер сам рассчитает из periodChargeAmount; amount и tenantAmount не пытайся подменять общим итогом. Накопленную переплату не вычитай из начисления жильцу. Добровольную страховку и другие необязательные строки отделяй от periodChargeAmount, включай по умолчанию согласно настройке, заполняй optionalChargeLabel/optionalChargeAmount/optionalChargeIncluded и не останавливай черновик вопросом.
+Для каждого нового платёжного документа извлекай только данные текущего вложения: тип, поставщика, справочный адрес, лицевой счёт, расчётный месяц YYYY-MM, даты, начисление за период, входящий долг или аванс, оплаты, перерасчёт со знаком, льготы, пени, обязательное «к оплате», добровольные услуги, все строки услуг и все счётчики. Денежные значения передавай десятичными строками с копейками. Не смешивай «начислено» и «к оплате». Пустые и сомнительные значения не додумывай. Даже если месяц не читается, при подтверждённой положительной сумме вызывай prepare_utility_bill с пустым periodMonth: сервер сохранит текущий файл и отдельно запросит месяц без повторной загрузки. Добровольные услуги всегда перечисляй отдельно и не включай в обязательный итог без прямого указания документа.
 
-Для счёта или квитанции извлеки только услугу, расчётный период, начисление текущего периода и срок оплаты. При любой достоверной положительной сумме сразу вызывай prepare_utility_bill; если начисление текущего периода не удаётся надёжно выделить, задай один блокирующий вопрос и не создавай сумму из общего итога. Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Коммунальные данные могут приходить частями: отдельно квитанция ЖКХ, готовый счёт за электричество или только показания. Новая квитанция того же периода обязательно дополняет текущий черновик или уже созданный месячный счёт. Не рассчитывай стоимость по одним показаниям без предыдущего значения и действующего тарифа; прямо сообщи, что сумма пока не рассчитана. Если на коммунальной фотографии виден счётчик с показаниями, анализируй только сам счётчик и цифры на табло. Автоматы, УЗО, щиток, провода и подписи линий считай фоном: никогда не упоминай их и не предлагай ремонт или осмотр, если владелец прямо не сообщил о неисправности. Не описывай содержимое фотографии, адрес, поставщика, лицевой счёт, ЕРЦ/СПБ и прочие реквизиты. Для сообщения о проблеме или ремонте сначала найди точный узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди точные узлы через list_assets, собери мастера и отдельное поручение по каждому узлу, затем вызови prepare_work_order. Не додумывай неразборчивые значения. Как только обязательных данных достаточно, обязательно вызови соответствующий prepare-инструмент. Интерфейс сам сформирует краткое резюме коммунального черновика и кнопки: никогда не проси подтверждать текстом. Никогда не создавай окончательную запись без явного подтверждения. Для готового сообщения со счётом арендатору используй prepare_tenant_statement по выбранному месяцу, а не prepare_utility_bill. Это только предпросмотр: отправку в группу выполняет отдельная кнопка или явный ответ владельца после предпросмотра. Если месяц неизвестен, уточни. Мастера и клинеры работают по гостевым ссылкам. Форматируй ответ как обычный текст Telegram без Markdown, звёздочек и решёток. Денежные суммы обозначай только знаком валюты, для рублей только «₽», никогда RUB, rub., rubs или «руб.». Не показывай технические идентификаторы и английские статусы. Не повторяй просьбу или вывод.`,
+Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Если на коммунальной фотографии виден счётчик, анализируй только табло. Для сообщения о проблеме сначала найди узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди узлы и вызови prepare_work_order. Никогда не создавай окончательную запись без явного подтверждения. Интерфейс сам сформирует подробную проверяемую карточку и кнопки. Форматируй обычным текстом Telegram без Markdown. Не показывай технические идентификаторы и английские статусы.`,
       input,
       tools,
       tool_choice: "auto",
       parallel_tool_calls: false,
       previous_response_id: previousResponseId ?? undefined,
       safety_identifier: createHash("sha256").update(String(account.telegram_user_id)).digest("hex").slice(0, 64),
-      max_output_tokens: 280,
+      max_output_tokens: 2200,
     }),
   });
   if (!response.ok) throw new Error(`OpenAI Responses API failed with ${response.status}`);
@@ -522,31 +517,57 @@ async function executeTool(
 
   if (call.name === "prepare_utility_bill") {
     if (document && attachment) {
-      const available = await listTelegramApartments(admin, account);
-      if ("error" in available) return { ok: false, reason: "apartment_lookup_failed" };
-      const match = matchReceiptApartment(String(args.documentAddress ?? ""), available.apartments);
-      if (match.kind !== "matched") return { ok: false, reason: `address_${match.kind}` };
-      account.apartment_id = match.apartment.id;
-      account.apartment_name = match.apartment.name;
-      account.apartment_address = match.apartment.address;
-      account.apartment_currency = match.apartment.currency;
-      account.apartment_timezone = match.apartment.timezone;
-      account.apartment_utility_insurance_included = match.apartment.utility_insurance_included;
+      const routed = receiptRoutingMode() === "single_apartment"
+        ? await resolveConfiguredReceiptApartment(admin, account)
+        : await (async () => {
+            const available = await listTelegramApartments(admin, account);
+            if ("error" in available) return { error: "receipt_apartment_lookup_failed" } as const;
+            const match = matchReceiptApartment(String(args.documentAddress ?? ""), available.apartments);
+            return match.kind === "matched" ? { apartment: match.apartment, mode: "address" as const } : { error: `address_${match.kind}` } as const;
+          })();
+      if ("error" in routed) return { ok: false, reason: routed.error };
+      account.apartment_id = routed.apartment.id;
+      account.apartment_name = routed.apartment.name;
+      account.apartment_address = routed.apartment.address;
+      account.apartment_currency = routed.apartment.currency;
+      account.apartment_timezone = routed.apartment.timezone;
+      account.apartment_utility_insurance_included = routed.apartment.utility_insurance_included;
     }
     const documentKind = String(args.documentKind ?? "other");
-    const periodChargeAmount = Number(args.periodChargeAmount ?? 0);
-    const requestedOptionalAmount = Number(args.optionalChargeAmount ?? 0);
-    const requestedOptionalIncluded = Boolean(args.optionalChargeIncluded && requestedOptionalAmount > 0);
-    const excludesOptionalCharge = account.apartment_utility_insurance_included === false && requestedOptionalIncluded;
-    const includedOptionalAmount = requestedOptionalIncluded && !excludesOptionalCharge ? requestedOptionalAmount : 0;
-    const storedAmount = Math.max(0, periodChargeAmount + includedOptionalAmount);
-    const tenantReceipt = Boolean(attachment && ["housing", "electricity", "water"].includes(documentKind));
+    const mandatoryMinor = moneyToMinor(args.mandatoryDueAmount ?? args.periodChargeAmount);
+    if (mandatoryMinor === null || mandatoryMinor <= BigInt(0)) return { ok: false, reason: "mandatory_amount_missing" };
+    const storedAmount = minorToDecimal(mandatoryMinor);
+    const periodMonth = /^\d{4}-(0[1-9]|1[0-2])$/u.test(String(args.periodMonth ?? "")) ? String(args.periodMonth) : "";
+    const period = normalizeUtilityPeriod(args.period) || periodMonth || "Период требует уточнения";
+    const optionalCharges = Array.isArray(args.optionalCharges)
+      ? args.optionalCharges.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
+      : [];
+    const firstOptional = optionalCharges[0];
+    const calculatedDue = calculatedProviderDue({
+      currentCharge: args.periodChargeAmount,
+      openingDebt: args.openingDebtAmount,
+      openingCredit: args.openingCreditAmount,
+      paid: args.paidAmount,
+    });
+    const printedDue = moneyToMinor(args.printedDueAmount ?? args.mandatoryDueAmount);
+    const warnings = Array.isArray(args.warnings) ? args.warnings.map(String).filter(Boolean) : [];
+    if (calculatedDue !== null && printedDue !== null && calculatedDue !== printedDue) {
+      warnings.push(`Печатный итог отличается от арифметической сверки на ${minorToDecimal(printedDue - calculatedDue)}.`);
+    }
+    const tenantReceipt = Boolean(attachment && ["housing", "electricity", "water", "capital_repair", "other"].includes(documentKind));
     const item: Record<string, unknown> = {
       ...args,
+      period,
+      periodMonth,
       amount: storedAmount,
+      mandatoryDueAmount: storedAmount,
       allocation: tenantReceipt ? "tenant" : args.allocation,
-      tenantAmount: tenantReceipt ? storedAmount : Math.min(storedAmount, Math.max(0, Number(args.tenantAmount ?? 0))),
-      optionalChargeIncluded: requestedOptionalIncluded && !excludesOptionalCharge,
+      tenantAmount: tenantReceipt ? storedAmount : "0.00",
+      optionalChargeLabel: String(firstOptional?.label ?? ""),
+      optionalChargeAmount: String(firstOptional?.amount ?? "0.00"),
+      optionalChargeIncluded: false,
+      currency: account.apartment_currency,
+      warnings,
       status: "draft",
       source: "telegram_private",
       receiptStoragePath: attachment?.storagePath ?? existingReceiptStoragePath,
@@ -566,23 +587,27 @@ async function executeTool(
         instruction: "Черновик неполный. Кнопки подтверждения не показывать; попросить только недостающие данные.",
       };
     }
-    const period = normalizeUtilityPeriod(item.period);
     const previousPayload = existingPendingAction?.type === "create_utility_bill" && existingPendingAction.apartmentId === account.apartment_id && existingPendingAction.payload && typeof existingPendingAction.payload === "object"
       ? existingPendingAction.payload as Record<string, unknown>
       : null;
-    const previousItems = previousPayload && receiptMonth(previousPayload.period) === receiptMonth(period)
+    const previousItems = previousPayload && periodMonth && String(previousPayload.periodMonth ?? "") === periodMonth
       ? (Array.isArray(previousPayload.items) ? previousPayload.items : [previousPayload]).filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"))
       : [];
     const { data: existingBills, error: existingBillsError } = await admin
       .from("utility_bills")
-      .select("id,service,period,amount,tenant_amount,due_date_label,status,receipt_storage_path,optional_charge_amount,optional_charge_included")
+      .select("id,service,period,billing_period_month,amount,mandatory_due_minor,tenant_amount,due_date_label,status,receipt_storage_path,source_fingerprint,optional_charge_amount,optional_charge_included")
       .eq("apartment_id", account.apartment_id)
-      .ilike("period", `${receiptMonth(period)}%`);
+      .order("created_at", { ascending: false })
+      .limit(200);
     if (existingBillsError) return { ok: false, error: existingBillsError.message };
     if (document) {
+      const sameMonthBills = (existingBills ?? []).filter((bill) => {
+        if (!periodMonth) return String(bill.source_fingerprint ?? "") === document.fingerprint;
+        return String(bill.billing_period_month ?? "").slice(0, 7) === periodMonth || receiptMonth(bill.period) === receiptMonth(period);
+      });
       const grouped = receiptGrouping(
         previousItems.map((entry) => ({ ...entry, apartmentId: account.apartment_id })),
-        (existingBills ?? []).map((bill) => ({ ...bill, apartmentId: account.apartment_id })),
+        sameMonthBills.map((bill) => ({ ...bill, apartmentId: account.apartment_id })),
         { apartmentId: account.apartment_id, period, service: String(item.service), fingerprint: document.fingerprint },
       );
       if (grouped.decision !== "new") return { ok: false, reason: grouped.decision };
@@ -608,18 +633,23 @@ async function executeTool(
       ...savedItem,
       period,
       items,
-      existingItems: (existingBills ?? []).filter((bill) => !pendingBillIds.has(String(bill.id))),
+      existingItems: periodMonth ? (existingBills ?? []).filter((bill) =>
+        !pendingBillIds.has(String(bill.id)) &&
+        (String(bill.billing_period_month ?? "").slice(0, 7) === periodMonth || receiptMonth(bill.period) === receiptMonth(period)),
+      ) : [],
       draftCreatedAt: previousPayload?.draftCreatedAt ?? new Date().toISOString(),
     };
     await saveConversation(admin, account, {
       active_apartment_id: account.apartment_id,
-      pending_action: { type: "create_utility_bill", apartmentId: account.apartment_id, payload },
+      pending_action: { type: periodMonth ? "create_utility_bill" : "collect_utility_bill", apartmentId: account.apartment_id, payload },
     });
     return {
       ok: true,
       draft: { ...payload, latestItem: savedItem },
       attachmentClaimed: Boolean(attachment),
-      instruction: "Черновик уже сохранён. Покажи кратко услугу, период, сумму жильца и срок оплаты. Не проси подтверждать словами: интерфейс добавит кнопки создания счёта и удаления черновика.",
+      instruction: periodMonth
+        ? "Черновик сохранён. Интерфейс покажет полную проверяемую расшифровку и кнопки."
+        : "Черновик и файл сохранены. Сообщи распознанные данные и попроси указать только расчётный месяц и год без повторной загрузки.",
     };
   }
 
@@ -719,6 +749,37 @@ export async function runTelegramAssistant(
     await saveConversation(admin,account,{pending_action:null,previous_response_id:null});
     conversation.pending_action=null;
     conversation.previous_response_id=null;
+  }
+
+  if (!attachment && conversation.pending_action?.type === "collect_utility_bill") {
+    const month = parseBillingMonth(message);
+    if (month) {
+      const pendingPayload = conversation.pending_action.payload;
+      if (!pendingPayload || typeof pendingPayload !== "object") return "Черновик повреждён. Отправьте документ ещё раз.";
+      const payload = pendingPayload as Record<string, unknown>;
+      const items = (Array.isArray(payload.items) ? payload.items : [payload])
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === "object"));
+      for (const item of items) {
+        const draftBillId = String(item.draftBillId ?? "").trim();
+        if (!draftBillId) continue;
+        const { error: monthError } = await admin.from("utility_bills").update({
+          period: month.period,
+          billing_period_month: `${month.periodMonth}-01`,
+          updated_at: new Date().toISOString(),
+        }).eq("apartment_id", String(conversation.pending_action.apartmentId ?? "")).eq("id", draftBillId);
+        if (monthError) throw new Error(monthError.message);
+        item.period = month.period;
+        item.periodMonth = month.periodMonth;
+      }
+      const latest = items.at(-1) ?? payload;
+      const nextPending = {
+        ...conversation.pending_action,
+        type: "create_utility_bill",
+        payload: { ...payload, ...latest, period: month.period, periodMonth: month.periodMonth, items },
+      };
+      await saveConversation(admin, account, { pending_action: nextPending, previous_response_id: null });
+      return `Расчётный период сохранён: ${month.period}. Проверьте черновик ниже.`;
+    }
   }
 
   if (!attachment && conversation.pending_action?.type === "create_utility_bill" && /страховк/u.test(normalized)) {
@@ -1104,7 +1165,7 @@ export async function runTelegramAssistant(
   }
 
   if (!attachment && conversation.pending_action && cancellationWords.has(normalized)) {
-    if (conversation.pending_action.type === "create_utility_bill") {
+    if (conversation.pending_action.type === "create_utility_bill" || conversation.pending_action.type === "collect_utility_bill") {
       const payload = conversation.pending_action.payload;
       const items = payload && typeof payload === "object" && Array.isArray((payload as Record<string, unknown>).items)
         ? (payload as Record<string, unknown>).items as Array<Record<string, unknown>>
@@ -1114,7 +1175,7 @@ export async function runTelegramAssistant(
         const { error: deleteDraftError } = await admin
           .from("utility_bills")
           .delete()
-          .eq("apartment_id", account.apartment_id)
+          .eq("apartment_id", String(conversation.pending_action.apartmentId ?? account.apartment_id))
           .in("id", draftBillIds);
         if (deleteDraftError) throw new Error(deleteDraftError.message);
       }
@@ -1124,7 +1185,7 @@ export async function runTelegramAssistant(
     return "Черновик отменён.";
   }
 
-  const keepsUtilityDraft = attachment && conversation.pending_action?.type === "create_utility_bill";
+  const keepsUtilityDraft = attachment && (conversation.pending_action?.type === "create_utility_bill" || conversation.pending_action?.type === "collect_utility_bill");
   if (attachment && conversation.pending_action && !keepsUtilityDraft) {
     await removePendingAttachment(admin, conversation.pending_action);
     await saveConversation(admin, account, { previous_response_id: null, pending_action: null });

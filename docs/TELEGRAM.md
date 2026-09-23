@@ -69,7 +69,13 @@ Tenant group delivery is prepared privately for the owner and sent only after ex
 - Photos and documents are downloaded server-side and stored in the private `asset-media` bucket when needed.
 - AI prepares drafts; server code performs authoritative calculations and persistence where implemented.
 - Each new Telegram attachment is processed without an earlier response or pending utility draft in the model input. A receipt reply and its buttons are scoped to the current update and file. If extraction does not prepare a bill, the earlier confirmation is closed without deleting an already saved draft record.
-- A receipt binds automatically only when its extracted address uniquely matches an accessible apartment. Its file is stored under that apartment's `asset-media` path before the bill is saved. Separate receipts for one apartment and month remain separate bill records; the draft reply shows their combined mandatory charges. An exact file duplicate is rejected; a possible corrected receipt requires manual review and a fresh upload because automatic replacement is not yet supported.
+- Receipt attachments currently use an explicit temporary `single_apartment` routing mode. The target is a stable apartment UUID (`TELEGRAM_RECEIPT_APARTMENT_ID`, with the canonical seeded apartment as the code default), and every request validates that the configured apartment exists and belongs to the connected owner. The printed address is stored as reference data only and does not route the file. `TELEGRAM_RECEIPT_ROUTING_MODE=address` preserves the future address-routing path, but it is not the default.
+- The single-apartment rule applies only to receipt attachments. Text, voice, tasks, assets, cleanings, readings, and other assistant actions keep their normal active-apartment behavior.
+- Each attachment creates its own draft `utility_bills` row, scoped by Telegram update ID, private Storage path, and SHA-256 fingerprint. Exact duplicates are rejected. Separate documents in the same month are never merged into one row; the reply computes an in-memory monthly summary of their mandatory totals.
+- Receipt extraction stores provider/document metadata, separate financial fields in integer minor units, normalized service lines, meter entries, and voluntary charges. Arithmetic is performed in code; a mismatch with the printed provider total is retained as a warning rather than silently adjusted or rejected.
+- A missing or ambiguous billing month does not discard the file. The draft remains in `collect_utility_bill`; the owner can provide an exact month and year in a later message without uploading the document again. Confirmation buttons appear only after the period is resolved.
+- Telegram renders a full audit-style breakdown and splits long responses into bounded messages; the keyboard is attached only to the final chunk. Voluntary services are shown separately and excluded from the mandatory monthly total unless the document explicitly includes them.
+- A possible corrected receipt still requires manual review and a fresh upload because automatic replacement is not yet supported.
 - The Preview-only `/api/internal/utility-eval` route reuses the same `prepare_utility_bill` tool schema for blind receipt baselines, but intercepts the tool call and never reads or writes Supabase, Storage, Telegram state, or the production webhook.
 
 ## Environment variable names
@@ -85,6 +91,8 @@ Values must never be documented or requested in chat.
 - `OPENAI_MODEL`
 - `OPENAI_TRANSCRIBE_MODEL`
 - `UTILITY_EVAL_TOKEN` (Preview/local only; protects the no-write receipt evaluation route)
+- `TELEGRAM_RECEIPT_APARTMENT_ID` (optional temporary single-object target; must be an apartment accessible to the owner)
+- `TELEGRAM_RECEIPT_ROUTING_MODE` (optional; defaults to `single_apartment`, reserved `address` mode restores address routing)
 - Supabase server/public variables listed in [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
 ## Smoke test and canary

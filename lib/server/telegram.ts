@@ -185,6 +185,39 @@ export async function sendTelegramMessage(
   });
 }
 
+export function splitTelegramText(text: string, limit = 3800) {
+  const cleaned = cleanTelegramText(text);
+  if (cleaned.length <= limit) return [cleaned];
+  const chunks: string[] = [];
+  let rest = cleaned;
+  while (rest.length > limit) {
+    const candidate = rest.slice(0, limit);
+    const splitAt = Math.max(candidate.lastIndexOf("\n\n"), candidate.lastIndexOf("\n"), candidate.lastIndexOf(" "));
+    const boundary = splitAt > limit / 2 ? splitAt : limit;
+    chunks.push(rest.slice(0, boundary).trim());
+    rest = rest.slice(boundary).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+
+export async function sendTelegramMessageChunks(
+  chatId: number | string,
+  text: string,
+  options: { inlineKeyboard?: TelegramInlineButton[][]; disableNotification?: boolean } = {},
+) {
+  const chunks = splitTelegramText(text);
+  let sent: { message_id: number } | undefined;
+  for (const [index, chunk] of chunks.entries()) {
+    sent = await sendTelegramMessage(chatId, chunk, {
+      disableNotification: options.disableNotification,
+      inlineKeyboard: index === chunks.length - 1 ? options.inlineKeyboard : undefined,
+    });
+  }
+  if (!sent) throw new Error("Telegram reply is empty");
+  return sent;
+}
+
 export async function answerTelegramCallbackQuery(callbackQueryId: string, text?: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN is not configured");
