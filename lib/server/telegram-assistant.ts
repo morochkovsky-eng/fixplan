@@ -11,8 +11,13 @@ import { createUtilityBillRecord, normalizeBillPayload } from "@/lib/server/util
 import { prepareTenantStatement, handleStatementDecision } from "@/lib/server/telegram-statements";
 import { statementDecision } from "@/lib/server/tenant-statement";
 import { normalizeUtilityPeriod } from "@/lib/utility-period";
-import { utilityBillTool } from "@/lib/server/utility-eval";
+import { utilityBillTool, utilityDocumentClassificationRules } from "@/lib/server/utility-eval";
 import { calculatedProviderDue, moneyToMinor, minorToDecimal } from "@/lib/server/receipt-money";
+import {
+  validateReceiptArithmetic,
+  validateReceiptReadability,
+  type ReceiptAttachmentQuality,
+} from "@/lib/server/receipt-quality";
 import { receiptRoutingMode, resolveConfiguredReceiptApartment } from "@/lib/server/telegram-receipt-routing";
 import {
   documentReply,
@@ -61,6 +66,7 @@ export type TelegramAssistantAttachment = {
   mimeType: string;
   storagePath: string;
   fingerprint?: string;
+  quality?: ReceiptAttachmentQuality;
 };
 
 const confirmationWords = new Set(["да", "подтверждаю", "создавай", "создать", "да, создавай", "ок, создавай"]);
@@ -263,7 +269,7 @@ async function createResponse(input: unknown, previousResponseId: string | null,
       model: process.env.OPENAI_MODEL ?? "gpt-5.4-nano",
       instructions: `Ты личный ассистент владельца объектов в сервисе FixPlan. Отвечай сухо, по делу и по-русски: не больше шести коротких строк. Точная текущая локальная дата и время: ${today}; часовой пояс: ${account.apartment_timezone}. Текущий объект: «${account.apartment_name}», адрес: ${isolatedAttachment ? "не предоставлен для распознавания вложения" : account.apartment_address || "не указан"}, id: ${account.apartment_id}, валюта: ${account.apartment_currency}. Настройка добровольного страхования: ${account.apartment_utility_insurance_included === false ? "исключать" : "включать по умолчанию"}. Если владелец спрашивает о другом объекте или объект неясен, используй list_apartments и предложи короткий выбор; после однозначного выбора используй select_apartment. Данные о квартире получай только через инструменты: не отвечай по памяти диалога, если актуальное состояние можно проверить. Не утверждай, что действие выполнено, пока инструмент не вернул успех. Для новой уборки собери дату, зоны, клинера, чек-лист и требования к фото, затем вызови prepare_cleaning.
 
-Для каждого нового платёжного документа извлекай только данные текущего вложения: тип, поставщика, справочный адрес, лицевой счёт, расчётный месяц YYYY-MM, даты, начисление за период, входящий долг или аванс, оплаты, перерасчёт со знаком, льготы, пени, обязательное «к оплате», добровольные услуги, все строки услуг и все счётчики. Денежные значения передавай десятичными строками с копейками. Не смешивай «начислено» и «к оплате». Пустые и сомнительные значения не додумывай. Даже если месяц не читается, при подтверждённой положительной сумме вызывай prepare_utility_bill с пустым periodMonth: сервер сохранит текущий файл и отдельно запросит месяц без повторной загрузки. Добровольные услуги всегда перечисляй отдельно и не включай в обязательный итог без прямого указания документа.
+Для каждого нового платёжного документа анализируй только текущее вложение. ${utilityDocumentClassificationRules} Для квитанции всегда вызывай prepare_utility_bill: если изображение или критические поля не читаются, передай quality.readable=false и null в неподтверждённых полях, чтобы сервер безопасно отказал без черновика. Не обещай сохранение до успешного результата инструмента.
 
 Для показания сначала найди точный счётчик через get_utility_state, затем вызови prepare_utility_reading. Если на коммунальной фотографии виден счётчик, анализируй только табло. Для сообщения о проблеме сначала найди узел через list_assets, затем вызови prepare_asset_event. Для задания мастеру сначала найди узлы и вызови prepare_work_order. Никогда не создавай окончательную запись без явного подтверждения. Интерфейс сам сформирует подробную проверяемую карточку и кнопки. Форматируй обычным текстом Telegram без Markdown. Не показывай технические идентификаторы и английские статусы.`,
       input,
@@ -516,6 +522,12 @@ async function executeTool(
   }
 
   if (call.name === "prepare_utility_bill") {
+    if (document && attachment) {
+      const readability = validateReceiptReadability(args, attachment.quality);
+      if (!readability.ok) return { ok: false, reason: readability.reason };
+      const arithmetic = validateReceiptArithmetic(args);
+      if (!arithmetic.ok) return { ok: false, reason: arithmetic.reason };
+    }
     if (document && attachment) {
       const routed = receiptRoutingMode() === "single_apartment"
         ? await resolveConfiguredReceiptApartment(admin, account)
