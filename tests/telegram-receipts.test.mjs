@@ -543,3 +543,59 @@ test("T08 keeps debt, payment, recalculation and penalty separate from printed d
   assert.equal(row.billing_period_month, "2026-05-01");
   assert.equal(row.due_date, "2026-06-15");
 });
+
+function pipelineField(value, status = value === null ? "missing" : "confirmed", rawText = value === null ? null : String(value)) {
+  return { value, rawText, sourceRegionIds: value === null ? [] : ["region-1"], status, reason: status === "confirmed" ? null : "not_printed" };
+}
+
+function pipelineReceipt(overrides = {}) {
+  return {
+    isUtilityDocument: pipelineField(true), documentType: pipelineField("housing"), provider: pipelineField(null), referenceAddress: pipelineField(null), accountNumber: pipelineField(null), billingPeriod: pipelineField("2026-08"), issuedDate: pipelineField(null), dueDate: pipelineField(null),
+    accruedAmount: pipelineField(316303), openingDebt: pipelineField(0), openingAdvance: pipelineField(0), paymentsAppliedToCurrentPeriod: pipelineField(0), recalculationAmount: pipelineField(0), benefitAmount: pipelineField(0), penaltyAmount: pipelineField(0), printedMandatoryDue: pipelineField(316303), mandatoryDue: pipelineField(316303), lastPayment: { amount: pipelineField(null), date: pipelineField(null) }, lineItems: [], meterEntries: [], optionalCharges: [], warnings: [], ...overrides,
+  };
+}
+
+function pipelineExtractor(firstReceipt, fallbackReceipt = firstReceipt) {
+  const literal = { pages: [{ page: 1, rawText: "Квитанция", sections: [] }], regions: [{ id: "region-1", page: 1, kind: "total", rawText: "К оплате 3163,03" }], keyValues: [], tables: [], totals: [], meters: [] };
+  let normalization = 0;
+  return {
+    provider: "test", transcriptionModel: "vision-test", normalizationModel: "text-test",
+    async transcribe() { return { provider: "test", model: "vision-test", value: literal, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, latencyMs: 1, failureCode: null, responseId: "t1" }; },
+    async transcribeFallback(input) { assert.ok(input.unresolvedFields.length > 0); return { provider: "test", model: "vision-test", value: literal, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, latencyMs: 1, failureCode: null, responseId: "t2" }; },
+    async normalize() { return { provider: "test", model: "text-test", value: normalization++ === 0 ? firstReceipt : fallbackReceipt, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, latencyMs: 1, failureCode: null, responseId: "n" }; },
+  };
+}
+
+test("universal pipeline creates a partial draft with field evidence and no prior conversation context", async () => {
+  const db = database();
+  const current = attachment(980);
+  const result = await runTelegramAssistant(db, owner, "", "https://example.invalid", current, {
+    updateId: 980,
+    useUniversalReceiptPipeline: true,
+    receiptExtractor: pipelineExtractor(pipelineReceipt()),
+  });
+  assert.equal(result.state, "prepared");
+  assert.equal(db.rows.utility_bills.length, 1);
+  assert.equal(db.rows.utility_bills[0].mandatory_due_minor, "316303");
+  assert.equal(db.rows.utility_bills[0].provider_name, null);
+  assert.equal(db.rows.utility_bills[0].extraction_evidence.provider.status, "missing");
+  assert.ok(db.rows.utility_bills[0].review_fields.includes("provider"));
+  assert.equal(db.rows.telegram_conversations[0].pending_action.payload.sourceUpdateId, 980);
+  assert.equal(db.rows.telegram_conversations[0].pending_action.payload.sourceFingerprint, current.fingerprint);
+});
+
+test("universal pipeline never persists when mandatory due remains unresolved after one fallback", async () => {
+  const db = database();
+  const unresolved = pipelineReceipt({ mandatoryDue: pipelineField(null), printedMandatoryDue: pipelineField(null) });
+  const current = attachment(981);
+  const result = await runTelegramAssistant(db, owner, "", "https://example.invalid", current, {
+    updateId: 981,
+    useUniversalReceiptPipeline: true,
+    receiptExtractor: pipelineExtractor(unresolved),
+  });
+  assert.equal(result.state, "unrecognized");
+  assert.equal(db.rows.utility_bills.length, 0);
+  assert.equal(db.rows.telegram_conversations[0].pending_action, null);
+  assert.deepEqual(db.removed, [current.storagePath]);
+  assert.equal(db.rows.telegram_request_traces.filter((trace) => trace.event === "receipt.fallback_transcription").length, 1);
+});

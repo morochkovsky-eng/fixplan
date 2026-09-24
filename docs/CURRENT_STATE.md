@@ -71,7 +71,8 @@ See [`BRAND.md`](BRAND.md).
 - The experimental iOS prototype and its `iOS Concept` link remain physically present under `app/ui-lab/ios/`. Remove or archive them only after explicit confirmation that they are no longer needed.
 - Unused legacy sidebar selectors remain in `app/globals.css`. Remove them only after checking for hidden dependencies and visual regression.
 - The GitHub repository and Vercel project are still named `fixplan`; renaming is a separate infrastructure change.
-- Utility receipt extraction has a Preview-only, token-protected no-write evaluation route. The first baseline intentionally exposes only the current `prepare_utility_bill` schema; line items, meter detail, evidence, penalties, adjustments, and uncertainty fields remain future extraction work after benchmark results.
+- Universal receipt transcription and normalization are being prepared as an isolated PR from `84d7fb9`. The additive evidence migration must be reviewed and applied before that code can be deployed; Production still runs the previous extractor until a separate release is approved.
+- A failed receipt currently clears the conversation `pending_action` even when the preceding receipt draft row remains stored. This can make the older draft inaccessible from its buttons; repair and recovery of that state are a separate task.
 
 ## Agreed next stages
 

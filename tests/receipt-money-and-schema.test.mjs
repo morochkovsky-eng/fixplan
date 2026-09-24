@@ -40,3 +40,12 @@ test("receipt migration creates normalized child tables with owner membership RL
   assert.doesNotMatch(migration, /security definer/i);
   assert.match(migration, /utility_bills_source_update_unique/);
 });
+
+test("receipt evidence migration is additive and keeps historical payment separate", () => {
+  const migration = readFileSync("supabase/migrations/20260924103142_add_receipt_review_evidence.sql", "utf8");
+  assert.match(migration, /add column if not exists extraction_evidence jsonb not null default '\{\}'::jsonb/);
+  assert.match(migration, /add column if not exists review_fields jsonb not null default '\[\]'::jsonb/);
+  assert.match(migration, /add column if not exists last_payment_minor bigint/);
+  assert.match(migration, /add column if not exists last_payment_date date/);
+  assert.doesNotMatch(migration, /drop\s|delete\s|update\s+public\.utility_bills/iu);
+});

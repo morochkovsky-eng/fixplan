@@ -86,7 +86,7 @@ Apartment
 
 Telegram adds account, conversation, group pairing, statement delivery, update queue, and trace records linked back to the owner and apartment.
 
-Telegram receipt drafts retain their source update ID, Storage path, SHA-256 fingerprint, printed reference metadata, billing month, and financial values in integer minor units. Normalized child rows preserve service lines, document meter entries, and optional charges. Monthly summaries are calculated views over separate bill rows; they are not persisted as synthetic aggregate bills.
+Telegram receipt drafts retain their source update ID, Storage path, SHA-256 fingerprint, printed reference metadata, billing month, and financial values in integer minor units. Normalized child rows preserve service lines, document meter entries, and optional charges. Field-level evidence and review status are stored on the bill as JSON; historical `lastPayment` has dedicated fields and is not treated as a current-period payment. Monthly summaries are calculated views over separate bill rows; they are not persisted as synthetic aggregate bills.
 
 ## Supabase storage
 
@@ -118,7 +118,7 @@ Telegram routes:
 
 Preview-only evaluation route:
 
-- `/api/internal/utility-eval` accepts one authenticated image/PDF and returns the intercepted `prepare_utility_bill` arguments without calling Supabase or Storage. It returns `404` in Production and requires `UTILITY_EVAL_TOKEN` outside Production.
+- `/api/internal/utility-eval` accepts one authenticated image/PDF and runs the same transcription, normalization and validation pipeline without calling Supabase or Storage. It returns `404` in Production and requires `UTILITY_EVAL_TOKEN` outside Production.
 
 See [`TELEGRAM.md`](TELEGRAM.md) for queue semantics.
 
@@ -139,6 +139,14 @@ Telegram update
   -> OpenAI tools + Supabase product data
   -> confirmed Telegram delivery
   -> processing-status cleanup + trace
+
+Utility receipt attachment
+  -> technical file/image gate
+  -> literal visual transcription of the current file
+  -> semantic normalization from transcription only
+  -> deterministic arithmetic and evidence validation
+  -> at most one field-scoped fallback
+  -> partial draft or explicit rejection
 
 Guest link
   -> token-scoped guest API

@@ -64,10 +64,13 @@ Tenant group delivery is prepared privately for the owner and sent only after ex
 
 ## AI and media
 
-- The assistant uses the OpenAI Responses API with tool calls against current Supabase data.
+- The general assistant uses the OpenAI Responses API with tool calls against current Supabase data. Receipt recognition is a separate provider-neutral pipeline and receives only the current file.
 - Voice uses the configured transcription model before assistant processing.
 - Photos and documents are downloaded server-side with bounded file size and request timeouts. The original bytes remain unchanged in Storage. Image recognition uses an auto-oriented, moderately normalized copy plus metrics for both the full image and the detected document/text region. Resolution, compression, sharpness, contrast and exposure are warnings unless the input is demonstrably unusable (failed decode, critical dimensions, missing content or destroyed detail); a normal Telegram JPEG or a large blank form area is not a rejection reason by itself. PDFs bypass `sharp`, are structurally limited to 30 pages, and use the file-input vision path.
-- The model must provide evidence for critical receipt fields and the server independently checks receipt arithmetic. If the first extraction omits a critical field or contradicts the document arithmetic, Homory performs exactly one independent retry with the full normalized page and enlarged header, service-table and total regions. A draft is persisted only when that final result has readable critical evidence and coherent arithmetic. Safe traces record attempt number, numeric image metrics and reason codes, never receipt text or personal data.
+- Receipt recognition has four explicit stages: literal visual transcription, semantic normalization from that transcription, deterministic validation, and partial-draft persistence. Transcription preserves pages, text regions, label/value pairs, original table cells and row roles without deciding balances or totals. Normalized fields retain the printed evidence, source region IDs, and `confirmed`, `needs_review`, or `missing` status; money is represented in integer minor units.
+- Only document type, billing period, and mandatory amount block a partial draft. Provider, reference address, account, dates, individual service lines, meters, and historical payment may remain missing or require review. The owner-facing card lists the fields that need attention instead of claiming generic image blur.
+- A field-level fallback runs at most once and receives only unresolved fields and current-document regions. It cannot replace first-pass confirmed values; a conflict becomes `needs_review`. No previous Telegram response, pending action, or other tool context enters either recognition pass.
+- Deterministic validation sums only charge rows, never section headings or subtotal rows; applies volume × tariff only to simple printed formulas; separates debt, advance, current-period payments and historical `lastPayment`; excludes voluntary services; and never substitutes a calculated amount for an unreadable printed value.
 - AI prepares drafts; server code performs authoritative calculations and persistence where implemented.
 - Each new Telegram attachment is processed without an earlier response or pending utility draft in the model input. A receipt reply and its buttons are scoped to the current update and file. If extraction does not prepare a bill, the earlier confirmation is closed without deleting an already saved draft record.
 - Receipt attachments currently use an explicit temporary `single_apartment` routing mode. The target must be supplied as a stable apartment UUID in the server-only `TELEGRAM_RECEIPT_APARTMENT_ID`; no apartment ID is embedded in the code. Every request validates that the configured apartment exists and belongs to the connected owner, and missing or invalid configuration fails without creating a bill. The printed address is stored as reference data only and does not route the file. `TELEGRAM_RECEIPT_ROUTING_MODE=address` preserves the future address-routing path, but it is not the default.
@@ -92,6 +95,8 @@ Values must never be documented or requested in chat.
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 - `OPENAI_TRANSCRIBE_MODEL`
+- `OPENAI_RECEIPT_TRANSCRIPTION_MODEL`
+- `OPENAI_RECEIPT_NORMALIZATION_MODEL`
 - `UTILITY_EVAL_TOKEN` (Preview/local only; protects the no-write receipt evaluation route)
 - `TELEGRAM_RECEIPT_APARTMENT_ID` (optional temporary single-object target; must be an apartment accessible to the owner)
 - `TELEGRAM_RECEIPT_ROUTING_MODE` (optional; defaults to `single_apartment`, reserved `address` mode restores address routing)

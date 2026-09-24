@@ -463,7 +463,7 @@ export async function POST(request: Request) {
             message.caption?.trim() || userMessage,
             new URL(request.url).origin,
             attachment,
-            { updateId: update.update_id },
+            { updateId: update.update_id, useUniversalReceiptPipeline: Boolean(attachment) },
           );
           try {
             await recordAssistantMessage(admin, {

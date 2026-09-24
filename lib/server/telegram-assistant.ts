@@ -16,9 +16,12 @@ import { calculatedProviderDue, moneyToMinor, minorToDecimal } from "@/lib/serve
 import {
   validateReceiptArithmetic,
   validateReceiptReadability,
+  receiptTechnicalQuality,
   type ReceiptAttachmentQuality,
 } from "@/lib/server/receipt-quality";
 import { receiptRoutingMode, resolveConfiguredReceiptApartment } from "@/lib/server/telegram-receipt-routing";
+import { runReceiptPipeline } from "@/lib/server/receipt-pipeline";
+import type { ReceiptVisionExtractor } from "@/lib/server/receipt-transcription";
 import {
   documentReply,
   isExplicitDraftRequest,
@@ -305,6 +308,7 @@ async function executeTool(
   existingReceiptStoragePath?: string,
   existingPendingAction?: Record<string, unknown> | null,
   document?: ReceiptDocument,
+  pipelineValidated = false,
 ) {
   const args = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
   if (call.name === "prepare_tenant_statement") {
@@ -524,7 +528,7 @@ async function executeTool(
   }
 
   if (call.name === "prepare_utility_bill") {
-    if (document && attachment) {
+    if (document && attachment && !pipelineValidated) {
       const readability = validateReceiptReadability(args, attachment.quality);
       if (!readability.ok) return { ok: false, reason: readability.reason, issues: readability.issues, retryable: readability.retryable };
       const arithmetic = validateReceiptArithmetic(args);
@@ -565,7 +569,11 @@ async function executeTool(
     });
     const printedDue = moneyToMinor(args.printedDueAmount ?? args.mandatoryDueAmount);
     const warnings = Array.isArray(args.warnings) ? args.warnings.map(String).filter(Boolean) : [];
-    if (calculatedDue !== null && printedDue !== null && calculatedDue !== printedDue) {
+    const adjustedDue = calculatedDue === null ? null : calculatedDue +
+      (moneyToMinor(args.recalculationAmount) ?? BigInt(0)) -
+      (moneyToMinor(args.benefitAmount) ?? BigInt(0)) +
+      (moneyToMinor(args.penaltyAmount) ?? BigInt(0));
+    if (calculatedDue !== null && printedDue !== null && calculatedDue !== printedDue && adjustedDue !== printedDue) {
       warnings.push(`Печатный итог отличается от арифметической сверки на ${minorToDecimal(printedDue - calculatedDue)}.`);
     }
     const tenantReceipt = Boolean(attachment && ["housing", "electricity", "water", "capital_repair", "other"].includes(documentKind));
@@ -809,7 +817,7 @@ export function runTelegramAssistant(
   message: string,
   appOrigin: string,
   attachment: TelegramAssistantAttachment | undefined,
-  request: { updateId: number },
+  request: { updateId: number; useUniversalReceiptPipeline?: boolean; receiptExtractor?: ReceiptVisionExtractor },
 ): Promise<string | DocumentReply>;
 export async function runTelegramAssistant(
   admin: SupabaseClient,
@@ -817,7 +825,7 @@ export async function runTelegramAssistant(
   message: string,
   appOrigin: string,
   attachment?: TelegramAssistantAttachment,
-  request?: { updateId: number },
+  request?: { updateId: number; useUniversalReceiptPipeline?: boolean; receiptExtractor?: ReceiptVisionExtractor },
 ): Promise<string | DocumentReply> {
   if (attachment && request && (!Number.isSafeInteger(request.updateId) || !attachment.fingerprint)) {
     console.warn("telegram_document_unrecognized", { reason: "missing_request_identity" });
@@ -1307,6 +1315,93 @@ export async function runTelegramAssistant(
     let receiptState: DocumentReply["state"] = "unrecognized";
     let failureReason = "no_tool_call";
     let failureIssues: string[] = [];
+    if (attachment && document && request?.useUniversalReceiptPipeline) {
+      const technical = receiptTechnicalQuality(attachment.quality);
+      try {
+        await admin.from("telegram_request_traces").insert({
+          update_id: document.updateId,
+          event: "receipt.technical_quality",
+          status: technical.blockers.length ? "failed" : "succeeded",
+          duration_ms: 0,
+          details: {
+            blockers: technical.blockers,
+            warnings: technical.warnings,
+            width: attachment.quality?.width ?? null,
+            height: attachment.quality?.height ?? null,
+            page_count: attachment.quality?.pageCount ?? null,
+            sharpness: attachment.quality?.textRegionSharpness ?? attachment.quality?.sharpness ?? null,
+            contrast: attachment.quality?.textRegionContrast ?? attachment.quality?.contrast ?? null,
+          },
+        });
+      } catch {
+        // Receipt diagnostics must never affect the owner-facing result.
+      }
+      if (technical.blockers.length) {
+        await admin.storage.from("asset-media").remove([attachment.storagePath]);
+        await saveConversation(admin, account, { pending_action: null, previous_response_id: null });
+        console.warn("telegram_document_unrecognized", { update_id: document.updateId, reason: "receipt_quality_rejected" });
+        return documentReply(document, "unrecognized", receiptFailureText(technical.blockers));
+      }
+      const pipeline = await runReceiptPipeline({
+        dataUrl: attachment.dataUrl,
+        targetedDataUrls: attachment.targetedDataUrls,
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+      }, { extractor: request.receiptExtractor });
+      for (const pipelineAttempt of pipeline.attempts) {
+        try {
+          await admin.from("telegram_request_traces").insert({
+            update_id: document.updateId,
+            event: `receipt.${pipelineAttempt.stage}`,
+            status: pipelineAttempt.failureCode ? "failed" : "succeeded",
+            duration_ms: pipelineAttempt.latencyMs,
+            details: {
+              provider: pipelineAttempt.provider,
+              model: pipelineAttempt.model,
+              input_tokens: pipelineAttempt.inputTokens,
+              output_tokens: pipelineAttempt.outputTokens,
+              failure_code: pipelineAttempt.failureCode,
+              fallback_used: pipeline.fallbackUsed,
+            },
+          });
+        } catch {
+          // Receipt diagnostics must never affect the owner-facing result.
+        }
+      }
+      const definitelyNotUtility = pipeline.receipt?.isUtilityDocument.status === "confirmed" && pipeline.receipt.isUtilityDocument.value === false;
+      if (!definitelyNotUtility) {
+        if (!pipeline.ok || !pipeline.billPayload || !pipeline.validation) {
+          failureReason = pipeline.failureCode ?? "receipt_pipeline_failed";
+          failureIssues = pipeline.validation?.blockers ?? [failureReason];
+          await admin.storage.from("asset-media").remove([attachment.storagePath]);
+          await saveConversation(admin, account, { pending_action: null, previous_response_id: null });
+          console.warn("telegram_document_unrecognized", { update_id: document.updateId, reason: failureReason });
+          return documentReply(document, "unrecognized", receiptFailureText(failureIssues));
+        }
+        const result = await executeTool(
+          admin,
+          account,
+          { type: "function_call", name: "prepare_utility_bill", call_id: `receipt-${document.updateId}`, arguments: JSON.stringify(pipeline.billPayload) },
+          attachment,
+          typeof existingAttachmentStoragePath === "string" ? existingAttachmentStoragePath : undefined,
+          conversation.pending_action,
+          document,
+          true,
+        );
+        if (result.ok && "attachmentClaimed" in result && result.attachmentClaimed) {
+          attachmentClaimed = true;
+          await saveConversation(admin, account, { previous_response_id: null });
+          return documentReply(document, "prepared", pipeline.validation.reviewFields.length
+            ? `Черновик создан частично. Проверьте поля: ${pipeline.validation.reviewFields.join(", ")}.`
+            : "Черновик создан по текущему документу.", account.apartment_id);
+        }
+        failureReason = "reason" in result ? String(result.reason) : "bill_validation_failed";
+        await admin.storage.from("asset-media").remove([attachment.storagePath]);
+        await saveConversation(admin, account, { pending_action: null, previous_response_id: null });
+        console.warn("telegram_document_unrecognized", { update_id: document.updateId, reason: failureReason });
+        return documentReply(document, failureReason === "duplicate" || failureReason === "possible_correction" ? failureReason : "unrecognized");
+      }
+    }
     let response = await createResponse(
       attachment ? attachmentInput(contextualMessage, attachment) : contextualMessage,
       attachment ? null : conversation.previous_response_id,
