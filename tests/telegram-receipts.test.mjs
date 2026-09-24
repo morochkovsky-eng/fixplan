@@ -460,6 +460,11 @@ test("a readable receipt gets exactly one targeted retry and then creates one dr
   const { result, payloads } = await runWithResponses(db, 930, [[first], [second], []], current);
   assert.equal(result.state, "prepared");
   assert.equal(db.rows.utility_bills.length, 1);
+  assert.equal(db.rows.utility_bills[0].billing_period_month, "2026-08-01");
+  assert.equal(db.rows.utility_bills[0].mandatory_due_minor, "63648");
+  assert.equal(db.rows.utility_bill_line_items.length, 1);
+  assert.equal(db.rows.utility_bill_line_items[0].volume, "39");
+  assert.equal(db.rows.utility_bill_line_items[0].tariff, "16.32");
   assert.equal(payloads.length, 3);
   assert.equal(payloads[1].previous_response_id, undefined);
   const retryImages = payloads[1].input[0].content.filter((part) => part.type === "input_image");
@@ -468,6 +473,21 @@ test("a readable receipt gets exactly one targeted retry and then creates one dr
   assert.equal(db.rows.telegram_request_traces.length, 2);
   assert.equal(db.rows.telegram_request_traces[0].details.retry_scheduled, true);
   assert.equal(db.rows.telegram_request_traces[1].details.retry_scheduled, false);
+});
+
+test("an attachment without a receipt tool call does not start a speculative targeted retry", async () => {
+  const db = database();
+  const current = {
+    ...attachment(931),
+    dataUrl: "data:image/jpeg;base64,UFJJTUFSWQ==",
+    targetedDataUrls: ["data:image/jpeg;base64,VE9Q"],
+    mimeType: "image/jpeg",
+  };
+  const { result, payloads } = await runWithResponses(db, 931, [[], [billCall()]], current);
+  assert.equal(result.state, "unrecognized");
+  assert.equal(payloads.length, 1);
+  assert.equal(db.rows.utility_bills.length, 0);
+  assert.equal(db.rows.telegram_conversations[0].pending_action, null);
 });
 
 test("line totals and volume by tariff contradictions block persistence", async () => {

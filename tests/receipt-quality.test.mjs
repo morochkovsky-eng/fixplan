@@ -90,6 +90,7 @@ test("a readable 2048x1453 JPEG with a large blank region is enhanced without fo
   assert.equal(metrics.width, 2048);
   assert.equal(metrics.height, 1453);
   assert.equal(metrics.analysisError, null);
+  assert.notEqual(metrics.sharpness, metrics.contrast);
   assert.ok(metrics.contentCoverage > 0);
   assert.ok(metrics.contentCoverage < 0.8);
   assert.deepEqual(validateReceiptReadability({ quality: quality() }, metrics), { ok: true });
@@ -97,6 +98,17 @@ test("a readable 2048x1453 JPEG with a large blank region is enhanced without fo
   assert.match(prepared.primaryDataUrl, /^data:image\/jpeg;base64,/u);
   assert.equal(prepared.targetedDataUrls.length, 3);
   assert.equal(await prepareReceiptRecognitionImages(await PDFDocument.create().then((pdf) => pdf.save()), "application/pdf"), null);
+});
+
+test("recognition enhancement caps both dimensions and processes bounded crops", async () => {
+  const tall = await sharp({
+    create: { width: 400, height: 4000, channels: 3, background: "white" },
+  }).composite([{ input: Buffer.from('<svg width="400" height="300"><text x="20" y="80" font-size="32">Счёт 100,00</text></svg>') }]).png().toBuffer();
+  const prepared = await prepareReceiptRecognitionImages(tall, "image/png");
+  const primary = await sharp(Buffer.from(prepared.primaryDataUrl.split(",")[1], "base64")).metadata();
+  assert.ok(primary.width <= 2048);
+  assert.ok(primary.height <= 2600);
+  assert.equal(prepared.targetedDataUrls.length, 3);
 });
 
 test("missing evidence for a critical field blocks a confident-looking draft", () => {

@@ -258,9 +258,11 @@ export async function prepareReceiptRecognitionImages(
     const height = dimensions.height ?? 0;
     if (!width || !height) return null;
     const source = sharp(bytes, options).rotate();
-    const targetWidth = Math.min(2048, Math.max(width, Math.round(width * 1.45)));
+    const scale = Math.min(1.45, 2048 / width, 2600 / height);
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
     const enhance = (image: ReturnType<typeof sharp>) => image
-      .resize({ width: targetWidth, fit: "inside", kernel: "lanczos3" })
+      .resize({ width: targetWidth, height: targetHeight, fit: "inside", kernel: "lanczos3" })
       .normalise({ lower: 1, upper: 99 })
       .sharpen({ sigma: 0.65 })
       .jpeg({ quality: 92, chromaSubsampling: "4:4:4" });
@@ -273,9 +275,10 @@ export async function prepareReceiptRecognitionImages(
       top: Math.min(top, height - 1),
       height: Math.min(cropHeight, height - Math.min(top, height - 1)),
     }));
-    const targeted = await Promise.all(crops.map((crop) => enhance(
-      source.clone().extract({ left: 0, width, ...crop }),
-    ).toBuffer()));
+    const targeted: Buffer[] = [];
+    for (const crop of crops) {
+      targeted.push(await enhance(source.clone().extract({ left: 0, width, ...crop })).toBuffer());
+    }
     const asDataUrl = (buffer: Buffer) => `data:image/jpeg;base64,${buffer.toString("base64")}`;
     return { primaryDataUrl: asDataUrl(primary), targetedDataUrls: targeted.map(asDataUrl) };
   } catch {

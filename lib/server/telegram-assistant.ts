@@ -1316,8 +1316,7 @@ export async function runTelegramAssistant(
     if (attachment && document) {
       const initialCalls = (response.output ?? []).filter((item) => item.type === "function_call" && item.call_id);
       const hasReceiptCall = initialCalls.some((item) => item.name === "prepare_utility_bill");
-      const hasDifferentToolCall = initialCalls.some((item) => item.name !== "prepare_utility_bill");
-      if (hasReceiptCall || !hasDifferentToolCall) {
+      if (hasReceiptCall) {
         const firstAssessment = receiptAssessment(response, attachment);
         const retryScheduled = !firstAssessment.ok && firstAssessment.retryable;
         await traceReceiptQuality(admin, document.updateId, attachment, 1, firstAssessment, retryScheduled);
