@@ -66,10 +66,14 @@ export type NormalizedReceipt = {
 
 const status = { type: "string", enum: ["confirmed", "needs_review", "missing"] };
 const nullableString = { anyOf: [{ type: "string" }, { type: "null" }] };
+const nullableBillingPeriod = { anyOf: [{ type: "string", pattern: "^\\d{4}-(0[1-9]|1[0-2])$" }, { type: "null" }] };
+const nullableIsoDate = { anyOf: [{ type: "string", pattern: "^\\d{4}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$" }, { type: "null" }] };
 const nullableInteger = { anyOf: [{ type: "integer" }, { type: "null" }] };
 const nullableBoolean = { anyOf: [{ type: "boolean" }, { type: "null" }] };
 const field = (value: unknown) => ({ type: "object", additionalProperties: false, required: ["value", "rawText", "sourceRegionIds", "status", "reason"], properties: { value, rawText: nullableString, sourceRegionIds: { type: "array", items: { type: "string" } }, status, reason: nullableString } });
 const textField = field(nullableString);
+const billingPeriodField = field(nullableBillingPeriod);
+const dateField = field(nullableIsoDate);
 const moneyField = field(nullableInteger);
 const boolField = field(nullableBoolean);
 const documentKindField = field({ anyOf: [{ type: "string", enum: ["housing", "electricity", "water", "capital_repair", "other"] }, { type: "null" }] });
@@ -84,9 +88,9 @@ export const receiptNormalizationSchema = {
   type: "object", additionalProperties: false,
   required: ["isUtilityDocument", "documentType", "provider", "referenceAddress", "accountNumber", "billingPeriod", "issuedDate", "dueDate", "accruedAmount", "openingDebt", "openingAdvance", "paymentsAppliedToCurrentPeriod", "recalculationAmount", "benefitAmount", "penaltyAmount", "printedMandatoryDue", "mandatoryDue", "lastPayment", "lineItems", "meterEntries", "optionalCharges", "warnings"],
   properties: {
-    isUtilityDocument: boolField, documentType: documentKindField, provider: textField, referenceAddress: textField, accountNumber: textField, billingPeriod: textField, issuedDate: textField, dueDate: textField,
+    isUtilityDocument: boolField, documentType: documentKindField, provider: textField, referenceAddress: textField, accountNumber: textField, billingPeriod: billingPeriodField, issuedDate: dateField, dueDate: dateField,
     accruedAmount: moneyField, openingDebt: moneyField, openingAdvance: moneyField, paymentsAppliedToCurrentPeriod: moneyField, recalculationAmount: moneyField, benefitAmount: moneyField, penaltyAmount: moneyField, printedMandatoryDue: moneyField, mandatoryDue: moneyField,
-    lastPayment: { type: "object", additionalProperties: false, required: ["amount", "date"], properties: { amount: moneyField, date: textField } },
+    lastPayment: { type: "object", additionalProperties: false, required: ["amount", "date"], properties: { amount: moneyField, date: dateField } },
     lineItems: { type: "array", items: lineSchema },
     meterEntries: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "resource", "meterNumber", "previousValue", "currentValue", "consumption", "unit", "tariff"], properties: { id: { type: "string" }, resource: textField, meterNumber: textField, previousValue: textField, currentValue: textField, consumption: textField, unit: textField, tariff: textField } } },
     optionalCharges: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "label", "kind", "amount", "includedInMandatory"], properties: { id: { type: "string" }, label: textField, kind: textField, amount: moneyField, includedInMandatory: boolField } } },
@@ -94,7 +98,7 @@ export const receiptNormalizationSchema = {
   },
 } as const;
 
-export const receiptNormalizationPrompt = `Normalize the supplied literal transcription into the receipt schema. Use only text and region IDs present in the transcription. Every field must retain rawText, sourceRegionIds, status and a short reason when review is needed. Monetary values are signed integer minor units (kopecks), never floating point. Do not infer missing numbers from templates or arithmetic.
+export const receiptNormalizationPrompt = `Normalize the supplied literal transcription into the receipt schema. Use only text and region IDs present in the transcription. Every field must retain rawText, sourceRegionIds, status and a short reason when review is needed. Monetary values are signed integer minor units (kopecks), never floating point. Normalize billingPeriod to YYYY-MM and every date to YYYY-MM-DD while preserving the literal printed form in rawText. Return null/missing rather than a non-canonical or guessed date. Do not infer missing numbers from templates or arithmetic.
 
 Separate current accrual, opening debt, opening advance, payments explicitly applied to this period, recalculation, benefit, penalty, printed mandatory due and normalized mandatory due. A historical last payment amount/date is reference-only and must never become paymentsAppliedToCurrentPeriod unless the document explicitly says it was applied to this calculation. Preserve debt and advance as non-negative magnitudes in their separate fields. Optional or voluntary services must be separate and excluded unless the printed mandatory total explicitly includes them.
 

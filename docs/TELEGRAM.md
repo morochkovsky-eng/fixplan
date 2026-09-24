@@ -82,6 +82,7 @@ Tenant group delivery is prepared privately for the owner and sent only after ex
 - Telegram renders a full audit-style breakdown and splits long responses into bounded messages; the keyboard is attached only to the final chunk. Voluntary services are shown separately and excluded from the mandatory monthly total unless the document explicitly includes them.
 - A possible corrected receipt still requires manual review and a fresh upload because automatic replacement is not yet supported.
 - The Preview-only `/api/internal/utility-eval` route reuses the same `prepare_utility_bill` tool schema for blind receipt baselines, but intercepts the tool call and never reads or writes Supabase, Storage, Telegram state, or the production webhook.
+- The 2026-09-24 offline receipt evaluation is recorded in [`RECEIPT_EVAL_20260924.md`](RECEIPT_EVAL_20260924.md). Neither the Terra candidate nor the pinned GPT-5.5 baseline met the Production acceptance gate; model configuration alone is not an approved release path.
 
 ## Environment variable names
 

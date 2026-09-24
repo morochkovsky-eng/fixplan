@@ -10,6 +10,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 await import("tsx/esm");
 const money = await import("../lib/server/receipt-money.ts");
 const telegram = await import("../lib/server/telegram.ts");
+const normalization = await import("../lib/server/receipt-normalization.ts");
 
 test("receipt money uses exact decimal-to-minor arithmetic", () => {
   assert.equal(money.moneyToMinor("14 995,84"), 1499584n);
@@ -48,4 +49,13 @@ test("receipt evidence migration is additive and keeps historical payment separa
   assert.match(migration, /add column if not exists last_payment_minor bigint/);
   assert.match(migration, /add column if not exists last_payment_date date/);
   assert.doesNotMatch(migration, /drop\s|delete\s|update\s+public\.utility_bills/iu);
+});
+
+test("receipt schema requires canonical billing periods and ISO dates", () => {
+  const properties = normalization.receiptNormalizationSchema.properties;
+  assert.equal(properties.billingPeriod.properties.value.anyOf[0].pattern, "^\\d{4}-(0[1-9]|1[0-2])$");
+  assert.equal(properties.dueDate.properties.value.anyOf[0].pattern, "^\\d{4}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$");
+  assert.equal(properties.lastPayment.properties.date.properties.value.anyOf[0].pattern, "^\\d{4}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$");
+  assert.match(normalization.receiptNormalizationPrompt, /Normalize billingPeriod to YYYY-MM/);
+  assert.match(normalization.receiptNormalizationPrompt, /Return null\/missing rather than a non-canonical or guessed date/);
 });

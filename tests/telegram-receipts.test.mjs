@@ -582,6 +582,9 @@ test("universal pipeline creates a partial draft with field evidence and no prio
   assert.ok(db.rows.utility_bills[0].review_fields.includes("provider"));
   assert.equal(db.rows.telegram_conversations[0].pending_action.payload.sourceUpdateId, 980);
   assert.equal(db.rows.telegram_conversations[0].pending_action.payload.sourceFingerprint, current.fingerprint);
+  const serializedTraces = JSON.stringify(db.rows.telegram_request_traces);
+  assert.doesNotMatch(serializedTraces, /Квитанция|К оплате|Поставщик/);
+  assert.doesNotMatch(serializedTraces, /rawText|sourceRegionIds|referenceAddress|accountNumber/);
 });
 
 test("universal pipeline never persists when mandatory due remains unresolved after one fallback", async () => {

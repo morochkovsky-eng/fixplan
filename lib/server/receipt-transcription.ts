@@ -204,9 +204,17 @@ export class OpenAIReceiptExtractor implements ReceiptVisionExtractor {
       const payload = await response.json() as ResponsesPayload;
       const text = outputText(payload);
       if (!text) return { provider: this.provider, model: payload.model ?? model, value: null, usage: usage(payload), latencyMs: Date.now() - started, failureCode: "empty_output", responseId: payload.id ?? null };
-      return { provider: this.provider, model: payload.model ?? model, value: JSON.parse(text), usage: usage(payload), latencyMs: Date.now() - started, failureCode: null, responseId: payload.id ?? null };
+      try {
+        return { provider: this.provider, model: payload.model ?? model, value: JSON.parse(text), usage: usage(payload), latencyMs: Date.now() - started, failureCode: null, responseId: payload.id ?? null };
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        return { provider: this.provider, model: payload.model ?? model, value: null, usage: usage(payload), latencyMs: Date.now() - started, failureCode: "invalid_json", responseId: payload.id ?? null };
+      }
     } catch (error) {
-      return { provider: this.provider, model, value: null, usage: { inputTokens: null, outputTokens: null, totalTokens: null }, latencyMs: Date.now() - started, failureCode: error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : "request_failed", responseId: null };
+      const failureCode = error instanceof DOMException && error.name === "TimeoutError"
+        ? "timeout"
+        : "request_failed";
+      return { provider: this.provider, model, value: null, usage: { inputTokens: null, outputTokens: null, totalTokens: null }, latencyMs: Date.now() - started, failureCode, responseId: null };
     }
   }
 }

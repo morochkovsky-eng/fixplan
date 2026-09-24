@@ -73,6 +73,7 @@ See [`BRAND.md`](BRAND.md).
 - The GitHub repository and Vercel project are still named `fixplan`; renaming is a separate infrastructure change.
 - Universal receipt transcription and normalization are being prepared as an isolated PR from `84d7fb9`. The additive evidence migration must be reviewed and applied before that code can be deployed; Production still runs the previous extractor until a separate release is approved.
 - A failed receipt currently clears the conversation `pending_action` even when the preceding receipt draft row remains stored. This can make the older draft inaccessible from its buttons; repair and recovery of that state are a separate task.
+- PR #9's sanitized offline evaluation found no Production-ready receipt model configuration. Terra preserved all tested periods, accruals, and mandatory totals but missed one printed due date, produced extra structural rows, and was unstable on T08 balances; the GPT-5.5 baseline had two false rejections on the complex PDF. See [`RECEIPT_EVAL_20260924.md`](RECEIPT_EVAL_20260924.md).
 
 ## Agreed next stages
 

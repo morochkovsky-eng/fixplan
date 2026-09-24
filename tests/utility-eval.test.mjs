@@ -7,6 +7,7 @@ registerHooks({ resolve(specifier, context, nextResolve) { if (specifier === "se
 await import("tsx/esm");
 const utilitySource = readFileSync("lib/server/utility-eval.ts", "utf8");
 const routeSource = readFileSync("app/api/internal/utility-eval/route.ts", "utf8");
+const offlineEvalSource = readFileSync("scripts/eval-receipt-pipeline.mjs", "utf8");
 const utility = await import("../lib/server/utility-eval.ts");
 
 function restoreEnvironment(name, value) {
@@ -96,6 +97,24 @@ test("utility evaluation reports a blocking question when no draft is safe", asy
   }
 });
 
+test("utility evaluation distinguishes invalid model JSON from transport failure", async () => {
+  const oldApiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  try {
+    const result = await utility.runUtilityBillEvaluation(
+      { bytes: new Uint8Array([1]), filename: "bill.jpg", mimeType: "image/jpeg" },
+      async () => Response.json({ id: "resp_invalid_json", model: "test-model", output_text: "{", usage: { input_tokens: 7, output_tokens: 9, total_tokens: 16 } }),
+    );
+    assert.equal(result.draft, null);
+    assert.match(result.question, /invalid_json/i);
+    assert.deepEqual(result.models, ["test-model"]);
+    assert.equal(result.attempts[0].inputTokens, 7);
+    assert.equal(result.attempts[0].outputTokens, 9);
+  } finally {
+    restoreEnvironment("OPENAI_API_KEY", oldApiKey);
+  }
+});
+
 test("the internal route is production-disabled before auth or body parsing", () => {
   const productionCheck = routeSource.indexOf('process.env.VERCEL_ENV === "production"');
   const secretRead = routeSource.indexOf("process.env.UTILITY_EVAL_TOKEN");
@@ -113,4 +132,18 @@ test("the no-write evaluation path has no data or logging dependencies", () => {
   assert.doesNotMatch(sources, /console\.(?:log|error)/);
   assert.doesNotMatch(sources, /telegram_conversations|utility_bills/);
   assert.match(routeSource, /cache-control": "no-store"/);
+});
+
+test("offline receipt evaluation emits only sanitized metrics incrementally", () => {
+  const serializedMetrics = offlineEvalSource.slice(
+    offlineEvalSource.indexOf("actualCritical:"),
+    offlineEvalSource.indexOf("lineCount:"),
+  );
+  assert.match(offlineEvalSource, /RECEIPT_EVAL_OUTPUT/);
+  assert.match(offlineEvalSource, /appendFile\(outputPath/);
+  assert.match(offlineEvalSource, /mode: 0o600/);
+  assert.doesNotMatch(serializedMetrics, /provider/);
+  assert.doesNotMatch(serializedMetrics, /referenceAddress/);
+  assert.doesNotMatch(serializedMetrics, /accountNumber/);
+  assert.doesNotMatch(serializedMetrics, /rawText/);
 });
