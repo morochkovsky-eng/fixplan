@@ -86,7 +86,7 @@ function attachment(updateId, fingerprint = updateId.toString(16).padStart(64, "
     mimeType: "application/pdf",
     storagePath: `apt-a/telegram/inbox/${fingerprint}-${updateId}-receipt.pdf`,
     fingerprint,
-    quality: { sourceType: "document", mediaKind: "pdf", byteSize: 4, width: null, height: null, pageCount: 1, sharpness: null, brightness: null, contrast: null, brightPixelRatio: null, darkPixelRatio: null, analysisError: null },
+    quality: { sourceType: "document", mediaKind: "pdf", byteSize: 4, width: null, height: null, pageCount: 1, sharpness: null, brightness: null, contrast: null, brightPixelRatio: null, darkPixelRatio: null, textRegionSharpness: null, textRegionContrast: null, contentCoverage: null, autoOrientationApplied: false, analysisError: null },
   };
 }
 
@@ -153,6 +153,21 @@ async function runText(db, updateId, message, calls = []) {
   };
   try {
     return await runTelegramAssistant(db, owner, message, "https://example.invalid", undefined, { updateId });
+  } finally { globalThis.fetch = originalFetch; }
+}
+
+async function runWithResponses(db, updateId, responses, currentAttachment) {
+  const originalFetch = globalThis.fetch;
+  const payloads = [];
+  let step = 0;
+  globalThis.fetch = async (_url, init) => {
+    payloads.push(JSON.parse(init.body));
+    const output = responses[step++] ?? [];
+    return Response.json({ id: `sequence-${updateId}-${step}`, output, output_text: output.length ? "" : "Результат обработан" });
+  };
+  try {
+    const result = await runTelegramAssistant(db, owner, "", "https://example.invalid", currentAttachment, { updateId });
+    return { result, payloads };
   } finally { globalThis.fetch = originalFetch; }
 }
 
@@ -229,7 +244,7 @@ test("a recognized receipt followed by an unrecognized attachment cannot reuse t
   assert.equal(db.rows.utility_bills.length, 1);
   assert.equal(db.rows.telegram_conversations[0].pending_action, null);
   const sent = replyForDocument(second, db.rows.telegram_conversations[0].pending_action);
-  assert.match(sent.text, /не удалось надёжно прочитать/i);
+  assert.match(sent.text, /не удалось подтвердить/i);
   assert.doesNotMatch(sent.text, /Электричество|100/);
   assert.equal(sent.pending, null);
 });
@@ -397,14 +412,14 @@ test("quality rejection creates no bill, pending action, or retained Storage obj
     ...attachment(905),
     mimeType: "image/jpeg",
     filename: "compressed-photo.jpg",
-    quality: { sourceType: "photo", mediaKind: "image", byteSize: 80_000, width: 520, height: 900, pageCount: 1, sharpness: 2, brightness: 35, contrast: 16, brightPixelRatio: 0.02, darkPixelRatio: 0.5, analysisError: null },
+    quality: { sourceType: "photo", mediaKind: "image", byteSize: 80_000, width: 200, height: 900, pageCount: 1, sharpness: 0.5, brightness: 35, contrast: 5, brightPixelRatio: 0.02, darkPixelRatio: 0.5, textRegionSharpness: 0.5, textRegionContrast: 5, contentCoverage: 0.2, autoOrientationApplied: false, analysisError: null },
   };
   const result = await run(db, 905, [call], current);
   assert.equal(result.state, "unrecognized");
   assert.equal(db.rows.utility_bills.length, 0);
   assert.equal(db.rows.telegram_conversations[0].pending_action, null);
   assert.deepEqual(db.removed, [current.storagePath]);
-  assert.match(result.text, /оригинал как файл без сжатия/i);
+  assert.match(result.text, /оригинал как файл|более чёткое фото/i);
 
   const timeoutDb = database();
   const timeoutAttachment = attachment(906);
@@ -420,6 +435,59 @@ test("quality rejection creates no bill, pending action, or retained Storage obj
   }
   assert.deepEqual(timeoutDb.removed, [timeoutAttachment.storagePath]);
   assert.equal(timeoutDb.rows.telegram_conversations[0]?.pending_action ?? null, null);
+});
+
+test("a readable receipt gets exactly one targeted retry and then creates one draft", async () => {
+  const db = database();
+  const first = billCall({ service: "Капремонт", kind: "capital_repair", amount: "636.48", period: "Август 2026", periodMonth: "2026-08", dueDate: "2026-09-25", lineItems: [{ name: "Капитальный ремонт", unit: "м²", volume: "39", tariff: "16.32", chargeAmount: "636.48", recalculationAmount: "", benefitAmount: "", totalAmount: "636.48" }] });
+  const firstArgs = JSON.parse(first.arguments);
+  firstArgs.mandatoryDueAmount = null;
+  firstArgs.printedDueAmount = null;
+  firstArgs.quality.criticalFields = firstArgs.quality.criticalFields.map((item) => item.field === "mandatory_due"
+    ? { ...item, confidence: "unreadable", evidence: null }
+    : item);
+  first.arguments = JSON.stringify(firstArgs);
+  const second = billCall({ service: "Капремонт", kind: "capital_repair", amount: "636.48", period: "Август 2026", periodMonth: "2026-08", dueDate: "2026-09-25", lineItems: [{ name: "Капитальный ремонт", unit: "м²", volume: "39", tariff: "16.32", chargeAmount: "636.48", recalculationAmount: "", benefitAmount: "", totalAmount: "636.48" }] });
+  second.call_id = "call-2";
+  const current = {
+    ...attachment(930),
+    dataUrl: "data:image/jpeg;base64,UFJJTUFSWQ==",
+    targetedDataUrls: ["data:image/jpeg;base64,VE9Q", "data:image/jpeg;base64,VEFCTEU=", "data:image/jpeg;base64,VE9UQUw="],
+    mimeType: "image/jpeg",
+    filename: "telegram-photo.jpg",
+    quality: { sourceType: "photo", mediaKind: "image", byteSize: 120_000, width: 1280, height: 908, pageCount: 1, sharpness: 8, brightness: 179, contrast: 40, brightPixelRatio: 0, darkPixelRatio: 0.04, textRegionSharpness: 9, textRegionContrast: 44, contentCoverage: 0.55, autoOrientationApplied: false, analysisError: null },
+  };
+  const { result, payloads } = await runWithResponses(db, 930, [[first], [second], []], current);
+  assert.equal(result.state, "prepared");
+  assert.equal(db.rows.utility_bills.length, 1);
+  assert.equal(db.rows.utility_bills[0].billing_period_month, "2026-08-01");
+  assert.equal(db.rows.utility_bills[0].mandatory_due_minor, "63648");
+  assert.equal(db.rows.utility_bill_line_items.length, 1);
+  assert.equal(db.rows.utility_bill_line_items[0].volume, "39");
+  assert.equal(db.rows.utility_bill_line_items[0].tariff, "16.32");
+  assert.equal(payloads.length, 3);
+  assert.equal(payloads[1].previous_response_id, undefined);
+  const retryImages = payloads[1].input[0].content.filter((part) => part.type === "input_image");
+  assert.equal(retryImages.length, 4);
+  assert.ok(retryImages.every((part) => part.detail === "high"));
+  assert.equal(db.rows.telegram_request_traces.length, 2);
+  assert.equal(db.rows.telegram_request_traces[0].details.retry_scheduled, true);
+  assert.equal(db.rows.telegram_request_traces[1].details.retry_scheduled, false);
+});
+
+test("an attachment without a receipt tool call does not start a speculative targeted retry", async () => {
+  const db = database();
+  const current = {
+    ...attachment(931),
+    dataUrl: "data:image/jpeg;base64,UFJJTUFSWQ==",
+    targetedDataUrls: ["data:image/jpeg;base64,VE9Q"],
+    mimeType: "image/jpeg",
+  };
+  const { result, payloads } = await runWithResponses(db, 931, [[], [billCall()]], current);
+  assert.equal(result.state, "unrecognized");
+  assert.equal(payloads.length, 1);
+  assert.equal(db.rows.utility_bills.length, 0);
+  assert.equal(db.rows.telegram_conversations[0].pending_action, null);
 });
 
 test("line totals and volume by tariff contradictions block persistence", async () => {
