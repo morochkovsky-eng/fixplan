@@ -11,7 +11,7 @@ registerHooks({
   },
 });
 await import("tsx/esm");
-const { analyzeReceiptAttachment, validateReceiptArithmetic, validateReceiptReadability } = await import("../lib/server/receipt-quality.ts");
+const { analyzeReceiptAttachment, prepareReceiptRecognitionImages, validateReceiptArithmetic, validateReceiptReadability } = await import("../lib/server/receipt-quality.ts");
 
 function quality(overrides = {}) {
   return {
@@ -34,11 +34,7 @@ test("technical image concerns are combined instead of using one size threshold"
   assert.deepEqual(validateReceiptReadability(args, {
     sourceType: "photo", mediaKind: "image", byteSize: 90_000, width: 600, height: 1000,
     pageCount: 1, sharpness: 3, brightness: 120, contrast: 18, brightPixelRatio: 0.02, darkPixelRatio: 0.03, analysisError: null,
-  }), {
-    ok: false,
-    reason: "receipt_quality_rejected",
-    issues: ["technical_image_quality_low"],
-  });
+  }), { ok: true });
   assert.deepEqual(validateReceiptReadability(args, {
     sourceType: "photo", mediaKind: "image", byteSize: 800_000, width: 900, height: 1400,
     pageCount: 1, sharpness: 16, brightness: 130, contrast: 45, brightPixelRatio: 0.03, darkPixelRatio: 0.03, analysisError: null,
@@ -56,7 +52,7 @@ test("a synthetic heavily compressed flat image is measured as unreadable", asyn
   const attachment = await analyzeReceiptAttachment(bytes, "image/jpeg", "photo");
   const result = validateReceiptReadability({ quality: quality() }, attachment);
   assert.equal(result.ok, false);
-  assert.match(result.issues.join(","), /technical_image_quality_low/);
+  assert.match(result.issues.join(","), /technical_image_detail_destroyed|technical_image_content_missing/);
 
   const shortPdf = await PDFDocument.create();
   shortPdf.addPage();
@@ -73,6 +69,34 @@ test("a synthetic heavily compressed flat image is measured as unreadable", asyn
   const longPdfResult = validateReceiptReadability({ quality: quality() }, longPdfQuality);
   assert.equal(longPdfResult.ok, false);
   assert.match(longPdfResult.issues.join(","), /technical_pdf_page_limit_exceeded/);
+});
+
+test("a readable 2048x1453 JPEG with a large blank region is enhanced without format rejection", async () => {
+  const receipt = await sharp({
+    create: { width: 2048, height: 1453, channels: 3, background: "white" },
+  }).composite([{ input: Buffer.from(`
+    <svg width="2048" height="700" xmlns="http://www.w3.org/2000/svg">
+      <rect width="2048" height="700" fill="white"/>
+      <g fill="#111" font-family="Arial" font-size="54">
+        <text x="90" y="100">Квитанция за Август 2026</text>
+        <text x="90" y="190">Капитальный ремонт</text>
+        <text x="90" y="280">39 м2 x 16,32 = 636,48</text>
+        <text x="90" y="370">Начислено 636,48</text>
+        <text x="90" y="460">К ОПЛАТЕ 636,48</text>
+        <text x="90" y="550">Срок оплаты 25.09.2026</text>
+      </g>
+    </svg>`), top: 0, left: 0 }]).jpeg({ quality: 82 }).toBuffer();
+  const metrics = await analyzeReceiptAttachment(receipt, "image/jpeg", "photo");
+  assert.equal(metrics.width, 2048);
+  assert.equal(metrics.height, 1453);
+  assert.equal(metrics.analysisError, null);
+  assert.ok(metrics.contentCoverage > 0);
+  assert.ok(metrics.contentCoverage < 0.8);
+  assert.deepEqual(validateReceiptReadability({ quality: quality() }, metrics), { ok: true });
+  const prepared = await prepareReceiptRecognitionImages(receipt, "image/jpeg");
+  assert.match(prepared.primaryDataUrl, /^data:image\/jpeg;base64,/u);
+  assert.equal(prepared.targetedDataUrls.length, 3);
+  assert.equal(await prepareReceiptRecognitionImages(await PDFDocument.create().then((pdf) => pdf.save()), "application/pdf"), null);
 });
 
 test("missing evidence for a critical field blocks a confident-looking draft", () => {

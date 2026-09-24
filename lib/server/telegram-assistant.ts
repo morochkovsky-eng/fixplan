@@ -62,6 +62,7 @@ type OpenAIResponse = {
 
 export type TelegramAssistantAttachment = {
   dataUrl: string;
+  targetedDataUrls?: string[];
   filename: string;
   mimeType: string;
   storagePath: string;
@@ -525,9 +526,9 @@ async function executeTool(
   if (call.name === "prepare_utility_bill") {
     if (document && attachment) {
       const readability = validateReceiptReadability(args, attachment.quality);
-      if (!readability.ok) return { ok: false, reason: readability.reason };
+      if (!readability.ok) return { ok: false, reason: readability.reason, issues: readability.issues, retryable: readability.retryable };
       const arithmetic = validateReceiptArithmetic(args);
-      if (!arithmetic.ok) return { ok: false, reason: arithmetic.reason };
+      if (!arithmetic.ok) return { ok: false, reason: arithmetic.reason, issues: arithmetic.issues, retryable: true };
     }
     if (document && attachment) {
       const routed = receiptRoutingMode() === "single_apartment"
@@ -686,7 +687,7 @@ async function removePendingAttachment(
 
 function attachmentInput(message: string, attachment: TelegramAssistantAttachment) {
   const fileContent = attachment.mimeType.startsWith("image/")
-    ? { type: "input_image", image_url: attachment.dataUrl, detail: "auto" }
+    ? { type: "input_image", image_url: attachment.dataUrl, detail: "high" }
     : {
         type: "input_file",
         filename: attachment.filename,
@@ -705,6 +706,94 @@ function attachmentInput(message: string, attachment: TelegramAssistantAttachmen
       ],
     },
   ];
+}
+
+function targetedAttachmentInput(message: string, attachment: TelegramAssistantAttachment, issues: string[]) {
+  const images = [attachment.dataUrl, ...(attachment.targetedDataUrls ?? [])];
+  return [{
+    role: "user",
+    content: [
+      {
+        type: "input_text",
+        text: `${message || "Повторно прочитай только текущий платёжный документ."}\n\nЭто вторая и последняя попытка распознавания. Проверь полную страницу и увеличенные области: шапку, расчётный период, таблицу услуг и итоговый блок. Предыдущая попытка не подтвердила поля: ${issues.join(", ") || "критические поля документа"}. Не угадывай значения. Если документ читаем, вызови prepare_utility_bill с точными evidence для каждого критического поля; если поле действительно неразборчиво, передай null и конкретную причину.`,
+      },
+      ...images.map((imageUrl) => ({ type: "input_image", image_url: imageUrl, detail: "high" })),
+    ],
+  }];
+}
+
+function receiptFailureText(issues: string[]) {
+  const fieldLabels: Record<string, string> = {
+    document_kind: "тип документа",
+    billing_period: "расчётный период",
+    period_charge: "начисление за период",
+    mandatory_due: "сумму к оплате",
+    due_date: "срок оплаты",
+    provider: "поставщика",
+  };
+  const missing = [...new Set(issues.flatMap((issue) => {
+    const match = issue.match(/^critical_(.+)_(?:missing|unreadable)$/u);
+    return match && fieldLabels[match[1]] ? [fieldLabels[match[1]]] : [];
+  }))];
+  if (missing.length) {
+    return `Не удалось подтвердить ${missing.join(", ")} после проверки всей страницы и увеличенных областей с реквизитами, услугами и итогом. Черновик не создан. Отправьте оригинал как файл или более чёткое фото.`;
+  }
+  if (issues.some((issue) => issue.startsWith("technical_"))) {
+    return "Не удалось обработать текущий файл: документ не декодируется, критически мал или его текстовые детали объективно не сохранились. Черновик не создан. Отправьте оригинал как файл или новое фото.";
+  }
+  return "Не удалось подтвердить критические поля текущей квитанции после основной и одной целевой попытки распознавания. Черновик не создан. Отправьте оригинал как файл или более чёткое фото.";
+}
+
+function receiptAssessment(response: OpenAIResponse, attachment: TelegramAssistantAttachment) {
+  const call = (response.output ?? []).find((item) => item.type === "function_call" && item.name === "prepare_utility_bill" && item.call_id);
+  if (!call) return { call: undefined, ok: false as const, issues: ["prepare_utility_bill_not_called"], retryable: true };
+  try {
+    const args = JSON.parse(call.arguments ?? "{}") as Record<string, unknown>;
+    const readability = validateReceiptReadability(args, attachment.quality);
+    if (!readability.ok) return { call, ok: false as const, issues: readability.issues, retryable: readability.retryable !== false };
+    const arithmetic = validateReceiptArithmetic(args);
+    if (!arithmetic.ok) return { call, ok: false as const, issues: arithmetic.issues, retryable: true };
+    return { call, ok: true as const, issues: [] as string[], retryable: false };
+  } catch {
+    return { call, ok: false as const, issues: ["prepare_utility_bill_arguments_invalid"], retryable: true };
+  }
+}
+
+async function traceReceiptQuality(
+  admin: SupabaseClient,
+  updateId: number,
+  attachment: TelegramAssistantAttachment,
+  attempt: number,
+  assessment: ReturnType<typeof receiptAssessment>,
+  retryScheduled: boolean,
+) {
+  const quality = attachment.quality;
+  try {
+    await admin.from("telegram_request_traces").insert({
+      update_id: updateId,
+      event: "receipt.quality",
+      status: assessment.ok ? "succeeded" : "failed",
+      duration_ms: 0,
+      details: {
+        attempt,
+        tool_called: Boolean(assessment.call),
+        retry_scheduled: retryScheduled,
+        checked_regions: attempt === 1 ? "full" : "full,header,services,total",
+        issues: assessment.issues.join(",").slice(0, 500),
+        width: quality?.width ?? null,
+        height: quality?.height ?? null,
+        page_count: quality?.pageCount ?? null,
+        global_sharpness: quality?.sharpness ?? null,
+        global_contrast: quality?.contrast ?? null,
+        text_region_sharpness: quality?.textRegionSharpness ?? null,
+        text_region_contrast: quality?.textRegionContrast ?? null,
+        content_coverage: quality?.contentCoverage ?? null,
+        auto_orientation_applied: quality?.autoOrientationApplied ?? false,
+      },
+    });
+  } catch {
+    // Diagnostic traces must not affect receipt processing.
+  }
 }
 
 export function runTelegramAssistant(
@@ -1217,12 +1306,36 @@ export async function runTelegramAssistant(
   try {
     let receiptState: DocumentReply["state"] = "unrecognized";
     let failureReason = "no_tool_call";
+    let failureIssues: string[] = [];
     let response = await createResponse(
       attachment ? attachmentInput(contextualMessage, attachment) : contextualMessage,
       attachment ? null : conversation.previous_response_id,
       account,
       Boolean(attachment),
     );
+    if (attachment && document) {
+      const initialCalls = (response.output ?? []).filter((item) => item.type === "function_call" && item.call_id);
+      const hasReceiptCall = initialCalls.some((item) => item.name === "prepare_utility_bill");
+      const hasDifferentToolCall = initialCalls.some((item) => item.name !== "prepare_utility_bill");
+      if (hasReceiptCall || !hasDifferentToolCall) {
+        const firstAssessment = receiptAssessment(response, attachment);
+        const retryScheduled = !firstAssessment.ok && firstAssessment.retryable;
+        await traceReceiptQuality(admin, document.updateId, attachment, 1, firstAssessment, retryScheduled);
+        if (!firstAssessment.ok) failureIssues = firstAssessment.issues;
+        if (retryScheduled) {
+          response = await createResponse(
+            targetedAttachmentInput(contextualMessage, attachment, firstAssessment.issues),
+            null,
+            account,
+            true,
+          );
+          const secondAssessment = receiptAssessment(response, attachment);
+          if (!secondAssessment.ok) failureIssues = secondAssessment.issues;
+          else failureIssues = [];
+          await traceReceiptQuality(admin, document.updateId, attachment, 2, secondAssessment, false);
+        }
+      }
+    }
     for (let turn = 0; turn < 3; turn += 1) {
       const calls = (response.output ?? []).filter((item) => item.type === "function_call" && item.call_id);
       if (!calls.length) break;
@@ -1241,6 +1354,7 @@ export async function runTelegramAssistant(
           if (result.ok && "attachmentClaimed" in result && result.attachmentClaimed) receiptState = "prepared";
           else if (receiptState !== "prepared" && "reason" in result) {
             failureReason = String(result.reason);
+            if ("issues" in result && Array.isArray(result.issues)) failureIssues = result.issues.map(String);
             receiptState = failureReason.startsWith("address_") ? "needs_apartment"
               : failureReason === "duplicate" || failureReason === "possible_correction" ? failureReason : "unrecognized";
           } else if (receiptState !== "prepared") failureReason = "bill_validation_failed";
@@ -1267,7 +1381,10 @@ export async function runTelegramAssistant(
         await saveConversation(admin, account, { pending_action: null, previous_response_id: null });
         console.warn("telegram_document_unrecognized", { update_id: document.updateId, reason: failureReason });
       }
-      return documentReply(document, receiptState, receiptState === "prepared" || receiptState === "other" ? plainText(response) : "", receiptState === "prepared" || receiptState === "other" ? account.apartment_id : undefined);
+      const replyText = receiptState === "prepared" || receiptState === "other"
+        ? plainText(response)
+        : receiptState === "unrecognized" ? receiptFailureText(failureIssues) : "";
+      return documentReply(document, receiptState, replyText, receiptState === "prepared" || receiptState === "other" ? account.apartment_id : undefined);
     }
     return plainText(response) || "Не получилось сформировать ответ. Попробуйте переформулировать запрос.";
   } catch (error) {

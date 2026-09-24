@@ -5,7 +5,7 @@ import { recordAssistantMessage } from "@/lib/server/assistant-messages";
 import { handleStatementDecision } from "@/lib/server/telegram-statements";
 import { utilityDraftReply } from "@/lib/server/assistant-replies";
 import { runTelegramAssistant, type TelegramAssistantAttachment } from "@/lib/server/telegram-assistant";
-import { analyzeReceiptAttachment } from "@/lib/server/receipt-quality";
+import { analyzeReceiptAttachment, prepareReceiptRecognitionImages } from "@/lib/server/receipt-quality";
 import { isExplicitDraftRequest, replyForUpdate, type DocumentReply } from "@/lib/server/telegram-receipt-state";
 import { getActiveTelegramApartment, type TelegramOwnerAccount } from "@/lib/server/telegram-context";
 import {
@@ -80,6 +80,7 @@ async function uploadTelegramAttachment(
   const fingerprint = createHash("sha256").update(file.bytes).digest("hex");
   const sourceType = largestPhoto ? "photo" : "document";
   const quality = await analyzeReceiptAttachment(file.bytes, file.mimeType, sourceType);
+  const recognitionImages = await prepareReceiptRecognitionImages(file.bytes, file.mimeType);
   const storagePath = `${apartmentId}/telegram/inbox/${fingerprint}-${randomUUID()}-${safeFilename(file.filename)}`;
   const { error } = await admin.storage.from("asset-media").upload(storagePath, file.bytes, {
     contentType: file.mimeType,
@@ -87,7 +88,8 @@ async function uploadTelegramAttachment(
   });
   if (error) throw new Error(error.message);
   return {
-    dataUrl: `data:${file.mimeType};base64,${Buffer.from(file.bytes).toString("base64")}`,
+    dataUrl: recognitionImages?.primaryDataUrl ?? `data:${file.mimeType};base64,${Buffer.from(file.bytes).toString("base64")}`,
+    targetedDataUrls: recognitionImages?.targetedDataUrls,
     filename: file.filename,
     mimeType: file.mimeType,
     storagePath,

@@ -12,6 +12,10 @@ export type ReceiptAttachmentQuality = {
   contrast: number | null;
   brightPixelRatio: number | null;
   darkPixelRatio: number | null;
+  textRegionSharpness: number | null;
+  textRegionContrast: number | null;
+  contentCoverage: number | null;
+  autoOrientationApplied: boolean;
   analysisError: "decode_failed" | null;
 };
 
@@ -19,7 +23,16 @@ export type ReceiptValidationFailure = {
   ok: false;
   reason: "receipt_quality_rejected" | "receipt_arithmetic_invalid";
   issues: string[];
+  warnings?: string[];
+  retryable?: boolean;
 };
+
+export type ReceiptRecognitionImages = {
+  primaryDataUrl: string;
+  targetedDataUrls: string[];
+};
+
+const maximumImagePixels = 40_000_000;
 
 const criticalFields = [
   "document_kind",
@@ -72,6 +85,86 @@ function differenceTooLarge(left: bigint, right: bigint, tolerance = BigInt(2)) 
   return (difference < BigInt(0) ? -difference : difference) > tolerance;
 }
 
+function pixelStats(pixels: Uint8Array) {
+  if (!pixels.length) return { brightness: null, contrast: null, brightPixelRatio: null, darkPixelRatio: null };
+  let sum = 0;
+  let squared = 0;
+  let bright = 0;
+  let dark = 0;
+  for (const value of pixels) {
+    sum += value;
+    squared += value * value;
+    if (value >= 245) bright += 1;
+    if (value <= 20) dark += 1;
+  }
+  const brightness = sum / pixels.length;
+  return {
+    brightness,
+    contrast: Math.sqrt(Math.max(0, squared / pixels.length - brightness * brightness)),
+    brightPixelRatio: bright / pixels.length,
+    darkPixelRatio: dark / pixels.length,
+  };
+}
+
+function edgeSharpness(pixels: Uint8Array, width: number, height: number) {
+  if (width < 2 || height < 2) return null;
+  let difference = 0;
+  let comparisons = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = y * width + x;
+      if (x + 1 < width) {
+        difference += Math.abs(pixels[index] - pixels[index + 1]);
+        comparisons += 1;
+      }
+      if (y + 1 < height) {
+        difference += Math.abs(pixels[index] - pixels[index + width]);
+        comparisons += 1;
+      }
+    }
+  }
+  return comparisons ? difference / comparisons : null;
+}
+
+function contentRegion(pixels: Uint8Array, width: number, height: number) {
+  const activeRows: number[] = [];
+  const activeColumns: number[] = [];
+  for (let y = 0; y < height; y += 1) {
+    let ink = 0;
+    for (let x = 0; x < width; x += 1) if (pixels[y * width + x] < 220) ink += 1;
+    if (ink / width >= 0.012) activeRows.push(y);
+  }
+  for (let x = 0; x < width; x += 1) {
+    let ink = 0;
+    for (let y = 0; y < height; y += 1) if (pixels[y * width + x] < 220) ink += 1;
+    if (ink / height >= 0.008) activeColumns.push(x);
+  }
+  if (!activeRows.length || !activeColumns.length) return null;
+  const paddingX = Math.max(2, Math.round(width * 0.02));
+  const paddingY = Math.max(2, Math.round(height * 0.02));
+  const left = Math.max(0, activeColumns[0] - paddingX);
+  const right = Math.min(width - 1, activeColumns.at(-1)! + paddingX);
+  const top = Math.max(0, activeRows[0] - paddingY);
+  const bottom = Math.min(height - 1, activeRows.at(-1)! + paddingY);
+  const regionWidth = right - left + 1;
+  const regionHeight = bottom - top + 1;
+  const region = new Uint8Array(regionWidth * regionHeight);
+  for (let y = 0; y < regionHeight; y += 1) {
+    region.set(pixels.subarray((top + y) * width + left, (top + y) * width + right + 1), y * regionWidth);
+  }
+  return {
+    pixels: region,
+    width: regionWidth,
+    height: regionHeight,
+    coverage: (regionWidth * regionHeight) / (width * height),
+  };
+}
+
+function orientedDimensions(width: number | undefined, height: number | undefined, orientation: number | undefined) {
+  const swapsAxes = orientation !== undefined && orientation >= 5 && orientation <= 8;
+  return swapsAxes ? { width: height, height: width } : { width, height };
+}
+
 export async function analyzeReceiptAttachment(
   bytes: Uint8Array,
   mimeType: string,
@@ -90,6 +183,10 @@ export async function analyzeReceiptAttachment(
     contrast: null,
     brightPixelRatio: null,
     darkPixelRatio: null,
+    textRegionSharpness: null,
+    textRegionContrast: null,
+    contentCoverage: null,
+    autoOrientationApplied: false,
     analysisError: null,
   } satisfies ReceiptAttachmentQuality;
   if (mimeType === "application/pdf") {
@@ -109,44 +206,110 @@ export async function analyzeReceiptAttachment(
 
   try {
     const { default: sharp } = await import("sharp");
-    const image = sharp(bytes, {
+    const source = sharp(bytes, {
       failOn: "none",
-      limitInputPixels: 40_000_000,
+      limitInputPixels: maximumImagePixels,
       pages: 1,
       sequentialRead: true,
-    }).rotate();
+    });
+    const sourceMetadata = await source.metadata();
+    const image = source.rotate();
     const metadata = await image.metadata();
+    const dimensions = orientedDimensions(metadata.width, metadata.height, sourceMetadata.orientation);
     const sample = image.clone().resize({ width: 1400, height: 1400, fit: "inside", withoutEnlargement: true }).greyscale();
-    const stats = await sample.stats();
-    const { data: pixels } = await sample.clone().raw().toBuffer({ resolveWithObject: true });
-    const edgeStats = await sample.clone().convolve({
-      width: 3,
-      height: 3,
-      kernel: [0, 1, 0, 1, -4, 1, 0, 1, 0],
-    }).stats();
-    let brightPixels = 0;
-    let darkPixels = 0;
-    for (const value of pixels) {
-      if (value >= 245) brightPixels += 1;
-      if (value <= 20) darkPixels += 1;
-    }
+    const { data: pixels, info } = await sample.clone().raw().toBuffer({ resolveWithObject: true });
+    const globalStats = pixelStats(pixels);
+    const region = contentRegion(pixels, info.width, info.height);
+    const regionStats = region ? pixelStats(region.pixels) : null;
     return {
       sourceType,
       mediaKind: "image",
       byteSize: bytes.byteLength,
-      width: metadata.width ?? null,
-      height: metadata.height ?? null,
+      width: dimensions.width ?? null,
+      height: dimensions.height ?? null,
       pageCount: metadata.pages ?? 1,
-      sharpness: edgeStats.channels[0]?.stdev ?? null,
-      brightness: stats.channels[0]?.mean ?? null,
-      contrast: stats.channels[0]?.stdev ?? null,
-      brightPixelRatio: pixels.length ? brightPixels / pixels.length : null,
-      darkPixelRatio: pixels.length ? darkPixels / pixels.length : null,
+      sharpness: edgeSharpness(pixels, info.width, info.height),
+      brightness: globalStats.brightness,
+      contrast: globalStats.contrast,
+      brightPixelRatio: globalStats.brightPixelRatio,
+      darkPixelRatio: globalStats.darkPixelRatio,
+      textRegionSharpness: region ? edgeSharpness(region.pixels, region.width, region.height) : null,
+      textRegionContrast: regionStats?.contrast ?? null,
+      contentCoverage: region?.coverage ?? null,
+      autoOrientationApplied: Boolean(sourceMetadata.orientation && sourceMetadata.orientation !== 1),
       analysisError: null,
     };
   } catch {
     return { ...base, analysisError: "decode_failed" };
   }
+}
+
+export async function prepareReceiptRecognitionImages(
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<ReceiptRecognitionImages | null> {
+  if (!mimeType.startsWith("image/")) return null;
+  try {
+    const { default: sharp } = await import("sharp");
+    const options = { failOn: "none" as const, limitInputPixels: maximumImagePixels, pages: 1, sequentialRead: true };
+    const metadata = await sharp(bytes, options).metadata();
+    const dimensions = orientedDimensions(metadata.width, metadata.height, metadata.orientation);
+    const width = dimensions.width ?? 0;
+    const height = dimensions.height ?? 0;
+    if (!width || !height) return null;
+    const source = sharp(bytes, options).rotate();
+    const targetWidth = Math.min(2048, Math.max(width, Math.round(width * 1.45)));
+    const enhance = (image: ReturnType<typeof sharp>) => image
+      .resize({ width: targetWidth, fit: "inside", kernel: "lanczos3" })
+      .normalise({ lower: 1, upper: 99 })
+      .sharpen({ sigma: 0.65 })
+      .jpeg({ quality: 92, chromaSubsampling: "4:4:4" });
+    const primary = await enhance(source.clone()).toBuffer();
+    const crops = [
+      { top: 0, height: Math.max(1, Math.round(height * 0.42)) },
+      { top: Math.round(height * 0.29), height: Math.max(1, Math.round(height * 0.42)) },
+      { top: Math.round(height * 0.58), height: Math.max(1, Math.round(height * 0.42)) },
+    ].map(({ top, height: cropHeight }) => ({
+      top: Math.min(top, height - 1),
+      height: Math.min(cropHeight, height - Math.min(top, height - 1)),
+    }));
+    const targeted = await Promise.all(crops.map((crop) => enhance(
+      source.clone().extract({ left: 0, width, ...crop }),
+    ).toBuffer()));
+    const asDataUrl = (buffer: Buffer) => `data:image/jpeg;base64,${buffer.toString("base64")}`;
+    return { primaryDataUrl: asDataUrl(primary), targetedDataUrls: targeted.map(asDataUrl) };
+  } catch {
+    return null;
+  }
+}
+
+function technicalQuality(attachment: ReceiptAttachmentQuality | undefined) {
+  const blockers: string[] = [];
+  const warnings: string[] = [];
+  if (!attachment) return { blockers, warnings };
+  if (attachment.analysisError) blockers.push("technical_image_decode_failed");
+  if (attachment.mediaKind === "image" && (attachment.pageCount ?? 1) > 1) blockers.push("technical_image_page_limit_exceeded");
+  if (attachment.mediaKind === "pdf" && (attachment.pageCount ?? 0) > 30) blockers.push("technical_pdf_page_limit_exceeded");
+  if (attachment.mediaKind !== "image" || !attachment.width || !attachment.height) return { blockers, warnings };
+  const shortEdge = Math.min(attachment.width, attachment.height);
+  const regionSharpness = attachment.textRegionSharpness ?? attachment.sharpness;
+  const regionContrast = attachment.textRegionContrast ?? attachment.contrast;
+  if (shortEdge < 320) blockers.push("technical_image_critically_small");
+  const almostUniform = (attachment.brightPixelRatio ?? 0) > 0.995 || (attachment.darkPixelRatio ?? 0) > 0.985;
+  if (almostUniform && (attachment.contentCoverage === null || attachment.contentCoverage < 0.01)) {
+    blockers.push("technical_image_content_missing");
+  }
+  if (regionSharpness !== null && regionContrast !== null && regionSharpness < 1.2 && regionContrast < 10) {
+    blockers.push("technical_image_detail_destroyed");
+  }
+  if (shortEdge < 900 && attachment.byteSize < 180_000) warnings.push("technical_image_compressed_small_text");
+  if (regionSharpness !== null && regionContrast !== null && regionSharpness < 5 && regionContrast < 28) {
+    warnings.push("technical_image_blur_or_low_contrast");
+  }
+  if ((attachment.brightness ?? 128) < 45 || (attachment.brightPixelRatio ?? 0) > 0.42 || (attachment.darkPixelRatio ?? 0) > 0.42) {
+    warnings.push("technical_image_exposure_warning");
+  }
+  return { blockers, warnings };
 }
 
 export function validateReceiptReadability(
@@ -155,7 +318,7 @@ export function validateReceiptReadability(
 ): { ok: true } | ReceiptValidationFailure {
   const quality = objectValue(args.quality);
   const issues: string[] = [];
-  if (!quality || quality.readable !== true) issues.push("model_marked_unreadable");
+  const { blockers, warnings } = technicalQuality(attachment);
 
   const evidence = new Map(
     arrayObjects(quality?.criticalFields).map((entry) => [String(entry.field ?? ""), entry]),
@@ -169,28 +332,11 @@ export function validateReceiptReadability(
       issues.push(`critical_${field}_unreadable`);
     }
   }
-
-  if (attachment?.analysisError) issues.push("technical_image_decode_failed");
-  if (attachment?.mediaKind === "image" && (attachment.pageCount ?? 1) > 1) {
-    issues.push("technical_image_page_limit_exceeded");
-  }
-  if (attachment?.mediaKind === "pdf" && (attachment.pageCount ?? 0) > 30) {
-    issues.push("technical_pdf_page_limit_exceeded");
-  }
-  if (attachment?.width && attachment.height) {
-    const shortEdge = Math.min(attachment.width, attachment.height);
-    const compressedSmallText = shortEdge < 900 && attachment.byteSize < 180_000;
-    const blurredLowContrast = attachment.sharpness !== null && attachment.contrast !== null &&
-      attachment.sharpness < 5 && attachment.contrast < 28;
-    const badlyExposed = (attachment.brightness !== null && attachment.brightness < 45) ||
-      (attachment.brightPixelRatio !== null && attachment.brightPixelRatio > 0.42) ||
-      (attachment.darkPixelRatio !== null && attachment.darkPixelRatio > 0.42);
-    if ([compressedSmallText, blurredLowContrast, badlyExposed].filter(Boolean).length >= 2) {
-      issues.push("technical_image_quality_low");
-    }
-  }
-
-  return issues.length ? { ok: false, reason: "receipt_quality_rejected", issues } : { ok: true };
+  if (quality?.readable !== true && issues.length) issues.unshift("model_marked_unreadable");
+  const allIssues = [...blockers, ...issues];
+  return allIssues.length
+    ? { ok: false, reason: "receipt_quality_rejected", issues: allIssues, warnings, retryable: blockers.length === 0 }
+    : { ok: true };
 }
 
 export function validateReceiptArithmetic(args: Record<string, unknown>): { ok: true } | ReceiptValidationFailure {
