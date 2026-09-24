@@ -5,28 +5,34 @@ import { registerHooks } from "node:module";
 registerHooks({ resolve(specifier, context, nextResolve) { if (specifier === "server-only") return { url: "data:text/javascript,", shortCircuit: true }; return nextResolve(specifier, context); } });
 await import("tsx/esm");
 const { runReceiptPipeline } = await import("../lib/server/receipt-pipeline.ts");
+const { prepareReceiptRecognitionImages } = await import("../lib/server/receipt-quality.ts");
 
 const manifestPath = process.argv[2];
 const models = String(process.env.RECEIPT_EVAL_MODELS ?? "gpt-5.5-2026-04-23").split(",").map((value) => value.trim()).filter(Boolean);
 const runs = Number(process.env.RECEIPT_EVAL_RUNS ?? 3);
 const outputPath = process.env.RECEIPT_EVAL_OUTPUT?.trim() || null;
+const diagnosticPath = process.env.RECEIPT_EVAL_DIAGNOSTICS?.trim() || null;
 if (!manifestPath || !process.env.OPENAI_API_KEY || !Number.isInteger(runs) || runs < 1) {
   console.error("Usage: OPENAI_API_KEY=... RECEIPT_EVAL_MODELS=... node scripts/eval-receipt-pipeline.mjs <private-manifest.json>");
   process.exitCode = 1;
 } else {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   if (outputPath) await writeFile(outputPath, "", { mode: 0o600 });
+  if (diagnosticPath) await writeFile(diagnosticPath, "", { mode: 0o600 });
   const mime = new Map([[".pdf", "application/pdf"], [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"], [".png", "image/png"], [".webp", "image/webp"]]);
   const rows = [];
   for (const [caseIndex, testCase] of manifest.cases.entries()) {
     const bytes = await readFile(testCase.path);
     const mimeType = mime.get(extname(testCase.path).toLowerCase());
     if (!mimeType) throw new Error(`Unsupported private fixture at index ${caseIndex}`);
+    const recognition = await prepareReceiptRecognitionImages(bytes, mimeType);
     for (const model of models) {
       for (let run = 1; run <= runs; run += 1) {
         process.env.OPENAI_RECEIPT_TRANSCRIPTION_MODEL = model;
         process.env.OPENAI_RECEIPT_NORMALIZATION_MODEL = String(testCase.normalizationModel ?? model);
-        const result = await runReceiptPipeline({ dataUrl: `data:${mimeType};base64,${bytes.toString("base64")}`, filename: `case-${caseIndex + 1}${extname(testCase.path)}`, mimeType });
+        const diagnostics = [];
+        const result = await runReceiptPipeline({ dataUrl: recognition?.primaryDataUrl ?? `data:${mimeType};base64,${bytes.toString("base64")}`, targetedDataUrls: recognition?.targetedDataUrls, filename: `case-${caseIndex + 1}${extname(testCase.path)}`, mimeType }, { captureDiagnostic: diagnosticPath ? (item) => diagnostics.push(item) : undefined });
+        if (diagnosticPath) await appendFile(diagnosticPath, `${JSON.stringify({ case: testCase.id ?? `case-${caseIndex + 1}`, model, run, diagnostics })}\n`, { mode: 0o600 });
         const expected = testCase.expected ?? {};
         const actual = result.receipt;
         const exact = (key) => expected[key] === undefined ? null : actual?.[key]?.value === expected[key];

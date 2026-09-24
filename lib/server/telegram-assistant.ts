@@ -731,6 +731,9 @@ function targetedAttachmentInput(message: string, attachment: TelegramAssistantA
 }
 
 function receiptFailureText(issues: string[]) {
+  if (issues.some((issue) => issue.startsWith("pipeline_deadline_"))) {
+    return "Обработка текущего документа превысила безопасный лимит времени. Черновик не создан, прежние данные не изменены. Отправьте документ повторно позже.";
+  }
   const fieldLabels: Record<string, string> = {
     document_kind: "тип документа",
     billing_period: "расчётный период",
@@ -817,7 +820,7 @@ export function runTelegramAssistant(
   message: string,
   appOrigin: string,
   attachment: TelegramAssistantAttachment | undefined,
-  request: { updateId: number; useUniversalReceiptPipeline?: boolean; receiptExtractor?: ReceiptVisionExtractor },
+  request: { updateId: number; useUniversalReceiptPipeline?: boolean; receiptExtractor?: ReceiptVisionExtractor; receiptPipelineDeadlineMs?: number },
 ): Promise<string | DocumentReply>;
 export async function runTelegramAssistant(
   admin: SupabaseClient,
@@ -825,7 +828,7 @@ export async function runTelegramAssistant(
   message: string,
   appOrigin: string,
   attachment?: TelegramAssistantAttachment,
-  request?: { updateId: number; useUniversalReceiptPipeline?: boolean; receiptExtractor?: ReceiptVisionExtractor },
+  request?: { updateId: number; useUniversalReceiptPipeline?: boolean; receiptExtractor?: ReceiptVisionExtractor; receiptPipelineDeadlineMs?: number },
 ): Promise<string | DocumentReply> {
   if (attachment && request && (!Number.isSafeInteger(request.updateId) || !attachment.fingerprint)) {
     console.warn("telegram_document_unrecognized", { reason: "missing_request_identity" });
@@ -1347,7 +1350,7 @@ export async function runTelegramAssistant(
         targetedDataUrls: attachment.targetedDataUrls,
         filename: attachment.filename,
         mimeType: attachment.mimeType,
-      }, { extractor: request.receiptExtractor });
+      }, { extractor: request.receiptExtractor, deadlineMs: request.receiptPipelineDeadlineMs });
       for (const pipelineAttempt of pipeline.attempts) {
         try {
           await admin.from("telegram_request_traces").insert({
@@ -1357,6 +1360,7 @@ export async function runTelegramAssistant(
             duration_ms: pipelineAttempt.latencyMs,
             details: {
               provider: pipelineAttempt.provider,
+              requested_model: pipelineAttempt.requestedModel,
               model: pipelineAttempt.model,
               input_tokens: pipelineAttempt.inputTokens,
               output_tokens: pipelineAttempt.outputTokens,
@@ -1374,7 +1378,8 @@ export async function runTelegramAssistant(
           failureReason = pipeline.failureCode ?? "receipt_pipeline_failed";
           failureIssues = pipeline.validation?.blockers ?? [failureReason];
           await admin.storage.from("asset-media").remove([attachment.storagePath]);
-          await saveConversation(admin, account, { pending_action: null, previous_response_id: null });
+          const preservesOldPending = failureReason.startsWith("pipeline_deadline_");
+          await saveConversation(admin, account, { pending_action: preservesOldPending ? conversation.pending_action : null, previous_response_id: null });
           console.warn("telegram_document_unrecognized", { update_id: document.updateId, reason: failureReason });
           return documentReply(document, "unrecognized", receiptFailureText(failureIssues));
         }

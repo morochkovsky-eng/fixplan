@@ -152,3 +152,27 @@ Changing the model is insufficient. The next iteration should add an independent
 5. Enforce a shared request deadline below the 300-second route limit.
 
 This is a general receipt architecture change, not a template rule for any evaluated document.
+
+## Evidence-verification revision
+
+PR #9 now implements the general architecture above:
+
+- literal evidence regions carry page, normalized bounding box, visual kind, section type, literal label/value and composite-region intent;
+- every non-null normalized fact must cite literal evidence;
+- charge, meter and optional entities are removed from the confirmed set when their number is absent, their section is wrong, their source is a heading/total/reference row, or a non-composite region is reused;
+- printed financial components preserve role, signed amount, whether they affect mandatory due and source evidence; validation reproduces the document-specific included-component formula;
+- a missing due date gets one header-only targeted pass and remains reviewable when not recovered;
+- one 240-second deadline covers all stages, with a 45-second minimum before any fallback and 60 seconds left for persistence/delivery inside the 300-second route limit;
+- requested and returned model IDs are both retained in sanitized attempts/traces.
+
+The run-level baseline attribution is in [`RECEIPT_ERROR_ATTRIBUTION_20260924.md`](RECEIPT_ERROR_ATTRIBUTION_20260924.md).
+
+### Post-change evaluation status
+
+The required Terra 21-run rerun is **not complete**. Two isolated diagnostic attempts on T03 were rejected before transcription with `http_429_credit_balance_exhausted`. No result from those calls is counted as an evaluation run. Until the private API project accepts inference again, precision, recall, post-change cost and post-change latency cannot be reported honestly and PR #9 remains ineligible for merge.
+
+The previous measured Terra baseline remains the only empirical cost/latency basis: $0.1331 average without fallback, $0.1932 with one fallback, p50 82.8 seconds and max 159.9 seconds. The baseline visual transcription averaged $0.0683 with p50 45.0 seconds and max 73.6 seconds. A dual-transcription consensus would therefore add about $0.0683 per document before any consensus-normalization cost; parallel latency would depend on the slower visual call and was not measured. It was not enabled. The deterministic evidence verifier itself is local and does not add an API call.
+
+The OpenAI model catalog and API both expose `gpt-5.6-terra` as the model ID. The Responses API returned the same alias, and the catalog currently exposes no distinct dated Terra snapshot to pin. This means alias drift cannot be inferred from `response.model` alone. The safe release policy is to retain requested/returned IDs, keep a fixed private canary corpus, and block adoption after any observed quality change; a truly reproducible dated target can be used only if OpenAI publishes a callable snapshot.
+
+Google Document AI and Azure Document Intelligence credentials were absent from the isolated evaluation environment. No cloud OCR request was made. The seven Terra extras are attributable to semantic classification of real printed balance/reference content, not proven missing-token OCR, so an independent OCR provider is not required for this correction. If future evidence shows literal text hallucination, a read-only spike must use private Google processor or Azure endpoint credentials and keep source files and raw responses outside Git.

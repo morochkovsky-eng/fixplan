@@ -42,12 +42,18 @@ test("utility evaluation returns the intercepted draft without persistence", asy
   process.env.OPENAI_RECEIPT_TRANSCRIPTION_MODEL = "test-model";
   process.env.OPENAI_RECEIPT_NORMALIZATION_MODEL = "test-model";
   const requestBodies = [];
-  const confirmed = (value, rawText = value === null ? null : String(value)) => ({ value, rawText, sourceRegionIds: value === null ? [] : ["r1"], status: value === null ? "missing" : "confirmed", reason: null });
+  const confirmed = (value, rawText = value === null ? null : String(value), sourceRegionIds = value === null ? [] : ["financial"]) => ({ value, rawText, sourceRegionIds, status: value === null ? "missing" : "confirmed", reason: null });
   const normalized = {
-    isUtilityDocument: confirmed(true), documentType: confirmed("electricity"), provider: confirmed("Поставщик"), referenceAddress: confirmed(null), accountNumber: confirmed(null), billingPeriod: confirmed("2026-08"), issuedDate: confirmed(null), dueDate: confirmed(null),
-    accruedAmount: confirmed(12345), openingDebt: confirmed(0), openingAdvance: confirmed(0), paymentsAppliedToCurrentPeriod: confirmed(0), recalculationAmount: confirmed(0), benefitAmount: confirmed(0), penaltyAmount: confirmed(0), printedMandatoryDue: confirmed(12345), mandatoryDue: confirmed(12345), lastPayment: { amount: confirmed(null), date: confirmed(null) }, lineItems: [], meterEntries: [], optionalCharges: [{ id: "o1", label: confirmed("Добровольная услуга"), kind: confirmed("other"), amount: confirmed(2500), includedInMandatory: confirmed(false) }], warnings: [],
+    isUtilityDocument: confirmed(true, "Квитанция", ["identity"]), documentType: confirmed("electricity", "Электричество", ["identity"]), provider: confirmed("Поставщик", "Поставщик", ["identity"]), referenceAddress: confirmed(null), accountNumber: confirmed(null), billingPeriod: confirmed("2026-08", "август 2026", ["period"]), issuedDate: confirmed(null), dueDate: confirmed(null),
+    accruedAmount: confirmed(12345, "123,45"), openingDebt: confirmed(0, "0,00"), openingAdvance: confirmed(0, "0,00"), paymentsAppliedToCurrentPeriod: confirmed(0, "0,00"), recalculationAmount: confirmed(0, "0,00"), benefitAmount: confirmed(0, "0,00"), penaltyAmount: confirmed(0, "0,00"), printedMandatoryDue: confirmed(12345, "123,45"), mandatoryDue: confirmed(12345, "123,45"), lastPayment: { amount: confirmed(null), date: confirmed(null) }, financialComponents: [], lineItems: [], meterEntries: [], optionalCharges: [{ id: "o1", label: confirmed("Добровольная услуга", "Добровольная услуга", ["optional"]), kind: confirmed("other", "Добровольная услуга", ["optional"]), amount: confirmed(2500, "25,00", ["optional"]), includedInMandatory: confirmed(false, "добровольно", ["optional"]) }], warnings: [],
   };
-  const literal = { pages: [{ page: 1, rawText: "Квитанция", sections: [] }], regions: [{ id: "r1", page: 1, kind: "total", rawText: "К оплате 123,45" }], keyValues: [], tables: [], totals: [], meters: [] };
+  const bbox = { x: 0.1, y: 0.1, width: 0.5, height: 0.05 };
+  const literal = { pages: [{ page: 1, rawText: "Квитанция", sections: [] }], regions: [{ id: "financial", page: 1, kind: "total", rawText: "К оплате 123,45" }], keyValues: [], tables: [], totals: [], meters: [], evidence: [
+    { id: "identity", page: 1, kind: "heading", sectionType: "identity", label: "Квитанция", value: "Электричество Поставщик", rawText: "Квитанция Электричество Поставщик", bbox, allowsMultipleEntities: true },
+    { id: "period", page: 1, kind: "key_value", sectionType: "billing_period", label: "Период", value: "август 2026", rawText: "август 2026", bbox, allowsMultipleEntities: false },
+    { id: "financial", page: 1, kind: "total", sectionType: "financial_summary", label: "К оплате", value: "123,45 0,00", rawText: "Начислено 123,45; долг 0,00; оплачено 0,00; перерасчёт 0,00; пени 0,00; к оплате 123,45", bbox, allowsMultipleEntities: true },
+    { id: "optional", page: 1, kind: "key_value", sectionType: "optional_charges", label: "Добровольная услуга", value: "25,00", rawText: "Добровольная услуга 25,00 добровольно", bbox, allowsMultipleEntities: true },
+  ] };
   let step = 0;
   try {
     const result = await utility.runUtilityBillEvaluation(
@@ -73,7 +79,7 @@ test("utility evaluation returns the intercepted draft without persistence", asy
     assert.equal(requestBodies[0].input[0].content[1].detail, "auto");
     assert.equal(requestBodies[0].max_output_tokens, 14000);
     assert.equal(requestBodies[1].text.format.name, "receipt_semantic_normalization");
-    assert.equal(requestBodies[1].max_output_tokens, 10000);
+    assert.equal(requestBodies[1].max_output_tokens, 14000);
     assert.equal(requestBodies.some((body) => body.tools), false);
   } finally {
     restoreEnvironment("OPENAI_API_KEY", oldApiKey);

@@ -15,9 +15,9 @@ function field(value, rawText = value === null ? null : String(value), status = 
 
 function receipt(overrides = {}) {
   return {
-    isUtilityDocument: field(true, "Платёжный документ"), documentType: field("housing", "Жилищные услуги"), provider: field("Поставщик", "Поставщик"), referenceAddress: field(null), accountNumber: field(null), billingPeriod: field("2026-08", "август 2026"), issuedDate: field(null), dueDate: field("2026-09-15", "до 15.09.2026"),
-    accruedAmount: field(10000, "100,00"), openingDebt: field(0, "0,00"), openingAdvance: field(0, "0,00"), paymentsAppliedToCurrentPeriod: field(0, "0,00"), recalculationAmount: field(0, "0,00"), benefitAmount: field(0, "0,00"), penaltyAmount: field(0, "0,00"), printedMandatoryDue: field(10000, "К оплате 100,00"), mandatoryDue: field(10000, "К оплате 100,00"),
-    lastPayment: { amount: field(null), date: field(null) }, lineItems: [], meterEntries: [], optionalCharges: [], warnings: [], ...overrides,
+    isUtilityDocument: field(true, "Платёжный документ", "confirmed", ["identity"]), documentType: field("housing", "Жилищные услуги", "confirmed", ["identity"]), provider: field("Поставщик", "Поставщик", "confirmed", ["identity"]), referenceAddress: field(null), accountNumber: field(null), billingPeriod: field("2026-08", "август 2026", "confirmed", ["period"]), issuedDate: field(null), dueDate: field("2026-09-15", "до 15.09.2026", "confirmed", ["due"]),
+    accruedAmount: field(10000, "100,00", "confirmed", ["financial"]), openingDebt: field(0, "0,00", "confirmed", ["financial"]), openingAdvance: field(0, "0,00", "confirmed", ["financial"]), paymentsAppliedToCurrentPeriod: field(0, "0,00", "confirmed", ["financial"]), recalculationAmount: field(0, "0,00", "confirmed", ["financial"]), benefitAmount: field(0, "0,00", "confirmed", ["financial"]), penaltyAmount: field(0, "0,00", "confirmed", ["financial"]), printedMandatoryDue: field(10000, "К оплате 100,00", "confirmed", ["financial"]), mandatoryDue: field(10000, "К оплате 100,00", "confirmed", ["financial"]),
+    lastPayment: { amount: field(null), date: field(null) }, financialComponents: [], lineItems: [], meterEntries: [], optionalCharges: [], warnings: [], ...overrides,
   };
 }
 
@@ -26,7 +26,20 @@ function line(id, amount, rowKind = "charge") {
 }
 
 function transcription() {
-  return { pages: [{ page: 1, rawText: "Квитанция", sections: [{ id: "s1", title: "Услуги", regionIds: ["r1"] }] }], regions: [{ id: "r1", page: 1, kind: "total", rawText: "К оплате 100,00" }], keyValues: [], tables: [], totals: [{ id: "r1", page: 1, label: "К оплате", value: "100,00", rawText: "К оплате 100,00" }], meters: [] };
+  const bbox = { x: 0.1, y: 0.1, width: 0.5, height: 0.05 };
+  const evidence = [
+    { id: "identity", page: 1, kind: "heading", sectionType: "identity", label: "Платёжный документ", value: "Жилищные услуги Поставщик", rawText: "Платёжный документ Жилищные услуги Поставщик", bbox, allowsMultipleEntities: true },
+    { id: "period", page: 1, kind: "key_value", sectionType: "billing_period", label: "Период", value: "август 2026", rawText: "Период август 2026", bbox, allowsMultipleEntities: false },
+    { id: "due", page: 1, kind: "key_value", sectionType: "financial_summary", label: "Срок", value: "15.09.2026", rawText: "до 15.09.2026", bbox, allowsMultipleEntities: false },
+    { id: "due-region", page: 1, kind: "key_value", sectionType: "financial_summary", label: "Срок", value: "25.09.2026", rawText: "25.09.2026", bbox, allowsMultipleEntities: false },
+    { id: "financial", page: 1, kind: "total", sectionType: "financial_summary", label: "К оплате", value: "100,00 0,00", rawText: "К оплате 100,00; долг 0,00; оплачено 0,00; перерасчёт 0,00; пени 0,00", bbox, allowsMultipleEntities: true },
+    { id: "r-total", page: 1, kind: "total", sectionType: "financial_summary", label: "К оплате", value: "100,00", rawText: "К оплате 100,00", bbox, allowsMultipleEntities: true },
+  ];
+  return { pages: [{ page: 1, rawText: "Квитанция", sections: [{ id: "s1", title: "Услуги", regionIds: ["financial"] }] }], regions: [{ id: "financial", page: 1, kind: "total", rawText: "К оплате 100,00" }], keyValues: [], tables: [], totals: [{ id: "financial", page: 1, label: "К оплате", value: "100,00", rawText: "К оплате 100,00" }], meters: [], evidence };
+}
+
+function component(id, role, amount, affectsMandatoryDue, label = role) {
+  return { id, role, label: field(label, label), signedAmount: field(amount, String(amount)), affectsMandatoryDue: field(affectsMandatoryDue, affectsMandatoryDue ? "входит" : "справочно") };
 }
 
 function providerResult(value, model = "test-model") {
@@ -104,4 +117,35 @@ test("validator also accepts a supplier that applies adjustments outside printed
   }));
   assert.equal(result.ok, true);
   assert.equal(result.warnings.includes("top_level_balance_conflict"), false);
+});
+
+test("printed financial components reproduce different supplier formulas without a universal sign formula", () => {
+  const scenarios = [
+    receipt({ mandatoryDue: field(505623), printedMandatoryDue: field(505623), financialComponents: [component("a", "accrued", 509199, true), component("advance", "opening_advance", -3576, true)] }),
+    receipt({ mandatoryDue: field(259649), printedMandatoryDue: field(259649), financialComponents: [component("a", "accrued", 406622, true), component("advance", "opening_advance", -146973, true)] }),
+    receipt({ mandatoryDue: field(1499584), printedMandatoryDue: field(1499584), financialComponents: [component("a", "accrued", 1440563, true), component("debt", "opening_debt", 7559021, true), component("payment", "current_payment", -7500000, true), component("recalc", "recalculation", -25617, false), component("penalty", "penalty", 8014, false)] }),
+  ];
+  for (const current of scenarios) {
+    const result = validateNormalizedReceipt(current);
+    assert.equal(result.ok, true);
+    assert.equal(result.warnings.includes("printed_financial_formula_conflict"), false);
+  }
+});
+
+test("a missing printed due date gets one header-only targeted pass without full fallback", async () => {
+  const first = receipt({ dueDate: field(null) });
+  const due = receipt({ dueDate: field("2026-09-25", "25.09.2026", "confirmed", ["due-region"]) });
+  let normalizeCalls = 0;
+  let targetedCalls = 0;
+  const extractor = {
+    provider: "test", transcriptionModel: "vision", normalizationModel: "text",
+    async transcribe() { return providerResult(transcription(), "vision"); },
+    async transcribeFallback(input) { targetedCalls += 1; assert.deepEqual(input.unresolvedFields, ["dueDate"]); assert.deepEqual(input.targetedDataUrls, ["data:image/jpeg;base64,HEADER"]); return providerResult(transcription(), "vision"); },
+    async normalize() { return providerResult(normalizeCalls++ === 0 ? first : due, "text"); },
+  };
+  const result = await runReceiptPipeline({ dataUrl: "data:image/jpeg;base64,AA==", targetedDataUrls: ["data:image/jpeg;base64,HEADER", "data:image/jpeg;base64,TABLE"], filename: "receipt.jpg", mimeType: "image/jpeg" }, { extractor });
+  assert.equal(result.ok, true);
+  assert.equal(result.receipt.dueDate.value, "2026-09-25");
+  assert.equal(targetedCalls, 1);
+  assert.deepEqual(result.attempts.map((item) => item.stage), ["transcription", "normalization", "due_date_transcription", "due_date_normalization"]);
 });

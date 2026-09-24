@@ -544,19 +544,24 @@ test("T08 keeps debt, payment, recalculation and penalty separate from printed d
   assert.equal(row.due_date, "2026-06-15");
 });
 
-function pipelineField(value, status = value === null ? "missing" : "confirmed", rawText = value === null ? null : String(value)) {
-  return { value, rawText, sourceRegionIds: value === null ? [] : ["region-1"], status, reason: status === "confirmed" ? null : "not_printed" };
+function pipelineField(value, status = value === null ? "missing" : "confirmed", rawText = value === null ? null : String(value), sourceRegionIds = value === null ? [] : ["financial"]) {
+  return { value, rawText, sourceRegionIds, status, reason: status === "confirmed" ? null : "not_printed" };
 }
 
 function pipelineReceipt(overrides = {}) {
   return {
-    isUtilityDocument: pipelineField(true), documentType: pipelineField("housing"), provider: pipelineField(null), referenceAddress: pipelineField(null), accountNumber: pipelineField(null), billingPeriod: pipelineField("2026-08"), issuedDate: pipelineField(null), dueDate: pipelineField(null),
-    accruedAmount: pipelineField(316303), openingDebt: pipelineField(0), openingAdvance: pipelineField(0), paymentsAppliedToCurrentPeriod: pipelineField(0), recalculationAmount: pipelineField(0), benefitAmount: pipelineField(0), penaltyAmount: pipelineField(0), printedMandatoryDue: pipelineField(316303), mandatoryDue: pipelineField(316303), lastPayment: { amount: pipelineField(null), date: pipelineField(null) }, lineItems: [], meterEntries: [], optionalCharges: [], warnings: [], ...overrides,
+    isUtilityDocument: pipelineField(true, "confirmed", "Квитанция", ["identity"]), documentType: pipelineField("housing", "confirmed", "Жилищные услуги", ["identity"]), provider: pipelineField(null), referenceAddress: pipelineField(null), accountNumber: pipelineField(null), billingPeriod: pipelineField("2026-08", "confirmed", "август 2026", ["period"]), issuedDate: pipelineField(null), dueDate: pipelineField(null),
+    accruedAmount: pipelineField(316303), openingDebt: pipelineField(0), openingAdvance: pipelineField(0), paymentsAppliedToCurrentPeriod: pipelineField(0), recalculationAmount: pipelineField(0), benefitAmount: pipelineField(0), penaltyAmount: pipelineField(0), printedMandatoryDue: pipelineField(316303), mandatoryDue: pipelineField(316303), lastPayment: { amount: pipelineField(null), date: pipelineField(null) }, financialComponents: [], lineItems: [], meterEntries: [], optionalCharges: [], warnings: [], ...overrides,
   };
 }
 
 function pipelineExtractor(firstReceipt, fallbackReceipt = firstReceipt) {
-  const literal = { pages: [{ page: 1, rawText: "Квитанция", sections: [] }], regions: [{ id: "region-1", page: 1, kind: "total", rawText: "К оплате 3163,03" }], keyValues: [], tables: [], totals: [], meters: [] };
+  const bbox = { x: 0.1, y: 0.1, width: 0.5, height: 0.05 };
+  const literal = { pages: [{ page: 1, rawText: "Квитанция", sections: [] }], regions: [{ id: "financial", page: 1, kind: "total", rawText: "К оплате 3163,03" }], keyValues: [], tables: [], totals: [], meters: [], evidence: [
+    { id: "identity", page: 1, kind: "heading", sectionType: "identity", label: "Квитанция", value: "Жилищные услуги", rawText: "Квитанция Жилищные услуги", bbox, allowsMultipleEntities: true },
+    { id: "period", page: 1, kind: "key_value", sectionType: "billing_period", label: "Период", value: "август 2026", rawText: "август 2026", bbox, allowsMultipleEntities: false },
+    { id: "financial", page: 1, kind: "total", sectionType: "financial_summary", label: "К оплате", value: "3163,03 0,00", rawText: "Начислено 3163,03; долг 0,00; оплачено 0,00; перерасчёт 0,00; пени 0,00; к оплате 3163,03", bbox, allowsMultipleEntities: true },
+  ] };
   let normalization = 0;
   return {
     provider: "test", transcriptionModel: "vision-test", normalizationModel: "text-test",
@@ -583,6 +588,7 @@ test("universal pipeline creates a partial draft with field evidence and no prio
   assert.equal(db.rows.telegram_conversations[0].pending_action.payload.sourceUpdateId, 980);
   assert.equal(db.rows.telegram_conversations[0].pending_action.payload.sourceFingerprint, current.fingerprint);
   const serializedTraces = JSON.stringify(db.rows.telegram_request_traces);
+  assert.equal(db.rows.telegram_request_traces.find((trace) => trace.event === "receipt.transcription")?.details.requested_model, "vision-test");
   assert.doesNotMatch(serializedTraces, /Квитанция|К оплате|Поставщик/);
   assert.doesNotMatch(serializedTraces, /rawText|sourceRegionIds|referenceAddress|accountNumber/);
 });
@@ -601,4 +607,24 @@ test("universal pipeline never persists when mandatory due remains unresolved af
   assert.equal(db.rows.telegram_conversations[0].pending_action, null);
   assert.deepEqual(db.removed, [current.storagePath]);
   assert.equal(db.rows.telegram_request_traces.filter((trace) => trace.event === "receipt.fallback_transcription").length, 1);
+});
+
+test("the shared receipt deadline removes only the current file and preserves an older pending draft", async () => {
+  const db = database();
+  const oldPending = { type: "create_utility_bill", apartmentId: "apt-a", payload: { draftBillId: "old-draft", sourceUpdateId: 700, receiptStoragePath: "apt-a/telegram/inbox/old.pdf" } };
+  db.rows.telegram_conversations.push({ telegram_user_id: owner.telegram_user_id, pending_action: structuredClone(oldPending), previous_response_id: "old-response" });
+  const current = attachment(982);
+  const literal = { pages: [], regions: [], keyValues: [], tables: [], totals: [], meters: [] };
+  const extractor = {
+    provider: "test", transcriptionModel: "vision-test", normalizationModel: "text-test",
+    async transcribe() { await new Promise((resolve) => setTimeout(resolve, 5)); return { provider: "test", model: "vision-test", value: literal, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, latencyMs: 5, failureCode: null, responseId: "late" }; },
+    async transcribeFallback() { throw new Error("fallback must not run"); },
+    async normalize() { throw new Error("normalization must not run"); },
+  };
+  const result = await runTelegramAssistant(db, owner, "", "https://example.invalid", current, { updateId: 982, useUniversalReceiptPipeline: true, receiptExtractor: extractor, receiptPipelineDeadlineMs: 1 });
+  assert.equal(result.state, "unrecognized");
+  assert.match(result.text, /лимит времени/u);
+  assert.deepEqual(db.rows.telegram_conversations[0].pending_action, oldPending);
+  assert.deepEqual(db.removed, [current.storagePath]);
+  assert.equal(db.rows.utility_bills.length, 0);
 });

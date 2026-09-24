@@ -24,6 +24,14 @@ export type NormalizedReceiptLine = {
   calculationMode: "simple" | "zoned" | "tiered" | "composite" | "printed_total";
 };
 
+export type ReceiptFinancialComponent = {
+  id: string;
+  role: "accrued" | "opening_debt" | "opening_advance" | "current_payment" | "last_payment" | "recalculation" | "benefit" | "penalty" | "printed_due" | "other";
+  label: ReceiptField<string>;
+  signedAmount: ReceiptField<number>;
+  affectsMandatoryDue: ReceiptField<boolean>;
+};
+
 export type NormalizedReceipt = {
   isUtilityDocument: ReceiptField<boolean>;
   documentType: ReceiptField<string>;
@@ -43,6 +51,7 @@ export type NormalizedReceipt = {
   printedMandatoryDue: ReceiptField<number>;
   mandatoryDue: ReceiptField<number>;
   lastPayment: { amount: ReceiptField<number>; date: ReceiptField<string> };
+  financialComponents: ReceiptFinancialComponent[];
   lineItems: NormalizedReceiptLine[];
   meterEntries: Array<{
     id: string;
@@ -84,13 +93,26 @@ const lineSchema = {
   properties: { id: { type: "string" }, rowKind: { type: "string", enum: ["charge", "subtotal", "grand_total", "reference"] }, name: textField, unit: textField, volume: textField, tariff: textField, chargeAmount: moneyField, recalculationAmount: moneyField, benefitAmount: moneyField, totalAmount: moneyField, calculationMode: { type: "string", enum: ["simple", "zoned", "tiered", "composite", "printed_total"] } },
 };
 
+const financialComponentSchema = {
+  type: "object", additionalProperties: false,
+  required: ["id", "role", "label", "signedAmount", "affectsMandatoryDue"],
+  properties: {
+    id: { type: "string" },
+    role: { type: "string", enum: ["accrued", "opening_debt", "opening_advance", "current_payment", "last_payment", "recalculation", "benefit", "penalty", "printed_due", "other"] },
+    label: textField,
+    signedAmount: moneyField,
+    affectsMandatoryDue: boolField,
+  },
+};
+
 export const receiptNormalizationSchema = {
   type: "object", additionalProperties: false,
-  required: ["isUtilityDocument", "documentType", "provider", "referenceAddress", "accountNumber", "billingPeriod", "issuedDate", "dueDate", "accruedAmount", "openingDebt", "openingAdvance", "paymentsAppliedToCurrentPeriod", "recalculationAmount", "benefitAmount", "penaltyAmount", "printedMandatoryDue", "mandatoryDue", "lastPayment", "lineItems", "meterEntries", "optionalCharges", "warnings"],
+  required: ["isUtilityDocument", "documentType", "provider", "referenceAddress", "accountNumber", "billingPeriod", "issuedDate", "dueDate", "accruedAmount", "openingDebt", "openingAdvance", "paymentsAppliedToCurrentPeriod", "recalculationAmount", "benefitAmount", "penaltyAmount", "printedMandatoryDue", "mandatoryDue", "lastPayment", "financialComponents", "lineItems", "meterEntries", "optionalCharges", "warnings"],
   properties: {
     isUtilityDocument: boolField, documentType: documentKindField, provider: textField, referenceAddress: textField, accountNumber: textField, billingPeriod: billingPeriodField, issuedDate: dateField, dueDate: dateField,
     accruedAmount: moneyField, openingDebt: moneyField, openingAdvance: moneyField, paymentsAppliedToCurrentPeriod: moneyField, recalculationAmount: moneyField, benefitAmount: moneyField, penaltyAmount: moneyField, printedMandatoryDue: moneyField, mandatoryDue: moneyField,
     lastPayment: { type: "object", additionalProperties: false, required: ["amount", "date"], properties: { amount: moneyField, date: dateField } },
+    financialComponents: { type: "array", items: financialComponentSchema },
     lineItems: { type: "array", items: lineSchema },
     meterEntries: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "resource", "meterNumber", "previousValue", "currentValue", "consumption", "unit", "tariff"], properties: { id: { type: "string" }, resource: textField, meterNumber: textField, previousValue: textField, currentValue: textField, consumption: textField, unit: textField, tariff: textField } } },
     optionalCharges: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "label", "kind", "amount", "includedInMandatory"], properties: { id: { type: "string" }, label: textField, kind: textField, amount: moneyField, includedInMandatory: boolField } } },
@@ -98,11 +120,11 @@ export const receiptNormalizationSchema = {
   },
 } as const;
 
-export const receiptNormalizationPrompt = `Normalize the supplied literal transcription into the receipt schema. Use only text and region IDs present in the transcription. Every field must retain rawText, sourceRegionIds, status and a short reason when review is needed. Monetary values are signed integer minor units (kopecks), never floating point. Normalize billingPeriod to YYYY-MM and every date to YYYY-MM-DD while preserving the literal printed form in rawText. Return null/missing rather than a non-canonical or guessed date. Do not infer missing numbers from templates or arithmetic.
+export const receiptNormalizationPrompt = `Normalize the supplied literal transcription into the receipt schema. Use only literal text and evidence IDs present in transcription.evidence. Every non-null field must retain its literal rawText and one or more sourceRegionIds. Monetary values are signed integer minor units (kopecks), never floating point. Normalize billingPeriod to YYYY-MM and every date to YYYY-MM-DD while preserving the literal printed form in rawText. Return null/missing rather than a non-canonical or guessed date. Do not infer missing numbers from templates or arithmetic. Never create a number absent from every cited evidence region.
 
-Separate current accrual, opening debt, opening advance, payments explicitly applied to this period, recalculation, benefit, penalty, printed mandatory due and normalized mandatory due. A historical last payment amount/date is reference-only and must never become paymentsAppliedToCurrentPeriod unless the document explicitly says it was applied to this calculation. Preserve debt and advance as non-negative magnitudes in their separate fields. Optional or voluntary services must be separate and excluded unless the printed mandatory total explicitly includes them.
+Preserve every printed financial component in financialComponents with its semantic role, literal label, signed amount, affectsMandatoryDue and evidence IDs. The sign and affectsMandatoryDue must follow the printed document; when either is ambiguous, mark it needs_review rather than changing a sign to make arithmetic work. Separate current accrual, opening debt, opening advance, payments explicitly applied to this period, recalculation, benefit, penalty, printed mandatory due and normalized mandatory due. A historical last payment amount/date is reference-only and must never become paymentsAppliedToCurrentPeriod unless the document explicitly says it was applied to this calculation. Preserve debt and advance as non-negative magnitudes in their canonical fields while retaining the signed printed component. Optional or voluntary services must be separate and excluded unless the printed mandatory total explicitly includes them.
 
-Only visual charge rows become rowKind=charge. Section headings are not charges; subtotals and grand totals retain their row kinds and are not duplicated as charges. Use calculationMode=simple only for one visibly printed volume × tariff formula; zoned, tiered and composite calculations must not be reduced to a simple formula. Blank current meter readings remain null/missing. A plausible value without direct evidence is missing, never confirmed.`;
+Only evidence with sectionType=service_table and a visual charge row can become rowKind=charge. Section headings are not charges; subtotals and grand totals retain their row kinds and are not duplicated as charges. Meter entries require meter_table evidence; normatives and reference values are not readings. Use calculationMode=simple only for one visibly printed volume × tariff formula; zoned, tiered and composite calculations must not be reduced to a simple formula. Blank current meter readings remain null/missing. A plausible value without direct evidence is missing, never confirmed.`;
 
 function sameValue(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
@@ -132,6 +154,7 @@ export function mergeNormalizedReceipts(first: NormalizedReceipt, fallback: Norm
   merged.lineItems = mergeById(first.lineItems, fallback.lineItems);
   merged.meterEntries = mergeById(first.meterEntries, fallback.meterEntries);
   merged.optionalCharges = mergeById(first.optionalCharges, fallback.optionalCharges);
+  merged.financialComponents = mergeById(first.financialComponents ?? [], fallback.financialComponents ?? []);
   merged.warnings = [...new Set([...first.warnings, ...fallback.warnings])];
   return merged;
 }
@@ -149,11 +172,13 @@ export function unresolvedReceiptFields(receipt: NormalizedReceipt) {
 export function parseNormalizedReceipt(value: unknown): NormalizedReceipt | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const receipt = value as NormalizedReceipt;
-  return receipt.isUtilityDocument && receipt.billingPeriod && receipt.mandatoryDue && Array.isArray(receipt.lineItems) && Array.isArray(receipt.meterEntries) && Array.isArray(receipt.optionalCharges) ? receipt : null;
+  if (!(receipt.isUtilityDocument && receipt.billingPeriod && receipt.mandatoryDue && Array.isArray(receipt.lineItems) && Array.isArray(receipt.meterEntries) && Array.isArray(receipt.optionalCharges))) return null;
+  receipt.financialComponents = Array.isArray(receipt.financialComponents) ? receipt.financialComponents : [];
+  return receipt;
 }
 
 export function compactTranscription(transcription: ReceiptTranscription, regionIds: string[]) {
   if (!regionIds.length) return transcription;
   const wanted = new Set(regionIds);
-  return { ...transcription, regions: transcription.regions.filter((region) => wanted.has(region.id)), keyValues: transcription.keyValues.filter((item) => wanted.has(item.id)), totals: transcription.totals.filter((item) => wanted.has(item.id)), meters: transcription.meters.filter((item) => wanted.has(item.id)), tables: transcription.tables.filter((table) => wanted.has(table.id) || table.rows.some((row) => wanted.has(row.id))) };
+  return { ...transcription, regions: transcription.regions.filter((region) => wanted.has(region.id)), keyValues: transcription.keyValues.filter((item) => wanted.has(item.id)), totals: transcription.totals.filter((item) => wanted.has(item.id)), meters: transcription.meters.filter((item) => wanted.has(item.id)), tables: transcription.tables.filter((table) => wanted.has(table.id) || table.rows.some((row) => wanted.has(row.id))), evidence: transcription.evidence?.filter((item) => wanted.has(item.id)) };
 }

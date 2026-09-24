@@ -11,6 +11,7 @@ await import("tsx/esm");
 const money = await import("../lib/server/receipt-money.ts");
 const telegram = await import("../lib/server/telegram.ts");
 const normalization = await import("../lib/server/receipt-normalization.ts");
+const transcription = await import("../lib/server/receipt-transcription.ts");
 
 test("receipt money uses exact decimal-to-minor arithmetic", () => {
   assert.equal(money.moneyToMinor("14 995,84"), 1499584n);
@@ -58,4 +59,12 @@ test("receipt schema requires canonical billing periods and ISO dates", () => {
   assert.equal(properties.lastPayment.properties.date.properties.value.anyOf[0].pattern, "^\\d{4}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$");
   assert.match(normalization.receiptNormalizationPrompt, /Normalize billingPeriod to YYYY-MM/);
   assert.match(normalization.receiptNormalizationPrompt, /Return null\/missing rather than a non-canonical or guessed date/);
+});
+
+test("receipt schemas require spatial evidence and printed financial components", () => {
+  assert.ok(transcription.receiptTranscriptionSchema.required.includes("evidence"));
+  const evidence = transcription.receiptTranscriptionSchema.properties.evidence.items;
+  assert.deepEqual(evidence.required, ["id", "page", "kind", "sectionType", "label", "value", "rawText", "bbox", "allowsMultipleEntities"]);
+  assert.ok(normalization.receiptNormalizationSchema.required.includes("financialComponents"));
+  assert.match(normalization.receiptNormalizationPrompt, /Never create a number absent from every cited evidence region/);
 });

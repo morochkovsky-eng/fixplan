@@ -1,5 +1,5 @@
 import { minorToDecimal } from "@/lib/server/receipt-money";
-import type { NormalizedReceipt, NormalizedReceiptLine, ReceiptField } from "@/lib/server/receipt-normalization";
+import type { NormalizedReceipt, NormalizedReceiptLine, ReceiptField, ReceiptFinancialComponent } from "@/lib/server/receipt-normalization";
 
 export type ReceiptValidation = {
   ok: boolean;
@@ -30,10 +30,50 @@ function markLine(line: NormalizedReceiptLine, reason: string): NormalizedReceip
   return { ...line, chargeAmount: mark(line.chargeAmount), totalAmount: mark(line.totalAmount) };
 }
 
+function confirmedComponent(components: ReceiptFinancialComponent[], role: ReceiptFinancialComponent["role"]) {
+  const matches = components.filter((item) => item.role === role && item.signedAmount.status === "confirmed" && item.signedAmount.value !== null);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function componentField(component: ReceiptFinancialComponent, magnitude = false): ReceiptField<number> {
+  const value = component.signedAmount.value;
+  return { ...component.signedAmount, value: value === null ? null : magnitude ? Math.abs(value) : value };
+}
+
+function applyFinancialComponents(receipt: NormalizedReceipt, warnings: string[]) {
+  const mapping: Array<[ReceiptFinancialComponent["role"], keyof Pick<NormalizedReceipt, "accruedAmount" | "openingDebt" | "openingAdvance" | "paymentsAppliedToCurrentPeriod" | "recalculationAmount" | "benefitAmount" | "penaltyAmount" | "printedMandatoryDue">, boolean]> = [
+    ["accrued", "accruedAmount", false],
+    ["opening_debt", "openingDebt", true],
+    ["opening_advance", "openingAdvance", true],
+    ["current_payment", "paymentsAppliedToCurrentPeriod", true],
+    ["recalculation", "recalculationAmount", false],
+    ["benefit", "benefitAmount", true],
+    ["penalty", "penaltyAmount", false],
+    ["printed_due", "printedMandatoryDue", false],
+  ];
+  for (const [role, key, magnitude] of mapping) {
+    const component = confirmedComponent(receipt.financialComponents, role);
+    if (!component) continue;
+    const derived = componentField(component, magnitude);
+    const current = receipt[key];
+    if (current.status !== "confirmed" || current.value === null) receipt[key] = derived;
+    else if (current.value !== derived.value) {
+      receipt[key] = { ...current, status: "needs_review", reason: "financial_component_conflict" };
+      warnings.push(`financial_component_conflict:${role}`);
+    }
+  }
+  const lastPayment = confirmedComponent(receipt.financialComponents, "last_payment");
+  if (lastPayment && (receipt.lastPayment.amount.status !== "confirmed" || receipt.lastPayment.amount.value === null)) {
+    receipt.lastPayment.amount = componentField(lastPayment, true);
+  }
+}
+
 export function validateNormalizedReceipt(input: NormalizedReceipt): ReceiptValidation {
   const receipt = structuredClone(input);
+  receipt.financialComponents ??= [];
   const warnings = [...receipt.warnings];
   const blockers: string[] = [];
+  applyFinancialComponents(receipt, warnings);
   if (receipt.isUtilityDocument.status !== "confirmed" || receipt.isUtilityDocument.value !== true) blockers.push("utility_document_unconfirmed");
   if (receipt.billingPeriod.status !== "confirmed" || !/^\d{4}-(0[1-9]|1[0-2])$/u.test(receipt.billingPeriod.value ?? "")) blockers.push("billing_period_unconfirmed");
   if (receipt.mandatoryDue.status !== "confirmed" || receipt.mandatoryDue.value === null || receipt.mandatoryDue.value <= 0) blockers.push("mandatory_due_unconfirmed");
@@ -58,17 +98,17 @@ export function validateNormalizedReceipt(input: NormalizedReceipt): ReceiptVali
     warnings.push("charge_rows_incomplete");
   }
 
-  const balanceFields = [receipt.accruedAmount, receipt.openingDebt, receipt.openingAdvance, receipt.paymentsAppliedToCurrentPeriod, receipt.recalculationAmount, receipt.penaltyAmount];
-  if (balanceFields.every((field) => field.status === "confirmed" && field.value !== null) && receipt.mandatoryDue.value !== null) {
-    // Some suppliers fold adjustments into the printed accrual while others print an
-    // explicit adjusted balance. Accept either visible convention, never manufacture one.
-    const base = (receipt.accruedAmount.value ?? 0) + (receipt.openingDebt.value ?? 0) - (receipt.openingAdvance.value ?? 0) - (receipt.paymentsAppliedToCurrentPeriod.value ?? 0);
-    const adjusted = base + (receipt.recalculationAmount.value ?? 0) - (receipt.benefitAmount.value ?? 0) + (receipt.penaltyAmount.value ?? 0);
-    if (absolute(base - receipt.mandatoryDue.value) > 2 && absolute(adjusted - receipt.mandatoryDue.value) > 2) {
-      warnings.push("top_level_balance_conflict");
-      receipt.mandatoryDue = { ...receipt.mandatoryDue, status: "needs_review", reason: "top_level_balance_conflict" };
+  const formulaComponents = receipt.financialComponents.filter((item) => item.affectsMandatoryDue.status === "confirmed" && item.affectsMandatoryDue.value === true && item.signedAmount.status === "confirmed" && item.signedAmount.value !== null);
+  const hasAmbiguousFormulaComponent = receipt.financialComponents.some((item) => item.affectsMandatoryDue.status !== "confirmed" || item.signedAmount.status !== "confirmed");
+  if (formulaComponents.length && !hasAmbiguousFormulaComponent && receipt.mandatoryDue.value !== null) {
+    const reproduced = formulaComponents.reduce((sum, item) => sum + (item.signedAmount.value ?? 0), 0);
+    if (absolute(reproduced - receipt.mandatoryDue.value) > 2) {
+      warnings.push("printed_financial_formula_conflict");
+      receipt.mandatoryDue = { ...receipt.mandatoryDue, status: "needs_review", reason: "printed_financial_formula_conflict" };
       if (!blockers.includes("mandatory_due_unconfirmed")) blockers.push("mandatory_due_conflict");
     }
+  } else if (hasAmbiguousFormulaComponent) {
+    warnings.push("financial_formula_needs_review");
   }
 
   for (const optional of receipt.optionalCharges) {
@@ -84,6 +124,7 @@ export function collectReviewFields(receipt: NormalizedReceipt) {
   ];
   for (const line of receipt.lineItems) for (const key of ["name", "unit", "volume", "tariff", "chargeAmount", "recalculationAmount", "benefitAmount", "totalAmount"] as const) fields.push([`lineItems.${line.id}.${key}`, line[key]]);
   for (const meter of receipt.meterEntries) for (const key of ["resource", "meterNumber", "previousValue", "currentValue", "consumption", "unit", "tariff"] as const) fields.push([`meterEntries.${meter.id}.${key}`, meter[key]]);
+  for (const component of receipt.financialComponents) for (const key of ["label", "signedAmount", "affectsMandatoryDue"] as const) fields.push([`financialComponents.${component.id}.${key}`, component[key]]);
   return fields.filter(([, field]) => field.status !== "confirmed").map(([name]) => name);
 }
 
