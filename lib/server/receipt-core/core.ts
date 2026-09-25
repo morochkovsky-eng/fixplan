@@ -17,6 +17,7 @@ const ROLE_VALUE_SLOT: Partial<Record<ValidatedRoleItem["role"], SlotName>> = {
   accrued_total: "accrued_total", opening_balance: "opening_balance", opening_debt: "opening_debt",
   opening_advance: "opening_advance", payment: "payment", benefit: "benefit", recalculation: "recalculation",
   penalty: "penalty", rounding: "rounding", payment_history: "payment_history", due_candidate: "due_candidate",
+  closing_balance: "closing_balance",
   period: "period", due_date: "due_date", provider: "provider", account: "account", address: "address", issue_date: "issue_date",
 };
 
@@ -139,6 +140,19 @@ export function buildCanonicalReceipt(indexed: IndexedLiteralDocument, validated
     const signed = parsed ? canonicalFinancialAmount("accrued_total", parsed, accruedItem, diagnostics) : null;
     accruedTotal = { state: signed?.confirmed ? "printed" : state === "printed" ? "illegible" : state, value: signed?.confirmed ? signed.amountMinor : null, sourceCellIds: value.cellIds, sourceTokenIds: value.tokenIds };
   }
+  const closingItem = items.find((item) => item.role === "closing_balance");
+  let closingBalance = emptyField<bigint>();
+  if (closingItem) {
+    const value = slot(closingItem, "closing_balance");
+    const state = stateFromCells(value.cellIds.flatMap((id) => cells.get(id) ?? []));
+    const parsed = moneyFromSlot(closingItem, "closing_balance", tokens, diagnostics);
+    closingBalance = {
+      state: parsed ? "printed" : state === "printed" ? "illegible" : state,
+      value: parsed?.minor ?? null,
+      sourceCellIds: value.cellIds,
+      sourceTokenIds: value.tokenIds,
+    };
+  }
 
   const financialComponents: FinancialComponent[] = [];
   const dueCandidates: DueCandidate[] = [];
@@ -165,7 +179,7 @@ export function buildCanonicalReceipt(indexed: IndexedLiteralDocument, validated
     if (item.role === "meter_reading") meters.push(buildMeter(item, cells, tokens));
   }
   return {
-    documentKind: validated.documentKind, readable: document.readable, period, accruedTotal, dueDate,
+    documentKind: validated.documentKind, readable: document.readable, period, accruedTotal, closingBalance, dueDate,
     financialComponents, dueCandidates: mergeDueCandidates(dueCandidates, diagnostics), serviceLines, optionalCharges, meters,
     unknownRowIds: validated.rows.filter((row) => row.items.some((item) => item.role === "unknown")).map((row) => row.rowId).sort(), diagnostics,
   };

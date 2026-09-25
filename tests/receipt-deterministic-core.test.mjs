@@ -14,7 +14,7 @@ const ROLE_SLOT = {
   service_charge: "charge", subtotal: "row_total", optional_charge: "optional_charge",
   accrued_total: "accrued_total", opening_balance: "opening_balance", opening_debt: "opening_debt",
   opening_advance: "opening_advance", payment: "payment", benefit: "benefit", recalculation: "recalculation",
-  penalty: "penalty", rounding: "rounding", due_candidate: "due_candidate", payment_history: "payment_history",
+  penalty: "penalty", rounding: "rounding", closing_balance: "closing_balance", due_candidate: "due_candidate", payment_history: "payment_history",
   meter_reading: "meter_curr", normative_reference: "normative", provider: "provider", account: "account",
   address: "address", period: "period", issue_date: "issue_date", due_date: "due_date",
 };
@@ -231,7 +231,67 @@ test("printed zero and negative due values remain valid", () => {
     { items: [item(2, "opening_advance", 1, [[1]])] },
     { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
   ];
-  assert.equal(finish(rows, roles).result.mandatoryDue.valueMinor, -5000n);
+  const result = finish(rows, roles).result;
+  assert.equal(result.receipt.closingBalance.state, "absent");
+  assert.equal(result.mandatoryDue.valueMinor, -5000n);
+  assert.equal(result.mandatoryDue.status, "confirmed");
+});
+
+test("S02 reconciles a printed closing overpayment before a separate zero due", () => {
+  const rows = [
+    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Начислено" }, { text: "2 554,40" }],
+    [{ text: "Входящий аванс" }, { text: "3 100,00" }],
+    [{ text: "Оплачено" }, { text: "0,00" }],
+    [{ text: "Закрывающая переплата" }, { text: "-545,60" }],
+    [{ text: "К оплате" }, { text: "0,00" }],
+  ];
+  const roles = [
+    { items: [item(0, "period")] },
+    { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "opening_advance", 1, [[1]])] },
+    { items: [item(3, "payment", 1, [[1]])] },
+    { items: [item(4, "closing_balance", 1, [[1]])] },
+    { items: [item(5, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  const { result } = finish(rows, roles);
+  const e2 = result.reconciliations.find((entry) => entry.equation === "E2");
+  assert.equal(result.receipt.closingBalance.value, -54560n);
+  assert.deepEqual(result.receipt.closingBalance.sourceTokenIds, [tokenId(4, 1)]);
+  assert.equal(result.receipt.financialComponents.some((entry) => entry.id.includes("closing_balance")), false);
+  assert.equal(e2.target, "closing_balance");
+  assert.equal(e2.status, "closed");
+  assert.equal(e2.expectedMinor, -54560n);
+  assert.equal(e2.actualMinor, -54560n);
+  assert.equal(result.computedDue, -54560n);
+  assert.equal(result.mandatoryDue.valueMinor, 0n);
+  assert.equal(result.mandatoryDue.status, "confirmed");
+  assert.equal(result.draft.decision, "confirmed_draft");
+  assert.equal(result.draft.includeInMonthlyTotal, true);
+});
+
+test("a positive closing balance must match the separate printed due", () => {
+  const rows = [
+    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Начислено" }, { text: "100,00" }],
+    [{ text: "Входящий долг" }, { text: "20,00" }],
+    [{ text: "Закрывающее сальдо" }, { text: "+120,00" }],
+    [{ text: "К оплате" }, { text: "120,00" }],
+  ];
+  const roles = [
+    { items: [item(0, "period")] },
+    { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "opening_debt", 1, [[1]])] },
+    { items: [item(3, "closing_balance", 1, [[1]])] },
+    { items: [item(4, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  const { result } = finish(rows, roles);
+  const e2 = result.reconciliations.find((entry) => entry.equation === "E2");
+  assert.equal(e2.status, "closed");
+  assert.equal(e2.target, "closing_balance");
+  assert.equal(result.computedDue, 12000n);
+  assert.equal(result.mandatoryDue.valueMinor, 12000n);
+  assert.equal(result.mandatoryDue.status, "confirmed");
 });
 
 test("debt, current payment, and adjustments already in accrual retain separate roles", () => {
@@ -258,6 +318,8 @@ test("computed mandatory due without a printed candidate is reviewable, not abse
   const roles = [{ items: [item(0, "period")] }, { items: [item(1, "accrued_total", 1, [[1]])] }];
   const { result } = finish(rows, roles);
   assert.deepEqual(result.mandatoryDue, { status: "needs_review", valueMinor: 10000n, source: "computed", reasons: ["printed_due_absent"] });
+  assert.equal(result.computedDue, null);
+  assert.equal(result.diagnosticComputedDue, 10000n);
   assert.equal(result.draft.decision, "partial_draft");
 });
 
@@ -312,6 +374,37 @@ test("sole optional-inclusive total remains review-only", () => {
   assert.equal(result.mandatoryDue.source, "computed_excluding_optional");
 });
 
+test("candidate-specific computed due retains the disputed component selected by E2", () => {
+  const rows = [
+    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Начислено" }, { text: "100,00" }],
+    [{ text: "Спорный компонент" }, { text: "20,00" }],
+    [{ text: "Добровольно" }, { text: "25,00" }],
+    [{ text: "Напечатанный итог" }, { text: "145,00" }],
+  ];
+  const roles = [
+    { items: [item(0, "period")] },
+    { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "penalty", 1, [[1]], { affectsDue: "unknown" })] },
+    { items: [item(3, "optional_charge", 1, [[1]])] },
+    { items: [item(4, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "included" })] },
+  ];
+  const { result } = finish(rows, roles);
+  const e2 = result.reconciliations.find((entry) => entry.equation === "E2");
+  const disputedId = result.receipt.financialComponents.find((entry) => entry.role === "penalty").id;
+  const optionalId = result.receipt.optionalCharges[0].id;
+  assert.equal(e2.status, "closed");
+  assert.equal(result.diagnosticComputedDue, 10000n);
+  assert.equal(result.computedDue, 14500n);
+  assert.ok(e2.formula.includedComponentIds.includes(disputedId));
+  assert.ok(e2.formula.includedComponentIds.includes(optionalId));
+  assert.deepEqual(e2.formula.optionalComponentIds, [optionalId]);
+  assert.equal(result.mandatoryDue.status, "needs_review");
+  assert.equal(result.mandatoryDue.source, "computed_excluding_optional");
+  assert.equal(result.mandatoryDue.valueMinor, 12000n);
+  assert.equal(result.mandatoryDue.candidateId, e2.candidateId);
+});
+
 test("zero balance makes period-only and with-balance formulas materially equivalent", () => {
   const rows = [[{ text: "Период" }, { text: "Август 2031" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "Баланс" }, { text: "0,00" }], [{ text: "К оплате" }, { text: "100,00" }]];
   const roles = [
@@ -353,7 +446,8 @@ test("a printed due that does not match remains open, not repaired", () => {
   const result = finish(scenario.rows, scenario.roles).result;
   assert.equal(result.reconciliations.find((entry) => entry.equation === "E2").status, "open");
   assert.equal(result.receipt.dueCandidates[0].amountMinor, 12000n);
-  assert.equal(result.computedDue, 10000n);
+  assert.equal(result.computedDue, null);
+  assert.equal(result.diagnosticComputedDue, 10000n);
 });
 
 test("missing financial evidence produces insufficient reconciliation", () => {

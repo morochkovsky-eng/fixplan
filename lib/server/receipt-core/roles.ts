@@ -28,6 +28,7 @@ const ROLE_SLOT_RULES: Record<RowRole, RoleSlotRule> = {
   recalculation: { required: ["recalculation"], allowed: ["label", "recalculation", "ignore"] },
   penalty: { required: ["penalty"], allowed: ["label", "penalty", "ignore"] },
   rounding: { required: ["rounding"], allowed: ["label", "rounding", "ignore"] },
+  closing_balance: { required: ["closing_balance"], allowed: ["label", "closing_balance", "ignore"] },
   due_candidate: { required: ["due_candidate"], allowed: ["label", "due_candidate", "ignore"] },
   payment_history: { required: ["payment_history"], allowed: ["label", "payment_history", "ignore"] },
   meter_reading: { required: ["meter_curr"], allowed: ["name", "label", "meter_number", "meter_prev", "meter_curr", "consumption", "ignore"] },

@@ -81,6 +81,8 @@ Fixed financial roles receive signs in code only when the printed value has no e
 
 An explicit matching sign is retained. An explicit sign that contradicts the fixed role produces `fixed_role_sign_conflict`; that component is excluded from confirmed E2 evidence and the result requires review. The core does not change a contradictory printed sign to make an equation close.
 
+`closing_balance` is a separate signed printed field with its own source cells and numeric tokens. It is the result of a balance formula, not a service, financial component, or extra E2 addend. Its canonical value therefore preserves the signed literal evidence supplied by the document contract. A closing overpayment is negative and a closing debt is positive.
+
 ## Due candidates
 
 Printed due candidates are separate from calculated evidence:
@@ -98,13 +100,22 @@ type DueCandidate = {
 
 Candidates are duplicates only when amount, due scope, and optional scope are compatible. Equal amounts with conflicting axes remain separate and produce a diagnostic. Repeated occurrences of the same semantic candidate preserve every source item and token. Reconciliation records the chosen candidate and its source IDs. `computedDue`, future `machineDue`, and `mandatoryDue` remain separate values. A computed result never overwrites a printed candidate.
 
+When a document prints both `closing_balance` and a separate due candidate, E2 is evaluated in two steps:
+
+1. the selected component formula must reproduce the printed closing balance;
+2. the printed due candidate must equal `max(0, closing_balance)`.
+
+This rule is enabled only by a distinct `closing_balance` item. A document with one negative printed due candidate and no closing-balance item keeps that negative mandatory value; it is not clamped to zero. Closing balance is never included independently in a monthly total.
+
 ## Reconciliation
 
 - **E1:** sum of confirmed service charges versus printed accrued total. Tolerance is one minor unit per service row.
 - **E2:** document-specific balance equation versus printed due candidates. Fixed-role signs come from code only for unsigned values; signed roles retain their printed signs. Independent binary flags are allowed only for explicitly disputed categories. At most three flags and eight combinations are evaluated. Signs and arbitrary subsets are never searched.
 - **E3:** confirmed volume multiplied by confirmed tariff versus a simple line amount. Mismatch creates a diagnostic; it does not replace the printed line amount.
 
-Each equation returns `closed`, `open`, `insufficient`, or `ambiguous`, with machine-readable reasons and source IDs. E2 also returns the applied formula, selected candidate, and included component IDs. Closures with identical non-zero component sets and final values are materially equivalent, so a zero balance does not create false ambiguity. More than one materially different closing formula is `ambiguous`, never a false confirmation.
+Each equation returns `closed`, `open`, `insufficient`, or `ambiguous`, with machine-readable reasons and source IDs. E2 also returns the applied formula, selected candidate, included component IDs, and optional component IDs. Closures with identical non-zero component sets and final values are materially equivalent, so a zero balance does not create false ambiguity. More than one materially different closing formula is `ambiguous`, never a false confirmation.
+
+`computedDue` exists only after E2 selects one closing formula and equals that formula's value. The preliminary sum of confirmed fixed components is exposed separately as review-only `diagnosticComputedDue`; it cannot masquerade as a reconciled result. When the only printed candidate includes optional charges, `computed_excluding_optional` is derived from the same selected formula by removing only its optional components. Disputed components selected by that formula remain included.
 
 ## Mandatory due
 

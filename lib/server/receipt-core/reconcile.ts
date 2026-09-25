@@ -62,18 +62,23 @@ function materialKey(formula: AppliedFormula) {
   return `${formula.valueMinor}:${[...formula.includedComponentIds].sort().join(",")}`;
 }
 
-function formulasForCandidate(receipt: CanonicalReceipt, candidate: DueCandidate, context: NonNullable<ReturnType<typeof financialContext>>) {
+function formulasForAxes(
+  receipt: CanonicalReceipt,
+  scopeValue: DueCandidate["scope"],
+  optionalValue: DueCandidate["optional"],
+  context: NonNullable<ReturnType<typeof financialContext>>,
+) {
   const disputedCategories = [...new Set(context.disputed.map((component) => component.category))].sort();
   const axes = [
-    ...(candidate.scope === "unknown" ? ["$scope"] : []),
-    ...(candidate.optional === "unknown" && context.optional.some((component) => component.amountMinor !== BigInt(0)) ? ["$optional"] : []),
+    ...(scopeValue === "unknown" ? ["$scope"] : []),
+    ...(optionalValue === "unknown" && context.optional.some((component) => component.amountMinor !== BigInt(0)) ? ["$optional"] : []),
     ...disputedCategories,
   ];
   if (axes.length > 3) return { formulas: [] as AppliedFormula[], tooManyAxes: true };
   const variants = combinations(axes);
   const formulas = variants.map((enabled): AppliedFormula => {
-    const scope = candidate.scope === "unknown" ? (enabled.has("$scope") ? "with_balance" : "period_only") : candidate.scope;
-    const optional = candidate.optional === "unknown" ? (enabled.has("$optional") ? "included" : "excluded") : candidate.optional;
+    const scope = scopeValue === "unknown" ? (enabled.has("$scope") ? "with_balance" : "period_only") : scopeValue;
+    const optional = optionalValue === "unknown" ? (enabled.has("$optional") ? "included" : "excluded") : optionalValue;
     const fixed = context.fixed.filter((component) => component.area === "period" || scope === "with_balance");
     const disputed = context.disputed.filter((component) => (component.area === "period" || scope === "with_balance") && enabled.has(component.category));
     const optionalComponents = optional === "included" ? context.optional : [];
@@ -82,6 +87,7 @@ function formulasForCandidate(receipt: CanonicalReceipt, candidate: DueCandidate
       scope,
       optional,
       includedComponentIds: [context.accruedId, ...included.filter((component) => component.amountMinor !== BigInt(0)).map((component) => component.id)].sort(),
+      optionalComponentIds: optionalComponents.map((component) => component.id).sort(),
       valueMinor: receipt.accruedTotal.value! + sum(included.map((component) => component.amountMinor)),
     };
   });
@@ -89,26 +95,96 @@ function formulasForCandidate(receipt: CanonicalReceipt, candidate: DueCandidate
   return { formulas: [...unique.values()], tooManyAxes: false };
 }
 
-function e2(receipt: CanonicalReceipt): { result: Reconciliation; computedDue: bigint | null } {
+function formulasForCandidate(receipt: CanonicalReceipt, candidate: DueCandidate, context: NonNullable<ReturnType<typeof financialContext>>) {
+  return formulasForAxes(receipt, candidate.scope, candidate.optional, context);
+}
+
+type E2Outcome = {
+  result: Reconciliation;
+  computedDue: bigint | null;
+  diagnosticComputedDue: bigint | null;
+  computedExcludingOptional: bigint | null;
+};
+
+function outcome(
+  result: Reconciliation,
+  diagnosticComputedDue: bigint | null,
+  formula?: AppliedFormula,
+  context?: NonNullable<ReturnType<typeof financialContext>>,
+): E2Outcome {
+  const optionalIds = new Set(formula?.optionalComponentIds ?? []);
+  const optionalAmount = context ? sum(context.optional.filter((component) => optionalIds.has(component.id)).map((component) => component.amountMinor)) : BigInt(0);
+  return {
+    result,
+    computedDue: formula?.valueMinor ?? null,
+    diagnosticComputedDue,
+    computedExcludingOptional: formula ? formula.valueMinor - optionalAmount : null,
+  };
+}
+
+function selectClosure(group: Array<{ candidate: DueCandidate; formula: AppliedFormula }>) {
+  const excluded = [...new Map(group.filter((entry) => entry.candidate.optional === "excluded").map((entry) => [entry.candidate.id, entry])).values()];
+  return excluded.length === 1 ? excluded[0] : group.length === 1 ? group[0] : null;
+}
+
+function e2(receipt: CanonicalReceipt): E2Outcome {
   if (receipt.diagnostics.some((diagnostic) => diagnostic.code === "fixed_role_sign_conflict")) {
-    return {
-      result: { equation: "E2", status: "ambiguous", reasons: ["fixed_role_sign_conflict"], sourceIds: [] },
-      computedDue: null,
-    };
+    return outcome({ equation: "E2", status: "ambiguous", reasons: ["fixed_role_sign_conflict"], sourceIds: [] }, null);
   }
   const context = financialContext(receipt);
   const sourceIds = [
     ...receipt.accruedTotal.sourceTokenIds,
     ...receipt.financialComponents.flatMap((component) => component.sourceTokenIds),
+    ...receipt.closingBalance.sourceTokenIds,
     ...receipt.dueCandidates.flatMap((candidate) => candidate.sourceTokenIds),
   ];
-  if (!context) return { result: { equation: "E2", status: "insufficient", reasons: ["accrued_total_missing"], sourceIds }, computedDue: null };
-  const computedDue = context.knownWithBalance;
+  if (!context) return outcome({ equation: "E2", status: "insufficient", reasons: ["accrued_total_missing"], sourceIds }, null);
+  const diagnosticComputedDue = context.knownWithBalance;
   if (context.signConflicts.length) {
-    return { result: { equation: "E2", status: "ambiguous", reasons: ["fixed_role_sign_conflict"], sourceIds }, computedDue };
+    return outcome({ equation: "E2", status: "ambiguous", reasons: ["fixed_role_sign_conflict"], sourceIds }, diagnosticComputedDue);
   }
+
+  if (receipt.closingBalance.value !== null) {
+    const generated = formulasForAxes(receipt, "with_balance", "excluded", context);
+    if (generated.tooManyAxes) {
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["too_many_disputed_categories"], sourceIds, target: "closing_balance" }, diagnosticComputedDue);
+    }
+    const matching = generated.formulas.filter((formula) => minorDifference(formula.valueMinor, receipt.closingBalance.value!) <= BigInt(1));
+    const groups = new Map(matching.map((formula) => [materialKey(formula), formula]));
+    if (groups.size > 1) {
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_materially_distinct_closures"], sourceIds, target: "closing_balance" }, diagnosticComputedDue);
+    }
+    if (groups.size === 0) {
+      return outcome({
+        equation: "E2", status: "open", reasons: ["closing_balance_does_not_match_document_formula"], sourceIds, target: "closing_balance",
+        expectedMinor: receipt.closingBalance.value, actualMinor: diagnosticComputedDue,
+        deltaMinor: minorDifference(receipt.closingBalance.value, diagnosticComputedDue),
+      }, diagnosticComputedDue);
+    }
+    const formula = [...groups.values()][0];
+    const printedDue = receipt.closingBalance.value > BigInt(0) ? receipt.closingBalance.value : BigInt(0);
+    const candidateMatches = receipt.dueCandidates.flatMap((candidate) => minorDifference(candidate.amountMinor, printedDue) <= BigInt(1) ? [{ candidate, formula }] : []);
+    const selected = selectClosure(candidateMatches);
+    if (receipt.dueCandidates.length > 0 && candidateMatches.length === 0) {
+      return outcome({
+        equation: "E2", status: "open", reasons: ["printed_due_does_not_match_closing_balance"], sourceIds, target: "closing_balance",
+        expectedMinor: receipt.closingBalance.value, actualMinor: formula.valueMinor,
+        deltaMinor: minorDifference(receipt.closingBalance.value, formula.valueMinor), formula,
+      }, diagnosticComputedDue);
+    }
+    if (candidateMatches.length > 0 && !selected) {
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_candidates_for_closing_balance"], sourceIds, target: "closing_balance" }, diagnosticComputedDue);
+    }
+    return outcome({
+      equation: "E2", status: "closed", reasons: [], sourceIds, target: "closing_balance",
+      expectedMinor: receipt.closingBalance.value, actualMinor: formula.valueMinor,
+      deltaMinor: minorDifference(receipt.closingBalance.value, formula.valueMinor),
+      candidateId: selected?.candidate.id, candidateSourceIds: selected?.candidate.sourceTokenIds, formula,
+    }, diagnosticComputedDue, formula, context);
+  }
+
   if (receipt.dueCandidates.length === 0) {
-    return { result: { equation: "E2", status: "insufficient", reasons: ["printed_due_candidate_missing"], sourceIds }, computedDue };
+    return outcome({ equation: "E2", status: "insufficient", reasons: ["printed_due_candidate_missing"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
   }
 
   const closures: Array<{ candidate: DueCandidate; formula: AppliedFormula }> = [];
@@ -121,7 +197,7 @@ function e2(receipt: CanonicalReceipt): { result: Reconciliation; computedDue: b
     }
   }
   if (tooManyAxes) {
-    return { result: { equation: "E2", status: "ambiguous", reasons: ["too_many_disputed_categories"], sourceIds }, computedDue };
+    return outcome({ equation: "E2", status: "ambiguous", reasons: ["too_many_disputed_categories"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
   }
   const materialGroups = new Map<string, typeof closures>();
   for (const closure of closures) {
@@ -129,27 +205,24 @@ function e2(receipt: CanonicalReceipt): { result: Reconciliation; computedDue: b
     materialGroups.set(key, [...(materialGroups.get(key) ?? []), closure]);
   }
   if (materialGroups.size > 1) {
-    return { result: { equation: "E2", status: "ambiguous", reasons: ["multiple_materially_distinct_closures"], sourceIds }, computedDue };
+    return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_materially_distinct_closures"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
   }
   if (materialGroups.size === 1) {
     const group = [...materialGroups.values()][0];
-    const excluded = [...new Map(group.filter((entry) => entry.candidate.optional === "excluded").map((entry) => [entry.candidate.id, entry])).values()];
-    const selected = excluded.length === 1 ? excluded[0] : group.length === 1 ? group[0] : null;
+    const selected = selectClosure(group);
     if (!selected) {
-      return { result: { equation: "E2", status: "ambiguous", reasons: ["multiple_candidates_for_same_formula"], sourceIds }, computedDue };
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_candidates_for_same_formula"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
     }
-    return {
-      result: {
+    return outcome({
         equation: "E2", status: "closed", reasons: [], sourceIds,
+        target: "due_candidate",
         expectedMinor: selected.candidate.amountMinor, actualMinor: selected.formula.valueMinor,
         deltaMinor: minorDifference(selected.candidate.amountMinor, selected.formula.valueMinor),
         candidateId: selected.candidate.id, candidateSourceIds: selected.candidate.sourceTokenIds,
         formula: selected.formula,
-      },
-      computedDue,
-    };
+      }, diagnosticComputedDue, selected.formula, context);
   }
-  return { result: { equation: "E2", status: "open", reasons: ["printed_due_does_not_match_document_formula"], sourceIds }, computedDue };
+  return outcome({ equation: "E2", status: "open", reasons: ["printed_due_does_not_match_document_formula"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
 }
 
 function e3(receipt: CanonicalReceipt): Reconciliation[] {
@@ -169,9 +242,13 @@ function e3(receipt: CanonicalReceipt): Reconciliation[] {
   });
 }
 
-function mandatoryDue(receipt: CanonicalReceipt, reconciliation: Reconciliation, computedDue: bigint | null): MandatoryDueDecision {
+function mandatoryDue(receipt: CanonicalReceipt, e2Result: E2Outcome): MandatoryDueDecision {
+  const { result: reconciliation, computedDue, diagnosticComputedDue, computedExcludingOptional } = e2Result;
   if (receipt.dueCandidates.length === 0) {
-    if (computedDue !== null) return { status: "needs_review", valueMinor: computedDue, source: "computed", reasons: ["printed_due_absent"] };
+    const reviewValue = receipt.closingBalance.value !== null && computedDue !== null
+      ? (computedDue > BigInt(0) ? computedDue : BigInt(0))
+      : diagnosticComputedDue;
+    if (reviewValue !== null) return { status: "needs_review", valueMinor: reviewValue, source: "computed", reasons: ["printed_due_absent"] };
     return { status: "absent", valueMinor: null, source: null, reasons: ["printed_due_absent"] };
   }
   const selected = reconciliation.candidateId ? receipt.dueCandidates.find((candidate) => candidate.id === reconciliation.candidateId) : undefined;
@@ -181,17 +258,17 @@ function mandatoryDue(receipt: CanonicalReceipt, reconciliation: Reconciliation,
       candidateId: selected.id, candidateSourceIds: selected.sourceTokenIds,
     };
   }
-  if (reconciliation.status === "closed" && selected?.optional === "included" && computedDue !== null) {
+  if (reconciliation.status === "closed" && selected?.optional === "included" && computedExcludingOptional !== null) {
     return {
-      status: "needs_review", valueMinor: computedDue, source: "computed_excluding_optional",
+      status: "needs_review", valueMinor: computedExcludingOptional, source: "computed_excluding_optional",
       reasons: ["only_optional_inclusive_total_printed"], candidateId: selected.id, candidateSourceIds: selected.sourceTokenIds,
     };
   }
   const fallback = receipt.dueCandidates.length === 1 ? receipt.dueCandidates[0] : undefined;
   return {
     status: "needs_review",
-    valueMinor: fallback?.amountMinor ?? computedDue,
-    source: fallback ? "printed" : computedDue !== null ? "computed" : null,
+    valueMinor: fallback?.amountMinor ?? diagnosticComputedDue,
+    source: fallback ? "printed" : diagnosticComputedDue !== null ? "computed" : null,
     reasons: [receipt.dueCandidates.length > 1 ? "multiple_due_candidates" : `due_reconciliation_${reconciliation.status}`, fallback?.optional === "unknown" ? "optional_semantics_unknown" : ""].filter(Boolean),
     candidateId: fallback?.id,
     candidateSourceIds: fallback?.sourceTokenIds,
@@ -199,7 +276,7 @@ function mandatoryDue(receipt: CanonicalReceipt, reconciliation: Reconciliation,
 }
 
 function draftDecision(receipt: CanonicalReceipt, mandatory: MandatoryDueDecision): DraftDecision {
-  const anyAmount = receipt.accruedTotal.value !== null || receipt.dueCandidates.length > 0 || receipt.financialComponents.length > 0 ||
+  const anyAmount = receipt.accruedTotal.value !== null || receipt.closingBalance.value !== null || receipt.dueCandidates.length > 0 || receipt.financialComponents.length > 0 ||
     receipt.serviceLines.some((line) => line.amountMinor !== null) || receipt.optionalCharges.some((line) => line.amountMinor !== null);
   if (receipt.documentKind === "other") return { decision: "reject", needsReview: true, includeInMonthlyTotal: false, reasons: ["confirmed_other_document"] };
   if (!receipt.readable) return { decision: "reject", needsReview: true, includeInMonthlyTotal: false, reasons: ["document_unreadable"] };
@@ -213,15 +290,23 @@ export function reconcileReceipt(receipt: CanonicalReceipt): ReceiptCoreResult {
   const first = e1(receipt);
   const second = e2(receipt);
   const reconciliations = [first, second.result, ...e3(receipt)];
-  const mandatory = mandatoryDue(receipt, second.result, second.computedDue);
-  return { receipt, computedDue: second.computedDue, machineDue: null, reconciliations, mandatoryDue: mandatory, draft: draftDecision(receipt, mandatory) };
+  const mandatory = mandatoryDue(receipt, second);
+  return {
+    receipt, computedDue: second.computedDue, diagnosticComputedDue: second.diagnosticComputedDue,
+    machineDue: null, reconciliations, mandatoryDue: mandatory, draft: draftDecision(receipt, mandatory),
+  };
 }
 
 export function safeReceiptDiagnostic(result: ReceiptCoreResult) {
   return {
     documentKind: result.receipt.documentKind,
     readable: result.receipt.readable,
-    fieldStates: { period: result.receipt.period.state, accruedTotal: result.receipt.accruedTotal.state, dueDate: result.receipt.dueDate.state },
+    fieldStates: {
+      period: result.receipt.period.state,
+      accruedTotal: result.receipt.accruedTotal.state,
+      closingBalance: result.receipt.closingBalance.state,
+      dueDate: result.receipt.dueDate.state,
+    },
     counts: {
       financialComponents: result.receipt.financialComponents.length,
       dueCandidates: result.receipt.dueCandidates.length,
