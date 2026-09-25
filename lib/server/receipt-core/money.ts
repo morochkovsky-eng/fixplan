@@ -14,6 +14,33 @@ export function parseExactDecimal(raw: string) {
   return { coefficient, scale: fraction.length, printedSign };
 }
 
+export type MoneyParseContext = { dot: "decimal" | "thousands" | "ambiguous" };
+
+export function parseMoneyLiteralToMinor(raw: string, context: MoneyParseContext = { dot: "ambiguous" }) {
+  let compact = raw.trim().replace(/[\u00a0\u202f ]/gu, "");
+  let negativeWrapper = false;
+  if (/^\(.+\)$/u.test(compact)) {
+    negativeWrapper = true;
+    compact = compact.slice(1, -1);
+  }
+  if (compact.endsWith("-")) {
+    negativeWrapper = true;
+    compact = compact.slice(0, -1);
+  }
+  if (/[.,]/u.test(compact) && compact.includes(".") && compact.includes(",")) {
+    if (!/^\d{1,3}(?:\.\d{3})*,\d{1,2}$/u.test(compact)) return null;
+    compact = compact.replaceAll(".", "");
+  } else if (/^[+-]?\d+\.\d{3}$/u.test(compact)) {
+    if (context.dot === "ambiguous") return null;
+    if (context.dot === "thousands") compact = compact.replace(".", "");
+  }
+  const parsed = parseExactDecimal(compact);
+  if (!parsed || parsed.scale > 2) return null;
+  const minor = decimalToMinorExact(parsed);
+  if (minor === null) return null;
+  return negativeWrapper ? (minor < BigInt(0) ? minor : -minor) : minor;
+}
+
 export function extractNumericTokens(cellId: string, text: string): NumericToken[] {
   return [...text.matchAll(NUMERIC_TOKEN)].flatMap((match, index) => {
     const parsed = parseExactDecimal(match[0]);

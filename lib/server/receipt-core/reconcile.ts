@@ -1,7 +1,7 @@
 import { minorDifference, multiplyDecimalsToMinor } from "./money";
 import type {
-  AppliedFormula, CanonicalReceipt, DraftDecision, DueCandidate, FinancialComponent,
-  MandatoryDueDecision, ReceiptCoreResult, Reconciliation,
+  AppliedFormula, CanonicalReceipt, ClosureSignal, ClosureStrength, DraftDecision, DueCandidate,
+  FinancialComponent, MandatoryDueDecision, ReceiptCoreResult, Reconciliation,
 } from "./types";
 
 function sum(values: bigint[]) {
@@ -119,11 +119,48 @@ function outcome(
   const computedClosingBalance = closesBalance ? formula?.valueMinor ?? null : null;
   const formulaDue = formula ? formula.valueMinor - optionalAmount : null;
   return {
-    result,
+    result: result.equation === "E2" && !result.closureStrength
+      ? { ...result, closureStrength: { componentCount: 0, componentSourceIds: [], signals: [], rating: "weak", reason: "e2_not_closed" } }
+      : result,
     computedClosingBalance,
     computedDue: formula ? (closesBalance && formula.valueMinor < BigInt(0) ? BigInt(0) : formula.valueMinor) : null,
     diagnosticComputedDue,
     computedExcludingOptional: formulaDue === null ? null : closesBalance && formulaDue < BigInt(0) ? BigInt(0) : formulaDue,
+  };
+}
+
+function blockId(sourceId: string) {
+  return sourceId.match(/^(p\d+\.b\d+)/u)?.[1] ?? sourceId;
+}
+
+function closureStrength(receipt: CanonicalReceipt, formula: AppliedFormula, candidate: DueCandidate | undefined, e1Result: Reconciliation): ClosureStrength {
+  const sourceGroups: string[][] = [];
+  if (formula.includedComponentIds.some((id) => id.startsWith("accrued:"))) sourceGroups.push(receipt.accruedTotal.sourceTokenIds);
+  for (const component of receipt.financialComponents) {
+    if (formula.includedComponentIds.includes(component.id)) sourceGroups.push(component.sourceTokenIds);
+  }
+  for (const optional of receipt.optionalCharges) {
+    if (formula.includedComponentIds.includes(optional.id)) sourceGroups.push(optional.sourceTokenIds);
+  }
+  const uniqueGroups = new Map<string, string[]>();
+  for (const group of sourceGroups) {
+    const ids = [...new Set(group)].sort();
+    if (ids.length) uniqueGroups.set(ids.join("|"), ids);
+  }
+  const signals: ClosureSignal[] = [];
+  if (e1Result.status === "closed") signals.push("e1_closed");
+  if (candidate && new Set(candidate.sourceTokenIds.map(blockId)).size >= 2) signals.push("independent_due_repeat");
+  const componentCount = uniqueGroups.size;
+  const strong = componentCount >= 2 || (componentCount === 1 && signals.length > 0);
+  return {
+    componentCount,
+    componentSourceIds: [...new Set([...uniqueGroups.values()].flat())].sort(),
+    signals,
+    rating: strong ? "strong" : "weak",
+    reason: componentCount >= 2 ? "multiple_independent_financial_components"
+      : signals.includes("e1_closed") ? "single_component_with_e1"
+        : signals.includes("independent_due_repeat") ? "single_component_with_independent_due_repeat"
+          : "single_component_without_independent_confirmation",
   };
 }
 
@@ -132,7 +169,7 @@ function selectClosure(group: Array<{ candidate: DueCandidate; formula: AppliedF
   return excluded.length === 1 ? excluded[0] : group.length === 1 ? group[0] : null;
 }
 
-function e2(receipt: CanonicalReceipt): E2Outcome {
+function e2(receipt: CanonicalReceipt, e1Result: Reconciliation): E2Outcome {
   if (receipt.diagnostics.some((diagnostic) => diagnostic.code === "fixed_role_sign_conflict")) {
     return outcome({ equation: "E2", status: "ambiguous", reasons: ["fixed_role_sign_conflict"], sourceIds: [] }, null);
   }
@@ -194,6 +231,7 @@ function e2(receipt: CanonicalReceipt): E2Outcome {
       expectedMinor: receipt.closingBalance.value, actualMinor: formula.valueMinor,
       deltaMinor: minorDifference(receipt.closingBalance.value, formula.valueMinor),
       candidateId: selected?.candidate.id, candidateSourceIds: selected?.candidate.sourceTokenIds, formula,
+      closureStrength: closureStrength(receipt, formula, selected?.candidate, e1Result),
     }, diagnosticDue, formula, context, true);
   }
 
@@ -234,6 +272,7 @@ function e2(receipt: CanonicalReceipt): E2Outcome {
         deltaMinor: minorDifference(selected.candidate.amountMinor, selected.formula.valueMinor),
         candidateId: selected.candidate.id, candidateSourceIds: selected.candidate.sourceTokenIds,
         formula: selected.formula,
+        closureStrength: closureStrength(receipt, selected.formula, selected.candidate, e1Result),
       }, diagnosticComputedDue, selected.formula, context);
   }
   return outcome({ equation: "E2", status: "open", reasons: ["printed_due_does_not_match_document_formula"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
@@ -289,26 +328,30 @@ function mandatoryDue(receipt: CanonicalReceipt, e2Result: E2Outcome): Mandatory
   };
 }
 
-function draftDecision(receipt: CanonicalReceipt, mandatory: MandatoryDueDecision): DraftDecision {
+function draftDecision(receipt: CanonicalReceipt, mandatory: MandatoryDueDecision, e2Result: Reconciliation): DraftDecision {
   const anyAmount = receipt.accruedTotal.value !== null || receipt.closingBalance.value !== null || receipt.dueCandidates.length > 0 || receipt.financialComponents.length > 0 ||
     receipt.serviceLines.some((line) => line.amountMinor !== null) || receipt.optionalCharges.some((line) => line.amountMinor !== null);
   if (receipt.documentKind === "other") return { decision: "reject", needsReview: true, includeInMonthlyTotal: false, reasons: ["confirmed_other_document"] };
   if (!receipt.readable) return { decision: "reject", needsReview: true, includeInMonthlyTotal: false, reasons: ["document_unreadable"] };
   if (receipt.period.value === null && !anyAmount) return { decision: "reject", needsReview: true, includeInMonthlyTotal: false, reasons: ["period_and_amount_missing"] };
   if (receipt.documentKind === "unknown") return { decision: "partial_draft", needsReview: true, includeInMonthlyTotal: false, reasons: ["document_kind_unknown", ...mandatory.reasons] };
+  if (receipt.period.parseStatus !== "parsed") return { decision: "partial_draft", needsReview: true, includeInMonthlyTotal: false, reasons: [`billing_period_${receipt.period.parseStatus}`, ...mandatory.reasons] };
+  if (mandatory.status === "confirmed" && e2Result.closureStrength?.rating === "weak") {
+    return { decision: "partial_draft", needsReview: true, includeInMonthlyTotal: false, reasons: ["weak_e2_closure"] };
+  }
   if (mandatory.status === "confirmed") return { decision: "confirmed_draft", needsReview: false, includeInMonthlyTotal: true, reasons: [] };
   return { decision: "partial_draft", needsReview: true, includeInMonthlyTotal: false, reasons: mandatory.reasons };
 }
 
 export function reconcileReceipt(receipt: CanonicalReceipt): ReceiptCoreResult {
   const first = e1(receipt);
-  const second = e2(receipt);
+  const second = e2(receipt, first);
   const reconciliations = [first, second.result, ...e3(receipt)];
   const mandatory = mandatoryDue(receipt, second);
   return {
     receipt, computedClosingBalance: second.computedClosingBalance,
     computedDue: second.computedDue, diagnosticComputedDue: second.diagnosticComputedDue,
-    machineDue: null, reconciliations, mandatoryDue: mandatory, draft: draftDecision(receipt, mandatory),
+    machineDue: null, reconciliations, mandatoryDue: mandatory, draft: draftDecision(receipt, mandatory, second.result),
   };
 }
 
@@ -337,6 +380,7 @@ export function safeReceiptDiagnostic(result: ReceiptCoreResult) {
       reasons: item.reasons,
       sourceIds: item.sourceIds,
       candidateId: item.candidateId,
+      closureStrength: item.closureStrength,
       formula: item.formula ? {
         scope: item.formula.scope,
         optional: item.formula.optional,

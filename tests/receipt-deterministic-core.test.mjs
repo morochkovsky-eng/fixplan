@@ -17,7 +17,7 @@ const ROLE_SLOT = {
   penalty: "penalty", rounding: "rounding", closing_balance: "closing_balance", closing_debt: "closing_debt",
   closing_advance: "closing_advance", due_candidate: "due_candidate", payment_history: "payment_history",
   meter_reading: "meter_curr", normative_reference: "normative", provider: "provider", account: "account",
-  address: "address", period: "period", issue_date: "issue_date", due_date: "due_date",
+  address: "address", period: "period", billing_period: "billing_period", issue_date: "issue_date", due_date: "due_date",
 };
 
 function document(rows, overrides = {}) {
@@ -57,20 +57,22 @@ function item(row, role, valueCell = 1, tokenCells = [], extra = {}) {
 }
 
 function classification(rowEntries, tableSchemas = [], documentKind = "utility") {
+  const rows = rowEntries.map((entry, index) => ({
+    rowId: entry.rowId ?? rowId(index),
+    items: entry.items ?? [item(index, entry.role, 0, [])],
+  }));
   return {
-    documentKind,
+    documents: [{ docId: "doc-1", documentKind, rowIds: rows.map((row) => row.rowId) }],
+    sharedRowIds: [],
     tableSchemas,
-    rows: rowEntries.map((entry, index) => ({
-      rowId: entry.rowId ?? rowId(index),
-      items: entry.items ?? [item(index, entry.role, 0, [])],
-    })),
+    rows,
   };
 }
 
 function evaluate(rows, rowEntries, overrides = {}, documentKind = "utility", tableSchemas = []) {
   const indexed = core.indexLiteralDocument(document(rows, overrides));
   const validated = core.validateRoleClassification(indexed.document, classification(rowEntries, tableSchemas, documentKind));
-  return { indexed, validated, receipt: core.buildCanonicalReceipt(indexed, validated) };
+  return { indexed, validated, receipt: core.buildCanonicalReceipt(indexed, validated.documents[0]) };
 }
 
 function finish(rows, rowEntries, overrides = {}, documentKind = "utility", tableSchemas = []) {
@@ -104,15 +106,17 @@ test("runtime contracts reject unknown enums, row-level roles, and malformed geo
   assert.throws(() => core.indexLiteralDocument(document([[{ text: "x", state: "invented" }]])), /unsupported value/u);
   assert.throws(() => core.indexLiteralDocument(document([[{ text: "x", bbox: { x: 0.9, y: 0, width: 0.2, height: 0.1 } }]])), /exceeds page bounds/u);
   const indexed = core.indexLiteralDocument(document([[{ text: "x" }]]));
-  assert.throws(() => core.validateRoleClassification(indexed.document, { ...classification([{ role: "unknown" }]), documentKind: "invented" }), /unsupported value/u);
-  assert.throws(() => core.validateRoleClassification(indexed.document, { documentKind: "utility", tableSchemas: [], rows: [{ rowId: rowId(0), role: "unknown", items: [] }] }), /not part of the contract/u);
+  const invalidKind = classification([{ role: "unknown" }]);
+  invalidKind.documents[0].documentKind = "invented";
+  assert.throws(() => core.validateRoleClassification(indexed.document, invalidKind), /unsupported value/u);
+  assert.throws(() => core.validateRoleClassification(indexed.document, { documents: [{ docId: "doc-1", documentKind: "utility", rowIds: [rowId(0)] }], sharedRowIds: [], tableSchemas: [], rows: [{ rowId: rowId(0), role: "unknown", items: [] }] }), /not part of the contract/u);
 });
 
 test("references stay in their row and every row is classified once", () => {
   const indexed = core.indexLiteralDocument(document([[{ text: "A" }, { text: "1" }], [{ text: "B" }, { text: "2" }]]));
   const crossRow = item(0, "service_charge", 1, [[1]]);
   crossRow.slots.charge.cellIds = [cellId(1, 1)];
-  const validated = core.validateRoleClassification(indexed.document, { documentKind: "utility", tableSchemas: [], rows: [{ rowId: rowId(0), items: [crossRow] }] });
+  const validated = core.validateRoleClassification(indexed.document, { documents: [{ docId: "doc-1", documentKind: "utility", rowIds: [rowId(0), rowId(1)] }], sharedRowIds: [], tableSchemas: [], rows: [{ rowId: rowId(0), items: [crossRow] }] });
   assert.ok(validated.diagnostics.some((entry) => entry.code === "invalid_cell_reference"));
   assert.ok(validated.diagnostics.some((entry) => entry.code === "row_classification_missing" && entry.rowId === rowId(1)));
 });
@@ -123,7 +127,7 @@ test("duplicate token ownership rejects all conflicting valid rows", () => {
   const second = item(0, "accrued_total", 1, [[1]]);
   const validated = core.validateRoleClassification(indexed.document, classification([{ items: [first, second] }]));
   assert.ok(validated.diagnostics.some((entry) => entry.code === "numeric_token_already_owned"));
-  assert.equal(validated.items.length, 0);
+  assert.equal(validated.documents[0].items.length, 0);
 });
 
 test("invalid rows do not reserve tokens and classification order cannot choose a winner", () => {
@@ -135,8 +139,8 @@ test("invalid rows do not reserve tokens and classification order cannot choose 
   const other = item(1, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "excluded" });
   const forward = core.validateRoleClassification(indexed.document, classification([{ items: [invalid, valid] }, { items: [other] }]));
   const reversed = core.validateRoleClassification(indexed.document, classification([{ items: [valid, invalid] }, { items: [other] }]));
-  assert.deepEqual(forward.items.map((entry) => entry.role), ["due_candidate"]);
-  assert.deepEqual(reversed.items.map((entry) => entry.role), ["due_candidate"]);
+  assert.deepEqual(forward.documents[0].items.map((entry) => entry.role), ["due_candidate"]);
+  assert.deepEqual(reversed.documents[0].items.map((entry) => entry.role), ["due_candidate"]);
 });
 
 test("table schemas expand named columns, including horizontal financial data", () => {
@@ -156,7 +160,8 @@ test("table schemas expand named columns, including horizontal financial data", 
 
   const indexed = core.indexLiteralDocument(document([[{ text: "Услуга" }, { text: "100,00" }]], { layout: "table" }));
   const invalid = core.validateRoleClassification(indexed.document, {
-    documentKind: "utility",
+    documents: [{ docId: "doc-1", documentKind: "utility", rowIds: [rowId(0)] }],
+    sharedRowIds: [],
     tableSchemas: [{ blockId: "p1.b1", columns: [{ key: "name", index: 0, semantic: "name" }] }],
     rows: [{ rowId: rowId(0), items: [{ mode: "table_columns", role: "service_charge", tableBlockId: "p1.b1", slots: { charge: { columnKey: "missing" } } }] }],
   });
@@ -169,7 +174,7 @@ test("role slot table rejects incompatible item shapes", () => {
   const validated = core.validateRoleClassification(indexed.document, classification([{ items: [malformed] }]));
   assert.ok(validated.diagnostics.some((entry) => entry.code === "role_slot_required"));
   assert.ok(validated.diagnostics.some((entry) => entry.code === "role_slot_not_allowed"));
-  assert.equal(validated.items.length, 0);
+  assert.equal(validated.documents[0].items.length, 0);
 });
 
 test("printed, blank, absent, illegible, and not-applicable states remain distinct", () => {
@@ -242,7 +247,7 @@ test("printed zero and negative due values remain valid", () => {
 
 test("S02 reconciles a printed closing overpayment before a separate zero due", () => {
   const rows = [
-    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Период" }, { text: "Сентябрь 2031" }],
     [{ text: "Переплата на начало периода" }, { text: "3 100,00" }],
     [{ text: "Начислено за период" }, { text: "2 554,40" }],
     [{ text: "Оплачено в периоде" }, { text: "0,00" }],
@@ -281,7 +286,7 @@ test("S02 reconciles a printed closing overpayment before a separate zero due", 
 
 test("a signless closing debt becomes positive and must match the separate printed due", () => {
   const rows = [
-    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Период" }, { text: "Сентябрь 2031" }],
     [{ text: "Начислено" }, { text: "100,00" }],
     [{ text: "Входящий долг" }, { text: "20,00" }],
     [{ text: "Задолженность на конец периода" }, { text: "120,00" }],
@@ -307,7 +312,7 @@ test("a signless closing debt becomes positive and must match the separate print
 
 test("an explicitly signed neutral closing balance preserves its literal sign", () => {
   const rows = [
-    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Период" }, { text: "Сентябрь 2031" }],
     [{ text: "Начислено" }, { text: "75,00" }],
     [{ text: "Входящий аванс" }, { text: "100,00" }],
     [{ text: "Сальдо на конец" }, { text: "-25,00" }],
@@ -329,7 +334,7 @@ test("an explicitly signed neutral closing balance preserves its literal sign", 
 
 test("an unsigned neutral closing balance remains ambiguous and review-only", () => {
   const rows = [
-    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Период" }, { text: "Сентябрь 2031" }],
     [{ text: "Начислено" }, { text: "75,00" }],
     [{ text: "Сальдо на конец" }, { text: "75,00" }],
     [{ text: "К оплате" }, { text: "75,00" }],
@@ -435,7 +440,7 @@ test("sole optional-inclusive total remains review-only", () => {
 
 test("candidate-specific computed due retains the disputed component selected by E2", () => {
   const rows = [
-    [{ text: "Период" }, { text: "Синтетический период" }],
+    [{ text: "Период" }, { text: "Сентябрь 2031" }],
     [{ text: "Начислено" }, { text: "100,00" }],
     [{ text: "Спорный компонент" }, { text: "20,00" }],
     [{ text: "Добровольно" }, { text: "25,00" }],
@@ -572,8 +577,11 @@ test("row and item permutations produce the same canonical result", () => {
   const debt = { mode: "label_value", role: "opening_debt", slots: { opening_debt: binding(0, [3], [[3]]) } };
   const due = item(1, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" });
   const indexed = core.indexLiteralDocument(document(rows));
-  const forward = core.buildCanonicalReceipt(indexed, core.validateRoleClassification(indexed.document, { documentKind: "utility", tableSchemas: [], rows: [{ rowId: rowId(0), items: [accrued, debt] }, { rowId: rowId(1), items: [due] }] }));
-  const reverse = core.buildCanonicalReceipt(indexed, core.validateRoleClassification(indexed.document, { documentKind: "utility", tableSchemas: [], rows: [{ rowId: rowId(1), items: [due] }, { rowId: rowId(0), items: [debt, accrued] }] }));
+  const segmented = (classifiedRows) => ({ documents: [{ docId: "doc-1", documentKind: "utility", rowIds: [rowId(0), rowId(1)] }], sharedRowIds: [], tableSchemas: [], rows: classifiedRows });
+  const forwardValidated = core.validateRoleClassification(indexed.document, segmented([{ rowId: rowId(0), items: [accrued, debt] }, { rowId: rowId(1), items: [due] }]));
+  const reverseValidated = core.validateRoleClassification(indexed.document, segmented([{ rowId: rowId(1), items: [due] }, { rowId: rowId(0), items: [debt, accrued] }]));
+  const forward = core.buildCanonicalReceipt(indexed, forwardValidated.documents[0]);
+  const reverse = core.buildCanonicalReceipt(indexed, reverseValidated.documents[0]);
   const projection = (receipt) => ({ accrued: receipt.accruedTotal.value, components: receipt.financialComponents.map((entry) => [entry.role, entry.amountMinor]).sort(), due: receipt.dueCandidates.map((entry) => entry.amountMinor) });
   assert.deepEqual(projection(forward), projection(reverse));
   assert.deepEqual(core.reconcileReceipt(forward).mandatoryDue, core.reconcileReceipt(reverse).mandatoryDue);
@@ -599,7 +607,7 @@ test("bad table spans isolate the affected row", () => {
   const validated = core.validateRoleClassification(indexed.document, classification([
     { items: [item(0, "service_charge", 1, [[1]])] }, { items: [item(1, "service_charge", 0, [])] },
   ]));
-  assert.equal(core.buildCanonicalReceipt(indexed, validated).serviceLines.length, 1);
+  assert.equal(core.buildCanonicalReceipt(indexed, validated.documents[0]).serviceLines.length, 1);
 });
 
 test("unknown rows remain structural-only in safe diagnostics", () => {
@@ -619,4 +627,221 @@ test("printed and computed due stay separate and reconciliation records the sele
   assert.equal(e2.candidateId, result.receipt.dueCandidates[0].id);
   assert.deepEqual(e2.candidateSourceIds, result.receipt.dueCandidates[0].sourceTokenIds);
   assert.deepEqual(e2.formula.includedComponentIds, [`accrued:${tokenId(1, 1)}`]);
+});
+
+function bundleClassification(rowEntries, documents, sharedRowIds = []) {
+  return {
+    documents,
+    sharedRowIds,
+    tableSchemas: [],
+    rows: rowEntries.map((entry, index) => ({ rowId: entry.rowId ?? rowId(index), items: entry.items })),
+  };
+}
+
+test("S07-style page returns two independent utility results", () => {
+  const rows = [
+    [{ text: "Период" }, { text: "09.2026" }],
+    [{ text: "A начислено" }, { text: "100,00" }], [{ text: "A долг" }, { text: "20,00" }], [{ text: "A к оплате" }, { text: "120,00" }],
+    [{ text: "B начислено" }, { text: "70,00" }], [{ text: "B аванс" }, { text: "10,00" }], [{ text: "B к оплате" }, { text: "60,00" }],
+  ];
+  const entries = [
+    { items: [item(0, "billing_period")] },
+    { items: [item(1, "accrued_total", 1, [[1]])] }, { items: [item(2, "opening_debt", 1, [[1]])] },
+    { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    { items: [item(4, "accrued_total", 1, [[1]])] }, { items: [item(5, "opening_advance", 1, [[1]])] },
+    { items: [item(6, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  const indexed = core.indexLiteralDocument(document(rows));
+  const result = core.processReceiptBundle(indexed, bundleClassification(entries, [
+    { docId: "receipt-a", documentKind: "utility", rowIds: [rowId(1), rowId(2), rowId(3)] },
+    { docId: "receipt-b", documentKind: "utility", rowIds: [rowId(4), rowId(5), rowId(6)] },
+  ], [rowId(0)]));
+  assert.deepEqual(result.documents.map((entry) => entry.docId), ["receipt-a", "receipt-b"]);
+  assert.deepEqual(result.documents.map((entry) => entry.result.mandatoryDue.valueMinor), [12000n, 6000n]);
+  assert.deepEqual(result.documents.map((entry) => entry.result.receipt.period.value), ["2026-09", "2026-09"]);
+  assert.ok(result.documents.every((entry) => entry.result.draft.decision === "confirmed_draft"));
+});
+
+test("multi-document decisions isolate utility, other, and ambiguous documents", () => {
+  const rows = [
+    [{ text: "Период A" }, { text: "09/2026" }], [{ text: "Начислено A" }, { text: "50,00" }], [{ text: "Долг A" }, { text: "10,00" }], [{ text: "Итого A" }, { text: "60,00" }],
+    [{ text: "Справка" }],
+    [{ text: "Период C" }, { text: "Сентябрь 2026" }], [{ text: "Начислено C" }, { text: "40,00" }], [{ text: "Аванс C" }, { text: "+5,00" }], [{ text: "Итого C" }, { text: "35,00" }],
+  ];
+  const entries = [
+    { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] }, { items: [item(2, "opening_debt", 1, [[1]])] }, { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    { items: [item(4, "other", 0, [])] },
+    { items: [item(5, "billing_period")] }, { items: [item(6, "accrued_total", 1, [[1]])] }, { items: [item(7, "opening_advance", 1, [[1]])] }, { items: [item(8, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  const indexed = core.indexLiteralDocument(document(rows));
+  const result = core.processReceiptBundle(indexed, bundleClassification(entries, [
+    { docId: "a", documentKind: "utility", rowIds: [rowId(0), rowId(1), rowId(2), rowId(3)] },
+    { docId: "b", documentKind: "other", rowIds: [rowId(4)] },
+    { docId: "c", documentKind: "utility", rowIds: [rowId(5), rowId(6), rowId(7), rowId(8)] },
+  ]));
+  assert.deepEqual(result.documents.map((entry) => entry.result.draft.decision), ["confirmed_draft", "reject", "partial_draft"]);
+  assert.equal(result.documents[0].result.mandatoryDue.valueMinor, 6000n);
+  assert.equal(result.documents[2].result.reconciliations.find((entry) => entry.equation === "E2").status, "ambiguous");
+});
+
+test("segmentation reports duplicate, uncovered, unknown, and financial shared rows", () => {
+  const rows = [[{ text: "Период" }, { text: "09.2026" }], [{ text: "Начислено" }, { text: "10,00" }], [{ text: "Не покрыто" }]];
+  const entries = [{ items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] }, { items: [item(2, "unknown", 0, [])] }];
+  const indexed = core.indexLiteralDocument(document(rows));
+  const duplicate = core.validateRoleClassification(indexed.document, bundleClassification(entries, [
+    { docId: "a", documentKind: "utility", rowIds: [rowId(0)] },
+    { docId: "b", documentKind: "utility", rowIds: [rowId(0)] },
+  ], [rowId(1), "p9.b9.r9"]));
+  assert.ok(duplicate.diagnostics.some((entry) => entry.code === "segmentation_row_duplicate" && entry.rowId === rowId(0)));
+  assert.ok(duplicate.diagnostics.some((entry) => entry.code === "segmentation_row_missing" && entry.rowId === rowId(2)));
+  assert.ok(duplicate.diagnostics.some((entry) => entry.code === "segmentation_unknown_row"));
+  assert.ok(duplicate.diagnostics.some((entry) => entry.code === "shared_row_role_not_allowed" && entry.rowId === rowId(1)));
+  assert.ok(duplicate.documents.every((entry) => entry.items.every((classified) => classified.role !== "accrued_total")));
+});
+
+test("document and row permutation does not change bundle results", () => {
+  const rows = [[{ text: "Период" }, { text: "09.2026" }], [{ text: "A" }, { text: "10,00" }], [{ text: "B" }, { text: "20,00" }]];
+  const entries = [{ items: [item(0, "billing_period")] }, { items: [item(1, "due_candidate", 1, [[1]], { optionalScope: "excluded" })] }, { items: [item(2, "due_candidate", 1, [[1]], { optionalScope: "excluded" })] }];
+  const indexed = core.indexLiteralDocument(document(rows));
+  const docs = [{ docId: "b", documentKind: "utility", rowIds: [rowId(2)] }, { docId: "a", documentKind: "utility", rowIds: [rowId(1)] }];
+  const forward = core.processReceiptBundle(indexed, bundleClassification(entries, docs, [rowId(0)]));
+  const reverse = core.processReceiptBundle(indexed, bundleClassification([...entries].reverse().map((entry, index) => ({ ...entry, rowId: rowId(2 - index) })), [...docs].reverse(), [rowId(0)]));
+  const projection = (bundle) => bundle.documents.map(({ docId, result }) => [docId, result.receipt.period.value, result.mandatoryDue.valueMinor]);
+  assert.deepEqual(projection(forward), projection(reverse));
+});
+
+test("billing period parser supports deterministic formats and same-month ranges", () => {
+  const cases = new Map([
+    ["09.2026", "2026-09"], ["09/2026", "2026-09"], ["09.26", "2026-09"],
+    ["сентябрь 2026", "2026-09"], ["с 01.09.2026 по 30.09.2026", "2026-09"],
+  ]);
+  for (const [raw, expected] of cases) assert.deepEqual(core.parseBillingPeriodText(raw), { status: "parsed", candidates: [expected] });
+  assert.deepEqual(core.parseBillingPeriodText("31.08.2026 - 01.09.2026"), { status: "ambiguous", candidates: ["2026-08", "2026-09"] });
+  assert.deepEqual(core.parseBillingPeriodText("отчётный сезон"), { status: "unsupported", candidates: [] });
+});
+
+test("period failures preserve mandatory due but gate confirmed drafts", () => {
+  const missing = basicFinancialRows();
+  missing.rows.shift(); missing.roles.shift();
+  const missingResult = finish(missing.rows, missing.roles.map((entry, index) => ({ ...entry, items: entry.items.map((entryItem) => ({ ...entryItem, slots: Object.fromEntries(Object.entries(entryItem.slots).map(([name, value]) => [name, { ...value, cellIds: value.cellIds.map((id) => id.replace(/r\d+/u, `r${index + 1}`)), tokenIds: value.tokenIds?.map((id) => id.replace(/r\d+/u, `r${index + 1}`)) }])) })) }))).result;
+  assert.equal(missingResult.mandatoryDue.valueMinor, 10000n);
+  assert.equal(missingResult.draft.decision, "partial_draft");
+  assert.ok(missingResult.draft.reasons.includes("billing_period_missing"));
+
+  const rows = [[{ text: "Периоды" }, { text: "09.2026 / 10.2026" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "Долг" }, { text: "10,00" }], [{ text: "К оплате" }, { text: "110,00" }]];
+  const roles = [{ items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] }, { items: [item(2, "opening_debt", 1, [[1]])] }, { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] }];
+  const conflict = finish(rows, roles).result;
+  assert.equal(conflict.receipt.period.parseStatus, "ambiguous");
+  assert.equal(conflict.mandatoryDue.status, "confirmed");
+  assert.equal(conflict.draft.decision, "partial_draft");
+});
+
+test("E2 closure strength distinguishes weak, E1-supported, and multi-component evidence", () => {
+  const weakScenario = basicFinancialRows();
+  const weak = finish(weakScenario.rows, weakScenario.roles).result;
+  const weakE2 = weak.reconciliations.find((entry) => entry.equation === "E2");
+  assert.equal(weakE2.closureStrength.rating, "weak");
+  assert.equal(weakE2.closureStrength.componentCount, 1);
+  assert.equal(weak.draft.decision, "partial_draft");
+
+  const e1Rows = [...weakScenario.rows, [{ text: "Услуга" }, { text: "100,00" }]];
+  const e1Roles = [...weakScenario.roles, { items: [item(3, "service_charge", 1, [[1]])] }];
+  const withE1 = finish(e1Rows, e1Roles).result;
+  assert.equal(withE1.reconciliations.find((entry) => entry.equation === "E2").closureStrength.rating, "strong");
+  assert.equal(withE1.draft.decision, "confirmed_draft");
+
+  const rows = [[{ text: "Период" }, { text: "09.2026" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "Долг" }, { text: "20,00" }], [{ text: "К оплате" }, { text: "120,00" }]];
+  const roles = [{ items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] }, { items: [item(2, "opening_debt", 1, [[1]])] }, { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] }];
+  const multi = finish(rows, roles).result.reconciliations.find((entry) => entry.equation === "E2").closureStrength;
+  assert.equal(multi.rating, "strong");
+  assert.equal(multi.componentCount, 2);
+});
+
+test("independent repeated due in another block strengthens one-component E2", () => {
+  const input = document([]);
+  input.pages[0].blocks = [
+    { layout: "kv", bbox: { x: 0, y: 0, width: 1, height: 0.45 }, rows: [
+      { cells: [{ text: "Период", state: "ok", bbox: box }, { text: "09.2026", state: "ok", bbox: box }] },
+      { cells: [{ text: "Начислено", state: "ok", bbox: box }, { text: "100,00", state: "ok", bbox: box }] },
+      { cells: [{ text: "К оплате", state: "ok", bbox: box }, { text: "100,00", state: "ok", bbox: box }] },
+    ] },
+    { layout: "kv", bbox: { x: 0, y: 0.5, width: 1, height: 0.45 }, rows: [
+      { cells: [{ text: "Корешок", state: "ok", bbox: box }, { text: "100,00", state: "ok", bbox: box }] },
+    ] },
+  ];
+  const indexed = core.indexLiteralDocument(input);
+  const bind = (row, cell, token = true) => ({ cellIds: [`${row}.c${cell}`], ...(token ? { tokenIds: [`${row}.c${cell}#1`] } : {}) });
+  const labelItem = (row, role, slotName, extra = {}) => ({ mode: "label_value", role, slots: { label: bind(row, 1, false), [slotName]: bind(row, 2) }, ...extra });
+  const classificationInput = {
+    documents: [{ docId: "receipt", documentKind: "utility", rowIds: ["p1.b1.r1", "p1.b1.r2", "p1.b1.r3", "p1.b2.r1"] }], sharedRowIds: [], tableSchemas: [],
+    rows: [
+      { rowId: "p1.b1.r1", items: [labelItem("p1.b1.r1", "billing_period", "billing_period")] },
+      { rowId: "p1.b1.r2", items: [labelItem("p1.b1.r2", "accrued_total", "accrued_total")] },
+      { rowId: "p1.b1.r3", items: [labelItem("p1.b1.r3", "due_candidate", "due_candidate", { dueScope: "with_balance", optionalScope: "excluded" })] },
+      { rowId: "p1.b2.r1", items: [labelItem("p1.b2.r1", "due_candidate", "due_candidate", { dueScope: "with_balance", optionalScope: "excluded" })] },
+    ],
+  };
+  const result = core.processReceiptBundle(indexed, classificationInput).documents[0].result;
+  const strength = result.reconciliations.find((entry) => entry.equation === "E2").closureStrength;
+  assert.equal(strength.rating, "strong");
+  assert.deepEqual(strength.signals, ["independent_due_repeat"]);
+  assert.equal(result.draft.decision, "confirmed_draft");
+});
+
+test("reusing the same due source cell cannot create an independent signal", () => {
+  const rows = [[{ text: "Период" }, { text: "09.2026" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "К оплате" }, { text: "100,00" }]];
+  const duplicateDue = item(2, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" });
+  const indexed = core.indexLiteralDocument(document(rows));
+  const validated = core.validateRoleClassification(indexed.document, classification([
+    { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] }, { items: [duplicateDue, structuredClone(duplicateDue)] },
+  ]));
+  assert.ok(validated.diagnostics.some((entry) => entry.code === "numeric_token_already_owned"));
+  const result = core.reconcileReceipt(core.buildCanonicalReceipt(indexed, validated.documents[0]));
+  const strength = result.reconciliations.find((entry) => entry.equation === "E2").closureStrength;
+  assert.equal(strength.rating, "weak");
+  assert.ok(!strength.signals.includes("independent_due_repeat"));
+});
+
+test("closing balance is an E2 target, not an extra closure component", () => {
+  const rows = [[{ text: "Период" }, { text: "09.2026" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "Сальдо" }, { text: "+100,00" }], [{ text: "К оплате" }, { text: "100,00" }]];
+  const roles = [{ items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] }, { items: [item(2, "closing_balance", 1, [[1]])] }, { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] }];
+  const result = finish(rows, roles).result;
+  const strength = result.reconciliations.find((entry) => entry.equation === "E2").closureStrength;
+  assert.equal(strength.componentCount, 1);
+  assert.equal(strength.rating, "weak");
+  assert.equal(result.draft.decision, "partial_draft");
+});
+
+test("money parser handles explicit negative wrappers and separator context", () => {
+  assert.equal(core.parseMoneyLiteralToMinor("(1 234,56)"), -123456n);
+  assert.equal(core.parseMoneyLiteralToMinor("1 234,56-"), -123456n);
+  assert.equal(core.parseMoneyLiteralToMinor("1.234", { dot: "thousands" }), 123400n);
+  assert.equal(core.parseMoneyLiteralToMinor("1.234"), null);
+  assert.equal(core.parseMoneyLiteralToMinor("1.234", { dot: "decimal" }), null);
+});
+
+test("generator oracle exports literal structure and separates unavailable photo geometry", () => {
+  const source = document([[{ text: "Заголовок", isHeader: true }, { text: "", state: "blank", colSpan: 2 }]], { layout: "table" });
+  const oracle = core.exportGeneratorLiteral(source);
+  const cell = oracle.literal.pages[0].blocks[0].rows[0].cells[1];
+  assert.equal(oracle.source, "generator_export");
+  assert.equal(cell.state, "blank");
+  assert.equal(cell.colSpan, 2);
+  assert.equal(cell.id, "p1.b1.r1.c2");
+  assert.deepEqual(oracle.geometry, { status: "source", coordinateSpace: "generator-source-normalized" });
+  const photo = core.exportGeneratorLiteral(source, { variant: "photo_telegram" });
+  assert.deepEqual(photo.geometry, { status: "unavailable", reason: "photo_transform_missing" });
+});
+
+test("offline eval schema validates opaque metadata and deterministic fingerprint", () => {
+  const fingerprint = core.deterministicDecisionFingerprint({ documents: [{ docId: "d1", decision: "partial_draft" }] });
+  const record = core.validateReceiptEvalRecord({
+    fileId: "fixture-opaque-1", documentIds: ["d1"], readerId: "reader-offline", classifierId: "classifier-offline",
+    requestedModelId: "none", returnedModelId: "none", runNumber: 1, latencyMs: 0, estimatedCostMicrousd: 0,
+    literalMetrics: { textPrecision: 1, textRecall: 1, numericPrecision: 1, numericRecall: 1, structureAccuracy: 1, geometryAccuracy: null },
+    classificationMetrics: { rolePrecision: 1, roleRecall: 1, slotPrecision: 1, slotRecall: 1, segmentationAccuracy: 1 },
+    documentCoverage: { expected: 1, produced: 1, matchedDocIds: ["d1"] }, endToEndDecision: "pass", deterministicDecisionFingerprint: fingerprint,
+  });
+  assert.equal(record.deterministicDecisionFingerprint, fingerprint);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, deterministicDecisionFingerprint: "bad" }), /invalid_decision_fingerprint/u);
 });
