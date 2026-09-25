@@ -1,8 +1,8 @@
 # Homory architecture
 
-**Code baseline:** `dd848eb330b68dc2169fe717b2b21ce753ef9a23` (verified 2026-09-19).
+**Code baseline:** PR #9 branch head based on `main` commit `84d7fb95c2ca2c9d81397538873e9a758d744029` (verified 2026-09-25).
 
-This document describes the implementation, not a proposed target architecture. Product intent is in [`PROJECT.md`](PROJECT.md).
+This document describes the implementation on the PR #9 branch. The universal receipt pipeline remains proposed until evaluation, review, merge, migration, and an explicitly approved deployment; Production still runs the PR #8 extractor. Product intent is in [`PROJECT.md`](PROJECT.md).
 
 ## Stack
 
