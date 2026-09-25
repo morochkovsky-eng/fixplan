@@ -36,7 +36,6 @@ function positiveInteger(value: unknown, fallback: number, path: string) {
 
 export function parseVisualDocument(value: unknown): VisualDocumentInput {
   if (!isRecord(value) || !Array.isArray(value.pages)) throw new ReceiptContractError("invalid_document", "pages are required");
-  assertEnum(value.documentKind, ["utility", "other", "unknown"] as const, "documentKind");
   if (typeof value.readable !== "boolean") throw new ReceiptContractError("invalid_document", "readable must be boolean");
   const pages = value.pages.map((pageValue, pageIndex) => {
     if (!isRecord(pageValue) || !Array.isArray(pageValue.blocks)) throw new ReceiptContractError("invalid_page", `pages[${pageIndex}] is invalid`);
@@ -64,7 +63,7 @@ export function parseVisualDocument(value: unknown): VisualDocumentInput {
     });
     return { width: pageValue.width, height: pageValue.height, blocks };
   });
-  return { documentKind: value.documentKind, readable: value.readable, pages };
+  return { readable: value.readable, pages };
 }
 
 function normalizeText(text: string) {
@@ -126,6 +125,6 @@ export function indexLiteralDocument(input: unknown): IndexedLiteralDocument {
     });
     return { id: pageId, width: page.width, height: page.height, blocks };
   });
-  const document: LiteralDocument = { documentKind: parsed.documentKind, readable: parsed.readable, pages };
+  const document: LiteralDocument = { readable: parsed.readable, pages };
   return { document, diagnostics };
 }

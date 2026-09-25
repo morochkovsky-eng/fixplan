@@ -7,10 +7,11 @@ export function parseExactDecimal(raw: string) {
   const compact = raw.trim().replace(/[ \u00a0\u202f]/gu, "").replace(",", ".");
   if (!EXACT_DECIMAL.test(compact)) return null;
   const negative = compact.startsWith("-");
+  const printedSign = negative ? "minus" as const : compact.startsWith("+") ? "plus" as const : "none" as const;
   const unsigned = compact.replace(/^[+-]/u, "");
   const [whole, fraction = ""] = unsigned.split(".");
   const coefficient = BigInt(`${whole}${fraction}` || "0") * (negative ? BigInt(-1) : BigInt(1));
-  return { coefficient, scale: fraction.length };
+  return { coefficient, scale: fraction.length, printedSign };
 }
 
 export function extractNumericTokens(cellId: string, text: string): NumericToken[] {
