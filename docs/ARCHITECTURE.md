@@ -28,6 +28,7 @@ This document describes the implementation, not a proposed target architecture. 
 | `components/ui/` | Shared shadcn/Radix primitives |
 | `components/ai-elements/` | Assistant messages, prompt input, attachments, task presentation |
 | `lib/server/` | Server-only assistant, Telegram, utility, cleaning, and notification logic |
+| `lib/server/receipt-core/` | Offline deterministic receipt contracts, indexing, role validation, reconciliation, and draft decisions; no provider or persistence imports |
 | `lib/supabase/` | Browser, server, admin clients and generated database types |
 | `supabase/schema.sql` | Consolidated current schema reference |
 | `supabase/migrations/` | Ordered database history; never edit or apply without approval |
@@ -121,6 +122,10 @@ Preview-only evaluation route:
 - `/api/internal/utility-eval` accepts one authenticated image/PDF and returns the intercepted `prepare_utility_bill` arguments without calling Supabase or Storage. It returns `404` in Production and requires `UTILITY_EVAL_TOKEN` outside Production.
 
 See [`TELEGRAM.md`](TELEGRAM.md) for queue semantics.
+
+## Deterministic receipt core
+
+The isolated receipt core is documented in [`RECEIPT_DETERMINISTIC_CORE.md`](RECEIPT_DETERMINISTIC_CORE.md). It accepts literal page/block/row/cell geometry and ID-only role classifications. Server code owns IDs, exact numeric parsing, financial signs, E1/E2/E3 arithmetic, mandatory-due selection, and partial-draft decisions. It is not wired to Telegram, model providers, Supabase, Storage, or Production in this stage.
 
 ## Data flow map
 
