@@ -1,18 +1,18 @@
 # Homory: current state
 
-**Verified:** 2026-09-21 against GitHub, production deployment metadata, and commit `dd848eb330b68dc2169fe717b2b21ce753ef9a23`.
+**Verified:** 2026-09-25 against GitHub, the receipt investigation log, and Production commit `84d7fb95c2ca2c9d81397538873e9a758d744029`.
 
 This is the single replace-in-place operational snapshot. Do not append a release diary here.
 
 ## Production
 
 - URL: [https://fixplan-iota.vercel.app](https://fixplan-iota.vercel.app)
-- Deployment: `dpl_3hU8pCeP2jq9xchtrMLa1mDdYDUz`
-- Current commit: `dd848eb330b68dc2169fe717b2b21ce753ef9a23`
-- Previous UI commit: `69cc0df64c62630fde51dd9958922e43eddebf93`
+- Deployment: `dpl_B1jgupB9HzroWX3Xu6q9y6mX2thd`
+- Current commit: `84d7fb95c2ca2c9d81397538873e9a758d744029`
+- Previous Production commit: `771ddb64a5b6c335e342be35b9b064367797c594`
 - Telegram queue foundation: `5301dad1360aa102494a984811d62f0243e18559`
 - Queue tag: `production-homory-telegram-queue-20260918`
-- Nearest UI rollback deployment: `dpl_J27B6aMJ6o5Jf7GW7po7D4SfEwy4`
+- Nearest receipt rollback deployment: `dpl_8HQ6ZZt6pyNoY2DQ3rvUPrteaqVP`
 - Earlier web rollback: `dpl_CZANG39FitkDM5XK9MjjERzabUH4`
 - Telegram Preview rollback: `dpl_DKfG3jWmp1Jxr8iXAMtHXPrQGGd5`
 
@@ -20,7 +20,7 @@ Release and rollback procedures are in [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 ## Repository baseline
 
-- Canonical GitHub default branch: `main`.
+- Canonical GitHub default branch: `main`; verified head: `84d7fb95c2ca2c9d81397538873e9a758d744029`.
 - New tasks branch from the current `main` head unless another verified base is explicitly required.
 - Automatic Vercel Git deployment is disabled for `main`; PR and feature branches remain eligible for Preview deployments.
 - Production remains an explicitly verified and promoted deployment rather than an automatic consequence of merging to `main`.
@@ -43,6 +43,7 @@ See [`UI.md`](UI.md) for verified geometry and the non-canonical experiments sti
 - Text, voice, photos, documents, and long callbacks can enter the persistent queue.
 - Per-user FIFO claiming, duplicate protection, processing indicators, delivery fencing, `delivery_unknown`, stale-job recovery, and bounded indicator cleanup are implemented.
 - Draft actions require explicit confirmation or cancellation.
+- Production includes PR #8's readable-image retry and evidence gate. PR #9's universal transcription/normalization pipeline remains open and is not deployed.
 - The queue and status mechanism has passed real smoke and canary checks; the last recorded post-canary queue state was empty.
 
 See [`TELEGRAM.md`](TELEGRAM.md) for the exact pipeline and release rules.
@@ -77,10 +78,12 @@ See [`BRAND.md`](BRAND.md).
 
 ## Agreed next stages
 
-1. Maintain compact agent documentation.
-2. Complete rebranding and move safely to the new Telegram bot.
-3. Audit data integrity and resolve `B-02`.
-4. Improve asset search and the home's long-term memory.
-5. Extend tasks, calculations, and multi-user scenarios.
+1. Complete the bounded post-fix Terra receipt evaluation and independent architecture review; do not merge PR #9 until its acceptance gate passes.
+2. Repair receipt `pending_action` recovery as a separate narrow change.
+3. Maintain compact agent documentation.
+4. Complete rebranding and move safely to the new Telegram bot.
+5. Audit data integrity and resolve `B-02`.
+6. Improve asset search and the home's long-term memory.
+7. Extend tasks, calculations, and multi-user scenarios.
 
 Each stage should remain isolated. Do not combine UI, infrastructure, data, rebranding, and product-logic changes in one release.
