@@ -101,6 +101,8 @@ Terra's expected-row recall is 100%, but precision is 156/163 (95.7%) because of
 
 ## Cost and latency
 
+Recorded API cost in this report is **$14.3818**: **$11.9810** for the 42-run full corpus and **$2.4008** for the separate nine-run T06 model benchmark. This excludes earlier exploratory diagnostics that did not enter the retained benchmark tables.
+
 Terra evaluation results:
 
 | Scenario | Samples | Average cost | p50 cost | Max cost | p50 latency | Max latency |
