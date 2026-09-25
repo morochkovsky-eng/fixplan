@@ -2,7 +2,7 @@ import {
   DOCUMENT_KINDS, DUE_SCOPES, OPTIONAL_SCOPES, ROW_ROLES, SLOT_NAMES, TABLE_COLUMN_SEMANTICS,
 } from "./types";
 import type {
-  ClassifiedDocument, CoreDiagnostic, LiteralBlock, LiteralCell, LiteralDocument, RoleClassification,
+  ClassifiedDocument, ClassificationValidity, CoreDiagnostic, LiteralBlock, LiteralCell, LiteralDocument, RoleClassification,
   RoleItem, RowClassification, RowRole, SlotName, TableSchema, ValidatedClassification,
   ValidatedDocumentClassification, ValidatedRoleItem, ValidatedSlot,
 } from "./types";
@@ -50,6 +50,15 @@ const SHARED_METADATA_ROLES = new Set<RowRole>([
   "table_header", "section_title", "other", "unknown", "provider", "account", "address",
   "period", "billing_period", "issue_date", "due_date",
 ]);
+
+function classificationValidity(diagnostics: CoreDiagnostic[]): ClassificationValidity {
+  const blocking = diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  return {
+    status: blocking.length ? "needs_review" : "valid",
+    reasons: [...new Set(blocking.map((diagnostic) => diagnostic.code))].sort(),
+    sourceIds: [...new Set(blocking.flatMap((diagnostic) => diagnostic.sourceIds ?? (diagnostic.rowId ? [diagnostic.rowId] : [])))].sort(),
+  };
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -308,10 +317,12 @@ export function validateRoleClassification(document: LiteralDocument, input: unk
   const shared = new Set(classification.sharedRowIds);
   const assignments = new Map<string, string[]>();
   const documentIds = new Set<string>();
+  const groupedDocuments = new Map<string, ClassifiedDocument[]>();
 
   for (const document of classification.documents) {
     if (documentIds.has(document.docId)) diagnostics.push({ code: "document_id_duplicate", severity: "error", sourceIds: [document.docId] });
     documentIds.add(document.docId);
+    groupedDocuments.set(document.docId, [...(groupedDocuments.get(document.docId) ?? []), document]);
     for (const rowId of document.rowIds) assignments.set(rowId, [...(assignments.get(rowId) ?? []), document.docId]);
   }
   for (const rowId of classification.sharedRowIds) assignments.set(rowId, [...(assignments.get(rowId) ?? []), "$shared"]);
@@ -329,13 +340,16 @@ export function validateRoleClassification(document: LiteralDocument, input: unk
   }
 
   const sharedItems = validItems.filter((item) => shared.has(item.rowId) && SHARED_METADATA_ROLES.has(item.role));
-  const globalOnlyCodes = new Set(["document_id_duplicate", "segmentation_row_missing", "segmentation_unknown_row"]);
-  const documents: ValidatedDocumentClassification[] = classification.documents
+  const normalizedDocuments = [...groupedDocuments.entries()].map(([docId, definitions]) => ({
+    docId,
+    documentKind: definitions.every((document) => document.documentKind === definitions[0].documentKind) ? definitions[0].documentKind : "unknown" as const,
+    rowIds: [...new Set(definitions.flatMap((document) => document.rowIds))].sort(),
+  }));
+  const documents: ValidatedDocumentClassification[] = normalizedDocuments
     .map((document) => {
       const rowIds = [...new Set(document.rowIds)].sort();
       const relevantRows = new Set([...rowIds, ...classification.sharedRowIds]);
       const documentDiagnostics = diagnostics.filter((diagnostic) => {
-        if (globalOnlyCodes.has(diagnostic.code)) return false;
         if (diagnostic.rowId) return relevantRows.has(diagnostic.rowId);
         return diagnostic.sourceIds?.includes(document.docId) ?? false;
       });
@@ -349,9 +363,15 @@ export function validateRoleClassification(document: LiteralDocument, input: unk
         rows: classification.rows.filter((row) => relevantRows.has(row.rowId)).sort((left, right) => left.rowId.localeCompare(right.rowId)),
         diagnostics: documentDiagnostics,
         invalidRowIds: [...new Set([...invalidRows].filter((rowId) => relevantRows.has(rowId)))].sort(),
+        validity: classificationValidity(documentDiagnostics),
       };
     })
     .sort((left, right) => left.docId.localeCompare(right.docId));
 
-  return { documents, sharedRowIds: [...shared].sort(), diagnostics };
+  const bundleDiagnostics = diagnostics.filter((diagnostic) => diagnostic.severity === "error" && (
+    diagnostic.code === "segmentation_row_missing" ||
+    diagnostic.code === "document_id_duplicate" ||
+    (diagnostic.rowId !== undefined && shared.has(diagnostic.rowId))
+  ));
+  return { documents, sharedRowIds: [...shared].sort(), diagnostics, validity: classificationValidity(bundleDiagnostics) };
 }

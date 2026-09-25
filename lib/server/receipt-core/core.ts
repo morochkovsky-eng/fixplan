@@ -206,7 +206,8 @@ export function buildCanonicalReceipt(indexed: IndexedLiteralDocument, validated
     if (item.role === "meter_reading") meters.push(buildMeter(item, cells, tokens));
   }
   return {
-    docId: validated.docId, documentKind: validated.documentKind, readable: document.readable, period, accruedTotal, closingBalance, dueDate,
+    docId: validated.docId, classificationValidity: validated.validity,
+    documentKind: validated.documentKind, readable: document.readable, period, accruedTotal, closingBalance, dueDate,
     financialComponents, dueCandidates: mergeDueCandidates(dueCandidates, diagnostics), serviceLines, optionalCharges, meters,
     unknownRowIds: validated.rows.filter((row) => row.items.some((item) => item.role === "unknown")).map((row) => row.rowId).sort(), diagnostics,
   };

@@ -1,7 +1,8 @@
-import type { NumericToken } from "./types";
+import type { NumericContext, NumericToken } from "./types";
 
 const EXACT_DECIMAL = /^[+-]?\d+(?:[.,]\d+)?$/u;
-const NUMERIC_TOKEN = /[+-]?(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d+)(?:[.,]\d+)?/gu;
+const NUMERIC_BODY = String.raw`(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d{1,3}(?:\.\d{3})+|\d+)(?:[.,]\d+)?`;
+const NUMERIC_TOKEN = new RegExp(String.raw`\([+-]?${NUMERIC_BODY}\)|[+-]?${NUMERIC_BODY}-?`, "gu");
 
 export function parseExactDecimal(raw: string) {
   const compact = raw.trim().replace(/[ \u00a0\u202f]/gu, "").replace(",", ".");
@@ -14,9 +15,7 @@ export function parseExactDecimal(raw: string) {
   return { coefficient, scale: fraction.length, printedSign };
 }
 
-export type MoneyParseContext = { dot: "decimal" | "thousands" | "ambiguous" };
-
-export function parseMoneyLiteralToMinor(raw: string, context: MoneyParseContext = { dot: "ambiguous" }) {
+export function parseNumericLiteral(raw: string, context?: NumericContext) {
   let compact = raw.trim().replace(/[\u00a0\u202f ]/gu, "");
   let negativeWrapper = false;
   if (/^\(.+\)$/u.test(compact)) {
@@ -24,26 +23,34 @@ export function parseMoneyLiteralToMinor(raw: string, context: MoneyParseContext
     compact = compact.slice(1, -1);
   }
   if (compact.endsWith("-")) {
+    if (compact.startsWith("-") || compact.startsWith("+")) return null;
     negativeWrapper = true;
     compact = compact.slice(0, -1);
   }
-  if (/[.,]/u.test(compact) && compact.includes(".") && compact.includes(",")) {
-    if (!/^\d{1,3}(?:\.\d{3})*,\d{1,2}$/u.test(compact)) return null;
+  if (compact.includes(".") && compact.includes(",")) {
+    if (!/^[+-]?\d{1,3}(?:\.\d{3})+,\d+$/u.test(compact)) return null;
     compact = compact.replaceAll(".", "");
-  } else if (/^[+-]?\d+\.\d{3}$/u.test(compact)) {
-    if (context.dot === "ambiguous") return null;
-    if (context.dot === "thousands") compact = compact.replace(".", "");
+  } else if (/^[+-]?\d{1,3}(?:\.\d{3})+$/u.test(compact)) {
+    if (!context) return null;
+    if (context === "dot_thousands") compact = compact.replaceAll(".", "");
   }
   const parsed = parseExactDecimal(compact);
-  if (!parsed || parsed.scale > 2) return null;
-  const minor = decimalToMinorExact(parsed);
-  if (minor === null) return null;
-  return negativeWrapper ? (minor < BigInt(0) ? minor : -minor) : minor;
+  if (!parsed) return null;
+  if (!negativeWrapper) return parsed;
+  const absolute = parsed.coefficient < BigInt(0) ? -parsed.coefficient : parsed.coefficient;
+  return { ...parsed, coefficient: -absolute, printedSign: "minus" as const };
 }
 
-export function extractNumericTokens(cellId: string, text: string): NumericToken[] {
+export function parseMoneyLiteralToMinor(raw: string, context?: NumericContext) {
+  const parsed = parseNumericLiteral(raw, context);
+  if (!parsed || parsed.scale > 2) return null;
+  const minor = decimalToMinorExact(parsed);
+  return minor;
+}
+
+export function extractNumericTokens(cellId: string, text: string, context?: NumericContext): NumericToken[] {
   return [...text.matchAll(NUMERIC_TOKEN)].flatMap((match, index) => {
-    const parsed = parseExactDecimal(match[0]);
+    const parsed = parseNumericLiteral(match[0], context);
     return parsed ? [{ id: `${cellId}#${index + 1}`, cellId, raw: match[0], ...parsed }] : [];
   });
 }

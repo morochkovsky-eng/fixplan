@@ -29,6 +29,7 @@ function document(rows, overrides = {}) {
       rows: rows.map((cells) => ({ cells: cells.map((cell) => ({
         text: cell.text ?? String(cell), state: cell.state ?? "ok", bbox: cell.bbox ?? box,
         colSpan: cell.colSpan, rowSpan: cell.rowSpan, isHeader: cell.isHeader,
+        numericContext: cell.numericContext,
       })) })),
     }] }],
     ...overrides,
@@ -388,12 +389,13 @@ test("computed mandatory due without a printed candidate is reviewable, not abse
 });
 
 test("exactly one optional-excluded candidate that closes E2 can be confirmed", () => {
-  const rows = [[{ text: "Период" }, { text: "Август 2031" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "Страховка" }, { text: "20,00" }], [{ text: "Обязательно" }, { text: "100,00" }], [{ text: "Другой итог" }, { text: "130,00" }]];
+  const rows = [[{ text: "Период" }, { text: "Август 2031" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "Страховка" }, { text: "20,00" }], [{ text: "Услуга" }, { text: "100,00" }], [{ text: "Обязательно" }, { text: "100,00" }], [{ text: "Другой итог" }, { text: "130,00" }]];
   const roles = [
     { items: [item(0, "period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
     { items: [item(2, "optional_charge", 1, [[1]])] },
-    { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "excluded" })] },
-    { items: [item(4, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "included" })] },
+    { items: [item(3, "service_charge", 1, [[1]])] },
+    { items: [item(4, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "excluded" })] },
+    { items: [item(5, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "included" })] },
   ];
   const { result } = finish(rows, roles);
   assert.equal(result.mandatoryDue.status, "confirmed");
@@ -478,7 +480,8 @@ test("zero balance makes period-only and with-balance formulas materially equiva
   ];
   const result = finish(rows, roles).result;
   assert.equal(result.reconciliations.find((entry) => entry.equation === "E2").status, "closed");
-  assert.equal(result.mandatoryDue.status, "confirmed");
+  assert.equal(result.mandatoryDue.status, "needs_review");
+  assert.ok(result.mandatoryDue.reasons.includes("weak_e2_closure"));
 });
 
 test("two materially different closing formulas remain ambiguous", () => {
@@ -697,6 +700,78 @@ test("segmentation reports duplicate, uncovered, unknown, and financial shared r
   assert.ok(duplicate.diagnostics.some((entry) => entry.code === "segmentation_unknown_row"));
   assert.ok(duplicate.diagnostics.some((entry) => entry.code === "shared_row_role_not_allowed" && entry.rowId === rowId(1)));
   assert.ok(duplicate.documents.every((entry) => entry.items.every((classified) => classified.role !== "accrued_total")));
+  assert.equal(duplicate.validity.status, "needs_review");
+});
+
+test("an uncovered literal row prevents an otherwise closed document from being confirmed", () => {
+  const rows = [
+    [{ text: "Период" }, { text: "09.2031" }],
+    [{ text: "Начислено" }, { text: "100,00" }],
+    [{ text: "Долг" }, { text: "20,00" }],
+    [{ text: "К оплате" }, { text: "120,00" }],
+    [{ text: "Неназначенная исходная строка" }],
+  ];
+  const entries = [
+    { items: [item(0, "billing_period")] },
+    { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "opening_debt", 1, [[1]])] },
+    { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    { items: [item(4, "unknown", 0, [])] },
+  ];
+  const indexed = core.indexLiteralDocument(document(rows));
+  const bundle = core.processReceiptBundle(indexed, bundleClassification(entries, [
+    { docId: "receipt", documentKind: "utility", rowIds: [rowId(0), rowId(1), rowId(2), rowId(3)] },
+  ]));
+  const output = bundle.documents[0];
+  assert.equal(bundle.segmentationValidity.status, "needs_review");
+  assert.ok(bundle.segmentationValidity.reasons.includes("segmentation_row_missing"));
+  assert.equal(output.result.mandatoryDue.valueMinor, 12000n);
+  assert.equal(output.result.mandatoryDue.status, "needs_review");
+  assert.equal(output.result.draft.decision, "partial_draft");
+  assert.equal(output.result.draft.includeInMonthlyTotal, false);
+});
+
+test("a document-local segmentation error does not downgrade an independent document", () => {
+  const rows = [
+    [{ text: "A период" }, { text: "09.2031" }], [{ text: "A начислено" }, { text: "50,00" }],
+    [{ text: "A долг" }, { text: "10,00" }], [{ text: "A итог" }, { text: "60,00" }],
+    [{ text: "B период" }, { text: "09.2031" }], [{ text: "B начислено" }, { text: "70,00" }],
+    [{ text: "B долг" }, { text: "5,00" }], [{ text: "B итог" }, { text: "75,00" }],
+  ];
+  const entries = [
+    { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "opening_debt", 1, [[1]])] }, { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    { items: [item(4, "billing_period")] }, { items: [item(5, "accrued_total", 1, [[1]])] },
+    { items: [item(6, "opening_debt", 1, [[1]])] }, { items: [item(7, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  const indexed = core.indexLiteralDocument(document(rows));
+  const bundle = core.processReceiptBundle(indexed, bundleClassification(entries, [
+    { docId: "a", documentKind: "utility", rowIds: [rowId(0), rowId(1), rowId(2), rowId(3), "p9.b9.r9"] },
+    { docId: "b", documentKind: "utility", rowIds: [rowId(4), rowId(5), rowId(6), rowId(7)] },
+  ]));
+  assert.equal(bundle.segmentationValidity.status, "valid");
+  assert.equal(bundle.documents.find((entry) => entry.docId === "a").result.draft.decision, "partial_draft");
+  assert.equal(bundle.documents.find((entry) => entry.docId === "b").result.draft.decision, "confirmed_draft");
+});
+
+test("duplicate document IDs collapse to one blocked output", () => {
+  const scenario = basicFinancialRows({ accrued: "80,00", due: "100,00" });
+  scenario.rows.splice(2, 0, [{ text: "Долг" }, { text: "20,00" }]);
+  scenario.roles.splice(2, 0, { items: [item(2, "opening_debt", 1, [[1]])] });
+  const due = scenario.roles[3].items[0];
+  due.slots.label = binding(3, [0], []);
+  due.slots.due_candidate = binding(3, [1], [[1]]);
+  const indexed = core.indexLiteralDocument(document(scenario.rows));
+  const rows = scenario.roles.map((entry, index) => ({ rowId: rowId(index), items: entry.items }));
+  const bundle = core.processReceiptBundle(indexed, {
+    documents: [
+      { docId: "same", documentKind: "utility", rowIds: rows.map((row) => row.rowId) },
+      { docId: "same", documentKind: "utility", rowIds: rows.map((row) => row.rowId) },
+    ], sharedRowIds: [], tableSchemas: [], rows,
+  });
+  assert.equal(bundle.documents.length, 1);
+  assert.equal(bundle.documents[0].classificationValidity.status, "needs_review");
+  assert.notEqual(bundle.documents[0].result.draft.decision, "confirmed_draft");
 });
 
 test("document and row permutation does not change bundle results", () => {
@@ -718,6 +793,15 @@ test("billing period parser supports deterministic formats and same-month ranges
   for (const [raw, expected] of cases) assert.deepEqual(core.parseBillingPeriodText(raw), { status: "parsed", candidates: [expected] });
   assert.deepEqual(core.parseBillingPeriodText("31.08.2026 - 01.09.2026"), { status: "ambiguous", candidates: ["2026-08", "2026-09"] });
   assert.deepEqual(core.parseBillingPeriodText("отчётный сезон"), { status: "unsupported", candidates: [] });
+});
+
+test("billing period parser rejects impossible dates without substring fallback", () => {
+  for (const raw of ["31.02.2026", "00.09.2026", "32.01.2026", "29.02.2025"]) {
+    assert.deepEqual(core.parseBillingPeriodText(raw), { status: "unsupported", candidates: [] });
+  }
+  assert.deepEqual(core.parseBillingPeriodText("29.02.2024"), { status: "parsed", candidates: ["2024-02"] });
+  assert.deepEqual(core.parseBillingPeriodText("с 01.09.2026 по 30.09.2026"), { status: "parsed", candidates: ["2026-09"] });
+  assert.deepEqual(core.parseBillingPeriodText("31.08.2026 - 01.09.2026"), { status: "ambiguous", candidates: ["2026-08", "2026-09"] });
 });
 
 test("period failures preserve mandatory due but gate confirmed drafts", () => {
@@ -742,6 +826,10 @@ test("E2 closure strength distinguishes weak, E1-supported, and multi-component 
   const weakE2 = weak.reconciliations.find((entry) => entry.equation === "E2");
   assert.equal(weakE2.closureStrength.rating, "weak");
   assert.equal(weakE2.closureStrength.componentCount, 1);
+  assert.equal(weak.mandatoryDue.status, "needs_review");
+  assert.equal(weak.mandatoryDue.valueMinor, 10000n);
+  assert.equal(weak.mandatoryDue.candidateId, weak.receipt.dueCandidates[0].id);
+  assert.ok(weak.mandatoryDue.reasons.includes("weak_e2_closure"));
   assert.equal(weak.draft.decision, "partial_draft");
 
   const e1Rows = [...weakScenario.rows, [{ text: "Услуга" }, { text: "100,00" }]];
@@ -775,7 +863,7 @@ test("independent repeated due in another block strengthens one-component E2", (
   const classificationInput = {
     documents: [{ docId: "receipt", documentKind: "utility", rowIds: ["p1.b1.r1", "p1.b1.r2", "p1.b1.r3", "p1.b2.r1"] }], sharedRowIds: [], tableSchemas: [],
     rows: [
-      { rowId: "p1.b1.r1", items: [labelItem("p1.b1.r1", "billing_period", "billing_period")] },
+      { rowId: "p1.b1.r1", items: [{ mode: "label_value", role: "billing_period", slots: { label: bind("p1.b1.r1", 1, false), billing_period: bind("p1.b1.r1", 2, false) } }] },
       { rowId: "p1.b1.r2", items: [labelItem("p1.b1.r2", "accrued_total", "accrued_total")] },
       { rowId: "p1.b1.r3", items: [labelItem("p1.b1.r3", "due_candidate", "due_candidate", { dueScope: "with_balance", optionalScope: "excluded" })] },
       { rowId: "p1.b2.r1", items: [labelItem("p1.b2.r1", "due_candidate", "due_candidate", { dueScope: "with_balance", optionalScope: "excluded" })] },
@@ -815,9 +903,47 @@ test("closing balance is an E2 target, not an extra closure component", () => {
 test("money parser handles explicit negative wrappers and separator context", () => {
   assert.equal(core.parseMoneyLiteralToMinor("(1 234,56)"), -123456n);
   assert.equal(core.parseMoneyLiteralToMinor("1 234,56-"), -123456n);
-  assert.equal(core.parseMoneyLiteralToMinor("1.234", { dot: "thousands" }), 123400n);
+  assert.equal(core.parseMoneyLiteralToMinor("1.234", "dot_thousands"), 123400n);
   assert.equal(core.parseMoneyLiteralToMinor("1.234"), null);
-  assert.equal(core.parseMoneyLiteralToMinor("1.234", { dot: "decimal" }), null);
+  assert.equal(core.parseMoneyLiteralToMinor("1.234", "decimal_dot"), null);
+});
+
+test("parentheses and trailing minus retain their sign through the full pipeline", () => {
+  for (const printed of ["(1 234,56)", "1 234,56-"]) {
+    const rows = [
+      [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "2 000,00" }],
+      [{ text: "Оплата" }, { text: printed }], [{ text: "К оплате" }, { text: "765,44" }],
+    ];
+    const roles = [
+      { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
+      { items: [item(2, "payment", 1, [[1]])] },
+      { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    ];
+    const { indexed, result } = finish(rows, roles);
+    const token = indexed.document.pages[0].blocks[0].rows[2].cells[1].numericTokens[0];
+    assert.equal(token.raw, printed);
+    assert.equal(token.printedSign, "minus");
+    assert.equal(result.receipt.financialComponents.find((entry) => entry.role === "payment").amountMinor, -123456n);
+    assert.equal(result.mandatoryDue.status, "confirmed");
+    assert.equal(result.mandatoryDue.valueMinor, 76544n);
+  }
+});
+
+test("dot thousands notation participates only with an explicit validated context", () => {
+  const rows = [
+    [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "1.234", numericContext: "dot_thousands" }],
+    [{ text: "Долг" }, { text: "100,00" }], [{ text: "К оплате" }, { text: "1.334", numericContext: "dot_thousands" }],
+  ];
+  const roles = [
+    { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "opening_debt", 1, [[1]])] },
+    { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  assert.equal(finish(rows, roles).result.mandatoryDue.valueMinor, 133400n);
+
+  const noContext = document([[{ text: "Итого" }, { text: "1.234" }]]);
+  assert.equal(core.indexLiteralDocument(noContext).document.pages[0].blocks[0].rows[0].cells[1].numericTokens.length, 0);
+  assert.throws(() => core.indexLiteralDocument(document([[{ text: "Итого" }, { text: "1.234", numericContext: "guessed" }]])), /unsupported value/u);
 });
 
 test("generator oracle exports literal structure and separates unavailable photo geometry", () => {
@@ -831,6 +957,9 @@ test("generator oracle exports literal structure and separates unavailable photo
   assert.deepEqual(oracle.geometry, { status: "source", coordinateSpace: "generator-source-normalized" });
   const photo = core.exportGeneratorLiteral(source, { variant: "photo_telegram" });
   assert.deepEqual(photo.geometry, { status: "unavailable", reason: "photo_transform_missing" });
+  assert.equal(photo.literal, null);
+  assert.equal("bbox" in photo.contentStructure.pages[0].blocks[0], false);
+  assert.equal("bbox" in photo.contentStructure.pages[0].blocks[0].rows[0].cells[0], false);
 });
 
 test("offline eval schema validates opaque metadata and deterministic fingerprint", () => {
@@ -840,8 +969,23 @@ test("offline eval schema validates opaque metadata and deterministic fingerprin
     requestedModelId: "none", returnedModelId: "none", runNumber: 1, latencyMs: 0, estimatedCostMicrousd: 0,
     literalMetrics: { textPrecision: 1, textRecall: 1, numericPrecision: 1, numericRecall: 1, structureAccuracy: 1, geometryAccuracy: null },
     classificationMetrics: { rolePrecision: 1, roleRecall: 1, slotPrecision: 1, slotRecall: 1, segmentationAccuracy: 1 },
-    documentCoverage: { expected: 1, produced: 1, matchedDocIds: ["d1"] }, endToEndDecision: "pass", deterministicDecisionFingerprint: fingerprint,
+    geometryOracleStatus: "unavailable", documentCoverage: { expected: 1, produced: 1, matchedDocIds: ["d1"] },
+    endToEndDecision: "pass", deterministicDecisionFingerprint: fingerprint,
   });
   assert.equal(record.deterministicDecisionFingerprint, fingerprint);
   assert.throws(() => core.validateReceiptEvalRecord({ ...record, deterministicDecisionFingerprint: "bad" }), /invalid_decision_fingerprint/u);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, literalMetrics: { ...record.literalMetrics, textPrecision: 1.01 } }), /invalid_receipt_eval_record/u);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, literalMetrics: { ...record.literalMetrics, numericRecall: Number.NaN } }), /invalid_receipt_eval_record/u);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, latencyMs: 1.5 }), /invalid_receipt_eval_record/u);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, documentIds: ["d1", "d1"] }), /invalid_receipt_eval_record/u);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, documentCoverage: { expected: 2, produced: 1, matchedDocIds: ["d1"] } }), /invalid_receipt_eval_record/u);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, endToEndDecision: "maybe" }), /invalid_receipt_eval_record/u);
+  assert.throws(() => core.validateReceiptEvalRecord({ ...record, literalMetrics: { ...record.literalMetrics, geometryAccuracy: 1 } }), /geometry_oracle_unavailable/u);
+
+  assert.equal(core.deterministicDecisionFingerprint({ a: 1, b: 2 }), core.deterministicDecisionFingerprint({ b: 2, a: 1 }));
+  assert.notEqual(core.deterministicDecisionFingerprint({ value: 1n }), core.deterministicDecisionFingerprint({ value: "1" }));
+  assert.equal(
+    core.deterministicDecisionFingerprint({ documents: [{ docId: "b", value: 2 }, { docId: "a", value: 1 }] }),
+    core.deterministicDecisionFingerprint({ documents: [{ docId: "a", value: 1 }, { docId: "b", value: 2 }] }),
+  );
 });

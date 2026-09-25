@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { BLOCK_LAYOUTS, VISUAL_CELL_STATES } from "./types";
+import { BLOCK_LAYOUTS, NUMERIC_CONTEXTS, VISUAL_CELL_STATES } from "./types";
 import type { BoundingBox, CoreDiagnostic, IndexedLiteralDocument, LiteralBlock, LiteralCell, LiteralDocument, LiteralRow, VisualDocumentInput } from "./types";
 import { extractNumericTokens } from "./money";
 
@@ -48,10 +48,12 @@ export function parseVisualDocument(value: unknown): VisualDocumentInput {
         const cells = rowValue.cells.map((cellValue, cellIndex) => {
           if (!isRecord(cellValue) || typeof cellValue.text !== "string") throw new ReceiptContractError("invalid_cell", `cell ${cellIndex} is invalid`);
           assertEnum(cellValue.state, VISUAL_CELL_STATES, `cell ${cellIndex}.state`);
+          if (cellValue.numericContext !== undefined) assertEnum(cellValue.numericContext, NUMERIC_CONTEXTS, `cell ${cellIndex}.numericContext`);
           return {
             text: cellValue.text,
             state: cellValue.state,
             bbox: parseBox(cellValue.bbox, `cell ${cellIndex}.bbox`),
+            numericContext: cellValue.numericContext,
             colSpan: positiveInteger(cellValue.colSpan, 1, `cell ${cellIndex}.colSpan`),
             rowSpan: positiveInteger(cellValue.rowSpan, 1, `cell ${cellIndex}.rowSpan`),
             isHeader: cellValue.isHeader === true,
@@ -73,7 +75,7 @@ function normalizeText(text: string) {
 function indexRow(row: VisualDocumentInput["pages"][number]["blocks"][number]["rows"][number], rowId: string): LiteralRow {
   const cells: LiteralCell[] = row.cells.map((cell, cellIndex) => {
     const id = `${rowId}.c${cellIndex + 1}`;
-    return { ...cell, id, state: cell.state === "ok" ? "present" : cell.state, colSpan: cell.colSpan ?? 1, rowSpan: cell.rowSpan ?? 1, numericTokens: cell.state === "ok" ? extractNumericTokens(id, cell.text) : [] };
+    return { ...cell, id, state: cell.state === "ok" ? "present" : cell.state, colSpan: cell.colSpan ?? 1, rowSpan: cell.rowSpan ?? 1, numericTokens: cell.state === "ok" ? extractNumericTokens(id, cell.text, cell.numericContext) : [] };
   });
   const normalized = cells.map((cell) => `${cell.state}:${normalizeText(cell.text)}`).join("|");
   return { id: rowId, cells, normalizedTextHash: createHash("sha256").update(normalized).digest("hex") };

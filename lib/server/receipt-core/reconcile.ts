@@ -305,6 +305,12 @@ function mandatoryDue(receipt: CanonicalReceipt, e2Result: E2Outcome): Mandatory
     return { status: "absent", valueMinor: null, source: null, reasons: ["printed_due_absent"] };
   }
   const selected = reconciliation.candidateId ? receipt.dueCandidates.find((candidate) => candidate.id === reconciliation.candidateId) : undefined;
+  if (reconciliation.status === "closed" && reconciliation.closureStrength?.rating === "weak" && selected) {
+    return {
+      status: "needs_review", valueMinor: selected.amountMinor, source: "printed",
+      reasons: ["weak_e2_closure"], candidateId: selected.id, candidateSourceIds: selected.sourceTokenIds,
+    };
+  }
   if (reconciliation.status === "closed" && selected?.optional === "excluded") {
     return {
       status: "confirmed", valueMinor: selected.amountMinor, source: "printed", reasons: [],
@@ -347,11 +353,17 @@ export function reconcileReceipt(receipt: CanonicalReceipt): ReceiptCoreResult {
   const first = e1(receipt);
   const second = e2(receipt, first);
   const reconciliations = [first, second.result, ...e3(receipt)];
-  const mandatory = mandatoryDue(receipt, second);
+  let mandatory = mandatoryDue(receipt, second);
+  let draft = draftDecision(receipt, mandatory, second.result);
+  if (receipt.classificationValidity.status === "needs_review") {
+    const reasons = [...new Set(["classification_needs_review", ...receipt.classificationValidity.reasons])];
+    if (mandatory.status === "confirmed") mandatory = { ...mandatory, status: "needs_review", reasons };
+    if (draft.decision !== "reject") draft = { decision: "partial_draft", needsReview: true, includeInMonthlyTotal: false, reasons: [...new Set([...draft.reasons, ...reasons])] };
+  }
   return {
     receipt, computedClosingBalance: second.computedClosingBalance,
     computedDue: second.computedDue, diagnosticComputedDue: second.diagnosticComputedDue,
-    machineDue: null, reconciliations, mandatoryDue: mandatory, draft: draftDecision(receipt, mandatory, second.result),
+    machineDue: null, reconciliations, mandatoryDue: mandatory, draft,
   };
 }
 

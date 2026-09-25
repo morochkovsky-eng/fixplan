@@ -19,11 +19,30 @@ function format(month: number, fullYear: number) {
   return `${fullYear}-${String(month).padStart(2, "0")}`;
 }
 
+function validCalendarDate(day: number, month: number, fullYear: number) {
+  if (month < 1 || month > 12 || day < 1) return false;
+  const leap = fullYear % 4 === 0 && (fullYear % 100 !== 0 || fullYear % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= days[month - 1];
+}
+
 export function parseBillingPeriodText(text: string): { status: "parsed" | "ambiguous" | "unsupported"; candidates: string[] } {
   const normalized = text.normalize("NFKC").toLocaleLowerCase("ru-RU").replace(/\s+/gu, " ").trim();
   const candidates = new Set<string>();
 
-  for (const match of normalized.matchAll(/(?<!\d)(0?[1-9]|1[0-2])[./](\d{2}|\d{4})(?![\d./-])/gu)) {
+  const datePattern = /(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})(?!\d)/gu;
+  const dates = [...normalized.matchAll(datePattern)];
+  for (const match of dates) {
+    const fullYear = year(match[3]);
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    if (!validCalendarDate(day, month, fullYear)) return { status: "unsupported", candidates: [] };
+    const value = format(month, fullYear);
+    if (value) candidates.add(value);
+  }
+  const withoutDates = normalized.replace(datePattern, " ");
+
+  for (const match of withoutDates.matchAll(/(?<!\d)(0?[1-9]|1[0-2])[./](\d{2}|\d{4})(?![\d./-])/gu)) {
     const value = format(Number(match[1]), year(match[2]));
     if (value) candidates.add(value);
   }
@@ -31,11 +50,6 @@ export function parseBillingPeriodText(text: string): { status: "parsed" | "ambi
     const value = format(MONTHS.get(match[1])!, year(match[2]));
     if (value) candidates.add(value);
   }
-  for (const match of normalized.matchAll(/(?<!\d)(\d{1,2})[./-](\d{1,2})[./-](\d{2}|\d{4})(?!\d)/gu)) {
-    const value = format(Number(match[2]), year(match[3]));
-    if (value) candidates.add(value);
-  }
-
   const values = [...candidates].sort();
   if (values.length === 1) return { status: "parsed", candidates: values };
   if (values.length > 1) return { status: "ambiguous", candidates: values };

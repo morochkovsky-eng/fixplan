@@ -23,6 +23,7 @@ export const TABLE_COLUMN_SEMANTICS = SLOT_NAMES;
 export const DUE_SCOPES = ["period_only", "with_balance", "unknown"] as const;
 export const OPTIONAL_SCOPES = ["excluded", "included", "unknown"] as const;
 export const RECONCILIATION_STATUSES = ["closed", "open", "insufficient", "ambiguous"] as const;
+export const NUMERIC_CONTEXTS = ["decimal_dot", "dot_thousands"] as const;
 
 export type BlockLayout = typeof BLOCK_LAYOUTS[number];
 export type VisualCellState = typeof VISUAL_CELL_STATES[number];
@@ -35,6 +36,7 @@ export type TableColumnSemantic = typeof TABLE_COLUMN_SEMANTICS[number];
 export type DueScope = typeof DUE_SCOPES[number];
 export type OptionalScope = typeof OPTIONAL_SCOPES[number];
 export type ReconciliationStatus = typeof RECONCILIATION_STATUSES[number];
+export type NumericContext = typeof NUMERIC_CONTEXTS[number];
 
 export type BoundingBox = { x: number; y: number; width: number; height: number };
 
@@ -42,6 +44,7 @@ export type VisualCellInput = {
   text: string;
   state: VisualCellState;
   bbox: BoundingBox;
+  numericContext?: NumericContext;
   colSpan?: number;
   rowSpan?: number;
   isHeader?: boolean;
@@ -139,11 +142,19 @@ export type ValidatedDocumentClassification = {
   rows: RowClassification[];
   diagnostics: CoreDiagnostic[];
   invalidRowIds: string[];
+  validity: ClassificationValidity;
 };
 export type ValidatedClassification = {
   documents: ValidatedDocumentClassification[];
   sharedRowIds: string[];
   diagnostics: CoreDiagnostic[];
+  validity: ClassificationValidity;
+};
+
+export type ClassificationValidity = {
+  status: "valid" | "needs_review";
+  reasons: string[];
+  sourceIds: string[];
 };
 
 export type NormalizedField<T> = {
@@ -206,6 +217,7 @@ export type MeterEntry = {
 
 export type CanonicalReceipt = {
   docId: string;
+  classificationValidity: ClassificationValidity;
   documentKind: DocumentKind;
   readable: boolean;
   period: BillingPeriodField;
@@ -280,8 +292,8 @@ export type ReceiptCoreResult = {
   draft: DraftDecision;
 };
 
-export type ReceiptDocumentResult = { docId: string; result: ReceiptCoreResult };
-export type ReceiptBundleResult = { documents: ReceiptDocumentResult[]; diagnostics: CoreDiagnostic[] };
+export type ReceiptDocumentResult = { docId: string; result: ReceiptCoreResult; classificationValidity: ClassificationValidity };
+export type ReceiptBundleResult = { documents: ReceiptDocumentResult[]; diagnostics: CoreDiagnostic[]; segmentationValidity: ClassificationValidity };
 
 export type LiteralMetricSet = {
   textPrecision: number;
@@ -310,6 +322,7 @@ export type ReceiptEvalRecord = {
   estimatedCostMicrousd: number;
   literalMetrics: LiteralMetricSet;
   classificationMetrics: ClassificationMetricSet;
+  geometryOracleStatus: "source" | "transformed" | "unavailable";
   documentCoverage: { expected: number; produced: number; matchedDocIds: string[] };
   endToEndDecision: "pass" | "partial" | "reject" | "error";
   deterministicDecisionFingerprint: string;
