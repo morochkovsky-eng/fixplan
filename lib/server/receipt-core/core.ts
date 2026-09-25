@@ -9,15 +9,17 @@ const FINANCIAL_ROLES = new Set<FinancialComponentRole>([
   "accrued_total", "opening_balance", "opening_debt", "opening_advance", "payment", "benefit",
   "recalculation", "penalty", "rounding", "payment_history",
 ]);
-const FIXED_SIGNS = new Map<FinancialComponentRole, "positive" | "negative">([
+type SignedRole = FinancialComponentRole | "closing_debt" | "closing_advance";
+const FIXED_SIGNS = new Map<SignedRole, "positive" | "negative">([
   ["accrued_total", "positive"], ["opening_debt", "positive"], ["penalty", "positive"],
   ["opening_advance", "negative"], ["payment", "negative"], ["benefit", "negative"],
+  ["closing_debt", "positive"], ["closing_advance", "negative"],
 ]);
 const ROLE_VALUE_SLOT: Partial<Record<ValidatedRoleItem["role"], SlotName>> = {
   accrued_total: "accrued_total", opening_balance: "opening_balance", opening_debt: "opening_debt",
   opening_advance: "opening_advance", payment: "payment", benefit: "benefit", recalculation: "recalculation",
   penalty: "penalty", rounding: "rounding", payment_history: "payment_history", due_candidate: "due_candidate",
-  closing_balance: "closing_balance",
+  closing_balance: "closing_balance", closing_debt: "closing_debt", closing_advance: "closing_advance",
   period: "period", due_date: "due_date", provider: "provider", account: "account", address: "address", issue_date: "issue_date",
 };
 
@@ -63,7 +65,7 @@ function moneyFromSlot(item: ValidatedRoleItem, name: SlotName, tokens: Map<stri
   return exact[0];
 }
 
-function canonicalFinancialAmount(role: FinancialComponentRole, parsed: { token: NumericToken; minor: bigint }, item: ValidatedRoleItem, diagnostics: CoreDiagnostic[]) {
+function canonicalFinancialAmount(role: SignedRole, parsed: { token: NumericToken; minor: bigint }, item: ValidatedRoleItem, diagnostics: CoreDiagnostic[]) {
   const expected = FIXED_SIGNS.get(role);
   if (!expected) return { amountMinor: parsed.minor, confirmed: true };
   const absolute = parsed.minor < BigInt(0) ? -parsed.minor : parsed.minor;
@@ -140,15 +142,37 @@ export function buildCanonicalReceipt(indexed: IndexedLiteralDocument, validated
     const signed = parsed ? canonicalFinancialAmount("accrued_total", parsed, accruedItem, diagnostics) : null;
     accruedTotal = { state: signed?.confirmed ? "printed" : state === "printed" ? "illegible" : state, value: signed?.confirmed ? signed.amountMinor : null, sourceCellIds: value.cellIds, sourceTokenIds: value.tokenIds };
   }
-  const closingItem = items.find((item) => item.role === "closing_balance");
+  const closingItems = items.filter((item) => item.role === "closing_balance" || item.role === "closing_debt" || item.role === "closing_advance");
   let closingBalance = emptyField<bigint>();
-  if (closingItem) {
-    const value = slot(closingItem, "closing_balance");
+  if (closingItems.length > 1) {
+    diagnostics.push({
+      code: "multiple_closing_balances", severity: "review",
+      sourceIds: closingItems.flatMap((item) => item.sourceTokenIds),
+    });
+    closingBalance = {
+      state: "printed", value: null,
+      sourceCellIds: closingItems.flatMap((item) => item.sourceCellIds),
+      sourceTokenIds: closingItems.flatMap((item) => item.sourceTokenIds),
+    };
+  } else if (closingItems.length === 1) {
+    const closingItem = closingItems[0];
+    const valueSlot = ROLE_VALUE_SLOT[closingItem.role]!;
+    const value = slot(closingItem, valueSlot);
     const state = stateFromCells(value.cellIds.flatMap((id) => cells.get(id) ?? []));
-    const parsed = moneyFromSlot(closingItem, "closing_balance", tokens, diagnostics);
+    const parsed = moneyFromSlot(closingItem, valueSlot, tokens, diagnostics);
+    let signed: { amountMinor: bigint; confirmed: boolean } | null = null;
+    if (parsed && closingItem.role === "closing_balance") {
+      if (parsed.token.printedSign === "none") {
+        diagnostics.push({ code: "closing_balance_sign_missing", severity: "review", rowId: closingItem.rowId, sourceIds: [parsed.token.id] });
+      } else {
+        signed = { amountMinor: parsed.minor, confirmed: true };
+      }
+    } else if (parsed) {
+      signed = canonicalFinancialAmount(closingItem.role as "closing_debt" | "closing_advance", parsed, closingItem, diagnostics);
+    }
     closingBalance = {
       state: parsed ? "printed" : state === "printed" ? "illegible" : state,
-      value: parsed?.minor ?? null,
+      value: signed?.confirmed ? signed.amountMinor : null,
       sourceCellIds: value.cellIds,
       sourceTokenIds: value.tokenIds,
     };

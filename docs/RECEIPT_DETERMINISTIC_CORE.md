@@ -81,7 +81,15 @@ Fixed financial roles receive signs in code only when the printed value has no e
 
 An explicit matching sign is retained. An explicit sign that contradicts the fixed role produces `fixed_role_sign_conflict`; that component is excluded from confirmed E2 evidence and the result requires review. The core does not change a contradictory printed sign to make an equation close.
 
-`closing_balance` is a separate signed printed field with its own source cells and numeric tokens. It is the result of a balance formula, not a service, financial component, or extra E2 addend. Its canonical value therefore preserves the signed literal evidence supplied by the document contract. A closing overpayment is negative and a closing debt is positive.
+The closing balance is a separate signed printed field with its own source cells and numeric tokens. It is the result of a balance formula, not a service, financial component, or extra E2 addend. Three classifier roles are available, symmetrically with opening balances:
+
+| Role | Sign rule |
+| --- | --- |
+| `closing_debt` | unsigned magnitude becomes positive; a contradictory explicit sign requires review |
+| `closing_advance` | unsigned magnitude becomes negative; a contradictory explicit sign requires review |
+| `closing_balance` | an explicit printed sign is preserved; an unsigned value is ambiguous and requires review |
+
+The model still returns only source IDs and an enum role. The core never derives polarity by reading a label. All three roles normalize into one canonical `closingBalance` field and retain the original cell and token IDs.
 
 ## Due candidates
 
@@ -105,7 +113,7 @@ When a document prints both `closing_balance` and a separate due candidate, E2 i
 1. the selected component formula must reproduce the printed closing balance;
 2. the printed due candidate must equal `max(0, closing_balance)`.
 
-This rule is enabled only by a distinct `closing_balance` item. A document with one negative printed due candidate and no closing-balance item keeps that negative mandatory value; it is not clamped to zero. Closing balance is never included independently in a monthly total.
+This rule is enabled only by a distinct closing-balance item (`closing_debt`, `closing_advance`, or `closing_balance`). A document with one negative printed due candidate and no closing-balance item keeps that negative mandatory value; it is not clamped to zero. Closing balance is never included independently in a monthly total.
 
 ## Reconciliation
 
@@ -115,7 +123,7 @@ This rule is enabled only by a distinct `closing_balance` item. A document with 
 
 Each equation returns `closed`, `open`, `insufficient`, or `ambiguous`, with machine-readable reasons and source IDs. E2 also returns the applied formula, selected candidate, included component IDs, and optional component IDs. Closures with identical non-zero component sets and final values are materially equivalent, so a zero balance does not create false ambiguity. More than one materially different closing formula is `ambiguous`, never a false confirmation.
 
-`computedDue` exists only after E2 selects one closing formula and equals that formula's value. The preliminary sum of confirmed fixed components is exposed separately as review-only `diagnosticComputedDue`; it cannot masquerade as a reconciled result. When the only printed candidate includes optional charges, `computed_excluding_optional` is derived from the same selected formula by removing only its optional components. Disputed components selected by that formula remain included.
+`computedDue` exists only after E2 selects one closing formula. Without a separately printed closing balance, it equals that formula's value, so a sole negative printed due remains negative. With a separately printed closing balance, the formula value is exposed as `computedClosingBalance`, while `computedDue` is `max(0, computedClosingBalance)`. The preliminary sum of confirmed fixed components is exposed separately as review-only `diagnosticComputedDue`; it cannot masquerade as a reconciled result. When the only printed candidate includes optional charges, `computed_excluding_optional` is derived from the same selected formula by removing only its optional components. Disputed components selected by that formula remain included.
 
 ## Mandatory due
 

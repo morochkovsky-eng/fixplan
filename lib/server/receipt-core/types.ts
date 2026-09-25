@@ -7,14 +7,16 @@ export const ROW_ROLES = [
   "service_charge", "subtotal", "optional_charge",
   "accrued_total", "opening_balance", "opening_debt", "opening_advance",
   "payment", "benefit", "recalculation", "penalty", "rounding",
-  "closing_balance", "due_candidate", "payment_history", "meter_reading", "normative_reference",
+  "closing_balance", "closing_debt", "closing_advance",
+  "due_candidate", "payment_history", "meter_reading", "normative_reference",
   "provider", "account", "address", "period", "issue_date", "due_date",
 ] as const;
 export const SLOT_NAMES = [
   "name", "unit", "volume", "tariff", "charge", "recalculation", "benefit", "row_total",
   "meter_number", "meter_prev", "meter_curr", "consumption", "normative", "label", "ignore",
   "accrued_total", "opening_balance", "opening_debt", "opening_advance", "payment", "penalty",
-  "rounding", "closing_balance", "due_candidate", "payment_history", "provider", "account", "address", "period",
+  "rounding", "closing_balance", "closing_debt", "closing_advance",
+  "due_candidate", "payment_history", "provider", "account", "address", "period",
   "issue_date", "due_date", "optional_charge",
 ] as const;
 export const TABLE_COLUMN_SEMANTICS = SLOT_NAMES;
@@ -239,6 +241,7 @@ export type DraftDecision = {
 
 export type ReceiptCoreResult = {
   receipt: CanonicalReceipt;
+  computedClosingBalance: bigint | null;
   computedDue: bigint | null;
   diagnosticComputedDue: bigint | null;
   machineDue: null;

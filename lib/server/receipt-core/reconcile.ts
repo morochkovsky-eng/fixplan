@@ -101,6 +101,7 @@ function formulasForCandidate(receipt: CanonicalReceipt, candidate: DueCandidate
 
 type E2Outcome = {
   result: Reconciliation;
+  computedClosingBalance: bigint | null;
   computedDue: bigint | null;
   diagnosticComputedDue: bigint | null;
   computedExcludingOptional: bigint | null;
@@ -111,14 +112,18 @@ function outcome(
   diagnosticComputedDue: bigint | null,
   formula?: AppliedFormula,
   context?: NonNullable<ReturnType<typeof financialContext>>,
+  closesBalance = false,
 ): E2Outcome {
   const optionalIds = new Set(formula?.optionalComponentIds ?? []);
   const optionalAmount = context ? sum(context.optional.filter((component) => optionalIds.has(component.id)).map((component) => component.amountMinor)) : BigInt(0);
+  const computedClosingBalance = closesBalance ? formula?.valueMinor ?? null : null;
+  const formulaDue = formula ? formula.valueMinor - optionalAmount : null;
   return {
     result,
-    computedDue: formula?.valueMinor ?? null,
+    computedClosingBalance,
+    computedDue: formula ? (closesBalance && formula.valueMinor < BigInt(0) ? BigInt(0) : formula.valueMinor) : null,
     diagnosticComputedDue,
-    computedExcludingOptional: formula ? formula.valueMinor - optionalAmount : null,
+    computedExcludingOptional: formulaDue === null ? null : closesBalance && formulaDue < BigInt(0) ? BigInt(0) : formulaDue,
   };
 }
 
@@ -144,22 +149,31 @@ function e2(receipt: CanonicalReceipt): E2Outcome {
     return outcome({ equation: "E2", status: "ambiguous", reasons: ["fixed_role_sign_conflict"], sourceIds }, diagnosticComputedDue);
   }
 
+  const closingBalanceInvalid = receipt.diagnostics.find((diagnostic) => diagnostic.code === "closing_balance_sign_missing" || diagnostic.code === "multiple_closing_balances");
+  if (closingBalanceInvalid) {
+    const diagnosticDue = diagnosticComputedDue < BigInt(0) ? BigInt(0) : diagnosticComputedDue;
+    return outcome({
+      equation: "E2", status: "ambiguous", reasons: [closingBalanceInvalid.code], sourceIds, target: "closing_balance",
+    }, diagnosticDue, undefined, undefined, true);
+  }
+
   if (receipt.closingBalance.value !== null) {
+    const diagnosticDue = diagnosticComputedDue < BigInt(0) ? BigInt(0) : diagnosticComputedDue;
     const generated = formulasForAxes(receipt, "with_balance", "excluded", context);
     if (generated.tooManyAxes) {
-      return outcome({ equation: "E2", status: "ambiguous", reasons: ["too_many_disputed_categories"], sourceIds, target: "closing_balance" }, diagnosticComputedDue);
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["too_many_disputed_categories"], sourceIds, target: "closing_balance" }, diagnosticDue, undefined, undefined, true);
     }
     const matching = generated.formulas.filter((formula) => minorDifference(formula.valueMinor, receipt.closingBalance.value!) <= BigInt(1));
     const groups = new Map(matching.map((formula) => [materialKey(formula), formula]));
     if (groups.size > 1) {
-      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_materially_distinct_closures"], sourceIds, target: "closing_balance" }, diagnosticComputedDue);
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_materially_distinct_closures"], sourceIds, target: "closing_balance" }, diagnosticDue, undefined, undefined, true);
     }
     if (groups.size === 0) {
       return outcome({
         equation: "E2", status: "open", reasons: ["closing_balance_does_not_match_document_formula"], sourceIds, target: "closing_balance",
         expectedMinor: receipt.closingBalance.value, actualMinor: diagnosticComputedDue,
         deltaMinor: minorDifference(receipt.closingBalance.value, diagnosticComputedDue),
-      }, diagnosticComputedDue);
+      }, diagnosticDue, undefined, undefined, true);
     }
     const formula = [...groups.values()][0];
     const printedDue = receipt.closingBalance.value > BigInt(0) ? receipt.closingBalance.value : BigInt(0);
@@ -170,17 +184,17 @@ function e2(receipt: CanonicalReceipt): E2Outcome {
         equation: "E2", status: "open", reasons: ["printed_due_does_not_match_closing_balance"], sourceIds, target: "closing_balance",
         expectedMinor: receipt.closingBalance.value, actualMinor: formula.valueMinor,
         deltaMinor: minorDifference(receipt.closingBalance.value, formula.valueMinor), formula,
-      }, diagnosticComputedDue);
+      }, diagnosticDue, undefined, undefined, true);
     }
     if (candidateMatches.length > 0 && !selected) {
-      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_candidates_for_closing_balance"], sourceIds, target: "closing_balance" }, diagnosticComputedDue);
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_candidates_for_closing_balance"], sourceIds, target: "closing_balance" }, diagnosticDue, undefined, undefined, true);
     }
     return outcome({
       equation: "E2", status: "closed", reasons: [], sourceIds, target: "closing_balance",
       expectedMinor: receipt.closingBalance.value, actualMinor: formula.valueMinor,
       deltaMinor: minorDifference(receipt.closingBalance.value, formula.valueMinor),
       candidateId: selected?.candidate.id, candidateSourceIds: selected?.candidate.sourceTokenIds, formula,
-    }, diagnosticComputedDue, formula, context);
+    }, diagnosticDue, formula, context, true);
   }
 
   if (receipt.dueCandidates.length === 0) {
@@ -292,7 +306,8 @@ export function reconcileReceipt(receipt: CanonicalReceipt): ReceiptCoreResult {
   const reconciliations = [first, second.result, ...e3(receipt)];
   const mandatory = mandatoryDue(receipt, second);
   return {
-    receipt, computedDue: second.computedDue, diagnosticComputedDue: second.diagnosticComputedDue,
+    receipt, computedClosingBalance: second.computedClosingBalance,
+    computedDue: second.computedDue, diagnosticComputedDue: second.diagnosticComputedDue,
     machineDue: null, reconciliations, mandatoryDue: mandatory, draft: draftDecision(receipt, mandatory),
   };
 }
