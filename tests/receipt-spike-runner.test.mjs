@@ -45,9 +45,23 @@ test("receipt spike plan fingerprint and matrix schedule are stable and complete
   assert.notEqual(approvalPlan.bindReceiptSpikePlanner(changedPrompt).planSha256, first.planSha256);
   assert.equal(canonicalJson({ b: 2, a: 1 }), canonicalJson({ a: 1, b: 2 }));
   const schedule = matrix.buildReceiptSpikeSchedule(manifest);
-  assert.equal(schedule.filter((step) => step.kind !== "local_reader").length, 290);
+  assert.equal(schedule.filter((step) => step.kind !== "local_reader").length, 250);
+  assert.equal(schedule.filter((step) => step.provider === "google-document-ai").length, 0);
   assert.equal(schedule.filter((step) => step.kind === "local_reader").length, 10);
   assert.equal(schedule.filter((step) => step.cell === "r1-reuse-c2" && step.kind === "provider_reader").length, 0);
+  assert.equal(first.includeR2, false);
+  assert.equal(first.totals.openAiCalls, 250);
+  assert.equal(first.totals.googleDocumentAiCalls, 0);
+});
+
+test("R2 is an explicit separately fingerprinted matrix choice", () => {
+  const initial = approvalPlan.buildApprovedReceiptSpikePlan();
+  const withR2 = approvalPlan.buildApprovedReceiptSpikePlan({ includeR2: true });
+  assert.notEqual(initial.planSha256, withR2.planSha256);
+  assert.equal(withR2.totals.providerCalls, 290);
+  assert.equal(matrix.buildReceiptSpikeSchedule(manifest, { includeR2: true }).filter((step) => step.provider === "google-document-ai").length, 20);
+  const oldApproval = { schemaVersion: "receipt-spike-approval-v1", approved: true, planSha256: "69fd24b98f5b301252912d43ea99e432f2fc92337af01113255da53905f90c46", maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  assert.throws(() => budget.validateReceiptSpikeApproval(oldApproval, { planSha256: initial.planSha256 }), (error) => error.code === "approval_plan_mismatch");
 });
 
 test("planner source is independently bound and any planner change requires new approval", () => {
@@ -77,8 +91,12 @@ test("runner defaults to a no-call dry plan", () => {
   const output = JSON.parse(execFileSync(process.execPath, ["scripts/receipt-spike/run-matrix.mjs"], { encoding: "utf8" }));
   assert.equal(output.providerClientsConstructed, false);
   assert.equal(output.providerCallsExecuted, 0);
-  assert.equal(output.providerCallsPlanned, 290);
+  assert.equal(output.providerCallsPlanned, 250);
+  assert.equal(output.includeR2, false);
   assert.equal(output.maximumAuthorizedSpendMicrousd, 12_000_000);
+  const withR2 = JSON.parse(execFileSync(process.execPath, ["scripts/receipt-spike/run-matrix.mjs", "--include-r2"], { encoding: "utf8" }));
+  assert.equal(withR2.providerCallsPlanned, 290);
+  assert.notEqual(withR2.planSha256, output.planSha256);
 });
 
 test("paid mode refuses before credentials or provider construction when approval is absent", () => {

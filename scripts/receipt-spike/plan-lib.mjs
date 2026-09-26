@@ -49,25 +49,25 @@ const r2C1 = sum(allImages.map(({ file, variant }) => fileEstimate(file, variant
 const r3C1 = sum(manifest.files.map((file) => fileEstimate(file, "png_clean", "gpt-6-sol", false).classifierCost));
 const r1C2PerRun = sum(allImages.map(({ file, variant }) => fileEstimate(file, variant, "gpt-6-luna", false).classifierCost));
 
-const matrix = [
+const initialMatrix = [
   { id: "oracle-literal-c1", inputs: 10, documents: 11, repeats: 3, readerCalls: 0, classifierCalls: 30, estimateUsd: oracleC1PerRun * 3 },
   { id: "oracle-literal-c2", inputs: 10, documents: 11, repeats: 3, readerCalls: 0, classifierCalls: 30, estimateUsd: oracleC2PerRun * 3 },
   { id: "r1-c1-clean-photo", inputs: 20, documents: 22, repeats: 3, readerCalls: 60, classifierCalls: 60, estimateUsd: r1C1PerRun * 3 },
-  {
-    id: "r2-enterprise-ocr-c1-clean-photo",
-    inputs: 20,
-    documents: 22,
-    repeats: 1,
-    readerCalls: 20,
-    classifierCalls: 20,
-    estimateUsd: r2C1,
-    textMetricGranularity: "document_token",
-    structureGate: "not_applicable",
-    geometryGate: "not_applicable",
-  },
   { id: "r3-c1-pdf", inputs: 10, documents: 11, repeats: 1, readerCalls: 0, classifierCalls: 10, estimateUsd: r3C1 },
   { id: "r1-reuse-c2", inputs: 20, documents: 22, repeats: 3, readerCalls: 0, classifierCalls: 60, estimateUsd: r1C2PerRun * 3 },
-].map((entry) => ({ ...entry, estimateUsd: Number(entry.estimateUsd.toFixed(4)), status: "planned_not_run" }));
+];
+const r2MatrixEntry = {
+  id: "r2-enterprise-ocr-c1-clean-photo",
+  inputs: 20,
+  documents: 22,
+  repeats: 1,
+  readerCalls: 20,
+  classifierCalls: 20,
+  estimateUsd: r2C1,
+  textMetricGranularity: "document_token",
+  structureGate: "not_applicable",
+  geometryGate: "not_applicable",
+};
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const integrity = {
@@ -92,29 +92,45 @@ export function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
-export function buildReceiptSpikePlan() {
+export function buildReceiptSpikePlan({ includeR2 = false } = {}) {
+  const matrix = (includeR2 ? [...initialMatrix.slice(0, 3), r2MatrixEntry, ...initialMatrix.slice(3)] : initialMatrix)
+    .map((entry) => ({ ...entry, estimateUsd: Number(entry.estimateUsd.toFixed(4)), status: "planned_not_run" }));
+  const planningEstimateUsd = Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4));
   const report = {
   schemaVersion: "receipt-spike-gate-v1",
   baselineCommit: manifest.baselineCommit,
+  includeR2,
+  r2FollowUpPolicy: {
+    prerequisite: "oracle_c1_passes_and_failure_localized_to_reader",
+    maxR1PromptRevisionsBeforeDecision: 2,
+    numericRecallMinimum: { png_clean: 0.99, photo_telegram: 0.97 },
+    blankCellsFilledMaximum: 0,
+    inventedNumbersMaximum: 0,
+    rowColumnAccuracyMinimum: 0.98,
+    moneyRowNumericStability: "identical_across_three_runs",
+    r1CostPerDocumentMaximumUsd: 0.1,
+    r1LatencyP50MaximumMs: 45000,
+    realDocuments: "only_after_authorized_real_document_evaluation_and_reader_failure",
+  },
   paidCallsExecuted: 0,
   providerClientsInvoked: false,
   integrity,
   matrix,
   totals: {
-    openAiCalls: 270,
-    googleDocumentAiCalls: 20,
+    openAiCalls: includeR2 ? 270 : 250,
+    googleDocumentAiCalls: includeR2 ? 20 : 0,
     localPdfExtractions: 10,
-    providerCalls: 290,
-    planningEstimateUsd: Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4)),
+    providerCalls: includeR2 ? 290 : 250,
+    planningEstimateUsd,
     safetyMultiplier,
   },
   budget: {
-    planningEstimateUsd: Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4)),
+    planningEstimateUsd,
     maximumAuthorizedSpendUsd: 12,
     estimateIsGuaranteedCeiling: false,
     enforcement: "stop_before_next_provider_call_if_recorded_spend_plus_reserved_call_max_would_exceed_cap",
     reservationPolicy: "request_specific_utf8_and_image_token_upper_bound_v2",
-    reservationBasis: "Each OpenAI reservation is computed from exact serialized request bytes, a separate image-patch ceiling, protocol allowance, fixed max output, long-context pricing, and cache-write premium. Google OCR reserves $0.01 for a pinned single-image input.",
+    reservationBasis: "Each OpenAI reservation is computed from exact serialized request bytes, a separate image-patch ceiling, protocol allowance, fixed max output, long-context pricing, and cache-write premium. When R2 is selected, Google OCR reserves $0.01 for a pinned single-image input.",
     seriesLock: "exclusive_for_full_execution",
   },
   pricingBasis: {

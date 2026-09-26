@@ -37,7 +37,7 @@ export type MatrixScheduleStep = {
 const IMAGE_VARIANTS = ["png_clean", "photo_telegram"] as const;
 const GOOGLE_OCR_RESERVATION_MICROUSD = 10_000;
 
-export function buildReceiptSpikeSchedule(manifest: Manifest): MatrixScheduleStep[] {
+export function buildReceiptSpikeSchedule(manifest: Manifest, options: { includeR2?: boolean } = {}): MatrixScheduleStep[] {
   const steps: MatrixScheduleStep[] = [];
   for (const classifier of ["c1", "c2"] as const) for (let run = 1; run <= 3; run += 1) for (const file of manifest.files) {
     steps.push({ id: `oracle-${classifier}-${file.fileId}-${run}`, cell: `oracle-literal-${classifier}`, kind: "provider_classifier", fileId: file.fileId, variant: "oracle_literal", runNumber: run, provider: "openai" });
@@ -46,7 +46,7 @@ export function buildReceiptSpikeSchedule(manifest: Manifest): MatrixScheduleSte
     steps.push({ id: `r1-${file.fileId}-${variant}-${run}`, cell: "r1-c1-clean-photo", kind: "provider_reader", fileId: file.fileId, variant, runNumber: run, provider: "openai" });
     steps.push({ id: `r1-c1-${file.fileId}-${variant}-${run}`, cell: "r1-c1-clean-photo", kind: "provider_classifier", fileId: file.fileId, variant, runNumber: run, provider: "openai" });
   }
-  for (const variant of IMAGE_VARIANTS) for (const file of manifest.files) {
+  if (options.includeR2) for (const variant of IMAGE_VARIANTS) for (const file of manifest.files) {
     steps.push({ id: `r2-${file.fileId}-${variant}-1`, cell: "r2-enterprise-ocr-c1-clean-photo", kind: "provider_reader", fileId: file.fileId, variant, runNumber: 1, provider: "google-document-ai" });
     steps.push({ id: `r2-c1-${file.fileId}-${variant}-1`, cell: "r2-enterprise-ocr-c1-clean-photo", kind: "provider_classifier", fileId: file.fileId, variant, runNumber: 1, provider: "openai" });
   }
@@ -118,18 +118,20 @@ export async function runReceiptSpikeMatrix(options: {
   manifest: Manifest;
   series: string;
   planSha256: string;
+  includeR2: boolean;
   integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; sourceSha256: Record<string, string> };
   outputRoot: string;
   readerPrompt: string;
   classifierPrompt: string;
   approval: { approved: true; planSha256: string; maximumAuthorizedSpendMicrousd: number };
   openai: OpenAiReceiptSpikeClient;
-  google: GoogleEnterpriseOcrClient;
+  google?: GoogleEnterpriseOcrClient;
 }) {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(options.series)) throw new Error("invalid_series_name");
   if (!options.approval.approved || options.approval.planSha256 !== options.planSha256 || options.approval.maximumAuthorizedSpendMicrousd !== 12_000_000) {
     throw new Error("paid_execution_approval_mismatch");
   }
+  if (options.includeR2 && !options.google) throw new Error("r2_google_client_required");
   verifyReceiptSpikeManifest(options.fixtureRoot, options.manifest, { ...options.integrity, readerPrompt: options.readerPrompt, classifierPrompt: options.classifierPrompt });
   const runRoot = path.join(options.outputRoot, options.series);
   const releaseSeriesLock = acquireReceiptSpikeSeriesLock(runRoot);
@@ -171,7 +173,7 @@ export async function runReceiptSpikeMatrix(options: {
       },
       dispatch: async () => asBudgetResult(kind === "R1"
         ? await options.openai.readImage({ model: "gpt-6-sol", instructions: options.readerPrompt, bytes, mimeType: mimeType(variant), signal: timeoutSignal() })
-        : await options.google.read({ bytes, mimeType: mimeType(variant), signal: timeoutSignal() })),
+        : await options.google!.read({ bytes, mimeType: mimeType(variant), signal: timeoutSignal() })),
     });
     enforceReturnedModelSeries(path.join(runRoot, "model-series.json"), {
       provider: kind === "R1" ? "openai" : "google-document-ai",
@@ -260,7 +262,7 @@ export async function runReceiptSpikeMatrix(options: {
     await classify({ cell: "r1-c1-clean-photo", file, variant, run, readerId: "R1-openai-vision", classifierId: "C1-openai-strong", readerInput: visual });
   }
 
-  for (const variant of IMAGE_VARIANTS) for (const file of options.manifest.files) {
+  if (options.includeR2) for (const variant of IMAGE_VARIANTS) for (const file of options.manifest.files) {
     const visual = await reader("r2-enterprise-ocr-c1-clean-photo", file, variant, 1, "R2");
     await classify({ cell: "r2-enterprise-ocr-c1-clean-photo", file, variant, run: 1, readerId: "R2-google-enterprise-ocr", classifierId: "C1-openai-strong", readerInput: visual });
   }
@@ -303,7 +305,7 @@ export async function runReceiptSpikeMatrix(options: {
   const summary = {
     finishedAt: new Date().toISOString(),
     budget: ledger.snapshot(),
-    providerCalls: buildReceiptSpikeSchedule(options.manifest).filter((step) => step.kind !== "local_reader").length,
+    providerCalls: buildReceiptSpikeSchedule(options.manifest, { includeR2: options.includeR2 }).filter((step) => step.kind !== "local_reader").length,
     latencyP50Ms: percentile(providerRuns.map((item) => item.latencyMs), 0.5),
     latencyP95Ms: percentile(providerRuns.map((item) => item.latencyMs), 0.95),
     cells,
