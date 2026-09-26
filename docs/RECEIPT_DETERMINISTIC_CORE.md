@@ -1,5 +1,7 @@
 # Deterministic receipt core
 
+The isolated reader/classifier evaluation plan is documented in [Receipt vision/OCR spike](./RECEIPT_VISION_SPIKE.md).
+
 **Status:** design contract for specifications 1, 1.1, and oracle hardening 1.2, 2026-09-26.
 
 This module is an offline boundary between future document reading and product persistence. It does not import Telegram, Supabase, Storage, model providers, or application state. The core accepts literal document geometry plus ID-only role labels and returns canonical entities, reconciliation diagnostics, and a draft decision.

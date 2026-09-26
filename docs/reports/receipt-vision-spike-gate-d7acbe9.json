@@ -1,0 +1,223 @@
+{
+  "schemaVersion": "receipt-spike-dry-run-v1",
+  "baselineCommit": "1bc6309a4312631e5ba99084c65fddd86f4e2266",
+  "implementationCommit": "d7acbe9d3700d993867e82eaae763c94705a4c67",
+  "manifest": {
+    "path": "tests/fixtures/receipt-synthetic-v1.1/spike-manifest.json",
+    "verifiedFiles": 80,
+    "sourcePackageSha256": "2a1e28f08e477671a0e85c7e9dd0a1ca24b4712d255d8ccef6a09fd324b2e127",
+    "inputFiles": 20,
+    "documents": 11
+  },
+  "isolation": {
+    "readerReceivesOnlyBinaryInput": true,
+    "classifierReceivesOnlyIndexedLiteral": true,
+    "evaluatorOnlyDataExcluded": true,
+    "legacyGoldUsed": false
+  },
+  "dryRun": {
+    "providerClientsInvoked": false,
+    "paidCallsExecuted": 0,
+    "readerOracleSelfChecks": 20,
+    "readerOracleSelfChecksPerfect": 20,
+    "classifierMockRuns": 60,
+    "classifierMockDocumentEvaluations": 66,
+    "classifierMockDecisionMatches": 66,
+    "classifierMockSilentCriticalErrors": 0,
+    "classifierMockFalseRejects": 0,
+    "pdfTextLayer": [
+      {
+        "fileId": "S01",
+        "pages": 1,
+        "cells": 113,
+        "characters": 1433
+      },
+      {
+        "fileId": "S02",
+        "pages": 1,
+        "cells": 56,
+        "characters": 804
+      },
+      {
+        "fileId": "S03",
+        "pages": 1,
+        "cells": 37,
+        "characters": 668
+      },
+      {
+        "fileId": "S04",
+        "pages": 1,
+        "cells": 129,
+        "characters": 1278
+      },
+      {
+        "fileId": "S05",
+        "pages": 1,
+        "cells": 71,
+        "characters": 1087
+      },
+      {
+        "fileId": "S06",
+        "pages": 1,
+        "cells": 47,
+        "characters": 805
+      },
+      {
+        "fileId": "S07",
+        "pages": 1,
+        "cells": 39,
+        "characters": 958
+      },
+      {
+        "fileId": "S08",
+        "pages": 1,
+        "cells": 55,
+        "characters": 795
+      },
+      {
+        "fileId": "S09",
+        "pages": 1,
+        "cells": 251,
+        "characters": 1431
+      },
+      {
+        "fileId": "S10",
+        "pages": 1,
+        "cells": 29,
+        "characters": 494
+      }
+    ],
+    "googleEnterpriseOcrAdapterMock": "pass_document_tokens_without_cell_structure_or_geometry",
+    "illegibleMetric": "not_tested_no_illegible_cells"
+  },
+  "matrix": [
+    {
+      "id": "oracle-literal-c1",
+      "inputs": 10,
+      "documents": 11,
+      "repeats": 3,
+      "readerCalls": 0,
+      "classifierCalls": 30,
+      "estimateUsd": 1.758,
+      "status": "planned_not_run"
+    },
+    {
+      "id": "oracle-literal-c2",
+      "inputs": 10,
+      "documents": 11,
+      "repeats": 3,
+      "readerCalls": 0,
+      "classifierCalls": 30,
+      "estimateUsd": 0.0879,
+      "status": "planned_not_run"
+    },
+    {
+      "id": "r1-c1-clean-photo",
+      "inputs": 20,
+      "documents": 22,
+      "repeats": 3,
+      "readerCalls": 60,
+      "classifierCalls": 60,
+      "estimateUsd": 8.1887,
+      "status": "planned_not_run"
+    },
+    {
+      "id": "r2-enterprise-ocr-c1-clean-photo",
+      "inputs": 20,
+      "documents": 22,
+      "repeats": 1,
+      "readerCalls": 20,
+      "classifierCalls": 20,
+      "estimateUsd": 1.2019,
+      "textMetricGranularity": "document_token",
+      "structureGate": "not_applicable",
+      "geometryGate": "not_applicable",
+      "status": "planned_not_run"
+    },
+    {
+      "id": "r3-c1-pdf",
+      "inputs": 10,
+      "documents": 11,
+      "repeats": 1,
+      "readerCalls": 0,
+      "classifierCalls": 10,
+      "estimateUsd": 0.586,
+      "status": "planned_not_run"
+    },
+    {
+      "id": "r1-reuse-c2",
+      "inputs": 20,
+      "documents": 22,
+      "repeats": 3,
+      "readerCalls": 0,
+      "classifierCalls": 60,
+      "estimateUsd": 0.1758,
+      "status": "planned_not_run"
+    }
+  ],
+  "totals": {
+    "openAiCalls": 270,
+    "googleDocumentAiCalls": 20,
+    "localPdfExtractions": 10,
+    "providerCalls": 290,
+    "planningEstimateUsd": 11.9983,
+    "safetyMultiplier": 1.5
+  },
+  "budget": {
+    "planningEstimateUsd": 11.9983,
+    "maximumAuthorizedSpendUsd": 12,
+    "estimateIsGuaranteedCeiling": false,
+    "enforcement": "stop_before_next_provider_call_if_recorded_spend_plus_reserved_call_max_would_exceed_cap"
+  },
+  "pricingBasis": {
+    "checked": "2026-09-26",
+    "openai": {
+      "source": "https://developers.openai.com/api/docs/models",
+      "gpt-6-sol": {
+        "inputUsdPerMillion": 2,
+        "outputUsdPerMillion": 10
+      },
+      "gpt-6-luna": {
+        "inputUsdPerMillion": 0.1,
+        "outputUsdPerMillion": 0.5
+      }
+    },
+    "googleDocumentAi": {
+      "source": "https://cloud.google.com/products/document-ai/pricing",
+      "enterpriseOcrUsdPerPage": 0.0015,
+      "layoutParserUsdPerPage": 0.01,
+      "selectedForR2": "enterprise_ocr",
+      "note": "R2 is a text/line-geometry OCR baseline, not Layout Parser. The list-price estimate ignores free-tier allowance."
+    },
+    "method": "UTF-8 bytes/4 token proxy, documented image patch formula, and 1.5x safety multiplier; actual usage and returned model IDs replace estimates after approval."
+  },
+  "latencyGate": {
+    "p50Seconds": 45,
+    "p95Seconds": 120,
+    "measured": false
+  },
+  "storagePlan": {
+    "root": ".receipt-spike/runs/<series>/<file>/<run>/",
+    "files": [
+      "request.meta.json",
+      "reader.raw.json",
+      "reader.visual.json",
+      "classifier.input.json",
+      "classifier.raw.json",
+      "classification.json",
+      "evaluation.json"
+    ],
+    "gitIgnored": true,
+    "evaluatorDataExcludedFromRequests": [
+      "oracle/**",
+      "gold/**",
+      "reports/**",
+      "spike-manifest.json"
+    ]
+  },
+  "gate": {
+    "paidExecutionRequiresSeparateOwnerApproval": true,
+    "approvalRecorded": false,
+    "hardBudgetEnforcementRequired": true
+  }
+}
