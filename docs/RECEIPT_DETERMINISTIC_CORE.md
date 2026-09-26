@@ -39,7 +39,7 @@ p1.b3.r2.c4
 p1.b3.r2.c4#1
 ```
 
-The last form addresses a numeric token inside a cell. Every visually present column remains represented, including blank and illegible cells. Literal `ok` becomes `present`; the other states remain distinct. Every row receives a SHA-256 hash of its normalized literal text.
+The last form addresses a numeric token inside a cell. Every token preserves its complete raw notation and whether its separator is exact or ambiguous. Every visually present column remains represented, including blank and illegible cells. Literal `ok` becomes `present`; the other states remain distinct. Every row receives a SHA-256 hash of its normalized literal text. Reader output cannot contain locale, separator, money, or other semantic context.
 
 ### Role classification and document segmentation
 
@@ -87,9 +87,9 @@ Equal repeated periods merge their sources. Conflicting values are ambiguous. Cr
 
 ## Monetary values
 
-Money is parsed with decimal string arithmetic into `bigint` minor units. No floating-point operation is used for money. Numeric tokens retain their literal form, exact coefficient, scale, and source cell.
+Money is parsed with decimal string arithmetic into `bigint` minor units. No floating-point operation is used for money. Numeric tokens retain their literal form, lexical coefficient and scale, interpretation status, and source cell; only exact interpretations can become money.
 
-Parentheses and a trailing minus are accepted as explicit negative notation. Their complete raw notation and explicit negative sign survive server tokenization and are visible to fixed-role validation. A dot followed by three digits is accepted as a thousands separator only when the literal cell carries the runtime-validated enum `numericContext="dot_thousands"`; without that contract field it is ambiguous and does not become confirmed numeric evidence. The core never infers separator context from a label.
+Parentheses and a trailing minus are accepted as explicit negative notation because the sign is literally printed. Their complete raw notation and explicit negative sign survive server tokenization and are visible to fixed-role validation. A dot followed by three digits, such as `1.234`, remains an addressable token with `interpretation="ambiguous_separator"`, stable ID, and unchanged row hash. It has no confirmed monetary value and cannot enter E1, E2, E3, meters, or a confirmed draft. A future trusted document-locale adapter or second-layer classification enum may interpret it, but that semantic context is intentionally outside this contract and is not implemented in specification 1.1.
 
 Fixed financial roles receive signs in code only when the printed value has no explicit sign:
 
@@ -169,7 +169,7 @@ Public diagnostics contain only structural IDs, enum roles, hashes, states, equa
 
 The eval package accepts gold literal data only as a direct export of the synthetic generator's structured source. It preserves literal text, cell state, spans, stable positional IDs, bounding boxes, and table structure. It must not reconstruct gold through OCR, model calls, or manual image reading. The `synthetic-v1` generator source is not present in this repository, so connecting the real corpus exporter remains an explicit blocker; the generic direct-export contract and tests use only anonymous synthetic inputs.
 
-For a `photo_telegram` derivative, content and structure may inherit from the source oracle. Geometry may be marked transformed only when the generator supplies transformed coordinates or an applicable transformation. Otherwise the contract returns `literal=null`, exposes a bbox-free content/structure oracle, and marks geometry unavailable. Eval validation requires `geometryAccuracy=null` in that state, so source bounding boxes cannot be presented or scored as photo coordinates.
+For a `photo_telegram` derivative, content and structure may inherit from the source oracle. Geometry may be marked transformed only when the generator supplies transformed coordinates or an applicable transformation. Otherwise the contract returns `literal=null`, exposes a bbox-free content/structure oracle, and marks geometry unavailable. Eval validation requires `geometryAccuracy=null` in that state, so source bounding boxes cannot be presented or scored as photo coordinates. A source oracle rejects a `transformedDocument`; transformed coordinates can never be labelled as source geometry.
 
 Offline eval records opaque file/document IDs, reader and classifier IDs, requested and returned model IDs, run number, latency, estimated cost, literal metrics, classification metrics, document coverage, end-to-end decision, geometry-oracle status, and a deterministic decision fingerprint. Runtime validation accepts `unknown` and checks every nested metric, count, ID, enum, and fingerprint. Metrics are finite values in `[0,1]`; geometry accuracy is nullable and must be null when geometry is unavailable. Fingerprints use a canonical typed encoding: object-key order is irrelevant, bigint does not collide with a similarly printed string, and bundle documents are normalized by `docId`.
 

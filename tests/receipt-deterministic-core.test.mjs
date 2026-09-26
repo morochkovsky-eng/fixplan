@@ -29,7 +29,6 @@ function document(rows, overrides = {}) {
       rows: rows.map((cells) => ({ cells: cells.map((cell) => ({
         text: cell.text ?? String(cell), state: cell.state ?? "ok", bbox: cell.bbox ?? box,
         colSpan: cell.colSpan, rowSpan: cell.rowSpan, isHeader: cell.isHeader,
-        numericContext: cell.numericContext,
       })) })),
     }] }],
     ...overrides,
@@ -106,6 +105,9 @@ test("literal layer assigns IDs and signs but does not classify document kind", 
 test("runtime contracts reject unknown enums, row-level roles, and malformed geometry", () => {
   assert.throws(() => core.indexLiteralDocument(document([[{ text: "x", state: "invented" }]])), /unsupported value/u);
   assert.throws(() => core.indexLiteralDocument(document([[{ text: "x", bbox: { x: 0.9, y: 0, width: 0.2, height: 0.1 } }]])), /exceeds page bounds/u);
+  const semanticReaderOutput = document([[{ text: "1.234" }]]);
+  semanticReaderOutput.pages[0].blocks[0].rows[0].cells[0].numericContext = "dot_thousands";
+  assert.throws(() => core.indexLiteralDocument(semanticReaderOutput), /numericContext is not part of the literal contract/u);
   const indexed = core.indexLiteralDocument(document([[{ text: "x" }]]));
   const invalidKind = classification([{ role: "unknown" }]);
   invalidKind.documents[0].documentKind = "invented";
@@ -900,12 +902,11 @@ test("closing balance is an E2 target, not an extra closure component", () => {
   assert.equal(result.draft.decision, "partial_draft");
 });
 
-test("money parser handles explicit negative wrappers and separator context", () => {
+test("money parser handles explicit negative wrappers and preserves ambiguous separators", () => {
   assert.equal(core.parseMoneyLiteralToMinor("(1 234,56)"), -123456n);
   assert.equal(core.parseMoneyLiteralToMinor("1 234,56-"), -123456n);
-  assert.equal(core.parseMoneyLiteralToMinor("1.234", "dot_thousands"), 123400n);
   assert.equal(core.parseMoneyLiteralToMinor("1.234"), null);
-  assert.equal(core.parseMoneyLiteralToMinor("1.234", "decimal_dot"), null);
+  assert.equal(core.parseNumericLiteral("1.234").interpretation, "ambiguous_separator");
 });
 
 test("parentheses and trailing minus retain their sign through the full pipeline", () => {
@@ -929,21 +930,33 @@ test("parentheses and trailing minus retain their sign through the full pipeline
   }
 });
 
-test("dot thousands notation participates only with an explicit validated context", () => {
-  const rows = [
-    [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "1.234", numericContext: "dot_thousands" }],
-    [{ text: "Долг" }, { text: "100,00" }], [{ text: "К оплате" }, { text: "1.334", numericContext: "dot_thousands" }],
-  ];
+test("ambiguous dot notation remains addressable and review-only without changing literal identity", () => {
+  const visual = document([
+    [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "1.234" }],
+    [{ text: "К оплате" }, { text: "1.234" }],
+  ]);
+  const first = core.indexLiteralDocument(visual);
+  const second = core.indexLiteralDocument(structuredClone(visual));
+  assert.deepEqual(first, second);
+  const accruedToken = first.document.pages[0].blocks[0].rows[1].cells[1].numericTokens[0];
+  assert.equal(accruedToken.id, tokenId(1, 1));
+  assert.equal(accruedToken.raw, "1.234");
+  assert.equal(accruedToken.interpretation, "ambiguous_separator");
+  assert.equal(core.decimalToMinorExact(accruedToken), null);
+
+  const rowHash = first.document.pages[0].blocks[0].rows[1].normalizedTextHash;
+  const tokenIds = first.document.pages[0].blocks[0].rows.flatMap((row) => row.cells.flatMap((cell) => cell.numericTokens.map((token) => token.id)));
   const roles = [
     { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
-    { items: [item(2, "opening_debt", 1, [[1]])] },
-    { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    { items: [item(2, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "excluded" })] },
   ];
-  assert.equal(finish(rows, roles).result.mandatoryDue.valueMinor, 133400n);
-
-  const noContext = document([[{ text: "Итого" }, { text: "1.234" }]]);
-  assert.equal(core.indexLiteralDocument(noContext).document.pages[0].blocks[0].rows[0].cells[1].numericTokens.length, 0);
-  assert.throws(() => core.indexLiteralDocument(document([[{ text: "Итого" }, { text: "1.234", numericContext: "guessed" }]])), /unsupported value/u);
+  const validated = core.validateRoleClassification(first.document, classification(roles));
+  const result = core.reconcileReceipt(core.buildCanonicalReceipt(first, validated.documents[0]));
+  assert.equal(result.mandatoryDue.status, "absent");
+  assert.equal(result.draft.decision, "partial_draft");
+  assert.ok(result.receipt.diagnostics.some((entry) => entry.code === "money_token_missing"));
+  assert.equal(first.document.pages[0].blocks[0].rows[1].normalizedTextHash, rowHash);
+  assert.deepEqual(first.document.pages[0].blocks[0].rows.flatMap((row) => row.cells.flatMap((cell) => cell.numericTokens.map((token) => token.id))), tokenIds);
 });
 
 test("generator oracle exports literal structure and separates unavailable photo geometry", () => {
@@ -960,6 +973,7 @@ test("generator oracle exports literal structure and separates unavailable photo
   assert.equal(photo.literal, null);
   assert.equal("bbox" in photo.contentStructure.pages[0].blocks[0], false);
   assert.equal("bbox" in photo.contentStructure.pages[0].blocks[0].rows[0].cells[0], false);
+  assert.throws(() => core.exportGeneratorLiteral(source, { variant: "source", transformedDocument: source }), /source oracle cannot use transformed coordinates/u);
 });
 
 test("offline eval schema validates opaque metadata and deterministic fingerprint", () => {

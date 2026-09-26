@@ -1,4 +1,4 @@
-import type { NumericContext, NumericToken } from "./types";
+import type { NumericToken } from "./types";
 
 const EXACT_DECIMAL = /^[+-]?\d+(?:[.,]\d+)?$/u;
 const NUMERIC_BODY = String.raw`(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d{1,3}(?:\.\d{3})+|\d+)(?:[.,]\d+)?`;
@@ -15,7 +15,7 @@ export function parseExactDecimal(raw: string) {
   return { coefficient, scale: fraction.length, printedSign };
 }
 
-export function parseNumericLiteral(raw: string, context?: NumericContext) {
+export function parseNumericLiteral(raw: string) {
   let compact = raw.trim().replace(/[\u00a0\u202f ]/gu, "");
   let negativeWrapper = false;
   if (/^\(.+\)$/u.test(compact)) {
@@ -31,31 +31,35 @@ export function parseNumericLiteral(raw: string, context?: NumericContext) {
     if (!/^[+-]?\d{1,3}(?:\.\d{3})+,\d+$/u.test(compact)) return null;
     compact = compact.replaceAll(".", "");
   } else if (/^[+-]?\d{1,3}(?:\.\d{3})+$/u.test(compact)) {
-    if (!context) return null;
-    if (context === "dot_thousands") compact = compact.replaceAll(".", "");
+    const parsed = parseExactDecimal(compact);
+    if (!parsed) return null;
+    const absolute = parsed.coefficient < BigInt(0) ? -parsed.coefficient : parsed.coefficient;
+    const coefficient = negativeWrapper ? -absolute : parsed.coefficient;
+    return { ...parsed, coefficient, printedSign: negativeWrapper ? "minus" as const : parsed.printedSign, interpretation: "ambiguous_separator" as const };
   }
   const parsed = parseExactDecimal(compact);
   if (!parsed) return null;
-  if (!negativeWrapper) return parsed;
+  if (!negativeWrapper) return { ...parsed, interpretation: "exact" as const };
   const absolute = parsed.coefficient < BigInt(0) ? -parsed.coefficient : parsed.coefficient;
-  return { ...parsed, coefficient: -absolute, printedSign: "minus" as const };
+  return { ...parsed, coefficient: -absolute, printedSign: "minus" as const, interpretation: "exact" as const };
 }
 
-export function parseMoneyLiteralToMinor(raw: string, context?: NumericContext) {
-  const parsed = parseNumericLiteral(raw, context);
+export function parseMoneyLiteralToMinor(raw: string) {
+  const parsed = parseNumericLiteral(raw);
   if (!parsed || parsed.scale > 2) return null;
   const minor = decimalToMinorExact(parsed);
   return minor;
 }
 
-export function extractNumericTokens(cellId: string, text: string, context?: NumericContext): NumericToken[] {
+export function extractNumericTokens(cellId: string, text: string): NumericToken[] {
   return [...text.matchAll(NUMERIC_TOKEN)].flatMap((match, index) => {
-    const parsed = parseNumericLiteral(match[0], context);
+    const parsed = parseNumericLiteral(match[0]);
     return parsed ? [{ id: `${cellId}#${index + 1}`, cellId, raw: match[0], ...parsed }] : [];
   });
 }
 
-export function decimalToMinorExact(token: Pick<NumericToken, "coefficient" | "scale">): bigint | null {
+export function decimalToMinorExact(token: Pick<NumericToken, "coefficient" | "scale"> & Partial<Pick<NumericToken, "interpretation">>): bigint | null {
+  if (token.interpretation === "ambiguous_separator") return null;
   if (token.scale > 2) return null;
   return token.coefficient * (BigInt(10) ** BigInt(2 - token.scale));
 }

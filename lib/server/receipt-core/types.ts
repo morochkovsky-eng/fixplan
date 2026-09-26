@@ -23,7 +23,6 @@ export const TABLE_COLUMN_SEMANTICS = SLOT_NAMES;
 export const DUE_SCOPES = ["period_only", "with_balance", "unknown"] as const;
 export const OPTIONAL_SCOPES = ["excluded", "included", "unknown"] as const;
 export const RECONCILIATION_STATUSES = ["closed", "open", "insufficient", "ambiguous"] as const;
-export const NUMERIC_CONTEXTS = ["decimal_dot", "dot_thousands"] as const;
 
 export type BlockLayout = typeof BLOCK_LAYOUTS[number];
 export type VisualCellState = typeof VISUAL_CELL_STATES[number];
@@ -36,7 +35,6 @@ export type TableColumnSemantic = typeof TABLE_COLUMN_SEMANTICS[number];
 export type DueScope = typeof DUE_SCOPES[number];
 export type OptionalScope = typeof OPTIONAL_SCOPES[number];
 export type ReconciliationStatus = typeof RECONCILIATION_STATUSES[number];
-export type NumericContext = typeof NUMERIC_CONTEXTS[number];
 
 export type BoundingBox = { x: number; y: number; width: number; height: number };
 
@@ -44,7 +42,6 @@ export type VisualCellInput = {
   text: string;
   state: VisualCellState;
   bbox: BoundingBox;
-  numericContext?: NumericContext;
   colSpan?: number;
   rowSpan?: number;
   isHeader?: boolean;
@@ -62,6 +59,7 @@ export type NumericToken = {
   coefficient: bigint;
   scale: number;
   printedSign: "none" | "plus" | "minus";
+  interpretation: "exact" | "ambiguous_separator";
 };
 
 export type LiteralCell = Omit<VisualCellInput, "state" | "colSpan" | "rowSpan"> & {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { indexLiteralDocument } from "./literal";
-import type { LiteralDocument, ReceiptEvalRecord, VisualDocumentInput } from "./types";
+import { indexLiteralDocument, ReceiptContractError } from "./literal";
+import type { LiteralDocument, NumericToken, ReceiptEvalRecord, VisualDocumentInput } from "./types";
 
 export type OracleGeometry =
   | { status: "source" | "transformed"; coordinateSpace: string }
@@ -24,7 +24,7 @@ export type OracleContentStructure = {
           colSpan: number;
           rowSpan: number;
           isHeader?: boolean;
-          numericTokens: Array<{ id: string; cellId: string; raw: string; coefficient: bigint; scale: number; printedSign: string }>;
+          numericTokens: NumericToken[];
         }>;
       }>;
     }>;
@@ -72,6 +72,9 @@ export function exportGeneratorLiteral(
   options: { variant?: "source" | "photo_telegram"; transformedDocument?: VisualDocumentInput } = {},
 ): LiteralOracle {
   const variant = options.variant ?? "source";
+  if (variant === "source" && options.transformedDocument) {
+    throw new ReceiptContractError("source_transform_conflict", "source oracle cannot use transformed coordinates");
+  }
   const source = indexLiteralDocument(generatorDocument).document;
   if (variant === "photo_telegram" && !options.transformedDocument) {
     return {

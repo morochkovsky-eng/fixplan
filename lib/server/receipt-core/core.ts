@@ -80,7 +80,7 @@ function canonicalFinancialAmount(role: SignedRole, parsed: { token: NumericToke
 }
 
 function oneToken(item: ValidatedRoleItem, name: SlotName, tokens: Map<string, NumericToken>) {
-  const values = slotTokens(item, name, tokens);
+  const values = slotTokens(item, name, tokens).filter((token) => token.interpretation === "exact");
   return values.length === 1 ? values[0] : null;
 }
 function buildCharge(item: ValidatedRoleItem, tokens: Map<string, NumericToken>, diagnostics: CoreDiagnostic[]): ChargeLine {
