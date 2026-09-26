@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "receipt-spike-runner-safety-v1",
+  "preparedAt": "2026-09-26",
+  "baseCommit": "7cce93f872b8d47eaedf086b73f21bd411b71c23",
+  "implementationCommit": "4734c8767db0bd041166b5359d5e7d9b1f5f4b98",
+  "supersedes": "receipt-spike-runner-gate-c37ba31.json",
+  "planSha256": "531dedaaeae9c2734f1b14ca713be9134cafe73fcd757dcd43c7f0ae7cc449ec",
+  "execution": {
+    "approvalRecorded": false,
+    "providerClientsConstructed": false,
+    "providerCallsExecuted": 0,
+    "paidCostMicrousd": 0
+  },
+  "integrity": {
+    "manifestBoundToPlan": true,
+    "promptsBoundToPlan": true,
+    "executionSourcesBoundToPlan": true,
+    "seriesCannotResumeWithDifferentPlan": true
+  },
+  "concurrency": {
+    "fullSeriesExclusiveLock": true,
+    "ledgerAtomicLock": true,
+    "crossProcessRegression": "pass"
+  },
+  "budget": {
+    "planningEstimateUsd": 11.9983,
+    "maximumAuthorizedSpendMicrousd": 12000000,
+    "stopBeforeDispatch": true,
+    "reservationPolicy": "request_specific_utf8_and_image_token_upper_bound_v2",
+    "reservationIncludes": [
+      "serialized_request_utf8_ceiling",
+      "image_patch_ceiling",
+      "protocol_allowance",
+      "fixed_max_output_tokens",
+      "long_context_multiplier",
+      "cache_write_premium"
+    ],
+    "missingUsageBlocksSeries": true,
+    "budgetUsesConservativeCharge": true,
+    "nominalUsageCostRetainedSeparately": true,
+    "uncertainOutcomeHoldsReservation": true
+  },
+  "checks": {
+    "productionBuild": "pass",
+    "typescript": "pass",
+    "lint": "pass",
+    "tests": {
+      "passed": 194,
+      "total": 194
+    },
+    "runnerSafetyTests": {
+      "passed": 18,
+      "total": 18
+    },
+    "readerOracleSelfCheck": "20/20",
+    "mockClassifierDecisions": "66/66",
+    "secretScan": "pass"
+  },
+  "externalChanges": {
+    "aiOrOcrCalls": false,
+    "production": false,
+    "telegram": false,
+    "supabase": false,
+    "storage": false,
+    "environment": false
+  }
+}
