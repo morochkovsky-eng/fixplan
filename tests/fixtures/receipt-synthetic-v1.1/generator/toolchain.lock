@@ -1,0 +1,7 @@
+python=3.12.3
+node=22.22.2
+playwright=1.56.0
+chromium=141.0.7390.37
+esbuild=0.23.1
+viewport=794x1123
+device_scale_factor=2

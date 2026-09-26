@@ -169,6 +169,43 @@ function selectClosure(group: Array<{ candidate: DueCandidate; formula: AppliedF
   return excluded.length === 1 ? excluded[0] : group.length === 1 ? group[0] : null;
 }
 
+function symmetricDifference(left: string[], right: string[]) {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return [...new Set([...left.filter((id) => !rightSet.has(id)), ...right.filter((id) => !leftSet.has(id))])];
+}
+
+function selectAxisDeterminedClosure(
+  receipt: CanonicalReceipt,
+  closures: Array<{ candidate: DueCandidate; formula: AppliedFormula }>,
+  context: NonNullable<ReturnType<typeof financialContext>>,
+) {
+  if (closures.length < 2 || closures.some(({ candidate }) => candidate.optional === "unknown" || candidate.scope === "unknown")) return null;
+  let eligible = closures.filter(({ candidate }) => candidate.optional === "excluded");
+  if (eligible.length === 0) return null;
+
+  const hasExplicitNonzeroBalance = receipt.financialComponents.some((component) =>
+    component.confirmed && component.amountMinor !== BigInt(0) &&
+    (component.role === "opening_balance" || component.role === "opening_debt" || component.role === "opening_advance"));
+  if (hasExplicitNonzeroBalance) {
+    const withBalance = eligible.filter(({ candidate }) => candidate.scope === "with_balance");
+    if (withBalance.length === 0) return null;
+    eligible = withBalance;
+  }
+
+  const uniqueEligible = [...new Map(eligible.map((entry) => [`${entry.candidate.id}:${materialKey(entry.formula)}`, entry])).values()];
+  if (uniqueEligible.length !== 1) return null;
+  const selected = uniqueEligible[0];
+  const allowedDifferences = new Set([
+    ...context.optional.map((component) => component.id),
+    ...[...context.fixed, ...context.disputed].filter((component) => component.area === "balance").map((component) => component.id),
+  ]);
+  const compatible = closures.every((entry) =>
+    symmetricDifference(selected.formula.includedComponentIds, entry.formula.includedComponentIds)
+      .every((componentId) => allowedDifferences.has(componentId)));
+  return compatible ? selected : null;
+}
+
 function e2(receipt: CanonicalReceipt, e1Result: Reconciliation): E2Outcome {
   if (receipt.diagnostics.some((diagnostic) => diagnostic.code === "fixed_role_sign_conflict")) {
     return outcome({ equation: "E2", status: "ambiguous", reasons: ["fixed_role_sign_conflict"], sourceIds: [] }, null);
@@ -257,7 +294,19 @@ function e2(receipt: CanonicalReceipt, e1Result: Reconciliation): E2Outcome {
     materialGroups.set(key, [...(materialGroups.get(key) ?? []), closure]);
   }
   if (materialGroups.size > 1) {
-    return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_materially_distinct_closures"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
+    const selected = selectAxisDeterminedClosure(receipt, closures, context);
+    if (!selected) {
+      return outcome({ equation: "E2", status: "ambiguous", reasons: ["multiple_materially_distinct_closures"], sourceIds, target: "due_candidate" }, diagnosticComputedDue);
+    }
+    return outcome({
+      equation: "E2", status: "closed", reasons: [], sourceIds,
+      target: "due_candidate",
+      expectedMinor: selected.candidate.amountMinor, actualMinor: selected.formula.valueMinor,
+      deltaMinor: minorDifference(selected.candidate.amountMinor, selected.formula.valueMinor),
+      candidateId: selected.candidate.id, candidateSourceIds: selected.candidate.sourceTokenIds,
+      formula: selected.formula,
+      closureStrength: closureStrength(receipt, selected.formula, selected.candidate, e1Result),
+    }, diagnosticComputedDue, selected.formula, context);
   }
   if (materialGroups.size === 1) {
     const group = [...materialGroups.values()][0];

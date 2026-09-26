@@ -930,6 +930,104 @@ test("parentheses and trailing minus retain their sign through the full pipeline
   }
 });
 
+test("typographic minus signs are literal only when directly prefixed to a number", () => {
+  for (const printed of ["−50,00", "–50,00"]) {
+    const rows = [
+      [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "100,00" }],
+      [{ text: "Начальное сальдо" }, { text: printed }], [{ text: "К оплате" }, { text: "50,00" }],
+    ];
+    const roles = [
+      { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
+      { items: [item(2, "opening_balance", 1, [[1]])] },
+      { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    ];
+    const first = finish(rows, roles);
+    const second = core.indexLiteralDocument(document(rows));
+    const token = first.indexed.document.pages[0].blocks[0].rows[2].cells[1].numericTokens[0];
+    assert.equal(token.raw, printed);
+    assert.equal(token.printedSign, "minus");
+    assert.equal(core.decimalToMinorExact(token), -5000n);
+    assert.equal(token.id, second.document.pages[0].blocks[0].rows[2].cells[1].numericTokens[0].id);
+    assert.equal(first.indexed.document.pages[0].blocks[0].rows[2].normalizedTextHash, second.document.pages[0].blocks[0].rows[2].normalizedTextHash);
+    assert.equal(first.result.mandatoryDue.valueMinor, 5000n);
+  }
+  assert.ok(core.extractNumericTokens("cell", "Услуга – пояснение 10,00").every((token) => token.printedSign === "none"));
+  assert.ok(core.extractNumericTokens("cell", "01.09.2026 – 30.09.2026").every((token) => token.printedSign === "none"));
+  assert.ok(core.extractNumericTokens("cell", "01.09.2026–30.09.2026").every((token) => token.printedSign === "none"));
+  assert.ok(core.extractNumericTokens("cell", "Услуга–30,00").every((token) => token.printedSign === "none"));
+});
+
+test("billing period uses a validated explicit text fragment and never falls back after an invalid range", () => {
+  const text = "за июнь 2026 · Оплатить до 15.07.2026";
+  const start = text.indexOf("июнь 2026");
+  const periodItem = item(0, "billing_period");
+  periodItem.slots.billing_period.textRange = { cellId: cellId(0, 1), start, end: start + "июнь 2026".length };
+  const valid = finish([[{ text: "Период" }, { text }]], [{ items: [periodItem] }]);
+  assert.equal(valid.result.receipt.period.value, "2026-06");
+  assert.deepEqual(valid.result.receipt.period.sourceCellIds, [cellId(0, 1)]);
+
+  const invalidItem = structuredClone(periodItem);
+  invalidItem.slots.billing_period.textRange.end = text.length + 1;
+  const indexed = core.indexLiteralDocument(document([[{ text: "Период" }, { text }], [{ text: "К оплате" }, { text: "100,00" }]]));
+  const validated = core.validateRoleClassification(indexed.document, classification([
+    { items: [invalidItem] },
+    { items: [item(1, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ]));
+  const result = core.reconcileReceipt(core.buildCanonicalReceipt(indexed, validated.documents[0]));
+  assert.ok(validated.diagnostics.some((entry) => entry.code === "invalid_text_range_reference"));
+  assert.equal(result.receipt.period.value, null);
+  assert.equal(result.receipt.period.parseStatus, "missing");
+  assert.equal(result.draft.decision, "partial_draft");
+});
+
+test("E2 chooses only the candidate made mandatory by explicit optional and balance axes", () => {
+  const optionalRows = [
+    [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "100,00" }],
+    [{ text: "Услуга" }, { text: "100,00" }], [{ text: "Страхование" }, { text: "10,00" }],
+    [{ text: "К оплате" }, { text: "100,00" }], [{ text: "С услугой" }, { text: "110,00" }],
+  ];
+  const optionalRoles = [
+    { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "service_charge", 1, [[1]])] }, { items: [item(3, "optional_charge", 1, [[1]])] },
+    { items: [item(4, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+    { items: [item(5, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "included" })] },
+  ];
+  const optionalResult = finish(optionalRows, optionalRoles).result;
+  assert.equal(optionalResult.mandatoryDue.status, "confirmed");
+  assert.equal(optionalResult.mandatoryDue.valueMinor, 10000n);
+
+  const balanceRows = [
+    [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "100,00" }],
+    [{ text: "Долг" }, { text: "20,00" }], [{ text: "За период" }, { text: "100,00" }],
+    [{ text: "С долгом" }, { text: "120,00" }],
+  ];
+  const balanceRoles = [
+    { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "opening_debt", 1, [[1]])] },
+    { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "excluded" })] },
+    { items: [item(4, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  const balanceResult = finish(balanceRows, balanceRoles).result;
+  assert.equal(balanceResult.mandatoryDue.status, "confirmed");
+  assert.equal(balanceResult.mandatoryDue.valueMinor, 12000n);
+});
+
+test("E2 keeps unknown axes and equivalent candidates ambiguous", () => {
+  const unknown = basicFinancialRows({ dueExtra: { dueScope: "unknown", optionalScope: "excluded" } });
+  const unknownResult = finish(unknown.rows, unknown.roles).result;
+  assert.equal(unknownResult.mandatoryDue.status, "needs_review");
+
+  const rows = [[{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "100,00" }], [{ text: "Итог 1" }, { text: "100,00" }], [{ text: "Итог 2" }, { text: "100,00" }]];
+  const roles = [
+    { items: [item(0, "billing_period")] }, { items: [item(1, "accrued_total", 1, [[1]])] },
+    { items: [item(2, "due_candidate", 1, [[1]], { dueScope: "period_only", optionalScope: "excluded" })] },
+    { items: [item(3, "due_candidate", 1, [[1]], { dueScope: "with_balance", optionalScope: "excluded" })] },
+  ];
+  const result = finish(rows, roles).result;
+  assert.equal(result.reconciliations.find((entry) => entry.equation === "E2").status, "ambiguous");
+  assert.equal(result.mandatoryDue.status, "needs_review");
+});
+
 test("ambiguous dot notation remains addressable and review-only without changing literal identity", () => {
   const visual = document([
     [{ text: "Период" }, { text: "09.2031" }], [{ text: "Начислено" }, { text: "1.234" }],

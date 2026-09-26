@@ -1,0 +1,565 @@
+{
+ "fileId": "S07",
+ "generatorVersion": "synthetic-v1.1",
+ "contract": "homory receipt-core RoleClassification @ c6a52c940933ebe3b04251217139ef1a529bced2",
+ "idScheme": "positional server ids over oracle/literal_source (p{page}.b{block}.r{row}.c{cell}, 1-based); tokens by server tokenizer",
+ "documents": [
+  {
+   "docId": "S07-D1",
+   "documentKind": "utility",
+   "rowIds": [
+    "p1.b2.r1",
+    "p1.b2.r2",
+    "p1.b3.r1",
+    "p1.b4.r1",
+    "p1.b5.r1",
+    "p1.b6.r1",
+    "p1.b6.r2",
+    "p1.b7.r1",
+    "p1.b8.r1"
+   ],
+   "expected": {
+    "billingPeriod": "2026-08",
+    "mandatoryDue": {
+     "valueMinor": "96968",
+     "status": "needs_review",
+     "source": "printed"
+    },
+    "computedDueMinor": null,
+    "computedClosingBalanceMinor": null,
+    "decision": "partial_draft",
+    "forbiddenDecisions": [
+     "confirmed_draft",
+     "reject"
+    ],
+    "note": "нет напечатанного accrued_total: замыкание E2 слабое (одна строка услуги = итог), подтверждать нельзя"
+   }
+  },
+  {
+   "docId": "S07-D2",
+   "documentKind": "utility",
+   "rowIds": [
+    "p1.b10.r1",
+    "p1.b10.r2",
+    "p1.b11.r1",
+    "p1.b12.r1",
+    "p1.b13.r1",
+    "p1.b14.r1",
+    "p1.b14.r2",
+    "p1.b15.r1",
+    "p1.b16.r1"
+   ],
+   "expected": {
+    "billingPeriod": "2026-08",
+    "mandatoryDue": {
+     "valueMinor": "47340",
+     "status": "needs_review",
+     "source": "printed"
+    },
+    "computedDueMinor": null,
+    "computedClosingBalanceMinor": null,
+    "decision": "partial_draft",
+    "forbiddenDecisions": [
+     "confirmed_draft",
+     "reject"
+    ],
+    "note": "нет напечатанного accrued_total: замыкание E2 слабое (одна строка услуги = итог), подтверждать нельзя"
+   }
+  }
+ ],
+ "sharedRowIds": [
+  "p1.b1.r1",
+  "p1.b9.r1"
+ ],
+ "roleClassification": {
+  "documents": [
+   {
+    "docId": "S07-D1",
+    "documentKind": "utility",
+    "rowIds": [
+     "p1.b2.r1",
+     "p1.b2.r2",
+     "p1.b3.r1",
+     "p1.b4.r1",
+     "p1.b5.r1",
+     "p1.b6.r1",
+     "p1.b6.r2",
+     "p1.b7.r1",
+     "p1.b8.r1"
+    ]
+   },
+   {
+    "docId": "S07-D2",
+    "documentKind": "utility",
+    "rowIds": [
+     "p1.b10.r1",
+     "p1.b10.r2",
+     "p1.b11.r1",
+     "p1.b12.r1",
+     "p1.b13.r1",
+     "p1.b14.r1",
+     "p1.b14.r2",
+     "p1.b15.r1",
+     "p1.b16.r1"
+    ]
+   }
+  ],
+  "sharedRowIds": [
+   "p1.b1.r1",
+   "p1.b9.r1"
+  ],
+  "tableSchemas": [],
+  "rows": [
+   {
+    "rowId": "p1.b1.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b2.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b2.r2",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b3.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b4.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "provider",
+      "slots": {
+       "provider": {
+        "cellIds": [
+         "p1.b4.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b5.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "address",
+      "slots": {
+       "address": {
+        "cellIds": [
+         "p1.b5.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "account",
+      "slots": {
+       "account": {
+        "cellIds": [
+         "p1.b5.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "billing_period",
+      "slots": {
+       "billing_period": {
+        "cellIds": [
+         "p1.b5.r1.c1"
+        ],
+        "tokenIds": [],
+        "textRange": {
+         "cellId": "p1.b5.r1.c1",
+         "start": 104,
+         "end": 115
+        }
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "due_date",
+      "slots": {
+       "due_date": {
+        "cellIds": [
+         "p1.b5.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b6.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "table_header",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b6.r2",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "service_charge",
+      "slots": {
+       "name": {
+        "cellIds": [
+         "p1.b6.r2.c1"
+        ],
+        "tokenIds": []
+       },
+       "volume": {
+        "cellIds": [
+         "p1.b6.r2.c2"
+        ],
+        "tokenIds": [
+         "p1.b6.r2.c2#1"
+        ]
+       },
+       "tariff": {
+        "cellIds": [
+         "p1.b6.r2.c2"
+        ],
+        "tokenIds": [
+         "p1.b6.r2.c2#2"
+        ]
+       },
+       "charge": {
+        "cellIds": [
+         "p1.b6.r2.c3"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b7.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "opening_debt",
+      "slots": {
+       "opening_debt": {
+        "cellIds": [
+         "p1.b7.r1.c1"
+        ],
+        "tokenIds": [
+         "p1.b7.r1.c1#1"
+        ]
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "penalty",
+      "slots": {
+       "penalty": {
+        "cellIds": [
+         "p1.b7.r1.c1"
+        ],
+        "tokenIds": [
+         "p1.b7.r1.c1#2"
+        ]
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "due_candidate",
+      "slots": {
+       "due_candidate": {
+        "cellIds": [
+         "p1.b7.r1.c1"
+        ],
+        "tokenIds": [
+         "p1.b7.r1.c1#3"
+        ]
+       }
+      },
+      "dueScope": "with_balance",
+      "optionalScope": "excluded"
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b8.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b9.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b10.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b10.r2",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b11.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b12.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "provider",
+      "slots": {
+       "provider": {
+        "cellIds": [
+         "p1.b12.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b13.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "address",
+      "slots": {
+       "address": {
+        "cellIds": [
+         "p1.b13.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "account",
+      "slots": {
+       "account": {
+        "cellIds": [
+         "p1.b13.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "billing_period",
+      "slots": {
+       "billing_period": {
+        "cellIds": [
+         "p1.b13.r1.c1"
+        ],
+        "tokenIds": [],
+        "textRange": {
+         "cellId": "p1.b13.r1.c1",
+         "start": 105,
+         "end": 116
+        }
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "due_date",
+      "slots": {
+       "due_date": {
+        "cellIds": [
+         "p1.b13.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b14.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "table_header",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b14.r2",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "service_charge",
+      "slots": {
+       "name": {
+        "cellIds": [
+         "p1.b14.r2.c1"
+        ],
+        "tokenIds": []
+       },
+       "volume": {
+        "cellIds": [
+         "p1.b14.r2.c2"
+        ],
+        "tokenIds": [
+         "p1.b14.r2.c2#1"
+        ]
+       },
+       "tariff": {
+        "cellIds": [
+         "p1.b14.r2.c2"
+        ],
+        "tokenIds": [
+         "p1.b14.r2.c2#2"
+        ]
+       },
+       "charge": {
+        "cellIds": [
+         "p1.b14.r2.c3"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b15.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "opening_debt",
+      "slots": {
+       "opening_debt": {
+        "cellIds": [
+         "p1.b15.r1.c1"
+        ],
+        "tokenIds": [
+         "p1.b15.r1.c1#3"
+        ]
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "payment",
+      "slots": {
+       "payment": {
+        "cellIds": [
+         "p1.b15.r1.c1"
+        ],
+        "tokenIds": [
+         "p1.b15.r1.c1#4"
+        ]
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "due_candidate",
+      "slots": {
+       "due_candidate": {
+        "cellIds": [
+         "p1.b15.r1.c1"
+        ],
+        "tokenIds": [
+         "p1.b15.r1.c1#5"
+        ]
+       }
+      },
+      "dueScope": "with_balance",
+      "optionalScope": "excluded"
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b16.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   }
+  ]
+ },
+ "evalHints": {},
+ "notes": [
+  "mode=label_value везде: слоты уже разрешены в конкретные ячейки/токены; table_columns-разметка классификатора эквивалентна, если указывает на те же ячейки",
+  "текстовые слоты (period, dates, provider, account, address, label) имеют tokenIds: [] — они не владеют числами",
+  "строки без роли в эталоне = other (или table_header для шапок); строгими считать только денежные роли, см. evalHints"
+ ]
+}

@@ -62,8 +62,9 @@ export function buildBillingPeriod(
 ): BillingPeriodField {
   const periodItems = items.filter((item) => item.role === "billing_period" || item.role === "period");
   if (periodItems.length === 0) return { state: "absent", value: null, sourceCellIds: [], sourceTokenIds: [], parseStatus: "missing", candidates: [] };
-  const sourceCellIds = [...new Set(periodItems.flatMap((item) => (item.slots.billing_period ?? item.slots.period)?.cellIds ?? []))].sort();
-  const sourceTokenIds = [...new Set(periodItems.flatMap((item) => (item.slots.billing_period ?? item.slots.period)?.tokenIds ?? []))].sort();
+  const periodSlots = periodItems.flatMap((item) => item.slots.billing_period ?? item.slots.period ?? []);
+  const sourceCellIds = [...new Set(periodSlots.flatMap((slot) => slot.cellIds))].sort();
+  const sourceTokenIds = [...new Set(periodSlots.flatMap((slot) => slot.tokenIds))].sort();
   const sourceCells = sourceCellIds.flatMap((id) => cells.get(id) ?? []);
   if (sourceCells.some((cell) => cell.state === "illegible")) {
     return { state: "illegible", value: null, sourceCellIds, sourceTokenIds, parseStatus: "illegible", candidates: [] };
@@ -72,7 +73,17 @@ export function buildBillingPeriod(
     const state = sourceCells.some((cell) => cell.state === "blank") ? "printed_blank" : "absent";
     return { state, value: null, sourceCellIds, sourceTokenIds, parseStatus: state === "absent" ? "missing" : "unsupported", candidates: [] };
   }
-  const results = sourceCells.filter((cell) => cell.state === "present").map((cell) => parseBillingPeriodText(cell.text));
+  const texts = periodSlots.flatMap((slot) => {
+    if (slot.textRange) {
+      const cell = cells.get(slot.textRange.cellId);
+      return cell?.state === "present" ? [cell.text.slice(slot.textRange.start, slot.textRange.end)] : [];
+    }
+    return slot.cellIds.flatMap((id) => {
+      const cell = cells.get(id);
+      return cell?.state === "present" ? [cell.text] : [];
+    });
+  });
+  const results = texts.map(parseBillingPeriodText);
   const candidates = [...new Set(results.flatMap((result) => result.candidates))].sort();
   const status = results.some((result) => result.status === "ambiguous") || candidates.length > 1
     ? "ambiguous"

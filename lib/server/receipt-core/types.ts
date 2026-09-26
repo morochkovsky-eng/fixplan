@@ -88,7 +88,8 @@ export type IndexedLiteralDocument = { document: LiteralDocument; diagnostics: C
 export type TableColumn = { key: string; index: number; semantic: TableColumnSemantic };
 export type TableSchema = { blockId: string; columns: TableColumn[] };
 
-export type ExplicitSlotBinding = { cellIds: string[]; tokenIds?: string[] };
+export type TextRangeBinding = { cellId: string; start: number; end: number };
+export type ExplicitSlotBinding = { cellIds: string[]; tokenIds?: string[]; textRange?: TextRangeBinding };
 export type TableSlotBinding = { columnKey: string; tokenIds?: string[] };
 
 type RoleItemBase = {
@@ -117,7 +118,7 @@ export type RoleClassification = {
   rows: RowClassification[];
 };
 
-export type ValidatedSlot = { cellIds: string[]; tokenIds: string[] };
+export type ValidatedSlot = { cellIds: string[]; tokenIds: string[]; textRange?: TextRangeBinding };
 export type ValidatedRoleItem = {
   id: string;
   rowId: string;

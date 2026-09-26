@@ -2,7 +2,13 @@ import type { NumericToken } from "./types";
 
 const EXACT_DECIMAL = /^[+-]?\d+(?:[.,]\d+)?$/u;
 const NUMERIC_BODY = String.raw`(?:\d{1,3}(?:[ \u00a0\u202f]\d{3})+|\d{1,3}(?:\.\d{3})+|\d+)(?:[.,]\d+)?`;
-const NUMERIC_TOKEN = new RegExp(String.raw`\([+-]?${NUMERIC_BODY}\)|[+-]?${NUMERIC_BODY}-?`, "gu");
+const PRINTED_PREFIX_SIGN = String.raw`[+\-\u2212\u2013]?`;
+const NUMERIC_TOKEN = new RegExp(String.raw`\(${PRINTED_PREFIX_SIGN}${NUMERIC_BODY}\)|${PRINTED_PREFIX_SIGN}${NUMERIC_BODY}-?`, "gu");
+
+function normalizePrintedPrefixSign(raw: string) {
+  const first = raw[0];
+  return first === "\u2212" || first === "\u2013" ? `-${raw.slice(1)}` : raw;
+}
 
 export function parseExactDecimal(raw: string) {
   const compact = raw.trim().replace(/[ \u00a0\u202f]/gu, "").replace(",", ".");
@@ -22,6 +28,7 @@ export function parseNumericLiteral(raw: string) {
     negativeWrapper = true;
     compact = compact.slice(1, -1);
   }
+  compact = normalizePrintedPrefixSign(compact);
   if (compact.endsWith("-")) {
     if (compact.startsWith("-") || compact.startsWith("+")) return null;
     negativeWrapper = true;
@@ -53,8 +60,13 @@ export function parseMoneyLiteralToMinor(raw: string) {
 
 export function extractNumericTokens(cellId: string, text: string): NumericToken[] {
   return [...text.matchAll(NUMERIC_TOKEN)].flatMap((match, index) => {
-    const parsed = parseNumericLiteral(match[0]);
-    return parsed ? [{ id: `${cellId}#${index + 1}`, cellId, raw: match[0], ...parsed }] : [];
+    const matchedRaw = match[0];
+    const startsWithTypographicMinus = matchedRaw.startsWith("\u2212") || matchedRaw.startsWith("\u2013");
+    const preceding = match.index && match.index > 0 ? text[match.index - 1] : "";
+    const signPosition = !preceding || /[\s([{:;=]/u.test(preceding);
+    const raw = startsWithTypographicMinus && !signPosition ? matchedRaw.slice(1) : matchedRaw;
+    const parsed = parseNumericLiteral(raw);
+    return parsed ? [{ id: `${cellId}#${index + 1}`, cellId, raw, ...parsed }] : [];
   });
 }
 
