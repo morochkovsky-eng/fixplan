@@ -15,6 +15,7 @@
     "receipt:spike:manifest": "node scripts/receipt-spike/build-manifest.mjs",
     "receipt:spike:plan": "node scripts/receipt-spike/plan.mjs",
     "receipt:spike:dry-run": "node scripts/receipt-spike/dry-run.mjs",
+    "receipt:spike:runner": "node scripts/receipt-spike/run-matrix.mjs",
     "db:generate": "drizzle-kit generate",
     "supabase:types": "supabase gen types typescript --local > lib/supabase/database.types.ts",
     "sites:dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
