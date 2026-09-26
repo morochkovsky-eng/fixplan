@@ -32,6 +32,7 @@ const completed = (actualCostMicrousd = 100, budgetChargeMicrousd = actualCostMi
   actualCostMicrousd,
   budgetChargeMicrousd,
 });
+const approvalId = "e7bb7b70-cd88-462f-8aa7-45d380b13142";
 
 test("receipt spike plan fingerprint and matrix schedule are stable and complete", () => {
   const first = approvalPlan.buildApprovedReceiptSpikePlan();
@@ -60,8 +61,8 @@ test("R2 is an explicit separately fingerprinted matrix choice", () => {
   assert.notEqual(initial.planSha256, withR2.planSha256);
   assert.equal(withR2.totals.providerCalls, 290);
   assert.equal(matrix.buildReceiptSpikeSchedule(manifest, { includeR2: true }).filter((step) => step.provider === "google-document-ai").length, 20);
-  const oldApproval = { schemaVersion: "receipt-spike-approval-v1", approved: true, planSha256: "69fd24b98f5b301252912d43ea99e432f2fc92337af01113255da53905f90c46", maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
-  assert.throws(() => budget.validateReceiptSpikeApproval(oldApproval, { planSha256: initial.planSha256 }), (error) => error.code === "approval_plan_mismatch");
+  const oldApproval = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "test", planSha256: "69fd24b98f5b301252912d43ea99e432f2fc92337af01113255da53905f90c46", maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  assert.throws(() => budget.validateReceiptSpikeApproval(oldApproval, { planSha256: initial.planSha256, series: "test" }), (error) => error.code === "approval_plan_mismatch");
 });
 
 test("planner source is independently bound and any planner change requires new approval", () => {
@@ -75,8 +76,8 @@ test("planner source is independently bound and any planner change requires new 
   rebuiltPlan.integrity.sourceSha256[plannerPath] = createHash("sha256").update(changedPlanner).digest("hex");
   const rebuiltApproval = approvalPlan.bindReceiptSpikePlanner(rebuiltPlan, { plannerBytes: changedPlanner });
   assert.notEqual(rebuiltApproval.planSha256, approvedPlan.planSha256);
-  const staleApproval = { schemaVersion: "receipt-spike-approval-v1", approved: true, planSha256: approvedPlan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
-  assert.throws(() => budget.validateReceiptSpikeApproval(staleApproval, { planSha256: rebuiltApproval.planSha256 }), (error) => error.code === "approval_plan_mismatch");
+  const staleApproval = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "test", planSha256: approvedPlan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  assert.throws(() => budget.validateReceiptSpikeApproval(staleApproval, { planSha256: rebuiltApproval.planSha256, series: "test" }), (error) => error.code === "approval_plan_mismatch");
 });
 
 test("manifest and prompt bytes must match the approved plan before execution", () => {
@@ -110,13 +111,44 @@ test("approval requires exact plan, cap, expiry, and private permissions", () =>
   const dir = temporary("approval");
   const file = path.join(dir, "approval.json");
   const plan = approvalPlan.buildApprovedReceiptSpikePlan();
-  const value = { schemaVersion: "receipt-spike-approval-v1", approved: true, planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  const value = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "series-a", planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
   fs.writeFileSync(file, JSON.stringify(value), { mode: 0o644 });
-  assert.throws(() => budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256 }), (error) => error.code === "unsafe_approval_permissions");
+  assert.throws(() => budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256, series: "series-a" }), (error) => error.code === "unsafe_approval_permissions");
   fs.chmodSync(file, 0o600);
-  assert.equal(budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256 }).approved, true);
-  assert.throws(() => budget.readReceiptSpikeApproval(file, { planSha256: "0".repeat(64) }), (error) => error.code === "approval_plan_mismatch");
-  assert.throws(() => budget.validateReceiptSpikeApproval({ ...value, expiresAt: "2020-01-01T00:00:00.000Z" }, { planSha256: plan.planSha256 }), (error) => error.code === "approval_expired");
+  assert.equal(budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256, series: "series-a" }).approved, true);
+  assert.throws(() => budget.readReceiptSpikeApproval(file, { planSha256: "0".repeat(64), series: "series-a" }), (error) => error.code === "approval_plan_mismatch");
+  assert.throws(() => budget.validateReceiptSpikeApproval({ ...value, expiresAt: "2020-01-01T00:00:00.000Z" }, { planSha256: plan.planSha256, series: "series-a" }), (error) => error.code === "approval_expired");
+  assert.throws(() => budget.validateReceiptSpikeApproval({ ...value, approvalId: "predictable" }, { planSha256: plan.planSha256, series: "series-a" }), (error) => error.code === "invalid_approval_id");
+});
+
+test("one approval cannot fund two --series or reset the ledger on resume", () => {
+  const root = temporary("approval-series");
+  const file = path.join(root, "approval.json");
+  const plan = approvalPlan.buildApprovedReceiptSpikePlan();
+  const value = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "series-a", planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 });
+  const a = budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256, series: "series-a" });
+  const metadata = { approvalId: a.approvalId, series: a.series, planSha256: plan.planSha256, baselineCommit: "test", integrity: {} };
+  const runRoot = path.join(root, "series-a");
+  runner.bindSeriesToLedger(runRoot, metadata);
+  const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
+  const ledger = new budget.ReceiptSpikeBudgetLedger(ledgerFile, 100);
+  ledger.begin({ callId: "one", provider: "fake", reservedMaxMicrousd: 80 });
+  ledger.complete({ callId: "one", actualCostMicrousd: 80, budgetChargeMicrousd: 80, requestedModelId: "a", returnedModelId: "a" });
+  assert.throws(() => budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256, series: "series-b" }), (error) => error.code === "approval_series_mismatch");
+  const denied = spawnSync(process.execPath, ["scripts/receipt-spike/run-matrix.mjs", "--execute", "--series", "series-b", "--approval-file", file], { encoding: "utf8", env: {} });
+  assert.notEqual(denied.status, 0);
+  assert.match(denied.stderr, /approval_series_mismatch|approval is restricted to one series/);
+  assert.doesNotMatch(denied.stderr, /OPENAI_API_KEY/);
+  assert.deepEqual(runner.bindSeriesToLedger(runRoot, metadata).series, "series-a");
+  assert.throws(() => ledger.begin({ callId: "two", provider: "fake", reservedMaxMicrousd: 80 }), (error) => error.code === "budget_would_be_exceeded");
+  assert.throws(() => runner.bindSeriesToLedger(runRoot, { ...metadata, approvalId: "c3cdfb30-ab81-4355-b31d-e8b8b2af0491" }), /series_plan_mismatch/);
+  const replacedLedger = path.join(root, "replacement.jsonl");
+  fs.writeFileSync(replacedLedger, "", { mode: 0o600 });
+  fs.rmSync(ledgerFile);
+  assert.throws(() => runner.bindSeriesToLedger(runRoot, metadata), /series_ledger_missing/);
+  fs.renameSync(replacedLedger, ledgerFile);
+  assert.throws(() => runner.bindSeriesToLedger(runRoot, metadata), /series_plan_mismatch/);
 });
 
 test("ledger stops before a call whose reservation could exceed the cap", () => {

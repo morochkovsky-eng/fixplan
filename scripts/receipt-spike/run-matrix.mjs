@@ -39,7 +39,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 await import("tsx/esm");
 const budget = await import("../../lib/server/receipt-spike/budget.ts");
-const approval = budget.readReceiptSpikeApproval(path.resolve(approvalFile), { planSha256: plan.planSha256 });
+const approval = budget.readReceiptSpikeApproval(path.resolve(approvalFile), { planSha256: plan.planSha256, series });
 
 const requiredEnvironment = ["OPENAI_API_KEY"];
 if (includeR2) requiredEnvironment.push(

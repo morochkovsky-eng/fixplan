@@ -9,7 +9,7 @@ import {
   assertNoEvaluatorLeak, evaluateEndToEnd, prepareClassifierInput, stringifyClassifierInput,
 } from "./evaluator";
 import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult } from "./providers";
-import { bindSeriesToPlan, enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
+import { bindSeriesToLedger, enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
 
 type Descriptor = { path: string; sha256: string; bytes: number };
 type ManifestFile = {
@@ -123,12 +123,12 @@ export async function runReceiptSpikeMatrix(options: {
   outputRoot: string;
   readerPrompt: string;
   classifierPrompt: string;
-  approval: { approved: true; planSha256: string; maximumAuthorizedSpendMicrousd: number };
+  approval: { approved: true; planSha256: string; maximumAuthorizedSpendMicrousd: number; approvalId: string; series: string };
   openai: OpenAiReceiptSpikeClient;
   google?: GoogleEnterpriseOcrClient;
 }) {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(options.series)) throw new Error("invalid_series_name");
-  if (!options.approval.approved || options.approval.planSha256 !== options.planSha256 || options.approval.maximumAuthorizedSpendMicrousd !== 12_000_000) {
+  if (!options.approval.approved || options.approval.planSha256 !== options.planSha256 || options.approval.maximumAuthorizedSpendMicrousd !== 12_000_000 || options.approval.series !== options.series || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(options.approval.approvalId)) {
     throw new Error("paid_execution_approval_mismatch");
   }
   if (options.includeR2 && !options.google) throw new Error("r2_google_client_required");
@@ -136,12 +136,15 @@ export async function runReceiptSpikeMatrix(options: {
   const runRoot = path.join(options.outputRoot, options.series);
   const releaseSeriesLock = acquireReceiptSpikeSeriesLock(runRoot);
   try {
-  bindSeriesToPlan(path.join(runRoot, "run.meta.json"), {
+  const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
+  bindSeriesToLedger(runRoot, {
     planSha256: options.planSha256,
+    series: options.series,
+    approvalId: options.approval.approvalId,
     baselineCommit: options.manifest.baselineCommit,
     integrity: options.integrity,
   });
-  const ledger = new ReceiptSpikeBudgetLedger(path.join(runRoot, "spend-ledger.jsonl"));
+  const ledger = new ReceiptSpikeBudgetLedger(ledgerFile);
   const providerRuns: Array<{ cell: string; latencyMs: number; actualCostMicrousd: number; budgetChargeMicrousd: number; requestedModelId: string; returnedModelId: string }> = [];
   const evaluations: Array<{ cell: string; evaluation: ReturnType<typeof evaluateEndToEnd> }> = [];
 

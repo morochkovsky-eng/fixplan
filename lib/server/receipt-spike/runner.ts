@@ -37,14 +37,39 @@ export function enforceReturnedModelSeries(file: string, model: { provider: stri
   return model.returnedModelId;
 }
 
-export function bindSeriesToPlan(file: string, metadata: { planSha256: string; baselineCommit: string; integrity: Record<string, unknown> }) {
+export function bindSeriesToPlan<T extends { planSha256: string; baselineCommit: string; integrity: Record<string, unknown> }>(file: string, metadata: T) {
   if (fs.existsSync(file)) {
-    const existing = readPrivateJson<typeof metadata>(file);
+    const existing = readPrivateJson<T>(file);
     if (JSON.stringify(existing) !== JSON.stringify(metadata)) throw new Error("series_plan_mismatch");
     return existing;
   }
   writePrivateJson(file, metadata);
   return metadata;
+}
+
+export function bindSeriesToLedger(runRoot: string, metadata: {
+  planSha256: string;
+  series: string;
+  approvalId: string;
+  baselineCommit: string;
+  integrity: Record<string, unknown>;
+}) {
+  fs.mkdirSync(runRoot, { recursive: true, mode: 0o700 });
+  const metadataFile = path.join(runRoot, "run.meta.json");
+  const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
+  const existing = fs.existsSync(metadataFile);
+  if (!existing) {
+    // A leftover ledger without its binding cannot establish the amount already spent.
+    if (fs.existsSync(ledgerFile)) throw new Error("series_binding_missing");
+    fs.writeFileSync(ledgerFile, "", { flag: "wx", mode: 0o600 });
+  }
+  if (!fs.existsSync(ledgerFile)) throw new Error("series_ledger_missing");
+  const stat = fs.lstatSync(ledgerFile);
+  if (!stat.isFile()) throw new Error("series_ledger_invalid");
+  return bindSeriesToPlan(metadataFile, {
+    ...metadata,
+    ledgerIdentity: { device: stat.dev, inode: stat.ino },
+  });
 }
 
 export async function executeBudgetedProviderCall<T>(options: {
