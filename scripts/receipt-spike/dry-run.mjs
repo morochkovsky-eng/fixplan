@@ -29,7 +29,7 @@ const readerChecks = [];
 for (const file of manifest.files) for (const [variant, oracleKey] of [["png_clean", "literal_source"], ["photo_telegram", "literal_photo"]]) {
   const literal = readJson(path.join(root, file.evaluator[oracleKey].path));
   const parsed = adapters.parseVisionReaderOutput(literal);
-  const metrics = spike.evaluateReader(literal, parsed, true);
+  const metrics = spike.evaluateReader(literal, parsed);
   readerChecks.push({ fileId: file.fileId, variant, metrics });
 }
 
@@ -65,22 +65,25 @@ for (const file of manifest.files) {
   pdfChecks.push({ fileId: file.fileId, pages: visual.pages.length, cells: cells.length, characters: cells.reduce((sum, cell) => sum + cell.text.length, 0) });
 }
 
-const googleMock = adapters.adaptGoogleDocumentAi({
+const googleMock = adapters.adaptGoogleEnterpriseOcr({
   text: "Период\n09.2026\n",
   pages: [{
     dimension: { width: 1000, height: 1400 },
-    tables: [{
-      layout: { boundingPoly: { normalizedVertices: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.2 }, { x: 0.1, y: 0.2 }] } },
-      headerRows: [],
-      bodyRows: [{ cells: [
-        { layout: { textAnchor: { textSegments: [{ startIndex: "0", endIndex: "6" }] }, boundingPoly: { normalizedVertices: [{ x: 0.1, y: 0.1 }, { x: 0.4, y: 0.1 }, { x: 0.4, y: 0.2 }, { x: 0.1, y: 0.2 }] } } },
-        { layout: { textAnchor: { textSegments: [{ startIndex: "7", endIndex: "14" }] }, boundingPoly: { normalizedVertices: [{ x: 0.4, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.2 }, { x: 0.4, y: 0.2 }] } } },
-      ] }],
-    }],
-    paragraphs: [],
+    lines: [
+      { layout: { textAnchor: { textSegments: [{ startIndex: "0", endIndex: "6" }] }, boundingPoly: { normalizedVertices: [{ x: 0.1, y: 0.1 }, { x: 0.4, y: 0.1 }, { x: 0.4, y: 0.15 }, { x: 0.1, y: 0.15 }] } } },
+      { layout: { textAnchor: { textSegments: [{ startIndex: "7", endIndex: "14" }] }, boundingPoly: { normalizedVertices: [{ x: 0.1, y: 0.16 }, { x: 0.4, y: 0.16 }, { x: 0.4, y: 0.2 }, { x: 0.1, y: 0.2 }] } } },
+    ],
   }],
 });
-if (googleMock.pages[0].blocks[0].rows[0].cells.map((cell) => cell.text).join("|") !== "Период|09.2026") throw new Error("google_adapter_mock_failed");
+if (googleMock.pages[0].blocks[0].rows.map((row) => row.cells[0].text).join("|") !== "Период|09.2026") throw new Error("google_adapter_mock_failed");
+const googleMetricContract = spike.evaluateReader(
+  readJson(path.join(root, manifest.files[0].evaluator.literal_source.path)),
+  googleMock,
+  { structureAvailable: false },
+);
+if (googleMetricContract.rowColumnAccuracy !== null || googleMetricContract.structureMetricStatus !== "not_applicable_reader_has_no_table_contract") {
+  throw new Error("google_ocr_structure_metric_must_be_not_applicable");
+}
 
 spike.assertNoEvaluatorLeak(manifest.files.flatMap((file) => [file.inputs.png_clean.path, file.inputs.photo_telegram.path, file.inputs.pdf_digital.path]));
 const costPlan = JSON.parse(execFileSync(process.execPath, ["scripts/receipt-spike/plan.mjs"], { encoding: "utf8" }));
@@ -106,18 +109,22 @@ const report = {
     providerClientsInvoked: false,
     paidCallsExecuted: 0,
     readerOracleSelfChecks: readerChecks.length,
-    readerOracleSelfChecksPerfect: readerChecks.filter((check) => Object.entries(check.metrics).every(([key, value]) => key === "illegibleCellsFilled" || key === "illegibleMetricStatus" || value === 0 || value === 1)).length,
+    readerOracleSelfChecksPerfect: readerChecks.filter(({ metrics }) =>
+      metrics.textPrecision === 1 && metrics.textRecall === 1 && metrics.numericPrecision === 1 && metrics.numericRecall === 1 &&
+      metrics.rowColumnAccuracy === 1 && metrics.geometryAccuracy === 1 && metrics.blankCellsFilled === 0
+    ).length,
     classifierMockRuns: classifierChecks.length,
     classifierMockDocumentEvaluations: decisions.length,
     classifierMockDecisionMatches: decisions.filter((decision) => decision.actual === decision.expected && decision.criticalFieldsMatch).length,
     classifierMockSilentCriticalErrors: classifierChecks.reduce((sum, check) => sum + check.silentCriticalErrors, 0),
     classifierMockFalseRejects: classifierChecks.reduce((sum, check) => sum + check.falseRejects, 0),
     pdfTextLayer: pdfChecks,
-    googleAdapterMock: "pass",
+    googleEnterpriseOcrAdapterMock: "pass_lines_without_table_contract",
     illegibleMetric: "not_tested_no_illegible_cells",
   },
   matrix: costPlan.matrix,
   totals: costPlan.totals,
+  budget: costPlan.budget,
   pricingBasis: costPlan.pricingBasis,
   latencyGate: costPlan.latencyGate,
   storagePlan: costPlan.storagePlan,

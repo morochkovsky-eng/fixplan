@@ -18,7 +18,7 @@
     "version": "visual-adapters-v1",
     "source": {
       "path": "lib/server/receipt-spike/adapters.ts",
-      "sha256": "f711b70c19a224f7c0691be4d540bfc6e9384c7e3ca4237f6c19fd1b8e6520c8"
+      "sha256": "1cbdc1037d1cf64150a11c9e21d70217e43f7c0b5d97635f23a31d015997ec0f"
     }
   },
   "prompts": {
@@ -40,7 +40,9 @@
     "R2": {
       "provider": "google-document-ai",
       "processorType": "OCR_PROCESSOR",
-      "requestedVersion": "pretrained-ocr-v2.1-2024-08-07"
+      "requestedVersion": "pretrained-ocr-v2.1-2024-08-07",
+      "capability": "text_and_line_geometry_without_guaranteed_table_semantics",
+      "structureMetricStatus": "not_applicable_reader_has_no_table_contract"
     },
     "R3": {
       "provider": "local",

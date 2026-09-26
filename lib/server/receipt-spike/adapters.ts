@@ -87,35 +87,25 @@ function googleBox(layout: unknown, pageWidth: number, pageHeight: number): Boun
   return { x: minX, y: minY, width: Math.max(0, maxX - minX), height: Math.max(0, maxY - minY) };
 }
 
-function googleCell(value: unknown, documentText: string, pageWidth: number, pageHeight: number, isHeader: boolean): VisualCellInput | null {
+function googleLine(value: unknown, documentText: string, pageWidth: number, pageHeight: number): VisualCellInput | null {
   if (!isRecord(value) || !isRecord(value.layout)) return null;
   const text = textFromAnchor(documentText, value.layout.textAnchor);
   return {
     text,
     state: text ? "ok" : "blank",
     bbox: googleBox(value.layout, pageWidth, pageHeight),
-    colSpan: Number.isInteger(value.colSpan) && Number(value.colSpan) > 0 ? Number(value.colSpan) : 1,
-    rowSpan: Number.isInteger(value.rowSpan) && Number(value.rowSpan) > 0 ? Number(value.rowSpan) : 1,
-    isHeader,
   };
 }
 
-function googleRows(values: unknown, documentText: string, width: number, height: number, isHeader: boolean) {
+function googleTextRows(values: unknown, documentText: string, width: number, height: number) {
   if (!Array.isArray(values)) return [];
-  return values.flatMap((row): VisualRowInput[] => {
-    if (!isRecord(row) || !Array.isArray(row.cells)) return [];
-    const cells = row.cells.flatMap((cell) => googleCell(cell, documentText, width, height, isHeader) ?? []);
-    return cells.length ? [{ cells }] : [];
+  return values.flatMap((line): VisualRowInput[] => {
+    const cell = googleLine(line, documentText, width, height);
+    return cell?.text ? [{ cells: [cell] }] : [];
   });
 }
 
-function boxCenterInside(inner: BoundingBox, outer: BoundingBox) {
-  const centerX = inner.x + inner.width / 2;
-  const centerY = inner.y + inner.height / 2;
-  return centerX >= outer.x && centerX <= outer.x + outer.width && centerY >= outer.y && centerY <= outer.y + outer.height;
-}
-
-export function adaptGoogleDocumentAi(value: unknown): VisualDocumentInput {
+export function adaptGoogleEnterpriseOcr(value: unknown): VisualDocumentInput {
   if (!isRecord(value) || typeof value.text !== "string" || !Array.isArray(value.pages)) {
     throw new ReceiptContractError("invalid_google_document_ai", "Google Document AI response requires text and pages");
   }
@@ -125,31 +115,8 @@ export function adaptGoogleDocumentAi(value: unknown): VisualDocumentInput {
     const width = Number(pageValue.dimension.width);
     const height = Number(pageValue.dimension.height);
     if (!(width > 0 && height > 0)) throw new ReceiptContractError("invalid_google_document_ai", `page ${pageIndex} dimensions are invalid`);
-    const blocks: VisualBlockInput[] = [];
-    const tableBoxes: BoundingBox[] = [];
-    if (Array.isArray(pageValue.tables)) for (const table of pageValue.tables) {
-      if (!isRecord(table) || !isRecord(table.layout)) continue;
-      const tableBox = googleBox(table.layout, width, height);
-      const rows = [
-        ...googleRows(table.headerRows, documentText, width, height, true),
-        ...googleRows(table.bodyRows, documentText, width, height, false),
-      ];
-      if (rows.length) {
-        tableBoxes.push(tableBox);
-        blocks.push({ layout: "table", bbox: tableBox, rows });
-      }
-    }
-    if (Array.isArray(pageValue.paragraphs)) {
-      const rows = pageValue.paragraphs.flatMap((paragraph): VisualRowInput[] => {
-        if (!isRecord(paragraph) || !isRecord(paragraph.layout)) return [];
-        const text = textFromAnchor(documentText, paragraph.layout.textAnchor);
-        if (!text) return [];
-        const bbox = googleBox(paragraph.layout, width, height);
-        if (tableBoxes.some((tableBox) => boxCenterInside(bbox, tableBox))) return [];
-        return [{ cells: [{ text, state: "ok", bbox }] }];
-      });
-      if (rows.length) blocks.push({ layout: "text", bbox: { x: 0, y: 0, width: 1, height: 1 }, rows });
-    }
+    const rows = googleTextRows(Array.isArray(pageValue.lines) ? pageValue.lines : pageValue.paragraphs, documentText, width, height);
+    const blocks: VisualBlockInput[] = rows.length ? [{ layout: "text", bbox: { x: 0, y: 0, width: 1, height: 1 }, rows }] : [];
     return { width, height, blocks };
   });
   return parseVisionReaderOutput({ readable: pages.some((page) => page.blocks.length > 0), pages });

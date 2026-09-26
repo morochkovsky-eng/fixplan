@@ -50,7 +50,7 @@ const matrix = [
   { id: "oracle-literal-c1", inputs: 10, documents: 11, repeats: 3, readerCalls: 0, classifierCalls: 30, estimateUsd: oracleC1PerRun * 3 },
   { id: "oracle-literal-c2", inputs: 10, documents: 11, repeats: 3, readerCalls: 0, classifierCalls: 30, estimateUsd: oracleC2PerRun * 3 },
   { id: "r1-c1-clean-photo", inputs: 20, documents: 22, repeats: 3, readerCalls: 60, classifierCalls: 60, estimateUsd: r1C1PerRun * 3 },
-  { id: "r2-c1-clean-photo", inputs: 20, documents: 22, repeats: 1, readerCalls: 20, classifierCalls: 20, estimateUsd: r2C1 },
+  { id: "r2-enterprise-ocr-c1-clean-photo", inputs: 20, documents: 22, repeats: 1, readerCalls: 20, classifierCalls: 20, estimateUsd: r2C1, structureGate: "not_applicable" },
   { id: "r3-c1-pdf", inputs: 10, documents: 11, repeats: 1, readerCalls: 0, classifierCalls: 10, estimateUsd: r3C1 },
   { id: "r1-reuse-c2", inputs: 20, documents: 22, repeats: 3, readerCalls: 0, classifierCalls: 60, estimateUsd: r1C2PerRun * 3 },
 ].map((entry) => ({ ...entry, estimateUsd: Number(entry.estimateUsd.toFixed(4)), status: "planned_not_run" }));
@@ -66,8 +66,14 @@ const report = {
     googleDocumentAiCalls: 20,
     localPdfExtractions: 10,
     providerCalls: 290,
-    upperEstimateUsd: Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4)),
+    planningEstimateUsd: Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4)),
     safetyMultiplier,
+  },
+  budget: {
+    planningEstimateUsd: Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4)),
+    maximumAuthorizedSpendUsd: 12,
+    estimateIsGuaranteedCeiling: false,
+    enforcement: "stop_before_next_provider_call_if_recorded_spend_plus_reserved_call_max_would_exceed_cap",
   },
   pricingBasis: {
     checked: "2026-09-26",
@@ -79,7 +85,9 @@ const report = {
     googleDocumentAi: {
       source: "https://cloud.google.com/products/document-ai/pricing",
       enterpriseOcrUsdPerPage: 0.0015,
-      note: "List-price upper estimate; any free-tier allowance is ignored.",
+      layoutParserUsdPerPage: 0.01,
+      selectedForR2: "enterprise_ocr",
+      note: "R2 is a text/line-geometry OCR baseline, not Layout Parser. The list-price estimate ignores free-tier allowance.",
     },
     method: "UTF-8 bytes/4 token proxy, documented image patch formula, and 1.5x safety multiplier; actual usage and returned model IDs replace estimates after approval.",
   },
@@ -90,7 +98,7 @@ const report = {
     gitIgnored: true,
     evaluatorDataExcludedFromRequests: ["oracle/**", "gold/**", "reports/**", "spike-manifest.json"],
   },
-  gate: { paidExecutionRequiresSeparateOwnerApproval: true, approvalRecorded: false },
+  gate: { paidExecutionRequiresSeparateOwnerApproval: true, approvalRecorded: false, hardBudgetEnforcementRequired: true },
 };
 
 process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);

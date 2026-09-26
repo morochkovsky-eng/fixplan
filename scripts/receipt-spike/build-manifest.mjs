@@ -60,7 +60,13 @@ const manifest = {
   },
   models: {
     R1: { provider: "openai", requestedModelId: "gpt-6-sol", imageDetail: "original" },
-    R2: { provider: "google-document-ai", processorType: "OCR_PROCESSOR", requestedVersion: "pretrained-ocr-v2.1-2024-08-07" },
+    R2: {
+      provider: "google-document-ai",
+      processorType: "OCR_PROCESSOR",
+      requestedVersion: "pretrained-ocr-v2.1-2024-08-07",
+      capability: "text_and_line_geometry_without_guaranteed_table_semantics",
+      structureMetricStatus: "not_applicable_reader_has_no_table_contract",
+    },
     R3: { provider: "local", adapter: "pdfjs-dist@6.3.289" },
     C1: { provider: "openai", requestedModelId: "gpt-6-sol", reasoningEffort: "low" },
     C2: { provider: "openai", requestedModelId: "gpt-6-luna", reasoningEffort: "medium" },

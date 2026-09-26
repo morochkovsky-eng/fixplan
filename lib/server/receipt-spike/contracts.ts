@@ -5,7 +5,7 @@ export const RECEIPT_SPIKE_SCHEMA_VERSION = "receipt-spike-v1";
 export const RECEIPT_SPIKE_ADAPTER_VERSION = "visual-adapters-v1";
 
 export type InputVariant = "png_clean" | "photo_telegram" | "pdf_digital" | "oracle_literal";
-export type ReaderId = "R1-openai-vision" | "R2-google-document-ai-ocr" | "R3-pdf-text-layer" | "oracle-reader";
+export type ReaderId = "R1-openai-vision" | "R2-google-enterprise-ocr" | "R3-pdf-text-layer" | "oracle-reader";
 export type ClassifierId = "C1-openai-strong" | "C2-openai-economy" | "oracle-classifier";
 
 export type ProviderMetadata = {
@@ -53,7 +53,8 @@ export type ReaderMetrics = {
   textRecall: number;
   numericPrecision: number;
   numericRecall: number;
-  rowColumnAccuracy: number;
+  rowColumnAccuracy: number | null;
+  structureMetricStatus: "measured" | "not_applicable_reader_has_no_table_contract";
   geometryAccuracy: number | null;
   blankCellsFilled: number;
   illegibleCellsFilled: number | null;

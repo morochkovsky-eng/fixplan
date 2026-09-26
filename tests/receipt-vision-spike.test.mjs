@@ -76,25 +76,25 @@ test("blank filling is measured while illegible filling remains explicitly untes
   assert.equal(metrics.illegibleMetricStatus, "not_tested_no_illegible_cells");
 });
 
-test("Google layout adapter does not duplicate paragraphs inside table boxes", () => {
+test("Google Enterprise OCR adapter consumes documented line geometry without assuming tables", () => {
   const layout = (startIndex, endIndex, x1, x2) => ({
     textAnchor: { textSegments: [{ startIndex: String(startIndex), endIndex: String(endIndex) }] },
     boundingPoly: { normalizedVertices: [{ x: x1, y: 0.1 }, { x: x2, y: 0.1 }, { x: x2, y: 0.2 }, { x: x1, y: 0.2 }] },
   });
-  const adapted = adapters.adaptGoogleDocumentAi({
+  const adapted = adapters.adaptGoogleEnterpriseOcr({
     text: "Период\n09.2026\n",
     pages: [{
       dimension: { width: 1000, height: 1400 },
-      tables: [{
-        layout: { boundingPoly: { normalizedVertices: [{ x: 0.1, y: 0.1 }, { x: 0.9, y: 0.1 }, { x: 0.9, y: 0.2 }, { x: 0.1, y: 0.2 }] } },
-        headerRows: [],
-        bodyRows: [{ cells: [{ layout: layout(0, 6, 0.1, 0.4) }, { layout: layout(7, 14, 0.4, 0.9) }] }],
-      }],
-      paragraphs: [{ layout: layout(0, 14, 0.1, 0.9) }],
+      lines: [{ layout: layout(0, 6, 0.1, 0.4) }, { layout: layout(7, 14, 0.1, 0.4) }],
+      tables: [{ deliberately: "ignored because OCR does not guarantee table semantics" }],
     }],
   });
   assert.equal(adapted.pages[0].blocks.length, 1);
-  assert.deepEqual(adapted.pages[0].blocks[0].rows[0].cells.map((cell) => cell.text), ["Период", "09.2026"]);
+  assert.equal(adapted.pages[0].blocks[0].layout, "text");
+  assert.deepEqual(adapted.pages[0].blocks[0].rows.map((row) => row.cells[0].text), ["Период", "09.2026"]);
+  const metrics = evaluator.evaluateReader(readJson(manifest.files[0].evaluator.literal_source.path), adapted, { structureAvailable: false });
+  assert.equal(metrics.rowColumnAccuracy, null);
+  assert.equal(metrics.structureMetricStatus, "not_applicable_reader_has_no_table_contract");
 });
 
 test("digital PDF adapter returns literal text without semantic fields", async () => {
@@ -119,7 +119,10 @@ test("prepaid execution plan is complete but executes no provider calls", () => 
   assert.equal(plan.totals.openAiCalls, 270);
   assert.equal(plan.totals.googleDocumentAiCalls, 20);
   assert.equal(plan.totals.providerCalls, 290);
-  assert.ok(plan.totals.upperEstimateUsd > 0);
+  assert.ok(plan.totals.planningEstimateUsd > 0);
+  assert.equal(plan.budget.maximumAuthorizedSpendUsd, 12);
+  assert.equal(plan.budget.estimateIsGuaranteedCeiling, false);
+  assert.equal(plan.gate.hardBudgetEnforcementRequired, true);
   assert.equal(plan.matrix.length, 6);
   assert.ok(plan.matrix.every((entry) => entry.status === "planned_not_run"));
 });

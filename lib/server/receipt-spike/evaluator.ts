@@ -59,7 +59,13 @@ function iou(left: LiteralCell["bbox"], right: LiteralCell["bbox"]) {
   return union > 0 ? Math.max(0, Math.min(1, intersection / union)) : 1;
 }
 
-export function evaluateReader(expectedInput: VisualDocumentInput, actualInput: VisualDocumentInput, geometryAvailable = true): ReaderMetrics {
+export function evaluateReader(
+  expectedInput: VisualDocumentInput,
+  actualInput: VisualDocumentInput,
+  options: { geometryAvailable?: boolean; structureAvailable?: boolean } = {},
+): ReaderMetrics {
+  const geometryAvailable = options.geometryAvailable ?? true;
+  const structureAvailable = options.structureAvailable ?? true;
   const expected = indexLiteralDocument(expectedInput).document;
   const actual = indexLiteralDocument(actualInput).document;
   const expectedCells = flattenCells(expected);
@@ -85,7 +91,8 @@ export function evaluateReader(expectedInput: VisualDocumentInput, actualInput: 
     textRecall: ratio(textMatches, multisetSize(expectedText)),
     numericPrecision: ratio(tokenMatches, multisetSize(actualTokens)),
     numericRecall: ratio(tokenMatches, multisetSize(expectedTokens)),
-    rowColumnAccuracy: ratio(positionalMatches, expectedCells.length),
+    rowColumnAccuracy: structureAvailable ? ratio(positionalMatches, expectedCells.length) : null,
+    structureMetricStatus: structureAvailable ? "measured" : "not_applicable_reader_has_no_table_contract",
     geometryAccuracy: geometryAvailable ? ratio(geometry.reduce((sum, value) => sum + value, 0), expectedCells.length) : null,
     blankCellsFilled: expectedCells.filter((cell) => cell.state === "blank" && Boolean(actualById.get(cell.id)?.text.trim())).length,
     illegibleCellsFilled: illegible.length ? illegible.filter((cell) => Boolean(actualById.get(cell.id)?.text.trim())).length : null,
@@ -160,6 +167,7 @@ export function evaluateEndToEnd(options: {
   readerInput: VisualDocumentInput;
   readerOracle?: VisualDocumentInput;
   geometryAvailable?: boolean;
+  structureAvailable?: boolean;
   classifierOutput: unknown;
   semanticOracle: SemanticOracle;
 }): SpikeEvaluation {
@@ -181,7 +189,10 @@ export function evaluateEndToEnd(options: {
     runNumber: options.runNumber,
     readerId: options.readerId,
     classifierId: options.classifierId,
-    readerMetrics: options.readerOracle ? evaluateReader(options.readerOracle, options.readerInput, options.geometryAvailable ?? true) : null,
+    readerMetrics: options.readerOracle ? evaluateReader(options.readerOracle, options.readerInput, {
+      geometryAvailable: options.geometryAvailable,
+      structureAvailable: options.structureAvailable,
+    }) : null,
     classifierMetrics: evaluateClassifier(options.semanticOracle.roleClassification, classification),
     expectedDocumentIds: options.semanticOracle.documents.map((entry) => entry.docId).sort(),
     producedDocumentIds: bundle.documents.map((entry) => entry.docId).sort(),
