@@ -41,3 +41,5 @@ yarn-error.log*
 /outputs/
 /work/
 /supabase/.temp/
+/.receipt-spike/
+/tsconfig.tsbuildinfo

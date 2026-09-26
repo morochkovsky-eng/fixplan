@@ -1,0 +1,30 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Квитанция S02</title><style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html,body { margin:0; background:#fff; color:#000; }
+.sheet { width: 210mm; padding: 9mm 10mm; margin: 0 auto; background:#fff; }
+@media print { .sheet { min-height: 297mm; } }
+table { border-collapse: collapse; width: 100%; }
+.qr svg { display:block; }
+.num { text-align:right; white-space:nowrap; }
+td:has(> .num) { text-align:right; }
+body{font-family:"Times New Roman","Liberation Serif","DejaVu Serif",serif;font-size:11px}
+.top td{vertical-align:top;padding:4px}.org{border-right:1px solid #000;width:60%}.t1{font-size:16px;letter-spacing:1px;font-weight:bold}
+.t th,.t td{border:1px solid #000;padding:3px 5px}.t th{font-weight:bold}
+.bal{margin:10px 0 0 45%;border:1px solid #000}.bal div{display:flex;justify-content:space-between;padding:3px 6px;border-bottom:1px dotted #777}
+.bal .pay{font-size:14px;border-bottom:0;background:#f0f0f0}.small{font-size:9px;margin-top:10px}
+</style></head><body><div class="sheet">
+<table class="top"><tr><td class="org" data-b="text"><b data-r data-k="prov">ООО «УК Северный квартал»</b><br><span data-r>ИНН 7700000022 · р/с 40702810000000000022</span><br><span data-r>Аварийная служба: 8 (000) 000-00-00</span></td>
+<td class="doc" data-b="text"><div class="t1" data-r>СЧЁТ-ИЗВЕЩЕНИЕ</div><span data-r data-k="issue">№ 4418 от 03.10.2026</span><br><span data-r data-k="period">Расчётный месяц: <b>сентябрь 2026</b></span></td></tr></table>
+<p data-b="text" data-k="acct">Лицевой счёт: <b>100 442 18</b> &nbsp; Собственник: Образцов А. Н. &nbsp; Адрес: г. Условный, ул. Тестовая, д. 17, кв. 42 &nbsp; Общая площадь: 61,80 м²</p>
+<table class="t" data-b="table"><thead><tr><th>№</th><th>Наименование услуги</th><th>Кол-во / площадь</th><th>Тариф</th><th>Начислено, ₽</th></tr></thead><tbody><tr data-k="svc1"><td>1</td><td>Содержание общего имущества</td><td><span class="num">61,80</span></td><td><span class="num">29,44</span></td><td><span class="num">1 819,39</span></td></tr><tr data-k="svc2"><td>2</td><td>Текущий ремонт</td><td><span class="num">61,80</span></td><td><span class="num">4,12</span></td><td><span class="num">254,62</span></td></tr><tr data-k="svc3"><td>3</td><td>Уборка мест общего пользования</td><td><span class="num">61,80</span></td><td><span class="num">2,05</span></td><td><span class="num">126,69</span></td></tr><tr data-k="svc4"><td>4</td><td>Домофон</td><td><span class="num">1</span></td><td><span class="num">48,00</span></td><td><span class="num">48,00</span></td></tr><tr data-k="svc5"><td>5</td><td>Обращение с ТКО, 3 чел.</td><td><span class="num">3</span></td><td><span class="num">101,90</span></td><td><span class="num">305,70</span></td></tr></tbody></table>
+<div class="bal" data-b="kv">
+<div data-r data-k="od"><span data-c>Задолженность на начало периода</span><b data-c>0,00</b></div>
+<div data-r data-k="oa"><span data-c>Переплата на начало периода</span><b data-c>3 100,00</b></div>
+<div data-r data-k="acc"><span data-c>Начислено за период</span><b data-c>2 554,40</b></div>
+<div data-r data-k="pay"><span data-c>Оплачено в периоде</span><b data-c>0,00</b></div>
+<div data-r data-k="ca"><span data-c>Переплата на конец периода</span><b data-c>545,60</b></div>
+<div class="pay" data-r data-k="due"><span data-c>Сумма к оплате</span><b data-c>0,00</b></div></div>
+<p class="small" data-b="text">Переплата будет учтена в следующих расчётных периодах. Срок внесения платы — до 10 числа месяца, следующего за расчётным.</p></div></body></html>
