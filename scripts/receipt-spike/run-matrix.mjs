@@ -65,6 +65,7 @@ const result = await matrix.runReceiptSpikeMatrix({
   manifest,
   series,
   planSha256: plan.planSha256,
+  integrity: plan.integrity,
   outputRoot: path.resolve(".receipt-spike/runs"),
   readerPrompt: fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8"),
   classifierPrompt: fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8"),

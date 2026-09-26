@@ -3,7 +3,7 @@
 Status: prepared offline on 2026-09-26. The matrix runner is implemented, but provider execution remains blocked until the owner separately approves the exact plan fingerprint and cost cap.
 
 The machine-readable prepaid gate report is [receipt-vision-spike-gate-d7acbe9.json](./reports/receipt-vision-spike-gate-d7acbe9.json).
-The separate runner safety report is [receipt-spike-runner-gate-c37ba31.json](./reports/receipt-spike-runner-gate-c37ba31.json).
+The initial runner report [receipt-spike-runner-gate-c37ba31.json](./reports/receipt-spike-runner-gate-c37ba31.json) is retained as review history and is superseded by the safety commit described below.
 
 This spike measures document reading and row classification independently before either is connected to the Homory runtime. The deterministic receipt core remains the final authority for parsing, arithmetic, reconciliation, and draft decisions. See [Receipt deterministic core](./RECEIPT_DETERMINISTIC_CORE.md).
 
@@ -108,9 +108,13 @@ npm run receipt:spike:runner -- \
   --approval-file <owner-only-approval.json>
 ```
 
-The runner is sequential. Before the first provider call it verifies every manifest byte count and SHA-256, validates that evaluator-only paths are not reader inputs, and confirms the manifest model configuration. Each call receives a conservative reservation before dispatch: R1 `$0.50`, C1 `$0.30`, C2 `$0.05`, and R2 `$0.01`. A call is stopped **before dispatch** when recorded spend plus its reservation would exceed `$12.00`.
+The runner is sequential and holds an exclusive filesystem lock for the full lifetime of a series. A second process cannot execute or reserve against that series. Ledger operations also acquire their own atomic lock and reload the append-only ledger from disk, so separate processes cannot spend from stale snapshots.
 
-Actual usage, list-price cost, requested and returned model IDs, latency, sanitized request metadata, raw response, parsed result, classifier input, and evaluation are stored under the git-ignored `.receipt-spike/runs/<series>/` directory with owner-only permissions. The append-only spend ledger is written before dispatch. A timeout, interrupted process, malformed response, missing artifact, or cost above reservation leaves an unresolved reservation and blocks every later call until a manual audit. Completed calls are reused on restart and are never paid twice automatically.
+Before the first provider call the runner verifies every manifest byte count and SHA-256, validates that evaluator-only paths are not reader inputs, and confirms the manifest model configuration. The approval fingerprint includes the exact manifest, reader prompt, classifier prompt, and safety-critical runner source hashes. A series stores that binding once and refuses to resume under a different plan.
+
+OpenAI reservations are request-specific rather than fixed. The upper bound includes the exact serialized request byte length, a separate image-patch ceiling, protocol allowance, fixed `max_output_tokens`, the long-context multiplier above 272K input tokens, and the cache-write premium. R2 reserves `$0.01` for each pinned single-image OCR request. A call is stopped **before dispatch** when recorded spend plus its proven upper bound would exceed `$12.00`.
+
+Returned usage, usage-derived list-price cost, a separate conservative budget charge, requested and returned model IDs, latency, sanitized request metadata, raw response, parsed result, classifier input, and evaluation are stored under the git-ignored `.receipt-spike/runs/<series>/` directory with owner-only permissions. OpenAI responses without finite token usage, and Google OCR responses without a positive page count, are not accepted as zero-cost successes. The ledger enforces the cap using the conservative budget charge, including the possible cache-write premium and long-context multiplier, while retaining the nominal usage-derived estimate for reporting. The append-only spend ledger is written before dispatch. A timeout, interrupted process, malformed response, missing usage, missing artifact, or budget charge above reservation leaves an unresolved reservation and blocks every later call until a manual audit. Completed calls are reused on restart and are never paid twice automatically.
 
 R1 results from the C1 cell are reused byte-for-byte for the C2 cell. R3 remains local and does not enter the spend ledger. If a provider returns a different resolved model ID for the same requested alias, the paid call is recorded and the series stops; the new model must be evaluated under a separate series. The runner uses a 120-second abort signal per provider call and never falls back to an unlisted model.
 

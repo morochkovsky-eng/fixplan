@@ -10,6 +10,7 @@ export type BudgetedProviderResult<T> = {
   latencyMs: number;
   usage: { inputTokens?: number; outputTokens?: number; pages?: number };
   actualCostMicrousd: number;
+  budgetChargeMicrousd: number;
 };
 
 export function writePrivateJson(file: string, value: unknown) {
@@ -34,6 +35,16 @@ export function enforceReturnedModelSeries(file: string, model: { provider: stri
   }
   if (!established) writePrivateJson(file, { ...current, [key]: model.returnedModelId });
   return model.returnedModelId;
+}
+
+export function bindSeriesToPlan(file: string, metadata: { planSha256: string; baselineCommit: string; integrity: Record<string, unknown> }) {
+  if (fs.existsSync(file)) {
+    const existing = readPrivateJson<typeof metadata>(file);
+    if (JSON.stringify(existing) !== JSON.stringify(metadata)) throw new Error("series_plan_mismatch");
+    return existing;
+  }
+  writePrivateJson(file, metadata);
+  return metadata;
 }
 
 export async function executeBudgetedProviderCall<T>(options: {
@@ -65,6 +76,7 @@ export async function executeBudgetedProviderCall<T>(options: {
     options.ledger.complete({
       callId: options.callId,
       actualCostMicrousd: result.actualCostMicrousd,
+      budgetChargeMicrousd: result.budgetChargeMicrousd,
       requestedModelId: result.requestedModelId,
       returnedModelId: result.returnedModelId,
     });

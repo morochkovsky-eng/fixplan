@@ -3,13 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import type { RoleClassification, VisualDocumentInput } from "../receipt-core";
 import { adaptPdfTextLayer } from "./adapters";
-import { ReceiptSpikeBudgetLedger } from "./budget";
+import { acquireReceiptSpikeSeriesLock, ReceiptSpikeBudgetLedger } from "./budget";
 import { adapterVersion } from "./adapters";
 import {
   assertNoEvaluatorLeak, evaluateEndToEnd, prepareClassifierInput, stringifyClassifierInput,
 } from "./evaluator";
 import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult } from "./providers";
-import { enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
+import { bindSeriesToPlan, enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
 
 type Descriptor = { path: string; sha256: string; bytes: number };
 type ManifestFile = {
@@ -35,12 +35,7 @@ export type MatrixScheduleStep = {
 };
 
 const IMAGE_VARIANTS = ["png_clean", "photo_telegram"] as const;
-const reservationMicrousd = {
-  R1: 500_000,
-  C1: 300_000,
-  C2: 50_000,
-  R2: 10_000,
-} as const;
+const GOOGLE_OCR_RESERVATION_MICROUSD = 10_000;
 
 export function buildReceiptSpikeSchedule(manifest: Manifest): MatrixScheduleStep[] {
   const steps: MatrixScheduleStep[] = [];
@@ -79,7 +74,13 @@ function verifyDescriptor(root: string, descriptor: Descriptor) {
   if (sha256(bytes) !== descriptor.sha256 || bytes.byteLength !== descriptor.bytes) throw new Error(`manifest_input_mismatch:${descriptor.path}`);
 }
 
-export function verifyReceiptSpikeManifest(root: string, manifest: Manifest) {
+export function verifyReceiptSpikeManifest(root: string, manifest: Manifest, integrity?: {
+  manifestSha256: string;
+  readerPromptSha256: string;
+  classifierPromptSha256: string;
+  readerPrompt: string;
+  classifierPrompt: string;
+}) {
   for (const file of manifest.files) {
     for (const descriptor of Object.values(file.inputs)) verifyDescriptor(root, descriptor);
     for (const descriptor of Object.values(file.evaluator)) verifyDescriptor(root, descriptor);
@@ -87,6 +88,11 @@ export function verifyReceiptSpikeManifest(root: string, manifest: Manifest) {
   assertNoEvaluatorLeak(manifest.files.flatMap((file) => Object.values(file.inputs).map((descriptor) => descriptor.path)));
   if (manifest.models.R1.requestedModelId !== "gpt-6-sol" || manifest.models.C1.requestedModelId !== "gpt-6-sol" || manifest.models.C2.requestedModelId !== "gpt-6-luna") {
     throw new Error("unsupported_manifest_model_configuration");
+  }
+  if (integrity) {
+    if (sha256(fs.readFileSync(path.join(root, "spike-manifest.json"))) !== integrity.manifestSha256) throw new Error("manifest_plan_hash_mismatch");
+    if (sha256(integrity.readerPrompt) !== integrity.readerPromptSha256 || manifest.prompts.reader.sha256 !== integrity.readerPromptSha256) throw new Error("reader_prompt_plan_hash_mismatch");
+    if (sha256(integrity.classifierPrompt) !== integrity.classifierPromptSha256 || manifest.prompts.classifier.sha256 !== integrity.classifierPromptSha256) throw new Error("classifier_prompt_plan_hash_mismatch");
   }
   return manifest.files.length;
 }
@@ -112,6 +118,7 @@ export async function runReceiptSpikeMatrix(options: {
   manifest: Manifest;
   series: string;
   planSha256: string;
+  integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; sourceSha256: Record<string, string> };
   outputRoot: string;
   readerPrompt: string;
   classifierPrompt: string;
@@ -123,16 +130,17 @@ export async function runReceiptSpikeMatrix(options: {
   if (!options.approval.approved || options.approval.planSha256 !== options.planSha256 || options.approval.maximumAuthorizedSpendMicrousd !== 12_000_000) {
     throw new Error("paid_execution_approval_mismatch");
   }
-  verifyReceiptSpikeManifest(options.fixtureRoot, options.manifest);
+  verifyReceiptSpikeManifest(options.fixtureRoot, options.manifest, { ...options.integrity, readerPrompt: options.readerPrompt, classifierPrompt: options.classifierPrompt });
   const runRoot = path.join(options.outputRoot, options.series);
-  const ledger = new ReceiptSpikeBudgetLedger(path.join(runRoot, "spend-ledger.jsonl"));
-  writePrivateJson(path.join(runRoot, "run.meta.json"), {
-    schemaVersion: "receipt-spike-run-v1",
+  const releaseSeriesLock = acquireReceiptSpikeSeriesLock(runRoot);
+  try {
+  bindSeriesToPlan(path.join(runRoot, "run.meta.json"), {
     planSha256: options.planSha256,
     baselineCommit: options.manifest.baselineCommit,
-    startedAt: new Date().toISOString(),
+    integrity: options.integrity,
   });
-  const providerRuns: Array<{ cell: string; latencyMs: number; costMicrousd: number; requestedModelId: string; returnedModelId: string }> = [];
+  const ledger = new ReceiptSpikeBudgetLedger(path.join(runRoot, "spend-ledger.jsonl"));
+  const providerRuns: Array<{ cell: string; latencyMs: number; actualCostMicrousd: number; budgetChargeMicrousd: number; requestedModelId: string; returnedModelId: string }> = [];
   const evaluations: Array<{ cell: string; evaluation: ReturnType<typeof evaluateEndToEnd> }> = [];
 
   const reader = async (cell: string, file: ManifestFile, variant: typeof IMAGE_VARIANTS[number], run: number, kind: "R1" | "R2") => {
@@ -140,11 +148,15 @@ export async function runReceiptSpikeMatrix(options: {
     const bytes = fs.readFileSync(path.join(options.fixtureRoot, descriptor.path));
     const directory = path.join(artifactRoot(runRoot, cell, file.fileId, variant, run), "reader");
     const callId = `${cell}:${file.fileId}:${variant}:${run}:reader`;
+    if (kind === "R1" && (!(descriptor.width && descriptor.width > 0) || !(descriptor.height && descriptor.height > 0))) throw new Error(`image_dimensions_missing:${file.fileId}:${variant}`);
+    const costBound = kind === "R1"
+      ? options.openai.maximumImageCost({ model: "gpt-6-sol", instructions: options.readerPrompt, bytes, mimeType: mimeType(variant), width: descriptor.width!, height: descriptor.height! })
+      : { maximumCostMicrousd: GOOGLE_OCR_RESERVATION_MICROUSD, inputTokenUpperBound: null, outputTokenUpperBound: null };
     const result = await executeBudgetedProviderCall<VisualDocumentInput>({
       ledger,
       callId,
       provider: kind === "R1" ? "openai" : "google-document-ai",
-      reservedMaxMicrousd: reservationMicrousd[kind],
+      reservedMaxMicrousd: costBound.maximumCostMicrousd,
       artifactDirectory: directory,
       requestMetadata: {
         callId,
@@ -153,7 +165,9 @@ export async function runReceiptSpikeMatrix(options: {
         inputSha256: descriptor.sha256,
         promptSha256: kind === "R1" ? options.manifest.prompts.reader.sha256 : null,
         adapterVersion,
-        reservedMaxMicrousd: reservationMicrousd[kind],
+        reservedMaxMicrousd: costBound.maximumCostMicrousd,
+        inputTokenUpperBound: costBound.inputTokenUpperBound,
+        outputTokenUpperBound: costBound.outputTokenUpperBound,
       },
       dispatch: async () => asBudgetResult(kind === "R1"
         ? await options.openai.readImage({ model: "gpt-6-sol", instructions: options.readerPrompt, bytes, mimeType: mimeType(variant), signal: timeoutSignal() })
@@ -164,7 +178,7 @@ export async function runReceiptSpikeMatrix(options: {
       requestedModelId: result.result.requestedModelId,
       returnedModelId: result.result.returnedModelId,
     });
-    providerRuns.push({ cell, latencyMs: result.result.latencyMs, costMicrousd: result.result.actualCostMicrousd, requestedModelId: result.result.requestedModelId, returnedModelId: result.result.returnedModelId });
+    providerRuns.push({ cell, latencyMs: result.result.latencyMs, actualCostMicrousd: result.result.actualCostMicrousd, budgetChargeMicrousd: result.result.budgetChargeMicrousd, requestedModelId: result.result.requestedModelId, returnedModelId: result.result.returnedModelId });
     writePrivateJson(path.join(directory, "reader.visual.json"), result.result.parsed);
     return result.result.parsed;
   };
@@ -184,12 +198,13 @@ export async function runReceiptSpikeMatrix(options: {
     const model = classifierKey === "C1" ? "gpt-6-sol" as const : "gpt-6-luna" as const;
     const directory = path.join(artifactRoot(runRoot, params.cell, params.file.fileId, params.variant, params.run), "classifier");
     const callId = `${params.cell}:${params.file.fileId}:${params.variant}:${params.run}:classifier`;
+    const costBound = options.openai.maximumClassifierCost({ model, instructions: options.classifierPrompt, classifierInputJson: wire, reasoningEffort: classifierKey === "C1" ? "low" : "medium" });
     writePrivateJson(path.join(directory, "classifier.input.json"), input);
     const result = await executeBudgetedProviderCall<RoleClassification>({
       ledger,
       callId,
       provider: "openai",
-      reservedMaxMicrousd: reservationMicrousd[classifierKey],
+      reservedMaxMicrousd: costBound.maximumCostMicrousd,
       artifactDirectory: directory,
       requestMetadata: {
         callId,
@@ -198,7 +213,9 @@ export async function runReceiptSpikeMatrix(options: {
         indexedLiteralSha256: sha256(wire),
         promptSha256: options.manifest.prompts.classifier.sha256,
         adapterVersion,
-        reservedMaxMicrousd: reservationMicrousd[classifierKey],
+        reservedMaxMicrousd: costBound.maximumCostMicrousd,
+        inputTokenUpperBound: costBound.inputTokenUpperBound,
+        outputTokenUpperBound: costBound.outputTokenUpperBound,
       },
       dispatch: async () => asBudgetResult(await options.openai.classify({
         model,
@@ -213,7 +230,7 @@ export async function runReceiptSpikeMatrix(options: {
       requestedModelId: result.result.requestedModelId,
       returnedModelId: result.result.returnedModelId,
     });
-    providerRuns.push({ cell: params.cell, latencyMs: result.result.latencyMs, costMicrousd: result.result.actualCostMicrousd, requestedModelId: result.result.requestedModelId, returnedModelId: result.result.returnedModelId });
+    providerRuns.push({ cell: params.cell, latencyMs: result.result.latencyMs, actualCostMicrousd: result.result.actualCostMicrousd, budgetChargeMicrousd: result.result.budgetChargeMicrousd, requestedModelId: result.result.requestedModelId, returnedModelId: result.result.returnedModelId });
     writePrivateJson(path.join(directory, "classification.json"), result.result.parsed);
     const semantic = readJson<{ fileId: string; roleClassification: RoleClassification; documents: Array<{ docId: string; expected: { billingPeriod: string | null; mandatoryDue: { valueMinor: string | null }; decision: string } }> }>(path.join(options.fixtureRoot, params.file.evaluator.semantic.path));
     const oracleKey = params.variant === "photo_telegram" ? "geometry_photo" : "literal_source";
@@ -273,7 +290,8 @@ export async function runReceiptSpikeMatrix(options: {
       cell,
       evaluations: cellEvaluations.length,
       providerCalls: runs.length,
-      actualCostMicrousd: runs.reduce((sum, item) => sum + item.costMicrousd, 0),
+      actualCostMicrousd: runs.reduce((sum, item) => sum + item.actualCostMicrousd, 0),
+      budgetChargeMicrousd: runs.reduce((sum, item) => sum + item.budgetChargeMicrousd, 0),
       latencyP50Ms: percentile(runs.map((item) => item.latencyMs), 0.5),
       latencyP95Ms: percentile(runs.map((item) => item.latencyMs), 0.95),
       returnedModelIds: [...new Set(runs.map((item) => item.returnedModelId))].sort(),
@@ -292,4 +310,7 @@ export async function runReceiptSpikeMatrix(options: {
   };
   writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
   return summary;
+  } finally {
+    releaseSeriesLock();
+  }
 }

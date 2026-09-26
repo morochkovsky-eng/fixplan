@@ -3,7 +3,9 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 
 const root = path.resolve("tests/fixtures/receipt-synthetic-v1.1");
-const manifest = JSON.parse(fs.readFileSync(path.join(root, "spike-manifest.json"), "utf8"));
+const manifestPath = path.join(root, "spike-manifest.json");
+const manifestBytes = fs.readFileSync(manifestPath);
+const manifest = JSON.parse(manifestBytes.toString("utf8"));
 const readerPrompt = fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8");
 const classifierPrompt = fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8");
 const prices = {
@@ -67,17 +69,29 @@ const matrix = [
   { id: "r1-reuse-c2", inputs: 20, documents: 22, repeats: 3, readerCalls: 0, classifierCalls: 60, estimateUsd: r1C2PerRun * 3 },
 ].map((entry) => ({ ...entry, estimateUsd: Number(entry.estimateUsd.toFixed(4)), status: "planned_not_run" }));
 
-export const callReservationsMicrousd = Object.freeze({
-  "R1-openai-vision": 500_000,
-  "C1-openai-strong": 300_000,
-  "C2-openai-economy": 50_000,
-  "R2-google-enterprise-ocr": 10_000,
-});
+const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+const integrity = {
+  manifestSha256: sha256(manifestBytes),
+  readerPromptSha256: sha256(readerPrompt),
+  classifierPromptSha256: sha256(classifierPrompt),
+  sourceSha256: Object.fromEntries([
+    "lib/server/receipt-spike/adapters.ts",
+    "lib/server/receipt-spike/budget.ts",
+    "lib/server/receipt-spike/matrix-runner.ts",
+    "lib/server/receipt-spike/providers.ts",
+    "lib/server/receipt-spike/runner.ts",
+    "scripts/receipt-spike/run-matrix.mjs",
+  ].map((file) => [file, sha256(fs.readFileSync(file))])),
+};
 
 export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
   return JSON.stringify(value);
+}
+
+export function fingerprintReceiptSpikePlan(value) {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
 
 export function buildReceiptSpikePlan() {
@@ -86,6 +100,7 @@ export function buildReceiptSpikePlan() {
   baselineCommit: manifest.baselineCommit,
   paidCallsExecuted: 0,
   providerClientsInvoked: false,
+  integrity,
   matrix,
   totals: {
     openAiCalls: 270,
@@ -100,8 +115,9 @@ export function buildReceiptSpikePlan() {
     maximumAuthorizedSpendUsd: 12,
     estimateIsGuaranteedCeiling: false,
     enforcement: "stop_before_next_provider_call_if_recorded_spend_plus_reserved_call_max_would_exceed_cap",
-    callReservationsMicrousd,
-    reservationBasis: "Conservative per-call ceilings derived from fixed output-token limits, bounded synthetic inputs, and provider list prices. Exceeding a reservation blocks the series for manual audit.",
+    reservationPolicy: "request_specific_utf8_and_image_token_upper_bound_v2",
+    reservationBasis: "Each OpenAI reservation is computed from exact serialized request bytes, a separate image-patch ceiling, protocol allowance, fixed max output, long-context pricing, and cache-write premium. Google OCR reserves $0.01 for a pinned single-image input.",
+    seriesLock: "exclusive_for_full_execution",
   },
   pricingBasis: {
     checked: "2026-09-26",
@@ -117,7 +133,7 @@ export function buildReceiptSpikePlan() {
       selectedForR2: "enterprise_ocr",
       note: "R2 is a text/line-geometry OCR baseline, not Layout Parser. The list-price estimate ignores free-tier allowance.",
     },
-    method: "UTF-8 bytes/4 token proxy, documented image patch formula, and 1.5x safety multiplier; actual usage and returned model IDs replace estimates after approval.",
+    method: "Planning estimate uses UTF-8 bytes/4 and a 1.5x multiplier. Runtime reservations use conservative request-specific upper bounds. Returned usage produces both a nominal list-price estimate and a conservative budget charge; cap enforcement uses the latter.",
   },
   latencyGate: { p50Seconds: 45, p95Seconds: 120, measured: false },
   storagePlan: {
@@ -128,6 +144,6 @@ export function buildReceiptSpikePlan() {
   },
   gate: { paidExecutionRequiresSeparateOwnerApproval: true, approvalRecorded: false, hardBudgetEnforcementRequired: true },
   };
-  const planSha256 = createHash("sha256").update(canonicalJson(report)).digest("hex");
+  const planSha256 = fingerprintReceiptSpikePlan(report);
   return { ...report, planSha256 };
 }
