@@ -47,14 +47,14 @@ R1 output is persisted and reused for the C2 comparison. No image classifier or 
 
 ## Metrics and gates
 
-Reader scoring separates literal content from positioning. Text and numeric precision/recall use multisets independent of positional IDs; row/column binding and geometry are scored separately. Classifier scoring uses role, named-slot, monetary-role, and segmentation sets. End-to-end scoring runs the deterministic core and records decision stability, false rejects, and silent critical errors.
+Reader scoring separates literal content from positioning. Cell-preserving readers use literal-cell multisets, while OCR/text-layer readers use document-token multisets so that a correct merged line is not penalized for crossing gold cell boundaries. Numeric precision/recall always use numeric-token multisets independent of positional IDs. Classifier scoring uses role, named-slot, monetary-role, and segmentation sets. End-to-end scoring runs the deterministic core and records decision stability, false rejects, and silent critical errors.
 
-R2 deliberately consumes the documented Enterprise OCR `pages[].lines[]` plus line geometry and does not read `pages[].tables[]`. Enterprise OCR is therefore compared on text, numeric tokens, and line geometry only. Its table/column metric is `not_applicable_reader_has_no_table_contract` and cannot satisfy the 98% structural gate. [Google Layout Parser](https://docs.cloud.google.com/document-ai/docs/layout-parse-chunk) is a different, more expensive product with a `DocumentLayout` response; it is not selected or mocked in this spike because its real response has not been validated against the adapter. The R2 response contract follows the documented [Enterprise Document OCR hierarchy](https://docs.cloud.google.com/document-ai/docs/enterprise-document-ocr).
+R2 deliberately consumes the documented Enterprise OCR `pages[].lines[]` plus line geometry and does not read `pages[].tables[]`. Its text score is calculated at document-token level and its numeric score at numeric-token level. OCR line geometry is retained in `VisualDocumentInput` for downstream experiments, but it is not compared with cell-level gold geometry: structure, geometry, and blank-cell metrics are marked not applicable. [Google Layout Parser](https://docs.cloud.google.com/document-ai/docs/layout-parse-chunk) is a different, more expensive product with a `DocumentLayout` response; it is not selected or mocked in this spike because its real response has not been validated against the adapter. The R2 response contract follows the documented [Enterprise Document OCR hierarchy](https://docs.cloud.google.com/document-ai/docs/enterprise-document-ocr).
 
 Go thresholds:
 
 - zero silent critical errors in a `confirmed_draft`;
-- zero values filled into cells marked `blank` or `illegible`;
+- zero values filled into cells marked `blank` or `illegible` for readers that preserve the gold cell contract; this metric is not applicable to line-only R2;
 - numeric recall at least 99% for clean images and 97% after Telegram transformation;
 - row/column binding accuracy at least 98% for readers whose provider contract exposes table structure; R2 Enterprise OCR is explicitly not applicable;
 - monetary-role accuracy at least 97% on oracle literal and 95% end to end;
@@ -93,6 +93,6 @@ No provider client is invoked by the dry run. Paid execution, credentials, and c
 
 - No paid provider result exists yet, so quality, stability, latency, and actual cost are not measured.
 - R2 credentials and processor access are intentionally not configured by this PR.
-- R2 cannot establish table/column quality. A future Layout Parser comparison requires a separate adapter validated against an actual `DocumentLayout` response and a revised estimate.
+- R2 cannot establish cell geometry, blank-cell behavior, or table/column quality from the current line-only contract and oracle. A future Layout Parser comparison requires a separate adapter validated against an actual `DocumentLayout` response and a revised estimate.
 - The digital PDF adapter extracts the text layer and approximate row geometry; it does not attempt table semantics.
 - This code is evaluator-only and is not imported by Telegram, receipt runtime routes, or Production configuration.

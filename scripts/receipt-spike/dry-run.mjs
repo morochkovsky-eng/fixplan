@@ -79,10 +79,15 @@ if (googleMock.pages[0].blocks[0].rows.map((row) => row.cells[0].text).join("|")
 const googleMetricContract = spike.evaluateReader(
   readJson(path.join(root, manifest.files[0].evaluator.literal_source.path)),
   googleMock,
-  { structureAvailable: false },
+  spike.readerEvaluationProfile("R2-google-enterprise-ocr"),
 );
-if (googleMetricContract.rowColumnAccuracy !== null || googleMetricContract.structureMetricStatus !== "not_applicable_reader_has_no_table_contract") {
-  throw new Error("google_ocr_structure_metric_must_be_not_applicable");
+if (
+  googleMetricContract.textMetricGranularity !== "document_token" || googleMetricContract.rowColumnAccuracy !== null ||
+  googleMetricContract.geometryAccuracy !== null || googleMetricContract.blankCellsFilled !== null ||
+  googleMetricContract.structureMetricStatus !== "not_applicable_reader_has_no_table_contract" ||
+  googleMetricContract.geometryMetricStatus !== "not_applicable_reader_has_no_cell_geometry_contract"
+) {
+  throw new Error("google_ocr_cell_metrics_must_be_not_applicable");
 }
 
 spike.assertNoEvaluatorLeak(manifest.files.flatMap((file) => [file.inputs.png_clean.path, file.inputs.photo_telegram.path, file.inputs.pdf_digital.path]));
@@ -119,7 +124,7 @@ const report = {
     classifierMockSilentCriticalErrors: classifierChecks.reduce((sum, check) => sum + check.silentCriticalErrors, 0),
     classifierMockFalseRejects: classifierChecks.reduce((sum, check) => sum + check.falseRejects, 0),
     pdfTextLayer: pdfChecks,
-    googleEnterpriseOcrAdapterMock: "pass_lines_without_table_contract",
+    googleEnterpriseOcrAdapterMock: "pass_document_tokens_without_cell_structure_or_geometry",
     illegibleMetric: "not_tested_no_illegible_cells",
   },
   matrix: costPlan.matrix,

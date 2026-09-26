@@ -28,6 +28,12 @@ function textKey(cell: LiteralCell) {
   return `${cell.state}\u0000${cell.text.normalize("NFKC").trim().replace(/\s+/gu, " ")}`;
 }
 
+function documentTextTokens(document: LiteralDocument) {
+  return flattenCells(document).flatMap((cell) =>
+    cell.text.normalize("NFKC").toLocaleLowerCase("ru-RU").match(/\p{L}+|\p{N}+(?:[.,]\p{N}+)*|[^\p{L}\p{N}\s]/gu) ?? []
+  );
+}
+
 function tokenKeys(document: LiteralDocument) {
   return flattenCells(document).flatMap((cell) => cell.numericTokens.map((token) => `${token.raw}\u0000${token.printedSign}`));
 }
@@ -62,16 +68,23 @@ function iou(left: LiteralCell["bbox"], right: LiteralCell["bbox"]) {
 export function evaluateReader(
   expectedInput: VisualDocumentInput,
   actualInput: VisualDocumentInput,
-  options: { geometryAvailable?: boolean; structureAvailable?: boolean } = {},
+  options: {
+    geometryAvailable?: boolean;
+    structureAvailable?: boolean;
+    cellStateMetricsAvailable?: boolean;
+    textGranularity?: "cell" | "document_token";
+  } = {},
 ): ReaderMetrics {
   const geometryAvailable = options.geometryAvailable ?? true;
   const structureAvailable = options.structureAvailable ?? true;
+  const cellStateMetricsAvailable = options.cellStateMetricsAvailable ?? true;
+  const textGranularity = options.textGranularity ?? "cell";
   const expected = indexLiteralDocument(expectedInput).document;
   const actual = indexLiteralDocument(actualInput).document;
   const expectedCells = flattenCells(expected);
   const actualCells = flattenCells(actual);
-  const expectedText = multiset(expectedCells.map(textKey));
-  const actualText = multiset(actualCells.map(textKey));
+  const expectedText = multiset(textGranularity === "cell" ? expectedCells.map(textKey) : documentTextTokens(expected));
+  const actualText = multiset(textGranularity === "cell" ? actualCells.map(textKey) : documentTextTokens(actual));
   const textMatches = intersectionSize(expectedText, actualText);
   const expectedTokens = multiset(tokenKeys(expected));
   const actualTokens = multiset(tokenKeys(actual));
@@ -89,14 +102,40 @@ export function evaluateReader(
   return {
     textPrecision: ratio(textMatches, multisetSize(actualText)),
     textRecall: ratio(textMatches, multisetSize(expectedText)),
+    textMetricGranularity: textGranularity,
     numericPrecision: ratio(tokenMatches, multisetSize(actualTokens)),
     numericRecall: ratio(tokenMatches, multisetSize(expectedTokens)),
     rowColumnAccuracy: structureAvailable ? ratio(positionalMatches, expectedCells.length) : null,
     structureMetricStatus: structureAvailable ? "measured" : "not_applicable_reader_has_no_table_contract",
     geometryAccuracy: geometryAvailable ? ratio(geometry.reduce((sum, value) => sum + value, 0), expectedCells.length) : null,
-    blankCellsFilled: expectedCells.filter((cell) => cell.state === "blank" && Boolean(actualById.get(cell.id)?.text.trim())).length,
-    illegibleCellsFilled: illegible.length ? illegible.filter((cell) => Boolean(actualById.get(cell.id)?.text.trim())).length : null,
-    illegibleMetricStatus: illegible.length ? "measured" : "not_tested_no_illegible_cells",
+    geometryMetricStatus: geometryAvailable ? "measured" : "not_applicable_reader_has_no_cell_geometry_contract",
+    blankCellsFilled: cellStateMetricsAvailable
+      ? expectedCells.filter((cell) => cell.state === "blank" && Boolean(actualById.get(cell.id)?.text.trim())).length
+      : null,
+    blankMetricStatus: cellStateMetricsAvailable ? "measured" : "not_applicable_reader_has_no_cell_contract",
+    illegibleCellsFilled: cellStateMetricsAvailable && illegible.length
+      ? illegible.filter((cell) => Boolean(actualById.get(cell.id)?.text.trim())).length
+      : null,
+    illegibleMetricStatus: !cellStateMetricsAvailable
+      ? "not_applicable_reader_has_no_cell_contract"
+      : illegible.length ? "measured" : "not_tested_no_illegible_cells",
+  };
+}
+
+export function readerEvaluationProfile(readerId: ReaderId) {
+  if (readerId === "R2-google-enterprise-ocr" || readerId === "R3-pdf-text-layer") {
+    return {
+      geometryAvailable: false,
+      structureAvailable: false,
+      cellStateMetricsAvailable: false,
+      textGranularity: "document_token" as const,
+    };
+  }
+  return {
+    geometryAvailable: true,
+    structureAvailable: true,
+    cellStateMetricsAvailable: true,
+    textGranularity: "cell" as const,
   };
 }
 
@@ -166,8 +205,6 @@ export function evaluateEndToEnd(options: {
   classifierId: ClassifierId;
   readerInput: VisualDocumentInput;
   readerOracle?: VisualDocumentInput;
-  geometryAvailable?: boolean;
-  structureAvailable?: boolean;
   classifierOutput: unknown;
   semanticOracle: SemanticOracle;
 }): SpikeEvaluation {
@@ -189,10 +226,9 @@ export function evaluateEndToEnd(options: {
     runNumber: options.runNumber,
     readerId: options.readerId,
     classifierId: options.classifierId,
-    readerMetrics: options.readerOracle ? evaluateReader(options.readerOracle, options.readerInput, {
-      geometryAvailable: options.geometryAvailable,
-      structureAvailable: options.structureAvailable,
-    }) : null,
+    readerMetrics: options.readerOracle
+      ? evaluateReader(options.readerOracle, options.readerInput, readerEvaluationProfile(options.readerId))
+      : null,
     classifierMetrics: evaluateClassifier(options.semanticOracle.roleClassification, classification),
     expectedDocumentIds: options.semanticOracle.documents.map((entry) => entry.docId).sort(),
     producedDocumentIds: bundle.documents.map((entry) => entry.docId).sort(),

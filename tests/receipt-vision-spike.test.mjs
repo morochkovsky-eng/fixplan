@@ -66,6 +66,34 @@ test("reader text and numeric completeness do not depend on positional IDs", () 
   assert.ok(metrics.rowColumnAccuracy < 1);
 });
 
+test("R2 document-token scoring is invariant to OCR merging multiple gold cells into one line", () => {
+  const box = { x: 0, y: 0, width: 1, height: 1 };
+  const expected = {
+    readable: true,
+    pages: [{ width: 100, height: 100, blocks: [{ layout: "table", bbox: box, rows: [{ cells: [
+      { text: "Начислено", state: "ok", bbox: { x: 0, y: 0, width: 0.5, height: 1 } },
+      { text: "1 234,56", state: "ok", bbox: { x: 0.5, y: 0, width: 0.5, height: 1 } },
+    ] }] }] }],
+  };
+  const merged = {
+    readable: true,
+    pages: [{ width: 100, height: 100, blocks: [{ layout: "text", bbox: box, rows: [{ cells: [
+      { text: "Начислено 1 234,56", state: "ok", bbox: box },
+    ] }] }] }],
+  };
+  const cellMetrics = evaluator.evaluateReader(expected, merged);
+  const r2Metrics = evaluator.evaluateReader(expected, merged, evaluator.readerEvaluationProfile("R2-google-enterprise-ocr"));
+  assert.ok(cellMetrics.textRecall < 1);
+  assert.equal(r2Metrics.textPrecision, 1);
+  assert.equal(r2Metrics.textRecall, 1);
+  assert.equal(r2Metrics.numericPrecision, 1);
+  assert.equal(r2Metrics.numericRecall, 1);
+  assert.equal(r2Metrics.textMetricGranularity, "document_token");
+  assert.equal(r2Metrics.rowColumnAccuracy, null);
+  assert.equal(r2Metrics.geometryAccuracy, null);
+  assert.equal(r2Metrics.blankCellsFilled, null);
+});
+
 test("blank filling is measured while illegible filling remains explicitly untested", () => {
   const expected = { readable: true, pages: [{ width: 100, height: 100, blocks: [{ layout: "table", bbox: { x: 0, y: 0, width: 1, height: 1 }, rows: [{ cells: [{ text: "", state: "blank", bbox: { x: 0, y: 0, width: 1, height: 1 } }] }] }] }] };
   const actual = structuredClone(expected);
@@ -92,9 +120,17 @@ test("Google Enterprise OCR adapter consumes documented line geometry without as
   assert.equal(adapted.pages[0].blocks.length, 1);
   assert.equal(adapted.pages[0].blocks[0].layout, "text");
   assert.deepEqual(adapted.pages[0].blocks[0].rows.map((row) => row.cells[0].text), ["Период", "09.2026"]);
-  const metrics = evaluator.evaluateReader(readJson(manifest.files[0].evaluator.literal_source.path), adapted, { structureAvailable: false });
+  const metrics = evaluator.evaluateReader(
+    readJson(manifest.files[0].evaluator.literal_source.path),
+    adapted,
+    evaluator.readerEvaluationProfile("R2-google-enterprise-ocr"),
+  );
+  assert.equal(metrics.textMetricGranularity, "document_token");
   assert.equal(metrics.rowColumnAccuracy, null);
+  assert.equal(metrics.geometryAccuracy, null);
+  assert.equal(metrics.blankCellsFilled, null);
   assert.equal(metrics.structureMetricStatus, "not_applicable_reader_has_no_table_contract");
+  assert.equal(metrics.geometryMetricStatus, "not_applicable_reader_has_no_cell_geometry_contract");
 });
 
 test("digital PDF adapter returns literal text without semantic fields", async () => {

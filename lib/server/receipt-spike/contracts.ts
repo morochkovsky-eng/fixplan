@@ -51,14 +51,17 @@ export type ClassifierArtifact = {
 export type ReaderMetrics = {
   textPrecision: number;
   textRecall: number;
+  textMetricGranularity: "cell" | "document_token";
   numericPrecision: number;
   numericRecall: number;
   rowColumnAccuracy: number | null;
   structureMetricStatus: "measured" | "not_applicable_reader_has_no_table_contract";
   geometryAccuracy: number | null;
-  blankCellsFilled: number;
+  geometryMetricStatus: "measured" | "not_applicable_reader_has_no_cell_geometry_contract";
+  blankCellsFilled: number | null;
+  blankMetricStatus: "measured" | "not_applicable_reader_has_no_cell_contract";
   illegibleCellsFilled: number | null;
-  illegibleMetricStatus: "measured" | "not_tested_no_illegible_cells";
+  illegibleMetricStatus: "measured" | "not_tested_no_illegible_cells" | "not_applicable_reader_has_no_cell_contract";
 };
 
 export type ClassifierMetrics = {
