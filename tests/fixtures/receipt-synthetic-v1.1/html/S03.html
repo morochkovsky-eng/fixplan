@@ -1,0 +1,31 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Квитанция S03</title><style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; }
+html,body { margin:0; background:#fff; color:#000; }
+.sheet { width: 210mm; padding: 9mm 10mm; margin: 0 auto; background:#fff; }
+@media print { .sheet { min-height: 297mm; } }
+table { border-collapse: collapse; width: 100%; }
+.qr svg { display:block; }
+.num { text-align:right; white-space:nowrap; }
+td:has(> .num) { text-align:right; }
+body{font-family:"DejaVu Sans Condensed","Arial Narrow",Arial,sans-serif;font-size:10.5px}
+.band{background:#1f3b63;color:#fff;padding:6px 8px;font-weight:bold;font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 0;border-bottom:1px solid #1f3b63}
+.h{margin:10px 0 3px;font-weight:bold;color:#1f3b63}
+.t th,.t td{border:1px solid #9aa9bd;padding:3px 5px}.t th{background:#e9eef5}
+.fin{width:60%;margin-top:10px}.it td{font-weight:bold;font-size:13px;background:#e9eef5}.ft{font-size:9px;color:#333}
+</style></head><body><div class="sheet">
+<div class="band" data-b="text" data-k="prov">АО «ЭНЕРГОСБЫТ УСЛОВНЫЙ» · СЧЁТ ЗА ЭЛЕКТРОЭНЕРГИЮ</div>
+<div class="grid"><div data-b="text"><span data-r>Абонент: Образцов А. Н.</span><br><span data-r data-k="addr">Адрес: г. Условный, ул. Тестовая, д. 17, кв. 42</span><br><span data-r data-k="acct">Лицевой счёт: 77 004 912 03</span></div>
+<div data-b="text"><span data-r data-k="period">Период: <b>01.09.2026 – 30.09.2026</b></span><br><span data-r data-k="issue">Дата счёта: 02.10.2026</span><br><span data-r data-k="duedate">Срок оплаты: до 15.10.2026</span></div></div>
+<div class="h" data-b="text">Показания прибора учёта</div>
+<table class="t" data-b="table"><thead><tr><th>Прибор учёта №</th><th>Тариф</th><th>Показания пред. (31.08.2026)</th><th>Показания тек. (30.09.2026)</th><th>Расход, кВт·ч</th></tr></thead><tbody><tr data-k="m1"><td>0 1147 2290</td><td>однотарифный</td><td><span class="num">18342</span></td><td><span class="num">18619</span></td><td><span class="num">277</span></td></tr></tbody></table>
+<div class="h" data-b="text">Расчёт</div>
+<table class="t" data-b="table"><thead><tr><th>Услуга</th><th>Расход</th><th>Тариф, руб./кВт·ч</th><th>Сумма, руб.</th></tr></thead><tbody><tr data-k="svc1"><td>Электроэнергия</td><td><span class="num">277</span></td><td><span class="num">6,24</span></td><td><span class="num">1 728,48</span></td></tr></tbody></table>
+<table class="t fin" data-b="kv"><tr data-k="ob"><td>Сальдо на начало периода (+ долг / − аванс)</td><td class="num">−3 200,00</td></tr>
+<tr data-k="acc"><td>Начислено за период</td><td class="num">1 728,48</td></tr>
+<tr data-k="pay"><td>Поступило оплат</td><td class="num">0,00</td></tr>
+<tr class="it" data-k="due"><td>Итого к оплате (+ долг / − аванс)</td><td class="num">−1 471,52</td></tr></table>
+<p class="ft" data-b="text">Отрицательная сумма означает переплату, которая будет зачтена в следующих периодах.</p></div></body></html>

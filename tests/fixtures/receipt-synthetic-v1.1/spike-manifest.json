@@ -1,0 +1,683 @@
+{
+  "schemaVersion": "receipt-spike-manifest-v1",
+  "baselineCommit": "1bc6309a4312631e5ba99084c65fddd86f4e2266",
+  "sourcePackage": {
+    "name": "homory-synthetic-v1.1-rev2.zip",
+    "sha256": "2a1e28f08e477671a0e85c7e9dd0a1ca24b4712d255d8ccef6a09fd324b2e127"
+  },
+  "decisionSource": "oracle/semantic",
+  "legacyGoldUsed": false,
+  "documentCount": 11,
+  "inputFileCount": 20,
+  "pdfToolchain": {
+    "playwright": "1.56.0",
+    "chromium": "141.0.7390.37",
+    "pdfLib": "1.17.1"
+  },
+  "adapters": {
+    "version": "visual-adapters-v1",
+    "source": {
+      "path": "lib/server/receipt-spike/adapters.ts",
+      "sha256": "f711b70c19a224f7c0691be4d540bfc6e9384c7e3ca4237f6c19fd1b8e6520c8"
+    }
+  },
+  "prompts": {
+    "reader": {
+      "path": "prompts/receipt-spike/reader-v1.md",
+      "sha256": "070f398545bbec2eaaff44e02ddadb234ee28ac416822d0be49783e425681389"
+    },
+    "classifier": {
+      "path": "prompts/receipt-spike/classifier-v1.md",
+      "sha256": "6da0d144ec8a371fe4a1609b90a53b15a8d45a99968377649a716e85834064b2"
+    }
+  },
+  "models": {
+    "R1": {
+      "provider": "openai",
+      "requestedModelId": "gpt-6-sol",
+      "imageDetail": "original"
+    },
+    "R2": {
+      "provider": "google-document-ai",
+      "processorType": "OCR_PROCESSOR",
+      "requestedVersion": "pretrained-ocr-v2.1-2024-08-07"
+    },
+    "R3": {
+      "provider": "local",
+      "adapter": "pdfjs-dist@6.3.289"
+    },
+    "C1": {
+      "provider": "openai",
+      "requestedModelId": "gpt-6-sol",
+      "reasoningEffort": "low"
+    },
+    "C2": {
+      "provider": "openai",
+      "requestedModelId": "gpt-6-luna",
+      "reasoningEffort": "medium"
+    }
+  },
+  "files": [
+    {
+      "fileId": "S01",
+      "documentIds": [
+        "S01-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S01.png",
+          "sha256": "f96f9022ff53515dadc097b69e50a82b5d98a969f9e523279138333b574967cf",
+          "bytes": 214789,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 1294
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S01.jpg",
+          "sha256": "d858529d778c17636f8bac553fb0f95565f855799665e1fbc94cc472730f2cfc",
+          "bytes": 143499,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 1064
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S01.pdf",
+          "sha256": "f02faeecc69f23d379365893ee772cbda5bf696242ca59d56c6c49ab44a6e0ae",
+          "bytes": 174410,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S01.html",
+          "sha256": "b39a347e1b0d3e1d9bcc63e3a10291285d6c2b7b9ce252458a40d75923d48768",
+          "bytes": 13997,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S01.json",
+          "sha256": "dab703c8458e613858744a60310bc1e27cedff42a3d9f55656222d438220913f",
+          "bytes": 27532,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S01.json",
+          "sha256": "15ddc721874770cc7ed93ccd749c704dc48448d60ad20baba366c8c3246e6d35",
+          "bytes": 27557,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S01.json",
+          "sha256": "f3e6272f102ea52c01dbd1da2824378c7a335f1b99ea78b93c2fd04bc0a279ef",
+          "bytes": 28972,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S01.json",
+          "sha256": "5e9c782f9b2a867115035e9fb8039f63e56be0a264d385c052f369c343c7204d",
+          "bytes": 15274,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S02",
+      "documentIds": [
+        "S02-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S02.png",
+          "sha256": "d2c8c654d1b0b3930e429e63741ab512ba82eb49880daab9c5134a8872900a4e",
+          "bytes": 116075,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 854
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S02.jpg",
+          "sha256": "6333a47810f91339047713709fac96d197efd0e0d2dde39ee4a3f9f85ac5976e",
+          "bytes": 114461,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 742
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S02.pdf",
+          "sha256": "bb2b5e53bc9d693fac3d63a7840a38608172010ac7c15e849d26be770254577c",
+          "bytes": 142175,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S02.html",
+          "sha256": "06f3009e19f0ed18893fd0c88cbbc367b78c6740ddfefaa2b5ad58612852ea47",
+          "bytes": 4177,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S02.json",
+          "sha256": "ed1c5ac5414f01e4743f18820a6b50f80e9e9c3feb6d41963ce01ea4d2ad6f53",
+          "bytes": 13623,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S02.json",
+          "sha256": "f56ff4db41f8d8902d0635cb0728667e6362413a0ff52a960c7356954592aa1a",
+          "bytes": 13625,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S02.json",
+          "sha256": "40c36ba72e3d2cb7557cacdfe7272c3537dd5464c4eef8d5e6bdef35db936743",
+          "bytes": 13951,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S02.json",
+          "sha256": "18226dec1e1ca8db91377ef1e2f0ab2ba6e5ce185d5bc1422136a21ce61a4ca1",
+          "bytes": 8910,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S03",
+      "documentIds": [
+        "S03-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S03.png",
+          "sha256": "95bc0cad95bdbfa5652cb2366ab121dd9c0ea02894e1c50c660e9979f58503d3",
+          "bytes": 114466,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 788
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S03.jpg",
+          "sha256": "a2a1a146bc27a4c7003630552fc740115580194a4518bc555b75aa09e8a7c8be",
+          "bytes": 77479,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 694
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S03.pdf",
+          "sha256": "5645a307bff9007f817f6bf75e9030459934fb282deee964343a6ed824bdb93b",
+          "bytes": 52931,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S03.html",
+          "sha256": "560c9242b81eecbb096f8c72f60203f077aaf5f0f3243a27403f148c2062dabf",
+          "bytes": 3494,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S03.json",
+          "sha256": "a525bf5a216a3188649ab5448815e357fc793f58cac5e559aa76921dbbee3a2d",
+          "bytes": 11096,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S03.json",
+          "sha256": "9cec741c577affb466aa50eb5255520e173bbb51b01ce4dd19fd6a38d708f9dd",
+          "bytes": 11090,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S03.json",
+          "sha256": "2f8b72b612714b65934641337b81f270b239300b995c2ec45964dde3c341b636",
+          "bytes": 10453,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S03.json",
+          "sha256": "52904f1aa7de11d5bd74f6723a0119c2149669a9c68599e2dde27281f686c316",
+          "bytes": 7206,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S04",
+      "documentIds": [
+        "S04-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S04.png",
+          "sha256": "5eaf373c248a8566db3d3c003cce2d22d56d40068184882215b4b749e3aa18ee",
+          "bytes": 167328,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 1140
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S04.jpg",
+          "sha256": "40f516f376edb2616c6682fb8a3f68cbc2dc2c3f0b1a6afcbe844feb953c25f9",
+          "bytes": 158136,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 952
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S04.pdf",
+          "sha256": "f248aef96a9f8c28dd2519458fe4411e1bae60793783c41bf348559f4d140a29",
+          "bytes": 167671,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S04.html",
+          "sha256": "b2e3afd9b076475c45b1cf221206aa1d0527812a9f59ac168f1fa890712235af",
+          "bytes": 13923,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S04.json",
+          "sha256": "2a6ca7bb0b4a791715efd2479bd125c7edac6e6c939e02153b4af9e26785877c",
+          "bytes": 30779,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S04.json",
+          "sha256": "b1fc18415c530d9b908abc25a611c786183c44f9f5a7ec2255e1887deb83e48f",
+          "bytes": 30759,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S04.json",
+          "sha256": "0ae72b7179de2f8d15f06645b6c2b4dd3759df1c4e5d56e093a79debc1cc05ef",
+          "bytes": 32722,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S04.json",
+          "sha256": "872466eb918dfdd9572379c1662554cdd2692e9da0cf4ea48904f18f68521a15",
+          "bytes": 16582,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S05",
+      "documentIds": [
+        "S05-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S05.png",
+          "sha256": "1e14e3df5ea0f8a11e4be54385946fb43781ca8b95e3962a53ab504e64446799",
+          "bytes": 163037,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 910
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S05.jpg",
+          "sha256": "297b77f26c1d85e585f115f18f3dad82d8be9d9c4f3695bcfe42e21f23382979",
+          "bytes": 120329,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 783
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S05.pdf",
+          "sha256": "0e13586a732bccc937dcfa679d9a55fae5e1c782629f16c2e93d0f1bf86badb6",
+          "bytes": 129076,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S05.html",
+          "sha256": "eb84b06080351708967d2f21c7ac92e6b2f5753f1e62844d0882f32cd31cdd21",
+          "bytes": 5042,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S05.json",
+          "sha256": "14b9eac7aeecb38e97b35e54c3602bab3d38248f502e1fb1736b81d6abc801d2",
+          "bytes": 18829,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S05.json",
+          "sha256": "9c9f1215220d09ed8b630b121fc99bef7428717f4b30b61e36bcc1aaabe54e9d",
+          "bytes": 18827,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S05.json",
+          "sha256": "05a555b9234aa6350b9631b4d8f8ab8525b9f545b831871740b42754cadfc8e3",
+          "bytes": 18209,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S05.json",
+          "sha256": "d7d399694b7d6f51ae7499a8b4dbca567a00ee0500334f276adc90cf68127090",
+          "bytes": 10704,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S06",
+      "documentIds": [
+        "S06-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S06.png",
+          "sha256": "f7ca55deb11e81d55257d6d7541b92620ac60be537b1557c615846540eafb559",
+          "bytes": 119558,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 660
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S06.jpg",
+          "sha256": "2940a079e0d80a168ee606950e8382aac2d6276ae6cfea7d2c964f7e5e7fa8b7",
+          "bytes": 80999,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 600
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S06.pdf",
+          "sha256": "b660853dcbf684d4f5e8ba24a934ddd119e137894e12764327eb17c947cbc52d",
+          "bytes": 130008,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S06.html",
+          "sha256": "8d5f922525866ef37999143fde61310eb51f2b88a09ebea453290fa519d4ebee",
+          "bytes": 3913,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S06.json",
+          "sha256": "2ae01b67e87661362f8b428a8a12c9bd366a8f0ead83d64fd28751349c6aa120",
+          "bytes": 16424,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S06.json",
+          "sha256": "dc572d97b111ac0f5ccd058e214207c152ea0020d6dd30d980ea55ba1f7ee45a",
+          "bytes": 16404,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S06.json",
+          "sha256": "1eac6669cd2b1e8f5d278cb6b20ad4591dfbc7cee7b26b7085dd55ba765108f1",
+          "bytes": 17444,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S06.json",
+          "sha256": "f4ea26d3a2818fc789b920fb6582c14c30313a0da341641d2a0f81ce4ad49c37",
+          "bytes": 8154,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S07",
+      "documentIds": [
+        "S07-D1",
+        "S07-D2"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S07.png",
+          "sha256": "91fa4aae1319a358d482d77ee5c1b7098194194dcd012b5b56388996a54d329a",
+          "bytes": 147998,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 1668
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S07.jpg",
+          "sha256": "2c88f7c16fac9ed244f01e66c43e3bd5115a84ca7cc2e05da4c8fdb2d325e57f",
+          "bytes": 129596,
+          "visibility": "reader_only",
+          "width": 1224,
+          "height": 1280
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S07.pdf",
+          "sha256": "6e0b8af69cd2bc86f940cca89812ba180611483e97523139b1b0fba155171fb4",
+          "bytes": 123155,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S07.html",
+          "sha256": "1d1869619a0932aa57064cdcb9063bb058625abbd2b8e1706e8da9116bc39d88",
+          "bytes": 19759,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S07.json",
+          "sha256": "5a5c79eef5c7eecee4dc83e48db8645baa7e94983dde86d75c2f9533d1a06e97",
+          "bytes": 11131,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S07.json",
+          "sha256": "8f5053d0648b9ed9ef05f7dc1d593caa8d9729899ea8898ad2dfec412f813dab",
+          "bytes": 11109,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S07.json",
+          "sha256": "bccb2a825da9eb4c18a6e187d260823a6cdfffccccc53d4d78a6636cfb9be6ce",
+          "bytes": 8460,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S07.json",
+          "sha256": "91b72a441140f9c1ea747a645a6d096c813fdadbec8c8059d9f9fa27694bed3f",
+          "bytes": 10331,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S08",
+      "documentIds": [
+        "S08-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S08.png",
+          "sha256": "2bd2dba31ca4cfea5ef2a54473ff5cc09fe51db72c27a1a264868c4994f10353",
+          "bytes": 138027,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 1014
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S08.jpg",
+          "sha256": "bc88c26032c403d01abe1fc6dd648034016720abec1d754f1449ee27a4936870",
+          "bytes": 103949,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 859
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S08.pdf",
+          "sha256": "bd670777d5c02049871bdffe9f5bc002486f10c635c3b3c4e611cf7bca48bdc8",
+          "bytes": 84528,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S08.html",
+          "sha256": "4f503de66835dab884270ddbd3afb196325f422875f81b4301c2905cd424e0ca",
+          "bytes": 10545,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S08.json",
+          "sha256": "bdc2c2044a45fff622d64ebea0a3ba961e8e1fc23ef09b34162b262d368bb3b7",
+          "bytes": 13732,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S08.json",
+          "sha256": "fe199e38f4db947c8cfe3a25d54581fe7e35f94e6f47148b69efd61ba20d0556",
+          "bytes": 13719,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S08.json",
+          "sha256": "ef7ea4c2261edef26dba05fad97f7fec8c6c4b86a2dc0133e678e67b2413cab6",
+          "bytes": 13465,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S08.json",
+          "sha256": "c6197f10888c4ac47edd20e3cf7f8b5bc365f3aadbf6414fb003e70cff50599c",
+          "bytes": 8727,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S09",
+      "documentIds": [
+        "S09-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S09.png",
+          "sha256": "ef831b127b74d4105b83988d45f10de5103d0950cd55c6f08e87813979e102cf",
+          "bytes": 194918,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 1156
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S09.jpg",
+          "sha256": "b9f28ea287657928ed167fbfdf92e5e5b43af12306814ece93a403cc46e1c7c5",
+          "bytes": 150276,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 963
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S09.pdf",
+          "sha256": "cc173991624bb842636439c9311587b5f3773df50d5ecf8267fa64fa4bd2694b",
+          "bytes": 173388,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S09.html",
+          "sha256": "b3dde6a06bb7dfd338fc21f993bd65721a952ba1a9d8394f54649be2fa72f735",
+          "bytes": 9151,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S09.json",
+          "sha256": "5066c32c6398a61158f0ceec9a079e828cfdcca21c3b1d2fd7f1ff140e4a2e3c",
+          "bytes": 40474,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S09.json",
+          "sha256": "c7c359d560b334eed760b62e9eefd13768c290a1bbb7b581a39b67be9377593f",
+          "bytes": 40451,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S09.json",
+          "sha256": "1a11fe57d1e7a756badcfb5381e373c75b249bfac08032218339c467bf01fd8a",
+          "bytes": 44845,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S09.json",
+          "sha256": "bea29d39eff2a11d46ff66ac4f93ce86c7c0d56fb1be0acfda338e4f378ea871",
+          "bytes": 22700,
+          "visibility": "evaluator_only"
+        }
+      }
+    },
+    {
+      "fileId": "S10",
+      "documentIds": [
+        "S10-D1"
+      ],
+      "inputs": {
+        "png_clean": {
+          "path": "png_clean/S10.png",
+          "sha256": "6c1260bc4192d6ee3a5555aa0f60a281d599fb4ce95892cd7959c9f8078c776b",
+          "bytes": 87061,
+          "visibility": "reader_only",
+          "width": 1588,
+          "height": 664
+        },
+        "photo_telegram": {
+          "path": "photo_telegram/S10.jpg",
+          "sha256": "f9bc37008445cb279edf50806dd7ca99be8a2d6d2e74ed715844c81db7e89f4a",
+          "bytes": 56325,
+          "visibility": "reader_only",
+          "width": 1280,
+          "height": 603
+        },
+        "pdf_digital": {
+          "path": "pdf_digital/S10.pdf",
+          "sha256": "64be196c2dcf248f97cd15826555cb7354826f405c5ebb3dd681c214b8214ffb",
+          "bytes": 81029,
+          "visibility": "r3_only"
+        },
+        "html_source": {
+          "path": "html/S10.html",
+          "sha256": "4de6e6f380c8fd174b3b586e9e3bd2d129b949040bcf4c6584173802194f4627",
+          "bytes": 2785,
+          "visibility": "generator_only"
+        }
+      },
+      "evaluator": {
+        "literal_source": {
+          "path": "oracle/literal_source/S10.json",
+          "sha256": "2d0902606d30218bc30bc038ee9326062b7548c01153ab1e089300d098cc2472",
+          "bytes": 8348,
+          "visibility": "evaluator_only"
+        },
+        "literal_photo": {
+          "path": "oracle/literal_photo/S10.json",
+          "sha256": "9407448d9b843fa803276f0f6622f6e81efdd921c170cd4527237b008405b4c1",
+          "bytes": 8337,
+          "visibility": "evaluator_only"
+        },
+        "geometry_photo": {
+          "path": "oracle/geometry_photo/S10.json",
+          "sha256": "b856a1f1cd83827d8c1d651303c8383e3f313ea8e26614428c60f14d3a2cc8df",
+          "bytes": 8682,
+          "visibility": "evaluator_only"
+        },
+        "semantic": {
+          "path": "oracle/semantic/S10.json",
+          "sha256": "e7dc662b46d6d38975f711425f93efb441b5d75f9e7f880a2b965db5cf93f41b",
+          "bytes": 6212,
+          "visibility": "evaluator_only"
+        }
+      }
+    }
+  ]
+}
