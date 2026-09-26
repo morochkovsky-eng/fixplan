@@ -9,14 +9,14 @@ export const ROW_ROLES = [
   "payment", "benefit", "recalculation", "penalty", "rounding",
   "closing_balance", "closing_debt", "closing_advance",
   "due_candidate", "payment_history", "meter_reading", "normative_reference",
-  "provider", "account", "address", "period", "issue_date", "due_date",
+  "provider", "account", "address", "period", "billing_period", "issue_date", "due_date",
 ] as const;
 export const SLOT_NAMES = [
   "name", "unit", "volume", "tariff", "charge", "recalculation", "benefit", "row_total",
   "meter_number", "meter_prev", "meter_curr", "consumption", "normative", "label", "ignore",
   "accrued_total", "opening_balance", "opening_debt", "opening_advance", "payment", "penalty",
   "rounding", "closing_balance", "closing_debt", "closing_advance",
-  "due_candidate", "payment_history", "provider", "account", "address", "period",
+  "due_candidate", "payment_history", "provider", "account", "address", "period", "billing_period",
   "issue_date", "due_date", "optional_charge",
 ] as const;
 export const TABLE_COLUMN_SEMANTICS = SLOT_NAMES;
@@ -59,6 +59,7 @@ export type NumericToken = {
   coefficient: bigint;
   scale: number;
   printedSign: "none" | "plus" | "minus";
+  interpretation: "exact" | "ambiguous_separator";
 };
 
 export type LiteralCell = Omit<VisualCellInput, "state" | "colSpan" | "rowSpan"> & {
@@ -108,7 +109,13 @@ export type TableColumnsRoleItem = RoleItemBase & {
 };
 export type RoleItem = LabelValueRoleItem | TableColumnsRoleItem;
 export type RowClassification = { rowId: string; items: RoleItem[] };
-export type RoleClassification = { documentKind: DocumentKind; tableSchemas: TableSchema[]; rows: RowClassification[] };
+export type ClassifiedDocument = { docId: string; documentKind: DocumentKind; rowIds: string[] };
+export type RoleClassification = {
+  documents: ClassifiedDocument[];
+  sharedRowIds: string[];
+  tableSchemas: TableSchema[];
+  rows: RowClassification[];
+};
 
 export type ValidatedSlot = { cellIds: string[]; tokenIds: string[] };
 export type ValidatedRoleItem = {
@@ -125,12 +132,27 @@ export type ValidatedRoleItem = {
   sourceCellIds: string[];
   sourceTokenIds: string[];
 };
-export type ValidatedClassification = {
+export type ValidatedDocumentClassification = {
+  docId: string;
   documentKind: DocumentKind;
+  rowIds: string[];
   items: ValidatedRoleItem[];
   rows: RowClassification[];
   diagnostics: CoreDiagnostic[];
   invalidRowIds: string[];
+  validity: ClassificationValidity;
+};
+export type ValidatedClassification = {
+  documents: ValidatedDocumentClassification[];
+  sharedRowIds: string[];
+  diagnostics: CoreDiagnostic[];
+  validity: ClassificationValidity;
+};
+
+export type ClassificationValidity = {
+  status: "valid" | "needs_review";
+  reasons: string[];
+  sourceIds: string[];
 };
 
 export type NormalizedField<T> = {
@@ -138,6 +160,12 @@ export type NormalizedField<T> = {
   value: T | null;
   sourceCellIds: string[];
   sourceTokenIds: string[];
+};
+
+export type BillingPeriodParseStatus = "parsed" | "missing" | "ambiguous" | "unsupported" | "illegible";
+export type BillingPeriodField = NormalizedField<string> & {
+  parseStatus: BillingPeriodParseStatus;
+  candidates: string[];
 };
 
 export type FinancialComponentRole = Extract<RowRole,
@@ -186,9 +214,11 @@ export type MeterEntry = {
 };
 
 export type CanonicalReceipt = {
+  docId: string;
+  classificationValidity: ClassificationValidity;
   documentKind: DocumentKind;
   readable: boolean;
-  period: NormalizedField<string>;
+  period: BillingPeriodField;
   accruedTotal: NormalizedField<bigint>;
   closingBalance: NormalizedField<bigint>;
   dueDate: NormalizedField<string>;
@@ -221,6 +251,16 @@ export type Reconciliation = {
   candidateSourceIds?: string[];
   target?: "due_candidate" | "closing_balance";
   formula?: AppliedFormula;
+  closureStrength?: ClosureStrength;
+};
+
+export type ClosureSignal = "e1_closed" | "independent_due_repeat" | "qr_match";
+export type ClosureStrength = {
+  componentCount: number;
+  componentSourceIds: string[];
+  signals: ClosureSignal[];
+  rating: "weak" | "strong";
+  reason: string;
 };
 
 export type MandatoryDueDecision = {
@@ -248,4 +288,40 @@ export type ReceiptCoreResult = {
   reconciliations: Reconciliation[];
   mandatoryDue: MandatoryDueDecision;
   draft: DraftDecision;
+};
+
+export type ReceiptDocumentResult = { docId: string; result: ReceiptCoreResult; classificationValidity: ClassificationValidity };
+export type ReceiptBundleResult = { documents: ReceiptDocumentResult[]; diagnostics: CoreDiagnostic[]; segmentationValidity: ClassificationValidity };
+
+export type LiteralMetricSet = {
+  textPrecision: number;
+  textRecall: number;
+  numericPrecision: number;
+  numericRecall: number;
+  structureAccuracy: number;
+  geometryAccuracy: number | null;
+};
+export type ClassificationMetricSet = {
+  rolePrecision: number;
+  roleRecall: number;
+  slotPrecision: number;
+  slotRecall: number;
+  segmentationAccuracy: number;
+};
+export type ReceiptEvalRecord = {
+  fileId: string;
+  documentIds: string[];
+  readerId: string;
+  classifierId: string;
+  requestedModelId: string;
+  returnedModelId: string;
+  runNumber: number;
+  latencyMs: number;
+  estimatedCostMicrousd: number;
+  literalMetrics: LiteralMetricSet;
+  classificationMetrics: ClassificationMetricSet;
+  geometryOracleStatus: "source" | "transformed" | "unavailable";
+  documentCoverage: { expected: number; produced: number; matchedDocIds: string[] };
+  endToEndDecision: "pass" | "partial" | "reject" | "error";
+  deterministicDecisionFingerprint: string;
 };

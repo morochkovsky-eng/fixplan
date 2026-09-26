@@ -2,9 +2,9 @@ import {
   DOCUMENT_KINDS, DUE_SCOPES, OPTIONAL_SCOPES, ROW_ROLES, SLOT_NAMES, TABLE_COLUMN_SEMANTICS,
 } from "./types";
 import type {
-  CoreDiagnostic, LiteralBlock, LiteralCell, LiteralDocument, RoleClassification, RoleItem,
-  RowClassification, RowRole, SlotName, TableSchema, ValidatedClassification, ValidatedRoleItem,
-  ValidatedSlot,
+  ClassifiedDocument, ClassificationValidity, CoreDiagnostic, LiteralBlock, LiteralCell, LiteralDocument, RoleClassification,
+  RoleItem, RowClassification, RowRole, SlotName, TableSchema, ValidatedClassification,
+  ValidatedDocumentClassification, ValidatedRoleItem, ValidatedSlot,
 } from "./types";
 import { ReceiptContractError } from "./literal";
 
@@ -39,11 +39,26 @@ const ROLE_SLOT_RULES: Record<RowRole, RoleSlotRule> = {
   account: { required: ["account"], allowed: ["label", "account", "ignore"] },
   address: { required: ["address"], allowed: ["label", "address", "ignore"] },
   period: { required: ["period"], allowed: ["label", "period", "ignore"] },
+  billing_period: { required: ["billing_period"], allowed: ["label", "billing_period", "ignore"] },
   issue_date: { required: ["issue_date"], allowed: ["label", "issue_date", "ignore"] },
   due_date: { required: ["due_date"], allowed: ["label", "due_date", "ignore"] },
 };
 
 export const ROLE_SLOT_CONTRACT = ROLE_SLOT_RULES;
+
+const SHARED_METADATA_ROLES = new Set<RowRole>([
+  "table_header", "section_title", "other", "unknown", "provider", "account", "address",
+  "period", "billing_period", "issue_date", "due_date",
+]);
+
+function classificationValidity(diagnostics: CoreDiagnostic[]): ClassificationValidity {
+  const blocking = diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  return {
+    status: blocking.length ? "needs_review" : "valid",
+    reasons: [...new Set(blocking.map((diagnostic) => diagnostic.code))].sort(),
+    sourceIds: [...new Set(blocking.flatMap((diagnostic) => diagnostic.sourceIds ?? (diagnostic.rowId ? [diagnostic.rowId] : [])))].sort(),
+  };
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -109,10 +124,21 @@ function parseItem(value: unknown, path: string): RoleItem {
 }
 
 export function parseRoleClassification(value: unknown): RoleClassification {
-  if (!isRecord(value) || !Array.isArray(value.tableSchemas) || !Array.isArray(value.rows)) {
-    throw new ReceiptContractError("invalid_role_schema", "documentKind, tableSchemas, and rows are required");
+  if (!isRecord(value) || !Array.isArray(value.documents) || !Array.isArray(value.tableSchemas) || !Array.isArray(value.rows)) {
+    throw new ReceiptContractError("invalid_role_schema", "documents, tableSchemas, and rows are required");
   }
-  const documentKind = enumValue(value.documentKind, DOCUMENT_KINDS, "documentKind");
+  const documents: ClassifiedDocument[] = value.documents.map((document, index) => {
+    if (!isRecord(document) || typeof document.docId !== "string" || !document.docId || !Array.isArray(document.rowIds)) {
+      throw new ReceiptContractError("invalid_role_schema", `documents[${index}] is invalid`);
+    }
+    return {
+      docId: document.docId,
+      documentKind: enumValue(document.documentKind, DOCUMENT_KINDS, `documents[${index}].documentKind`),
+      rowIds: stringArray(document.rowIds, `documents[${index}].rowIds`),
+    };
+  });
+  if (documents.length === 0) throw new ReceiptContractError("invalid_role_schema", "documents must not be empty");
+  const sharedRowIds = value.sharedRowIds === undefined ? [] : stringArray(value.sharedRowIds, "sharedRowIds");
   const tableSchemas: TableSchema[] = value.tableSchemas.map((schema, schemaIndex) => {
     if (!isRecord(schema) || typeof schema.blockId !== "string" || !Array.isArray(schema.columns)) {
       throw new ReceiptContractError("invalid_role_schema", `tableSchemas[${schemaIndex}] is invalid`);
@@ -134,7 +160,7 @@ export function parseRoleClassification(value: unknown): RoleClassification {
     if ("role" in row) throw new ReceiptContractError("invalid_role_schema", `rows[${rowIndex}].role is not part of the contract`);
     return { rowId: row.rowId, items: row.items.map((item, itemIndex) => parseItem(item, `rows[${rowIndex}].items[${itemIndex}]`)) };
   });
-  return { documentKind, tableSchemas, rows };
+  return { documents, sharedRowIds, tableSchemas, rows };
 }
 
 function documentMaps(document: LiteralDocument) {
@@ -281,13 +307,71 @@ export function validateRoleClassification(document: LiteralDocument, input: unk
     if (owners.length < 2) continue;
     for (const { item } of owners) invalidRows.add(item.rowId);
     diagnostics.push({ code: "numeric_token_already_owned", severity: "error", sourceIds: [tokenId, ...owners.map(({ item, slot }) => `${item.id}:${slot}`).sort()] });
+    for (const rowId of [...new Set(owners.map(({ item }) => item.rowId))].sort()) {
+      diagnostics.push({ code: "numeric_token_already_owned", severity: "error", rowId, sourceIds: [tokenId] });
+    }
   }
 
-  return {
-    documentKind: classification.documentKind,
-    items: initiallyValid.filter((item) => !invalidRows.has(item.rowId)).sort((left, right) => left.id.localeCompare(right.id)),
-    rows: classification.rows,
-    diagnostics,
-    invalidRowIds: [...invalidRows].sort(),
-  };
+  const validItems = initiallyValid.filter((item) => !invalidRows.has(item.rowId)).sort((left, right) => left.id.localeCompare(right.id));
+  const allRowIds = [...maps.rows.keys()].sort();
+  const shared = new Set(classification.sharedRowIds);
+  const assignments = new Map<string, string[]>();
+  const documentIds = new Set<string>();
+  const groupedDocuments = new Map<string, ClassifiedDocument[]>();
+
+  for (const document of classification.documents) {
+    if (documentIds.has(document.docId)) diagnostics.push({ code: "document_id_duplicate", severity: "error", sourceIds: [document.docId] });
+    documentIds.add(document.docId);
+    groupedDocuments.set(document.docId, [...(groupedDocuments.get(document.docId) ?? []), document]);
+    for (const rowId of document.rowIds) assignments.set(rowId, [...(assignments.get(rowId) ?? []), document.docId]);
+  }
+  for (const rowId of classification.sharedRowIds) assignments.set(rowId, [...(assignments.get(rowId) ?? []), "$shared"]);
+
+  for (const rowId of allRowIds) {
+    const owners = assignments.get(rowId) ?? [];
+    if (owners.length === 0) diagnostics.push({ code: "segmentation_row_missing", severity: "error", rowId, sourceIds: [rowId] });
+    if (owners.length > 1) diagnostics.push({ code: "segmentation_row_duplicate", severity: "error", rowId, sourceIds: [rowId, ...owners.sort()] });
+  }
+  for (const rowId of assignments.keys()) {
+    if (!maps.rows.has(rowId)) diagnostics.push({ code: "segmentation_unknown_row", severity: "error", rowId, sourceIds: [rowId] });
+  }
+  for (const item of validItems.filter((entry) => shared.has(entry.rowId))) {
+    if (!SHARED_METADATA_ROLES.has(item.role)) diagnostics.push({ code: "shared_row_role_not_allowed", severity: "error", rowId: item.rowId, sourceIds: [item.id, item.role] });
+  }
+
+  const sharedItems = validItems.filter((item) => shared.has(item.rowId) && SHARED_METADATA_ROLES.has(item.role));
+  const normalizedDocuments = [...groupedDocuments.entries()].map(([docId, definitions]) => ({
+    docId,
+    documentKind: definitions.every((document) => document.documentKind === definitions[0].documentKind) ? definitions[0].documentKind : "unknown" as const,
+    rowIds: [...new Set(definitions.flatMap((document) => document.rowIds))].sort(),
+  }));
+  const documents: ValidatedDocumentClassification[] = normalizedDocuments
+    .map((document) => {
+      const rowIds = [...new Set(document.rowIds)].sort();
+      const relevantRows = new Set([...rowIds, ...classification.sharedRowIds]);
+      const documentDiagnostics = diagnostics.filter((diagnostic) => {
+        if (diagnostic.rowId) return relevantRows.has(diagnostic.rowId);
+        return diagnostic.sourceIds?.includes(document.docId) ?? false;
+      });
+      const duplicated = new Set(documentDiagnostics.filter((entry) => entry.code === "segmentation_row_duplicate").map((entry) => entry.rowId!));
+      const ownItems = validItems.filter((item) => rowIds.includes(item.rowId) && !duplicated.has(item.rowId));
+      return {
+        docId: document.docId,
+        documentKind: document.documentKind,
+        rowIds,
+        items: [...ownItems, ...sharedItems].sort((left, right) => left.id.localeCompare(right.id)),
+        rows: classification.rows.filter((row) => relevantRows.has(row.rowId)).sort((left, right) => left.rowId.localeCompare(right.rowId)),
+        diagnostics: documentDiagnostics,
+        invalidRowIds: [...new Set([...invalidRows].filter((rowId) => relevantRows.has(rowId)))].sort(),
+        validity: classificationValidity(documentDiagnostics),
+      };
+    })
+    .sort((left, right) => left.docId.localeCompare(right.docId));
+
+  const bundleDiagnostics = diagnostics.filter((diagnostic) => diagnostic.severity === "error" && (
+    diagnostic.code === "segmentation_row_missing" ||
+    diagnostic.code === "document_id_duplicate" ||
+    (diagnostic.rowId !== undefined && shared.has(diagnostic.rowId))
+  ));
+  return { documents, sharedRowIds: [...shared].sort(), diagnostics, validity: classificationValidity(bundleDiagnostics) };
 }

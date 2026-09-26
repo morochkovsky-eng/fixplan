@@ -1,9 +1,10 @@
 import type {
   CanonicalReceipt, ChargeLine, CoreDiagnostic, DueCandidate, FieldState, FinancialComponent,
   FinancialComponentRole, IndexedLiteralDocument, LiteralCell, LiteralDocument, MeterEntry,
-  NormalizedField, NumericToken, SlotName, ValidatedClassification, ValidatedRoleItem,
+  NormalizedField, NumericToken, SlotName, ValidatedDocumentClassification, ValidatedRoleItem,
 } from "./types";
 import { decimalToMinorExact } from "./money";
+import { buildBillingPeriod } from "./period";
 
 const FINANCIAL_ROLES = new Set<FinancialComponentRole>([
   "accrued_total", "opening_balance", "opening_debt", "opening_advance", "payment", "benefit",
@@ -20,7 +21,7 @@ const ROLE_VALUE_SLOT: Partial<Record<ValidatedRoleItem["role"], SlotName>> = {
   opening_advance: "opening_advance", payment: "payment", benefit: "benefit", recalculation: "recalculation",
   penalty: "penalty", rounding: "rounding", payment_history: "payment_history", due_candidate: "due_candidate",
   closing_balance: "closing_balance", closing_debt: "closing_debt", closing_advance: "closing_advance",
-  period: "period", due_date: "due_date", provider: "provider", account: "account", address: "address", issue_date: "issue_date",
+  period: "period", billing_period: "billing_period", due_date: "due_date", provider: "provider", account: "account", address: "address", issue_date: "issue_date",
 };
 
 function maps(document: LiteralDocument) {
@@ -79,7 +80,7 @@ function canonicalFinancialAmount(role: SignedRole, parsed: { token: NumericToke
 }
 
 function oneToken(item: ValidatedRoleItem, name: SlotName, tokens: Map<string, NumericToken>) {
-  const values = slotTokens(item, name, tokens);
+  const values = slotTokens(item, name, tokens).filter((token) => token.interpretation === "exact");
   return values.length === 1 ? values[0] : null;
 }
 function buildCharge(item: ValidatedRoleItem, tokens: Map<string, NumericToken>, diagnostics: CoreDiagnostic[]): ChargeLine {
@@ -125,13 +126,15 @@ function mergeDueCandidates(candidates: DueCandidate[], diagnostics: CoreDiagnos
   return [...byAxis.values()].sort((left, right) => left.id.localeCompare(right.id));
 }
 
-export function buildCanonicalReceipt(indexed: IndexedLiteralDocument, validated: ValidatedClassification): CanonicalReceipt {
+export function buildCanonicalReceipt(indexed: IndexedLiteralDocument, validated: ValidatedDocumentClassification): CanonicalReceipt {
   const { document } = indexed;
   const { cells, tokens } = maps(document);
-  const diagnostics = [...indexed.diagnostics, ...validated.diagnostics];
-  const reviewRows = new Set(indexed.diagnostics.filter((entry) => entry.severity !== "warning" && entry.rowId).map((entry) => entry.rowId!));
+  const relevantRows = new Set(validated.rows.map((row) => row.rowId));
+  const literalDiagnostics = indexed.diagnostics.filter((entry) => !entry.rowId || relevantRows.has(entry.rowId));
+  const diagnostics = [...literalDiagnostics, ...validated.diagnostics];
+  const reviewRows = new Set(literalDiagnostics.filter((entry) => entry.severity !== "warning" && entry.rowId).map((entry) => entry.rowId!));
   const items = validated.items.filter((item) => !reviewRows.has(item.rowId));
-  const period = textField(items, "period", cells);
+  const period = buildBillingPeriod(items, cells);
   const dueDate = textField(items, "due_date", cells);
   const accruedItem = items.find((item) => item.role === "accrued_total");
   let accruedTotal = emptyField<bigint>();
@@ -203,6 +206,7 @@ export function buildCanonicalReceipt(indexed: IndexedLiteralDocument, validated
     if (item.role === "meter_reading") meters.push(buildMeter(item, cells, tokens));
   }
   return {
+    docId: validated.docId, classificationValidity: validated.validity,
     documentKind: validated.documentKind, readable: document.readable, period, accruedTotal, closingBalance, dueDate,
     financialComponents, dueCandidates: mergeDueCandidates(dueCandidates, diagnostics), serviceLines, optionalCharges, meters,
     unknownRowIds: validated.rows.filter((row) => row.items.some((item) => item.role === "unknown")).map((row) => row.rowId).sort(), diagnostics,

@@ -1,6 +1,6 @@
 # Deterministic receipt core
 
-**Status:** design contract for specification 1, 2026-09-25.
+**Status:** design contract for specifications 1 and 1.1, 2026-09-25.
 
 This module is an offline boundary between future document reading and product persistence. It does not import Telegram, Supabase, Storage, model providers, or application state. The core accepts literal document geometry plus ID-only role labels and returns canonical entities, reconciliation diagnostics, and a draft decision.
 
@@ -39,11 +39,24 @@ p1.b3.r2.c4
 p1.b3.r2.c4#1
 ```
 
-The last form addresses a numeric token inside a cell. Every visually present column remains represented, including blank and illegible cells. Literal `ok` becomes `present`; the other states remain distinct. Every row receives a SHA-256 hash of its normalized literal text.
+The last form addresses a numeric token inside a cell. Every token preserves its complete raw notation and whether its separator is exact or ambiguous. Every visually present column remains represented, including blank and illegible cells. Literal `ok` becomes `present`; the other states remain distinct. Every row receives a SHA-256 hash of its normalized literal text. Reader output cannot contain locale, separator, money, or other semantic context.
 
-### Role classification
+### Role classification and document segmentation
 
-The second layer first classifies the document as `utility`, `other`, or `unknown`. Classification refers only to server IDs and enums. It cannot repeat or replace source text and numbers. Every source row must have exactly one row classification, including an item with role `unknown` when no narrower role is supported.
+The second layer segments one input file into one or more independent documents and classifies each as `utility`, `other`, or `unknown`. Classification refers only to server IDs and enums. It cannot repeat or replace source text and numbers:
+
+```ts
+documents: Array<{
+  docId: string;
+  documentKind: "utility" | "other" | "unknown";
+  rowIds: string[];
+}>;
+sharedRowIds: string[];
+```
+
+Every source row must belong to exactly one document or be explicitly shared, and must have exactly one row classification, including an item with role `unknown` when no narrower role is supported. Shared rows are metadata-only: they may carry provider, account, address, billing period, issue date, or due date, but never services, financial components, closing balances, or due candidates. Unknown, missing, duplicate, and invalid shared assignments produce deterministic diagnostics. Each `docId` receives its own canonical receipt, E1/E2/E3 results, mandatory due, and draft decision; one document's semantic error does not invalidate another document. Documents and source rows are sorted by stable IDs before evaluation, so classifier ordering has no product meaning.
+
+Segmentation produces explicit bundle and document validity statuses. An uncovered literal row or an invalid shared-row reference makes the whole bundle review-only because ownership is unknown. An unknown document-local row reference, duplicate row assignment, or forbidden shared role blocks every affected document. Duplicate `docId` definitions collapse to one review-only output rather than producing two externally valid results with the same ID. A structural error attached to a document prevents `confirmed_draft`, confirmed mandatory due, and monthly-total inclusion, while an independent valid document remains eligible for confirmation.
 
 There is no row-level role. A row contains one or more independently validated items:
 
@@ -66,9 +79,17 @@ not_applicable  the field does not apply to the document
 
 Zero is never converted to null. Blank and illegible values never become zero. A rejected child entity does not erase independently confirmed document-level fields.
 
+## Billing period gate
+
+The classifier may identify a `billing_period` item and its source cells, but only server code parses the literal text. The normalized result contains `YYYY-MM`, source cell/token IDs, and one of `parsed`, `missing`, `ambiguous`, `unsupported`, or `illegible`. Supported forms are `MM.YYYY`, `MM/YYYY`, `MM.YY`, Russian month names with a four- or two-digit year, and date ranges whose endpoints belong to the same calendar month. Two-digit years are always interpreted as `2000..2099`; system date parsers and current time are not consulted.
+
+Equal repeated periods merge their sources. Conflicting values are ambiguous. Cross-month ranges and unsupported text are never guessed. Full dates are validated with deterministic Gregorian leap-year and month-length rules before month extraction; invalid dates such as `31.02.2026` cannot fall back to an embedded `MM.YYYY` substring. A shared header period may apply to multiple documents only when it parses unambiguously. `confirmed_draft` requires a parsed billing period; a missing or ambiguous period downgrades the document to `partial_draft` without discarding a strongly confirmed mandatory amount.
+
 ## Monetary values
 
-Money is parsed with decimal string arithmetic into `bigint` minor units. No floating-point operation is used for money. Numeric tokens retain their literal form, exact coefficient, scale, and source cell.
+Money is parsed with decimal string arithmetic into `bigint` minor units. No floating-point operation is used for money. Numeric tokens retain their literal form, lexical coefficient and scale, interpretation status, and source cell; only exact interpretations can become money.
+
+Parentheses and a trailing minus are accepted as explicit negative notation because the sign is literally printed. Their complete raw notation and explicit negative sign survive server tokenization and are visible to fixed-role validation. A dot followed by three digits, such as `1.234`, remains an addressable token with `interpretation="ambiguous_separator"`, stable ID, and unchanged row hash. It has no confirmed monetary value and cannot enter E1, E2, E3, meters, or a confirmed draft. A future trusted document-locale adapter or second-layer classification enum may interpret it, but that semantic context is intentionally outside this contract and is not implemented in specification 1.1.
 
 Fixed financial roles receive signs in code only when the printed value has no explicit sign:
 
@@ -123,6 +144,8 @@ This rule is enabled only by a distinct closing-balance item (`closing_debt`, `c
 
 Each equation returns `closed`, `open`, `insufficient`, or `ambiguous`, with machine-readable reasons and source IDs. E2 also returns the applied formula, selected candidate, included component IDs, and optional component IDs. Closures with identical non-zero component sets and final values are materially equivalent, so a zero balance does not create false ambiguity. More than one materially different closing formula is `ambiguous`, never a false confirmation.
 
+E2 also returns a serializable `closureStrength`. It counts independent printed financial inputs selected by the formula, records their source IDs, and records independent confirmation signals. Due candidates and closing balances are targets, not input components, and never increase this count. Two or more independently sourced inputs are `strong`. A one-input closure is strong only when E1 closes independently or the same due is printed in a separate block with independent IDs; `qr_match` is reserved as a future signal and is not produced here. A bare `accrued = due` match is `weak`. Weak closure preserves the amount, chosen candidate, and source IDs, but marks `mandatoryDue=needs_review` and permits only a review-only partial draft. Reusing one cell through multiple references never creates independence. Period confidence remains independent: strong E2 may confirm mandatory due while a missing period still keeps the draft partial.
+
 `computedDue` exists only after E2 selects one closing formula. Without a separately printed closing balance, it equals that formula's value, so a sole negative printed due remains negative. With a separately printed closing balance, the formula value is exposed as `computedClosingBalance`, while `computedDue` is `max(0, computedClosingBalance)`. The preliminary sum of confirmed fixed components is exposed separately as review-only `diagnosticComputedDue`; it cannot masquerade as a reconciled result. When the only printed candidate includes optional charges, `computed_excluding_optional` is derived from the same selected formula by removing only its optional components. Disputed components selected by that formula remain included.
 
 ## Mandatory due
@@ -142,6 +165,14 @@ The core rejects a confirmed `other` document, a wholly unreadable document, or 
 
 Public diagnostics contain only structural IDs, enum roles, hashes, states, equation deltas, and error codes. They exclude literal text, addresses, names, account numbers, document images, and provider payloads. A separate caller may retain the literal document inside an approved private boundary; this core never logs it.
 
+## Oracle and offline eval boundary
+
+The eval package accepts gold literal data only as a direct export of the synthetic generator's structured source. It preserves literal text, cell state, spans, stable positional IDs, bounding boxes, and table structure. It must not reconstruct gold through OCR, model calls, or manual image reading. The `synthetic-v1` generator source is not present in this repository, so connecting the real corpus exporter remains an explicit blocker; the generic direct-export contract and tests use only anonymous synthetic inputs.
+
+For a `photo_telegram` derivative, content and structure may inherit from the source oracle. Geometry may be marked transformed only when the generator supplies transformed coordinates or an applicable transformation. Otherwise the contract returns `literal=null`, exposes a bbox-free content/structure oracle, and marks geometry unavailable. Eval validation requires `geometryAccuracy=null` in that state, so source bounding boxes cannot be presented or scored as photo coordinates. A source oracle rejects a `transformedDocument`; transformed coordinates can never be labelled as source geometry.
+
+Offline eval records opaque file/document IDs, reader and classifier IDs, requested and returned model IDs, run number, latency, estimated cost, literal metrics, classification metrics, document coverage, end-to-end decision, geometry-oracle status, and a deterministic decision fingerprint. Runtime validation accepts `unknown` and checks every nested metric, count, ID, enum, and fingerprint. Metrics are finite values in `[0,1]`; geometry accuracy is nullable and must be null when geometry is unavailable. Fingerprints use a canonical typed encoding: object-key order is irrelevant, bigint does not collide with a similarly printed string, and bundle documents are normalized by `docId`.
+
 ## Non-goals
 
 - vision/OCR/model calls or prompts;
@@ -150,3 +181,5 @@ Public diagnostics contain only structural IDs, enum roles, hashes, states, equa
 - provider-specific templates;
 - current Production integration;
 - repair of pending Telegram actions.
+
+Specification 1.1 adds no AI/OCR calls, provider SDKs, persistence, or Production wiring.

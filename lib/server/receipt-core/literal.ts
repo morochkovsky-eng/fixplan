@@ -48,6 +48,7 @@ export function parseVisualDocument(value: unknown): VisualDocumentInput {
         const cells = rowValue.cells.map((cellValue, cellIndex) => {
           if (!isRecord(cellValue) || typeof cellValue.text !== "string") throw new ReceiptContractError("invalid_cell", `cell ${cellIndex} is invalid`);
           assertEnum(cellValue.state, VISUAL_CELL_STATES, `cell ${cellIndex}.state`);
+          if ("numericContext" in cellValue) throw new ReceiptContractError("literal_semantic_context_forbidden", `cell ${cellIndex}.numericContext is not part of the literal contract`);
           return {
             text: cellValue.text,
             state: cellValue.state,
