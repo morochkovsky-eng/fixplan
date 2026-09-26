@@ -10,6 +10,11 @@ function normalizePrintedPrefixSign(raw: string) {
   return first === "\u2212" || first === "\u2013" ? `-${raw.slice(1)}` : raw;
 }
 
+function followsNumericRangeBoundary(text: string, signIndex: number) {
+  const leftContext = text.slice(0, signIndex).replace(/[\s\u00a0\u202f]+$/u, "");
+  return /\d$/u.test(leftContext);
+}
+
 export function parseExactDecimal(raw: string) {
   const compact = raw.trim().replace(/[ \u00a0\u202f]/gu, "").replace(",", ".");
   if (!EXACT_DECIMAL.test(compact)) return null;
@@ -63,7 +68,8 @@ export function extractNumericTokens(cellId: string, text: string): NumericToken
     const matchedRaw = match[0];
     const startsWithTypographicMinus = matchedRaw.startsWith("\u2212") || matchedRaw.startsWith("\u2013");
     const preceding = match.index && match.index > 0 ? text[match.index - 1] : "";
-    const signPosition = !preceding || /[\s([{:;=]/u.test(preceding);
+    const signPosition = (!preceding || /[\s([{:;=]/u.test(preceding))
+      && !followsNumericRangeBoundary(text, match.index ?? 0);
     const raw = startsWithTypographicMinus && !signPosition ? matchedRaw.slice(1) : matchedRaw;
     const parsed = parseNumericLiteral(raw);
     return parsed ? [{ id: `${cellId}#${index + 1}`, cellId, raw, ...parsed }] : [];

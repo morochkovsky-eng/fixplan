@@ -957,6 +957,26 @@ test("typographic minus signs are literal only when directly prefixed to a numbe
   assert.ok(core.extractNumericTokens("cell", "Услуга–30,00").every((token) => token.printedSign === "none"));
 });
 
+test("typographic date-range separators are not signs across supported spaces", () => {
+  for (const minus of ["–", "−"]) {
+    for (const separator of [" ", "\u00a0", "\u202f"]) {
+      const tokens = core.extractNumericTokens("cell", `01.09.2026${separator}${minus}30.09.2026`);
+      assert.ok(tokens.length > 0);
+      assert.ok(tokens.every((token) => token.printedSign === "none"));
+      assert.ok(tokens.every((token) => token.coefficient >= 0n));
+      assert.ok(tokens.every((token) => !token.raw.startsWith(minus)));
+    }
+  }
+
+  for (const minus of ["–", "−"]) {
+    const tokens = core.extractNumericTokens("cell", `Баланс ${minus}50,00`);
+    const balance = tokens.at(-1);
+    assert.equal(balance.raw, `${minus}50,00`);
+    assert.equal(balance.printedSign, "minus");
+    assert.equal(core.decimalToMinorExact(balance), -5000n);
+  }
+});
+
 test("billing period uses a validated explicit text fragment and never falls back after an invalid range", () => {
   const text = "за июнь 2026 · Оплатить до 15.07.2026";
   const start = text.indexOf("июнь 2026");
