@@ -1,0 +1,329 @@
+{
+ "fileId": "S10",
+ "generatorVersion": "synthetic-v1.1",
+ "contract": "homory receipt-core RoleClassification @ c6a52c940933ebe3b04251217139ef1a529bced2",
+ "idScheme": "positional server ids over oracle/literal_source (p{page}.b{block}.r{row}.c{cell}, 1-based); tokens by server tokenizer",
+ "documents": [
+  {
+   "docId": "S10-D1",
+   "documentKind": "utility",
+   "rowIds": [
+    "p1.b1.r1",
+    "p1.b2.r1",
+    "p1.b2.r2",
+    "p1.b2.r3",
+    "p1.b3.r1",
+    "p1.b3.r2",
+    "p1.b3.r3",
+    "p1.b3.r4",
+    "p1.b4.r1",
+    "p1.b4.r2",
+    "p1.b4.r3",
+    "p1.b5.r1"
+   ],
+   "expected": {
+    "billingPeriod": "2026-09",
+    "mandatoryDue": {
+     "valueMinor": "341390",
+     "status": "needs_review",
+     "source": "printed"
+    },
+    "computedDueMinor": null,
+    "computedClosingBalanceMinor": null,
+    "decision": "partial_draft",
+    "forbiddenDecisions": [
+     "confirmed_draft",
+     "reject"
+    ],
+    "note": "напечатанный итог на 1,00 ₽ больше формулы; диагностический расчёт не становится computedDue без закрытия E2"
+   }
+  }
+ ],
+ "sharedRowIds": [],
+ "roleClassification": {
+  "documents": [
+   {
+    "docId": "S10-D1",
+    "documentKind": "utility",
+    "rowIds": [
+     "p1.b1.r1",
+     "p1.b2.r1",
+     "p1.b2.r2",
+     "p1.b2.r3",
+     "p1.b3.r1",
+     "p1.b3.r2",
+     "p1.b3.r3",
+     "p1.b3.r4",
+     "p1.b4.r1",
+     "p1.b4.r2",
+     "p1.b4.r3",
+     "p1.b5.r1"
+    ]
+   }
+  ],
+  "sharedRowIds": [],
+  "tableSchemas": [],
+  "rows": [
+   {
+    "rowId": "p1.b1.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "provider",
+      "slots": {
+       "provider": {
+        "cellIds": [
+         "p1.b1.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     },
+     {
+      "mode": "label_value",
+      "role": "billing_period",
+      "slots": {
+       "billing_period": {
+        "cellIds": [
+         "p1.b1.r1.c2"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b2.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "other",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b2.r2",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "address",
+      "slots": {
+       "address": {
+        "cellIds": [
+         "p1.b2.r2.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b2.r3",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "account",
+      "slots": {
+       "account": {
+        "cellIds": [
+         "p1.b2.r3.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b3.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "table_header",
+      "slots": {}
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b3.r2",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "service_charge",
+      "slots": {
+       "name": {
+        "cellIds": [
+         "p1.b3.r2.c1"
+        ],
+        "tokenIds": []
+       },
+       "volume": {
+        "cellIds": [
+         "p1.b3.r2.c3"
+        ]
+       },
+       "tariff": {
+        "cellIds": [
+         "p1.b3.r2.c4"
+        ]
+       },
+       "charge": {
+        "cellIds": [
+         "p1.b3.r2.c5"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b3.r3",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "service_charge",
+      "slots": {
+       "name": {
+        "cellIds": [
+         "p1.b3.r3.c1"
+        ],
+        "tokenIds": []
+       },
+       "volume": {
+        "cellIds": [
+         "p1.b3.r3.c3"
+        ]
+       },
+       "tariff": {
+        "cellIds": [
+         "p1.b3.r3.c4"
+        ]
+       },
+       "charge": {
+        "cellIds": [
+         "p1.b3.r3.c5"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b3.r4",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "accrued_total",
+      "slots": {
+       "label": {
+        "cellIds": [
+         "p1.b3.r4.c1"
+        ],
+        "tokenIds": []
+       },
+       "accrued_total": {
+        "cellIds": [
+         "p1.b3.r4.c2"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b4.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "opening_debt",
+      "slots": {
+       "label": {
+        "cellIds": [
+         "p1.b4.r1.c1"
+        ],
+        "tokenIds": []
+       },
+       "opening_debt": {
+        "cellIds": [
+         "p1.b4.r1.c2"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b4.r2",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "payment",
+      "slots": {
+       "label": {
+        "cellIds": [
+         "p1.b4.r2.c1"
+        ],
+        "tokenIds": []
+       },
+       "payment": {
+        "cellIds": [
+         "p1.b4.r2.c2"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b4.r3",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "due_candidate",
+      "slots": {
+       "label": {
+        "cellIds": [
+         "p1.b4.r3.c1"
+        ],
+        "tokenIds": []
+       },
+       "due_candidate": {
+        "cellIds": [
+         "p1.b4.r3.c2"
+        ]
+       }
+      },
+      "dueScope": "with_balance",
+      "optionalScope": "excluded"
+     }
+    ]
+   },
+   {
+    "rowId": "p1.b5.r1",
+    "items": [
+     {
+      "mode": "label_value",
+      "role": "issue_date",
+      "slots": {
+       "issue_date": {
+        "cellIds": [
+         "p1.b5.r1.c1"
+        ],
+        "tokenIds": []
+       }
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "evalHints": {},
+ "notes": [
+  "mode=label_value везде: слоты уже разрешены в конкретные ячейки/токены; table_columns-разметка классификатора эквивалентна, если указывает на те же ячейки",
+  "текстовые слоты (period, dates, provider, account, address, label) имеют tokenIds: [] — они не владеют числами",
+  "строки без роли в эталоне = other (или table_header для шапок); строгими считать только денежные роли, см. evalHints"
+ ]
+}

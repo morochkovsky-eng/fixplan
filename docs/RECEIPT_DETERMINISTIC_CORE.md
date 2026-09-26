@@ -1,6 +1,6 @@
 # Deterministic receipt core
 
-**Status:** design contract for specifications 1 and 1.1, 2026-09-25.
+**Status:** design contract for specifications 1, 1.1, and oracle hardening 1.2, 2026-09-26.
 
 This module is an offline boundary between future document reading and product persistence. It does not import Telegram, Supabase, Storage, model providers, or application state. The core accepts literal document geometry plus ID-only role labels and returns canonical entities, reconciliation diagnostics, and a draft decision.
 
@@ -65,6 +65,8 @@ There is no row-level role. A row contains one or more independently validated i
 
 Product meaning never comes from numeric-token order. The contract supports named slots such as `volume`, `tariff`, `charge`, `row_total`, `meter_prev`, `meter_curr`, `consumption`, and each financial role. `service_charge`, meter entries, and financial components are built only from their allowed slots. A server-owned role/slot table defines the required and allowed slots for every item role.
 
+An explicit text slot may additionally select one fragment of one bound cell with `textRange: { cellId, start, end }`. Offsets are JavaScript string offsets, `start` is inclusive, and `end` is exclusive. Runtime validation requires the referenced cell to belong to the same row, to be listed in `cellIds`, and to contain the complete non-empty range. An invalid range makes the item review-only and never falls back to parsing the whole cell. Numeric slots and token ownership are unchanged. Billing-period parsing uses only the selected fragment while retaining the literal cell as its source.
+
 Supported roles are structural, service, financial, meter/reference, and document-detail roles listed in `receipt-core/roles.ts`. Unknown enum values, broken IDs, cross-row references, invalid table columns, invalid role/slot combinations, and duplicate numeric-token ownership are deterministic validation errors. Validation is two-phase: invalid rows are removed before global token ownership is resolved. As a result, an invalid row cannot reserve a token used by another row, and classifier row/item order cannot choose a winner.
 
 ## Normalized field states
@@ -89,7 +91,7 @@ Equal repeated periods merge their sources. Conflicting values are ambiguous. Cr
 
 Money is parsed with decimal string arithmetic into `bigint` minor units. No floating-point operation is used for money. Numeric tokens retain their literal form, lexical coefficient and scale, interpretation status, and source cell; only exact interpretations can become money.
 
-Parentheses and a trailing minus are accepted as explicit negative notation because the sign is literally printed. Their complete raw notation and explicit negative sign survive server tokenization and are visible to fixed-role validation. A dot followed by three digits, such as `1.234`, remains an addressable token with `interpretation="ambiguous_separator"`, stable ID, and unchanged row hash. It has no confirmed monetary value and cannot enter E1, E2, E3, meters, or a confirmed draft. A future trusted document-locale adapter or second-layer classification enum may interpret it, but that semantic context is intentionally outside this contract and is not implemented in specification 1.1.
+Parentheses and a trailing minus are accepted as explicit negative notation because the sign is literally printed. U+2212 (`−`) and U+2013 (`–`) are also printed minus signs only when they immediately prefix a numeric token. If the left context, after ignoring ordinary, non-breaking, or narrow non-breaking spaces, ends in a digit, the character remains a range separator rather than a sign. The tokenizer does not globally replace characters, so prose dashes and date-range separators remain text. Complete raw notation and the explicit negative sign survive server tokenization and are visible to fixed-role validation. A dot followed by three digits, such as `1.234`, remains an addressable token with `interpretation="ambiguous_separator"`, stable ID, and unchanged row hash. It has no confirmed monetary value and cannot enter E1, E2, E3, meters, or a confirmed draft. A future trusted document-locale adapter or second-layer classification enum may interpret it, but that semantic context is intentionally outside this contract and is not implemented in specification 1.1.
 
 Fixed financial roles receive signs in code only when the printed value has no explicit sign:
 
@@ -142,7 +144,7 @@ This rule is enabled only by a distinct closing-balance item (`closing_debt`, `c
 - **E2:** document-specific balance equation versus printed due candidates. Fixed-role signs come from code only for unsigned values; signed roles retain their printed signs. Independent binary flags are allowed only for explicitly disputed categories. At most three flags and eight combinations are evaluated. Signs and arbitrary subsets are never searched.
 - **E3:** confirmed volume multiplied by confirmed tariff versus a simple line amount. Mismatch creates a diagnostic; it does not replace the printed line amount.
 
-Each equation returns `closed`, `open`, `insufficient`, or `ambiguous`, with machine-readable reasons and source IDs. E2 also returns the applied formula, selected candidate, included component IDs, and optional component IDs. Closures with identical non-zero component sets and final values are materially equivalent, so a zero balance does not create false ambiguity. More than one materially different closing formula is `ambiguous`, never a false confirmation.
+Each equation returns `closed`, `open`, `insufficient`, or `ambiguous`, with machine-readable reasons and source IDs. E2 also returns the applied formula, selected candidate, included component IDs, and optional component IDs. Closures with identical non-zero component sets and final values are materially equivalent, so a zero balance does not create false ambiguity. When several printed candidates close, the core may select one only from explicit axes: `optional=excluded` is mandatory-due evidence, and an explicit non-zero opening balance selects `scope=with_balance`. Every discarded closure must differ from the selected formula only by classifier-marked optional or balance components. Unknown axes, multiple equally eligible candidates, or any other formula difference remain ambiguous; arithmetic difference alone is never evidence. More than one unresolved materially different closing formula is `ambiguous`, never a false confirmation.
 
 E2 also returns a serializable `closureStrength`. It counts independent printed financial inputs selected by the formula, records their source IDs, and records independent confirmation signals. Due candidates and closing balances are targets, not input components, and never increase this count. Two or more independently sourced inputs are `strong`. A one-input closure is strong only when E1 closes independently or the same due is printed in a separate block with independent IDs; `qr_match` is reserved as a future signal and is not produced here. A bare `accrued = due` match is `weak`. Weak closure preserves the amount, chosen candidate, and source IDs, but marks `mandatoryDue=needs_review` and permits only a review-only partial draft. Reusing one cell through multiple references never creates independence. Period confidence remains independent: strong E2 may confirm mandatory due while a missing period still keeps the draft partial.
 
@@ -167,7 +169,7 @@ Public diagnostics contain only structural IDs, enum roles, hashes, states, equa
 
 ## Oracle and offline eval boundary
 
-The eval package accepts gold literal data only as a direct export of the synthetic generator's structured source. It preserves literal text, cell state, spans, stable positional IDs, bounding boxes, and table structure. It must not reconstruct gold through OCR, model calls, or manual image reading. The `synthetic-v1` generator source is not present in this repository, so connecting the real corpus exporter remains an explicit blocker; the generic direct-export contract and tests use only anonymous synthetic inputs.
+The repository includes the deterministic subset of `homory-synthetic-v1.1-rev2`: generator source, pinned Python dependencies, literal source oracles, semantic oracles, and the upstream manifest. Only `oracle/semantic/` supplies expected classifications and product decisions; legacy gold is deliberately absent and must never be sent to a model. Generated images are omitted because specification 1.2 performs no vision/OCR evaluation and does not need duplicate binary assets. The oracle suite processes 11 documents and requires 8 confirmed drafts, 3 partial drafts, and zero silent confirmed errors.
 
 For a `photo_telegram` derivative, content and structure may inherit from the source oracle. Geometry may be marked transformed only when the generator supplies transformed coordinates or an applicable transformation. Otherwise the contract returns `literal=null`, exposes a bbox-free content/structure oracle, and marks geometry unavailable. Eval validation requires `geometryAccuracy=null` in that state, so source bounding boxes cannot be presented or scored as photo coordinates. A source oracle rejects a `transformedDocument`; transformed coordinates can never be labelled as source geometry.
 
@@ -182,4 +184,4 @@ Offline eval records opaque file/document IDs, reader and classifier IDs, reques
 - current Production integration;
 - repair of pending Telegram actions.
 
-Specification 1.1 adds no AI/OCR calls, provider SDKs, persistence, or Production wiring.
+Specification 1.2 adds no AI/OCR calls, provider SDKs, persistence, or Production wiring.

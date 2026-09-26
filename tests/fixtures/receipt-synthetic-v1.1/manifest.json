@@ -1,0 +1,382 @@
+{
+ "generatorVersion": "synthetic-v1.1",
+ "files": [
+  {
+   "logicalFileId": "S01",
+   "title": "ЕПД август 2026",
+   "clean": {
+    "html": "html/S01.html",
+    "png": "png_clean/S01.png",
+    "size": [
+     1588,
+     1294
+    ],
+    "sha256": "f96f9022ff53515dadc097b69e50a82b5d98a969f9e523279138333b574967cf"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S01.jpg",
+    "size": [
+     1280,
+     1064
+    ],
+    "seed": 1001,
+    "sha256": "d858529d778c17636f8bac553fb0f95565f855799665e1fbc94cc472730f2cfc"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S01-D1",
+     "rowCount": 26
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S01.json",
+    "literalPhoto": "oracle/literal_photo/S01.json",
+    "geometryPhoto": "oracle/geometry_photo/S01.json",
+    "semantic": "oracle/semantic/S01.json",
+    "legacyGold": "gold/S01.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S02",
+   "title": "Счёт-извещение сентябрь 2026",
+   "clean": {
+    "html": "html/S02.html",
+    "png": "png_clean/S02.png",
+    "size": [
+     1588,
+     854
+    ],
+    "sha256": "d2c8c654d1b0b3930e429e63741ab512ba82eb49880daab9c5134a8872900a4e"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S02.jpg",
+    "size": [
+     1280,
+     742
+    ],
+    "seed": 1002,
+    "sha256": "6333a47810f91339047713709fac96d197efd0e0d2dde39ee4a3f9f85ac5976e"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S02-D1",
+     "rowCount": 20
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S02.json",
+    "literalPhoto": "oracle/literal_photo/S02.json",
+    "geometryPhoto": "oracle/geometry_photo/S02.json",
+    "semantic": "oracle/semantic/S02.json",
+    "legacyGold": "gold/S02.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S03",
+   "title": "Счёт за электроэнергию сентябрь 2026",
+   "clean": {
+    "html": "html/S03.html",
+    "png": "png_clean/S03.png",
+    "size": [
+     1588,
+     788
+    ],
+    "sha256": "95bc0cad95bdbfa5652cb2366ab121dd9c0ea02894e1c50c660e9979f58503d3"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S03.jpg",
+    "size": [
+     1280,
+     694
+    ],
+    "seed": 1003,
+    "sha256": "a2a1a146bc27a4c7003630552fc740115580194a4518bc555b75aa09e8a7c8be"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S03-D1",
+     "rowCount": 18
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S03.json",
+    "literalPhoto": "oracle/literal_photo/S03.json",
+    "geometryPhoto": "oracle/geometry_photo/S03.json",
+    "semantic": "oracle/semantic/S03.json",
+    "legacyGold": "gold/S03.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S04",
+   "title": "ЖКУ июнь 2026",
+   "clean": {
+    "html": "html/S04.html",
+    "png": "png_clean/S04.png",
+    "size": [
+     1588,
+     1140
+    ],
+    "sha256": "5eaf373c248a8566db3d3c003cce2d22d56d40068184882215b4b749e3aa18ee"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S04.jpg",
+    "size": [
+     1280,
+     952
+    ],
+    "seed": 1004,
+    "sha256": "40f516f376edb2616c6682fb8a3f68cbc2dc2c3f0b1a6afcbe844feb953c25f9"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S04-D1",
+     "rowCount": 27
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S04.json",
+    "literalPhoto": "oracle/literal_photo/S04.json",
+    "geometryPhoto": "oracle/geometry_photo/S04.json",
+    "semantic": "oracle/semantic/S04.json",
+    "legacyGold": "gold/S04.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S05",
+   "title": "Водоснабжение август 2026",
+   "clean": {
+    "html": "html/S05.html",
+    "png": "png_clean/S05.png",
+    "size": [
+     1588,
+     910
+    ],
+    "sha256": "1e14e3df5ea0f8a11e4be54385946fb43781ca8b95e3962a53ab504e64446799"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S05.jpg",
+    "size": [
+     1280,
+     783
+    ],
+    "seed": 1005,
+    "sha256": "297b77f26c1d85e585f115f18f3dad82d8be9d9c4f3695bcfe42e21f23382979"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S05-D1",
+     "rowCount": 23
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S05.json",
+    "literalPhoto": "oracle/literal_photo/S05.json",
+    "geometryPhoto": "oracle/geometry_photo/S05.json",
+    "semantic": "oracle/semantic/S05.json",
+    "legacyGold": "gold/S05.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S06",
+   "title": "Теплоснабжение август 2026",
+   "clean": {
+    "html": "html/S06.html",
+    "png": "png_clean/S06.png",
+    "size": [
+     1588,
+     660
+    ],
+    "sha256": "f7ca55deb11e81d55257d6d7541b92620ac60be537b1557c615846540eafb559"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S06.jpg",
+    "size": [
+     1280,
+     600
+    ],
+    "seed": 1006,
+    "sha256": "2940a079e0d80a168ee606950e8382aac2d6276ae6cfea7d2c964f7e5e7fa8b7"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S06-D1",
+     "rowCount": 16
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S06.json",
+    "literalPhoto": "oracle/literal_photo/S06.json",
+    "geometryPhoto": "oracle/geometry_photo/S06.json",
+    "semantic": "oracle/semantic/S06.json",
+    "legacyGold": "gold/S06.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S07",
+   "title": "Капремонт и ТКО август 2026",
+   "clean": {
+    "html": "html/S07.html",
+    "png": "png_clean/S07.png",
+    "size": [
+     1588,
+     1668
+    ],
+    "sha256": "91fa4aae1319a358d482d77ee5c1b7098194194dcd012b5b56388996a54d329a"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S07.jpg",
+    "size": [
+     1224,
+     1280
+    ],
+    "seed": 1007,
+    "sha256": "2c88f7c16fac9ed244f01e66c43e3bd5115a84ca7cc2e05da4c8fdb2d325e57f"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S07-D1",
+     "rowCount": 9
+    },
+    {
+     "docId": "S07-D2",
+     "rowCount": 9
+    }
+   ],
+   "sharedRowIds": [
+    "p1.b1.r1",
+    "p1.b9.r1"
+   ],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S07.json",
+    "literalPhoto": "oracle/literal_photo/S07.json",
+    "geometryPhoto": "oracle/geometry_photo/S07.json",
+    "semantic": "oracle/semantic/S07.json",
+    "legacyGold": "gold/S07.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S08",
+   "title": "Электроэнергия сентябрь 2026",
+   "clean": {
+    "html": "html/S08.html",
+    "png": "png_clean/S08.png",
+    "size": [
+     1588,
+     1014
+    ],
+    "sha256": "2bd2dba31ca4cfea5ef2a54473ff5cc09fe51db72c27a1a264868c4994f10353"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S08.jpg",
+    "size": [
+     1280,
+     859
+    ],
+    "seed": 1008,
+    "sha256": "bc88c26032c403d01abe1fc6dd648034016720abec1d754f1449ee27a4936870"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S08-D1",
+     "rowCount": 18
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S08.json",
+    "literalPhoto": "oracle/literal_photo/S08.json",
+    "geometryPhoto": "oracle/geometry_photo/S08.json",
+    "semantic": "oracle/semantic/S08.json",
+    "legacyGold": "gold/S08.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S09",
+   "title": "Извещение ТСЖ сентябрь 2026",
+   "clean": {
+    "html": "html/S09.html",
+    "png": "png_clean/S09.png",
+    "size": [
+     1588,
+     1156
+    ],
+    "sha256": "ef831b127b74d4105b83988d45f10de5103d0950cd55c6f08e87813979e102cf"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S09.jpg",
+    "size": [
+     1280,
+     963
+    ],
+    "seed": 1009,
+    "sha256": "b9f28ea287657928ed167fbfdf92e5e5b43af12306814ece93a403cc46e1c7c5"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S09-D1",
+     "rowCount": 37
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S09.json",
+    "literalPhoto": "oracle/literal_photo/S09.json",
+    "geometryPhoto": "oracle/geometry_photo/S09.json",
+    "semantic": "oracle/semantic/S09.json",
+    "legacyGold": "gold/S09.legacy-v1.json"
+   }
+  },
+  {
+   "logicalFileId": "S10",
+   "title": "Газ сентябрь 2026",
+   "clean": {
+    "html": "html/S10.html",
+    "png": "png_clean/S10.png",
+    "size": [
+     1588,
+     664
+    ],
+    "sha256": "6c1260bc4192d6ee3a5555aa0f60a281d599fb4ce95892cd7959c9f8078c776b"
+   },
+   "photo_telegram": {
+    "jpg": "photo_telegram/S10.jpg",
+    "size": [
+     1280,
+     603
+    ],
+    "seed": 1010,
+    "sha256": "f9bc37008445cb279edf50806dd7ca99be8a2d6d2e74ed715844c81db7e89f4a"
+   },
+   "clippedCells": 0,
+   "documents": [
+    {
+     "docId": "S10-D1",
+     "rowCount": 12
+    }
+   ],
+   "sharedRowIds": [],
+   "oracle": {
+    "literalSource": "oracle/literal_source/S10.json",
+    "literalPhoto": "oracle/literal_photo/S10.json",
+    "geometryPhoto": "oracle/geometry_photo/S10.json",
+    "semantic": "oracle/semantic/S10.json",
+    "legacyGold": "gold/S10.legacy-v1.json"
+   }
+  }
+ ]
+}

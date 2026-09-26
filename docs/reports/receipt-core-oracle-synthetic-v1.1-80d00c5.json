@@ -1,0 +1,374 @@
+{
+  "coreCommit": "80d00c5ac7fa7252a9e474196a63d6e0349a9456",
+  "fixture": "homory-synthetic-v1.1-rev2",
+  "decisionSource": "oracle/semantic",
+  "legacyGoldUsed": false,
+  "documents": [
+    {
+      "fileId": "S01",
+      "docId": "S01-D1",
+      "expected": {
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "659353",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "659353",
+        "computedClosingBalanceMinor": null,
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "659353",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "659353",
+        "computedClosingBalanceMinor": null,
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S02",
+      "docId": "S02-D1",
+      "expected": {
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "0",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "0",
+        "computedClosingBalanceMinor": "-54560",
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "0",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "0",
+        "computedClosingBalanceMinor": "-54560",
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S03",
+      "docId": "S03-D1",
+      "expected": {
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "-147152",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "-147152",
+        "computedClosingBalanceMinor": null,
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "-147152",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "-147152",
+        "computedClosingBalanceMinor": null,
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S04",
+      "docId": "S04-D1",
+      "expected": {
+        "billingPeriod": "2026-06",
+        "mandatoryDue": {
+          "valueMinor": "1109350",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "1109350",
+        "computedClosingBalanceMinor": null,
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-06",
+        "mandatoryDue": {
+          "valueMinor": "1109350",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "1109350",
+        "computedClosingBalanceMinor": null,
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S05",
+      "docId": "S05-D1",
+      "expected": {
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "101304",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "101304",
+        "computedClosingBalanceMinor": null,
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "101304",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "101304",
+        "computedClosingBalanceMinor": null,
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S06",
+      "docId": "S06-D1",
+      "expected": {
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "453622",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "453622",
+        "computedClosingBalanceMinor": null,
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "453622",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "453622",
+        "computedClosingBalanceMinor": null,
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S07",
+      "docId": "S07-D1",
+      "expected": {
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "96968",
+          "status": "needs_review",
+          "source": "printed"
+        },
+        "computedDueMinor": null,
+        "computedClosingBalanceMinor": null,
+        "decision": "partial_draft",
+        "forbiddenDecisions": [
+          "confirmed_draft",
+          "reject"
+        ],
+        "note": "нет напечатанного accrued_total: замыкание E2 слабое (одна строка услуги = итог), подтверждать нельзя"
+      },
+      "actual": {
+        "decision": "partial_draft",
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "96968",
+          "status": "needs_review",
+          "source": "printed"
+        },
+        "computedDueMinor": null,
+        "computedClosingBalanceMinor": null,
+        "reasons": [
+          "due_reconciliation_insufficient"
+        ]
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S07",
+      "docId": "S07-D2",
+      "expected": {
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "47340",
+          "status": "needs_review",
+          "source": "printed"
+        },
+        "computedDueMinor": null,
+        "computedClosingBalanceMinor": null,
+        "decision": "partial_draft",
+        "forbiddenDecisions": [
+          "confirmed_draft",
+          "reject"
+        ],
+        "note": "нет напечатанного accrued_total: замыкание E2 слабое (одна строка услуги = итог), подтверждать нельзя"
+      },
+      "actual": {
+        "decision": "partial_draft",
+        "billingPeriod": "2026-08",
+        "mandatoryDue": {
+          "valueMinor": "47340",
+          "status": "needs_review",
+          "source": "printed"
+        },
+        "computedDueMinor": null,
+        "computedClosingBalanceMinor": null,
+        "reasons": [
+          "due_reconciliation_insufficient"
+        ]
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S08",
+      "docId": "S08-D1",
+      "expected": {
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "303996",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "303996",
+        "computedClosingBalanceMinor": null,
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "303996",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "303996",
+        "computedClosingBalanceMinor": null,
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S09",
+      "docId": "S09-D1",
+      "expected": {
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "574500",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "574500",
+        "computedClosingBalanceMinor": null,
+        "decision": "confirmed_draft",
+        "forbiddenDecisions": [
+          "reject"
+        ]
+      },
+      "actual": {
+        "decision": "confirmed_draft",
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "574500",
+          "status": "confirmed",
+          "source": "printed"
+        },
+        "computedDueMinor": "574500",
+        "computedClosingBalanceMinor": null,
+        "reasons": []
+      },
+      "decisionMatch": true
+    },
+    {
+      "fileId": "S10",
+      "docId": "S10-D1",
+      "expected": {
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "341390",
+          "status": "needs_review",
+          "source": "printed"
+        },
+        "computedDueMinor": null,
+        "computedClosingBalanceMinor": null,
+        "decision": "partial_draft",
+        "forbiddenDecisions": [
+          "confirmed_draft",
+          "reject"
+        ],
+        "note": "напечатанный итог на 1,00 ₽ больше формулы; диагностический расчёт не становится computedDue без закрытия E2"
+      },
+      "actual": {
+        "decision": "partial_draft",
+        "billingPeriod": "2026-09",
+        "mandatoryDue": {
+          "valueMinor": "341390",
+          "status": "needs_review",
+          "source": "printed"
+        },
+        "computedDueMinor": null,
+        "computedClosingBalanceMinor": null,
+        "reasons": [
+          "due_reconciliation_open"
+        ]
+      },
+      "decisionMatch": true
+    }
+  ],
+  "summary": {
+    "decisionMatches": 11,
+    "documentCount": 11,
+    "expectedTotals": {
+      "confirmed_draft": 8,
+      "partial_draft": 3
+    },
+    "actualTotals": {
+      "confirmed_draft": 8,
+      "partial_draft": 3
+    },
+    "silentConfirmedErrors": 0
+  }
+}

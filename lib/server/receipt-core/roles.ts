@@ -76,15 +76,24 @@ function stringArray(value: unknown, path: string) {
   return [...value] as string[];
 }
 
+function parseTextRange(value: unknown, path: string) {
+  if (!isRecord(value) || typeof value.cellId !== "string" || !value.cellId ||
+    !Number.isInteger(value.start) || !Number.isInteger(value.end)) {
+    throw new ReceiptContractError("invalid_role_schema", `${path} must contain cellId and integer start/end offsets`);
+  }
+  return { cellId: value.cellId, start: Number(value.start), end: Number(value.end) };
+}
+
 function parseExplicitSlots(value: unknown, path: string) {
   if (!isRecord(value)) throw new ReceiptContractError("invalid_role_schema", `${path} must be an object`);
-  const slots: Record<string, { cellIds: string[]; tokenIds?: string[] }> = {};
+  const slots: Record<string, { cellIds: string[]; tokenIds?: string[]; textRange?: { cellId: string; start: number; end: number } }> = {};
   for (const [name, binding] of Object.entries(value)) {
     enumValue(name, SLOT_NAMES, `${path}.${name}`);
     if (!isRecord(binding)) throw new ReceiptContractError("invalid_role_schema", `${path}.${name} must be an object`);
     slots[name] = {
       cellIds: stringArray(binding.cellIds, `${path}.${name}.cellIds`),
       tokenIds: binding.tokenIds === undefined ? undefined : stringArray(binding.tokenIds, `${path}.${name}.tokenIds`),
+      textRange: binding.textRange === undefined ? undefined : parseTextRange(binding.textRange, `${path}.${name}.textRange`),
     };
   }
   return slots;
@@ -102,6 +111,7 @@ function parseTableSlots(value: unknown, path: string) {
       columnKey: binding.columnKey,
       tokenIds: binding.tokenIds === undefined ? undefined : stringArray(binding.tokenIds, `${path}.${name}.tokenIds`),
     };
+    if ("textRange" in binding) throw new ReceiptContractError("invalid_role_schema", `${path}.${name}.textRange is available only for explicit slots`);
   }
   return slots;
 }
@@ -240,14 +250,28 @@ export function validateRoleClassification(document: LiteralDocument, input: unk
         if (!binding) continue;
         let slotCells: LiteralCell[] = [];
         let tokenIds: string[] = [];
+        let textRange: { cellId: string; start: number; end: number } | undefined;
         if (item.mode === "label_value") {
-          const explicit = binding as { cellIds: string[]; tokenIds?: string[] };
+          const explicit = binding as { cellIds: string[]; tokenIds?: string[]; textRange?: { cellId: string; start: number; end: number } };
           slotCells = explicit.cellIds.flatMap((id) => maps.cells.get(id) ?? []);
           if (slotCells.length !== explicit.cellIds.length || slotCells.some((cell) => !cell.id.startsWith(`${row.id}.c`))) {
             pushDiagnostic(diagnostics, invalidRows, { code: "invalid_cell_reference", severity: "error", rowId: row.id, itemIndex, sourceIds: explicit.cellIds });
             continue;
           }
           tokenIds = explicit.tokenIds ?? slotCells.flatMap((cell) => cell.numericTokens.map((token) => token.id));
+          if (explicit.textRange) {
+            const rangeCell = maps.cells.get(explicit.textRange.cellId);
+            if (!rangeCell || !explicit.cellIds.includes(explicit.textRange.cellId) ||
+              !rangeCell.id.startsWith(`${row.id}.c`) || explicit.textRange.start < 0 ||
+              explicit.textRange.end <= explicit.textRange.start || explicit.textRange.end > rangeCell.text.length) {
+              pushDiagnostic(diagnostics, invalidRows, {
+                code: "invalid_text_range_reference", severity: "error", rowId: row.id, itemIndex,
+                sourceIds: [explicit.textRange.cellId, `${explicit.textRange.start}:${explicit.textRange.end}`],
+              });
+              continue;
+            }
+            textRange = explicit.textRange;
+          }
         } else {
           const table = binding as { columnKey: string; tokenIds?: string[] };
           const schema = schemas.get(item.tableBlockId);
@@ -277,11 +301,15 @@ export function validateRoleClassification(document: LiteralDocument, input: unk
           pushDiagnostic(diagnostics, invalidRows, { code: "invalid_numeric_token_reference", severity: "error", rowId: row.id, itemIndex, sourceIds: tokenIds });
           continue;
         }
-        resolvedSlots[slotName] = { cellIds, tokenIds };
+        resolvedSlots[slotName] = { cellIds, tokenIds, ...(textRange ? { textRange } : {}) };
       }
       const sourceCellIds = [...new Set(Object.values(resolvedSlots).flatMap((slot) => slot?.cellIds ?? []))].sort();
       const sourceTokenIds = [...new Set(Object.values(resolvedSlots).flatMap((slot) => slot?.tokenIds ?? []))].sort();
-      const slotIdentity = (Object.keys(resolvedSlots) as SlotName[]).sort().map((name) => `${name}=${resolvedSlots[name]!.cellIds.join("+")}`).join(";");
+      const slotIdentity = (Object.keys(resolvedSlots) as SlotName[]).sort().map((name) => {
+        const slot = resolvedSlots[name]!;
+        const range = slot.textRange ? `@${slot.textRange.cellId}:${slot.textRange.start}:${slot.textRange.end}` : "";
+        return `${name}=${slot.cellIds.join("+")}${range}`;
+      }).join(";");
       provisionalItems.push({
         id: `${row.id}:${item.role}:${slotIdentity}`, rowId: row.id, mode: item.mode, role: item.role,
         tableBlockId: item.mode === "table_columns" ? item.tableBlockId : undefined,
