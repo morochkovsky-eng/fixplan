@@ -916,6 +916,12 @@ alter table public.utility_bills
   add column if not exists source_fingerprint text,
   add column if not exists extraction_warnings jsonb not null default '[]'::jsonb;
 
+alter table public.utility_bills
+  add column if not exists extraction_evidence jsonb not null default '{}'::jsonb,
+  add column if not exists review_fields jsonb not null default '[]'::jsonb,
+  add column if not exists last_payment_minor bigint,
+  add column if not exists last_payment_date date;
+
 create unique index if not exists utility_bills_source_update_unique on public.utility_bills(apartment_id,source_update_id) where source_update_id is not null;
 create unique index if not exists utility_bills_source_fingerprint_unique on public.utility_bills(apartment_id,source_fingerprint) where source_fingerprint is not null;
 create index if not exists utility_bills_monthly_summary_idx on public.utility_bills(apartment_id,billing_period_month,created_at);

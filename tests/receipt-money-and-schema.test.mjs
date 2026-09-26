@@ -10,6 +10,8 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 await import("tsx/esm");
 const money = await import("../lib/server/receipt-money.ts");
 const telegram = await import("../lib/server/telegram.ts");
+const normalization = await import("../lib/server/receipt-normalization.ts");
+const transcription = await import("../lib/server/receipt-transcription.ts");
 
 test("receipt money uses exact decimal-to-minor arithmetic", () => {
   assert.equal(money.moneyToMinor("14 995,84"), 1499584n);
@@ -39,4 +41,30 @@ test("receipt migration creates normalized child tables with owner membership RL
   assert.match(migration, /grant select, insert, update, delete on public\.utility_bill_line_items to authenticated/);
   assert.doesNotMatch(migration, /security definer/i);
   assert.match(migration, /utility_bills_source_update_unique/);
+});
+
+test("receipt evidence migration is additive and keeps historical payment separate", () => {
+  const migration = readFileSync("supabase/migrations/20260924103142_add_receipt_review_evidence.sql", "utf8");
+  assert.match(migration, /add column if not exists extraction_evidence jsonb not null default '\{\}'::jsonb/);
+  assert.match(migration, /add column if not exists review_fields jsonb not null default '\[\]'::jsonb/);
+  assert.match(migration, /add column if not exists last_payment_minor bigint/);
+  assert.match(migration, /add column if not exists last_payment_date date/);
+  assert.doesNotMatch(migration, /drop\s|delete\s|update\s+public\.utility_bills/iu);
+});
+
+test("receipt schema requires canonical billing periods and ISO dates", () => {
+  const properties = normalization.receiptNormalizationSchema.properties;
+  assert.equal(properties.billingPeriod.properties.value.anyOf[0].pattern, "^\\d{4}-(0[1-9]|1[0-2])$");
+  assert.equal(properties.dueDate.properties.value.anyOf[0].pattern, "^\\d{4}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$");
+  assert.equal(properties.lastPayment.properties.date.properties.value.anyOf[0].pattern, "^\\d{4}-(0[1-9]|1[0-2])-([0-2]\\d|3[01])$");
+  assert.match(normalization.receiptNormalizationPrompt, /Normalize billingPeriod to YYYY-MM/);
+  assert.match(normalization.receiptNormalizationPrompt, /Return null\/missing rather than a non-canonical or guessed date/);
+});
+
+test("receipt schemas require spatial evidence and printed financial components", () => {
+  assert.ok(transcription.receiptTranscriptionSchema.required.includes("evidence"));
+  const evidence = transcription.receiptTranscriptionSchema.properties.evidence.items;
+  assert.deepEqual(evidence.required, ["id", "page", "kind", "sectionType", "label", "value", "rawText", "bbox", "allowsMultipleEntities"]);
+  assert.ok(normalization.receiptNormalizationSchema.required.includes("financialComponents"));
+  assert.match(normalization.receiptNormalizationPrompt, /Never create a number absent from every cited evidence region/);
 });

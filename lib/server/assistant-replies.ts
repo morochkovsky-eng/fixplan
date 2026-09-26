@@ -86,7 +86,35 @@ export function utilityDraftReply(pendingAction: Record<string, unknown>, curren
     ));
   }
   const warnings = Array.isArray(latest.warnings) ? latest.warnings.map(String).filter(Boolean) : [];
+  const reviewFields = Array.isArray(latest.reviewFields) ? latest.reviewFields.map(String).filter(Boolean) : [];
+  const reviewLabels: Record<string, string> = {
+    provider: "поставщик",
+    referenceAddress: "адрес",
+    accountNumber: "лицевой счёт",
+    issuedDate: "дата документа",
+    dueDate: "срок оплаты",
+    accruedAmount: "начисление за период",
+    openingDebt: "входящий долг",
+    openingAdvance: "входящий аванс",
+    paymentsAppliedToCurrentPeriod: "оплаты текущего периода",
+    recalculationAmount: "перерасчёт",
+    benefitAmount: "льготы",
+    penaltyAmount: "пени",
+    "lastPayment.amount": "последний платёж",
+    "lastPayment.date": "дата последнего платежа",
+  };
+  const reviewSummary = [...new Set(reviewFields.map((field) => {
+    if (reviewLabels[field]) return reviewLabels[field];
+    if (field.startsWith("lineItems.")) return "отдельные строки услуг";
+    if (field.startsWith("meterEntries.")) return "показания счётчиков";
+    return field;
+  }))];
   if (warnings.length) extracted.push("", "Требует проверки:", ...warnings.map((warning) => `• ${warning}`));
+  if (reviewSummary.length) {
+    const shown = reviewSummary.slice(0, 8);
+    extracted.push("", "Не удалось надёжно подтвердить:", ...shown.map((field) => `• ${field}`));
+    if (reviewSummary.length > shown.length) extracted.push(`• ещё полей: ${reviewSummary.length - shown.length}`);
+  }
   extracted.push("");
   if (pendingAction.type === "collect_utility_bill") {
     extracted.push("Укажите расчётный месяц и год, например: август 2026. Повторно загружать документ не нужно.");
