@@ -2,7 +2,7 @@
 
 Status: prepared offline on 2026-09-26. Provider execution is blocked until the owner separately approves the published call and cost estimate.
 
-The machine-readable prepaid gate report is [receipt-vision-spike-gate-4a2d09d.json](./reports/receipt-vision-spike-gate-4a2d09d.json).
+The machine-readable prepaid gate report is [receipt-vision-spike-gate-d7acbe9.json](./reports/receipt-vision-spike-gate-d7acbe9.json).
 
 This spike measures document reading and row classification independently before either is connected to the Homory runtime. The deterministic receipt core remains the final authority for parsing, arithmetic, reconciliation, and draft decisions. See [Receipt deterministic core](./RECEIPT_DETERMINISTIC_CORE.md).
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "receipt-spike-dry-run-v1",
   "baselineCommit": "1bc6309a4312631e5ba99084c65fddd86f4e2266",
-  "implementationCommit": "4a2d09d5e4f5d3b6b1cddb669247333d059d0768",
+  "implementationCommit": "d7acbe9d3700d993867e82eaae763c94705a4c67",
   "manifest": {
     "path": "tests/fixtures/receipt-synthetic-v1.1/spike-manifest.json",
     "verifiedFiles": 80,
@@ -87,7 +87,7 @@
         "characters": 494
       }
     ],
-    "googleEnterpriseOcrAdapterMock": "pass_lines_without_table_contract",
+    "googleEnterpriseOcrAdapterMock": "pass_document_tokens_without_cell_structure_or_geometry",
     "illegibleMetric": "not_tested_no_illegible_cells"
   },
   "matrix": [
@@ -129,7 +129,9 @@
       "readerCalls": 20,
       "classifierCalls": 20,
       "estimateUsd": 1.2019,
+      "textMetricGranularity": "document_token",
       "structureGate": "not_applicable",
+      "geometryGate": "not_applicable",
       "status": "planned_not_run"
     },
     {
