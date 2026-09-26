@@ -3,6 +3,7 @@
 Status: prepared offline on 2026-09-26. The matrix runner is implemented, but provider execution remains blocked until the owner separately approves the exact plan fingerprint and cost cap.
 
 The machine-readable prepaid gate report is [receipt-vision-spike-gate-d7acbe9.json](./reports/receipt-vision-spike-gate-d7acbe9.json).
+The separate runner safety report is [receipt-spike-runner-gate-c37ba31.json](./reports/receipt-spike-runner-gate-c37ba31.json).
 
 This spike measures document reading and row classification independently before either is connected to the Homory runtime. The deterministic receipt core remains the final authority for parsing, arithmetic, reconciliation, and draft decisions. See [Receipt deterministic core](./RECEIPT_DETERMINISTIC_CORE.md).
 

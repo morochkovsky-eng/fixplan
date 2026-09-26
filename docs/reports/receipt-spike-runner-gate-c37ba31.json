@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "receipt-spike-runner-gate-v1",
+  "preparedAt": "2026-09-26",
+  "baseCommit": "7cce93f872b8d47eaedf086b73f21bd411b71c23",
+  "implementationCommit": "c37ba31278480acf1b4f6e4ef60b6ab9701bbd0b",
+  "planSha256": "4182e074f6957d6c7e3a4df6b6d78e9c37dc562fbf8e64c541183c9fea488bac",
+  "execution": {
+    "approvalRecorded": false,
+    "providerClientsConstructed": false,
+    "providerCallsExecuted": 0,
+    "paidCostMicrousd": 0
+  },
+  "matrix": {
+    "openAiCallsPlanned": 270,
+    "googleDocumentAiCallsPlanned": 20,
+    "providerCallsPlanned": 290,
+    "localPdfExtractionsPlanned": 10,
+    "r1OutputsReusedForC2": true
+  },
+  "budget": {
+    "planningEstimateUsd": 11.9983,
+    "maximumAuthorizedSpendMicrousd": 12000000,
+    "stopBeforeDispatch": true,
+    "reservationsMicrousd": {
+      "R1-openai-vision": 500000,
+      "C1-openai-strong": 300000,
+      "C2-openai-economy": 50000,
+      "R2-google-enterprise-ocr": 10000
+    },
+    "uncertainOutcomeBlocksSeries": true,
+    "returnedModelChangeRequiresNewSeries": true
+  },
+  "checks": {
+    "productionBuild": "pass",
+    "typescript": "pass",
+    "lint": "pass",
+    "tests": {
+      "passed": 187,
+      "total": 187
+    },
+    "manifestVerification": "pass",
+    "readerOracleSelfCheck": "20/20",
+    "mockClassifierDecisions": "66/66",
+    "secretScan": "pass"
+  },
+  "externalChanges": {
+    "aiOrOcrCalls": false,
+    "production": false,
+    "telegram": false,
+    "supabase": false,
+    "storage": false,
+    "environment": false
+  }
+}
