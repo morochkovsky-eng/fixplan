@@ -80,6 +80,8 @@ const integrity = {
     "lib/server/receipt-spike/matrix-runner.ts",
     "lib/server/receipt-spike/providers.ts",
     "lib/server/receipt-spike/runner.ts",
+    "scripts/receipt-spike/approval-plan.mjs",
+    "scripts/receipt-spike/plan-lib.mjs",
     "scripts/receipt-spike/run-matrix.mjs",
   ].map((file) => [file, sha256(fs.readFileSync(file))])),
 };
@@ -88,10 +90,6 @@ export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
   if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
   return JSON.stringify(value);
-}
-
-export function fingerprintReceiptSpikePlan(value) {
-  return createHash("sha256").update(canonicalJson(value)).digest("hex");
 }
 
 export function buildReceiptSpikePlan() {
@@ -144,6 +142,5 @@ export function buildReceiptSpikePlan() {
   },
   gate: { paidExecutionRequiresSeparateOwnerApproval: true, approvalRecorded: false, hardBudgetEnforcementRequired: true },
   };
-  const planSha256 = fingerprintReceiptSpikePlan(report);
-  return { ...report, planSha256 };
+  return report;
 }

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import { registerHooks } from "node:module";
@@ -15,7 +16,8 @@ const budget = await import("../lib/server/receipt-spike/budget.ts");
 const runner = await import("../lib/server/receipt-spike/runner.ts");
 const providers = await import("../lib/server/receipt-spike/providers.ts");
 const matrix = await import("../lib/server/receipt-spike/matrix-runner.ts");
-const { buildReceiptSpikePlan, canonicalJson, fingerprintReceiptSpikePlan } = await import("../scripts/receipt-spike/plan-lib.mjs");
+const { buildReceiptSpikePlan, canonicalJson } = await import("../scripts/receipt-spike/plan-lib.mjs");
+const approvalPlan = await import("../scripts/receipt-spike/approval-plan.mjs");
 
 const fixtureRoot = path.resolve("tests/fixtures/receipt-synthetic-v1.1");
 const manifest = JSON.parse(fs.readFileSync(path.join(fixtureRoot, "spike-manifest.json"), "utf8"));
@@ -32,16 +34,15 @@ const completed = (actualCostMicrousd = 100, budgetChargeMicrousd = actualCostMi
 });
 
 test("receipt spike plan fingerprint and matrix schedule are stable and complete", () => {
-  const first = buildReceiptSpikePlan();
-  const second = buildReceiptSpikePlan();
+  const first = approvalPlan.buildApprovedReceiptSpikePlan();
+  const second = approvalPlan.buildApprovedReceiptSpikePlan();
   assert.equal(first.planSha256, second.planSha256);
   assert.match(first.integrity.manifestSha256, /^[a-f0-9]{64}$/);
   assert.match(first.integrity.readerPromptSha256, /^[a-f0-9]{64}$/);
-  const unsignedPlan = structuredClone(first);
-  delete unsignedPlan.planSha256;
+  const unsignedPlan = buildReceiptSpikePlan();
   const changedPrompt = structuredClone(unsignedPlan);
   changedPrompt.integrity.readerPromptSha256 = "0".repeat(64);
-  assert.notEqual(fingerprintReceiptSpikePlan(changedPrompt), first.planSha256);
+  assert.notEqual(approvalPlan.bindReceiptSpikePlanner(changedPrompt).planSha256, first.planSha256);
   assert.equal(canonicalJson({ b: 2, a: 1 }), canonicalJson({ a: 1, b: 2 }));
   const schedule = matrix.buildReceiptSpikeSchedule(manifest);
   assert.equal(schedule.filter((step) => step.kind !== "local_reader").length, 290);
@@ -49,8 +50,23 @@ test("receipt spike plan fingerprint and matrix schedule are stable and complete
   assert.equal(schedule.filter((step) => step.cell === "r1-reuse-c2" && step.kind === "provider_reader").length, 0);
 });
 
+test("planner source is independently bound and any planner change requires new approval", () => {
+  const unsignedPlan = buildReceiptSpikePlan();
+  const approvedPlan = approvalPlan.bindReceiptSpikePlanner(unsignedPlan);
+  const plannerPath = "scripts/receipt-spike/plan-lib.mjs";
+  const changedPlanner = Buffer.concat([fs.readFileSync(plannerPath), Buffer.from("\n// safety change\n")]);
+  assert.throws(() => approvalPlan.bindReceiptSpikePlanner(unsignedPlan, { plannerBytes: changedPlanner }), /receipt_spike_planner_hash_mismatch/);
+
+  const rebuiltPlan = structuredClone(unsignedPlan);
+  rebuiltPlan.integrity.sourceSha256[plannerPath] = createHash("sha256").update(changedPlanner).digest("hex");
+  const rebuiltApproval = approvalPlan.bindReceiptSpikePlanner(rebuiltPlan, { plannerBytes: changedPlanner });
+  assert.notEqual(rebuiltApproval.planSha256, approvedPlan.planSha256);
+  const staleApproval = { schemaVersion: "receipt-spike-approval-v1", approved: true, planSha256: approvedPlan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  assert.throws(() => budget.validateReceiptSpikeApproval(staleApproval, { planSha256: rebuiltApproval.planSha256 }), (error) => error.code === "approval_plan_mismatch");
+});
+
 test("manifest and prompt bytes must match the approved plan before execution", () => {
-  const plan = buildReceiptSpikePlan();
+  const plan = approvalPlan.buildApprovedReceiptSpikePlan();
   const readerPrompt = fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8");
   const classifierPrompt = fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8");
   assert.equal(matrix.verifyReceiptSpikeManifest(fixtureRoot, manifest, { ...plan.integrity, readerPrompt, classifierPrompt }), 10);
@@ -75,7 +91,7 @@ test("paid mode refuses before credentials or provider construction when approva
 test("approval requires exact plan, cap, expiry, and private permissions", () => {
   const dir = temporary("approval");
   const file = path.join(dir, "approval.json");
-  const plan = buildReceiptSpikePlan();
+  const plan = approvalPlan.buildApprovedReceiptSpikePlan();
   const value = { schemaVersion: "receipt-spike-approval-v1", approved: true, planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
   fs.writeFileSync(file, JSON.stringify(value), { mode: 0o644 });
   assert.throws(() => budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256 }), (error) => error.code === "unsafe_approval_permissions");

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { registerHooks } from "node:module";
 import path from "node:path";
-import { buildReceiptSpikePlan } from "./plan-lib.mjs";
+import { buildApprovedReceiptSpikePlan } from "./approval-plan.mjs";
 
 const args = process.argv.slice(2);
 const execute = args.includes("--execute");
@@ -9,12 +9,13 @@ const argument = (name) => {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 };
-const plan = buildReceiptSpikePlan();
+const plan = buildApprovedReceiptSpikePlan();
 
 if (!execute) {
   process.stdout.write(`${JSON.stringify({
     schemaVersion: "receipt-spike-runner-dry-plan-v1",
     planSha256: plan.planSha256,
+    approvalBinding: plan.approvalBinding,
     providerCallsPlanned: plan.totals.providerCalls,
     localPdfExtractionsPlanned: plan.totals.localPdfExtractions,
     maximumAuthorizedSpendMicrousd: 12_000_000,
