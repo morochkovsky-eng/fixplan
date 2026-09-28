@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "receipt-spike-loader-preflight-v1",
+  "status": "offline_review_pending_mac_smoke",
+  "base": "main@ca59260652816b3fe085db71b234ed732bdc9fdb",
+  "planSha256": "5b3032ee7dc70cceb73d30b44928f02a9774b09d7ffcd2a56001cdc7683915b3",
+  "previousPlanSha256": "f11b49784b51ec394882a3ddbda26a6d488ffce7a3b713feb261c20e843d0fa3",
+  "reportedIssue": "Paid runner stalled locally before creating the series; no provider calls or ledger were created.",
+  "change": "Replace paid runner ESM loader registration with tsx/cjs/api; add an approval-bound no-call full-module and manifest preflight.",
+  "planningEstimateUsd": 10.7964,
+  "maximumAuthorizedSpendUsd": 12,
+  "plannedOpenAiCalls": 250,
+  "plannedGoogleCalls": 0,
+  "plannedLocalPdfExtractions": 10,
+  "providerCallsExecuted": 0,
+  "paidSpendUsd": 0,
+  "approvalForNewPlanRecorded": false,
+  "checks": {
+    "productionBuild": "passed",
+    "typescript": "passed",
+    "lint": "passed",
+    "tests": "198/198",
+    "runnerTests": "22/22",
+    "preflightWithoutCredentials": "passed_no_clients_no_series_no_calls",
+    "targetMacSmoke": "pending"
+  }
+}
