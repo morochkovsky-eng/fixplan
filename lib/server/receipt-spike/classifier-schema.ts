@@ -34,6 +34,14 @@ function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function canonicalWireValue(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalWireValue).join(",")}]`;
+  if (record(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalWireValue(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
 export function classifierWireToCore(value: unknown): unknown {
   if (!record(value) || !Array.isArray(value.rows)) return value;
   return { ...value, rows: value.rows.map((row: unknown) => {
@@ -42,10 +50,15 @@ export function classifierWireToCore(value: unknown): unknown {
       if (!record(item) || !Array.isArray(item.slots)) return item;
       const slots: Record<string, unknown> = Object.create(null);
       for (const binding of item.slots) {
-        if (!record(binding) || typeof binding.slot !== "string" || Object.hasOwn(slots, binding.slot)) throw new Error("classifier_slot_wire_invalid");
+        if (!record(binding) || typeof binding.slot !== "string") throw new Error("classifier_slot_wire_invalid");
         const { slot, ...source } = binding;
         void slot;
-        slots[binding.slot] = Object.fromEntries(Object.entries(source).filter(([, entry]) => entry !== null));
+        const normalizedSource = Object.fromEntries(Object.entries(source).filter(([, entry]) => entry !== null));
+        if (Object.hasOwn(slots, binding.slot)) {
+          if (canonicalWireValue(slots[binding.slot]) === canonicalWireValue(normalizedSource)) continue;
+          throw new Error("classifier_slot_wire_conflict");
+        }
+        slots[binding.slot] = normalizedSource;
       }
       const normalized: Record<string, unknown> = { ...item, slots };
       for (const field of ["dueScope", "optionalScope", "declaredState", "affectsDue"] as const) {

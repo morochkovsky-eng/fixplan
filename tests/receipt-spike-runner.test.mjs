@@ -387,7 +387,40 @@ test("strict classifier wire uses generated enums and preserves the core's spars
   assert.deepEqual(converted.rows[2].items[0].slots.billing_period.cellIds, source.rows[2].items[0].slots.billing_period.cellIds);
   assert.ok(classifierSchema.classifierResponseSchema.properties.rows.items.properties.items.items.anyOf[0].properties.role.enum.includes("billing_period"));
   assert.ok(classifierSchema.classifierResponseSchema.properties.rows.items.properties.items.items.anyOf[0].properties.slots.items.properties.slot.enum.includes("billing_period"));
-  assert.throws(() => classifierSchema.classifierWireToCore({ ...wire, rows: [{ rowId: "r", items: [{ ...wire.rows[0].items[0], slots: [wire.rows[0].items[0].slots[0], wire.rows[0].items[0].slots[0]] }] }] }), /classifier_slot_wire_invalid/);
+  const duplicateRow = wire.rows.find((row) => row.items.some((item) => item.slots.length > 0));
+  const duplicateItem = duplicateRow.items.find((item) => item.slots.length > 0);
+  const duplicate = duplicateItem.slots[0];
+  const deduplicated = classifierSchema.classifierWireToCore({
+    ...wire,
+    rows: [{ rowId: duplicateRow.rowId, items: [{ ...duplicateItem, slots: [duplicate, structuredClone(duplicate)] }] }],
+  });
+  assert.equal(Object.keys(deduplicated.rows[0].items[0].slots).length, 1);
+  assert.deepEqual(deduplicated.rows[0].items[0].slots[duplicate.slot],
+    Object.fromEntries(Object.entries(duplicate).filter(([key, value]) => key !== "slot" && value !== null)));
+});
+
+test("S06-style conflicting ignore columns remain a wire error and cannot confirm a value", () => {
+  const conflicting = {
+    documents: [{ docId: "S06-D1", documentKind: "utility", rowIds: ["p1.b5.r6"] }],
+    sharedRowIds: [],
+    tableSchemas: [{ blockId: "p1.b5", columns: [
+      { key: "c4", index: 3, semantic: "accrued_total" },
+      { key: "c5", index: 4, semantic: "ignore" },
+      { key: "c6", index: 5, semantic: "ignore" },
+    ] }],
+    rows: [{ rowId: "p1.b5.r6", items: [{
+      mode: "table_columns", role: "accrued_total", tableBlockId: "p1.b5",
+      dueScope: null, optionalScope: null, declaredState: null, affectsDue: null,
+      slots: [
+        { slot: "accrued_total", columnKey: "c4", tokenIds: ["p1.b5.r6.c4#1"] },
+        { slot: "ignore", columnKey: "c5", tokenIds: ["p1.b5.r6.c5#1"] },
+        { slot: "ignore", columnKey: "c6", tokenIds: ["p1.b5.r6.c6#1"] },
+      ],
+    }] }],
+  };
+  let convertedConflict;
+  assert.throws(() => { convertedConflict = classifierSchema.classifierWireToCore(conflicting); }, /classifier_slot_wire_conflict/);
+  assert.equal(convertedConflict, undefined, "a conflicting source reference never reaches receipt-core as a confirmed value");
 });
 
 test("completed malformed classifier output records usage and cost before contract validation", async () => {
