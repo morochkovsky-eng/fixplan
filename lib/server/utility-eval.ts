@@ -1,6 +1,7 @@
 import "server-only";
 
-import { createHash, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
+import { runReceiptPipeline } from "@/lib/server/receipt-pipeline";
 
 export const utilityEvalSupportedMimeTypes = new Set([
   "application/pdf",
@@ -74,20 +75,6 @@ export const utilityBillTool = {
 
 export const utilityDocumentClassificationRules = `Извлекай только напечатанные данные текущего документа и не переноси сведения из истории. Неразборчивое или неподтверждённое значение всегда возвращай как null: не восстанавливай поставщика, адрес, лицевой счёт, услуги, период, суммы, тарифы, объёмы или показания по виду шаблона и не подставляй типичные значения. Уверенно выглядящий ответ без читаемого фрагмента-основания считается ошибкой. В quality оцени размытие, сжатие, мелкий текст, обрезанные края, блики, перспективу и затемнение; для каждого критического поля верни confidence и короткий видимый фрагмент evidence, либо absent/unreadable и null. Все подтверждённые денежные поля передавай строкой с точностью до копейки. Раздельно извлекай начисление текущего периода, входящий долг, входящий аванс, оплаты, перерасчёт со знаком, льготы, пени, добровольные услуги, напечатанное «к оплате» и обязательный итог. Начисление и «к оплате» — разные величины. Добровольные услуги не включай в mandatoryDueAmount без прямого указания документа. Для строки услуги ставь calculationMode=simple только при одной явно напечатанной формуле объём × тариф; для зонного, ступенчатого или составного расчёта ставь composite, а при одном напечатанном итоге без применимой формулы — printed_total. Сохраняй каждую подтверждённую строку услуг и каждый счётчик; пустые показания оставляй null.`;
 
-type ResponseItem = {
-  type: string;
-  name?: string;
-  arguments?: string;
-  call_id?: string;
-  content?: Array<{ type: string; text?: string }>;
-};
-
-type OpenAIResponse = {
-  id: string;
-  output?: ResponseItem[];
-  output_text?: string;
-};
-
 export type UtilityEvalInput = {
   bytes: Uint8Array;
   filename: string;
@@ -98,33 +85,12 @@ export type UtilityEvalInput = {
 };
 
 export type UtilityEvalResult = {
-  responseId: string;
-  model: string;
+  responseId: string | null;
+  models: string[];
   draft: Record<string, unknown> | null;
   question: string | null;
+  attempts: Array<Record<string, unknown>>;
 };
-
-function textFromResponse(response: OpenAIResponse) {
-  if (response.output_text?.trim()) return response.output_text.trim();
-  return (response.output ?? [])
-    .flatMap((item) => item.content ?? [])
-    .filter((item) => item.type === "output_text")
-    .map((item) => item.text ?? "")
-    .join("\n")
-    .trim();
-}
-
-function parseUtilityDraft(response: OpenAIResponse) {
-  const call = (response.output ?? []).find(
-    (item) => item.type === "function_call" && item.name === utilityBillTool.name,
-  );
-  if (!call?.arguments) return null;
-  const parsed = JSON.parse(call.arguments) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Utility extraction returned invalid tool arguments");
-  }
-  return parsed as Record<string, unknown>;
-}
 
 function equalSecret(provided: string, expected: string) {
   const providedBytes = Buffer.from(provided);
@@ -150,38 +116,16 @@ export async function runUtilityBillEvaluation(
   input: UtilityEvalInput,
   fetchFn: typeof fetch = fetch,
 ): Promise<UtilityEvalResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
-  const model = process.env.OPENAI_MODEL ?? "gpt-5.4-nano";
-  const fileContent = input.mimeType.startsWith("image/")
-    ? { type: "input_image", image_url: `data:${input.mimeType};base64,${Buffer.from(input.bytes).toString("base64")}`, detail: "auto" }
-    : { type: "input_file", filename: input.filename, file_data: `data:${input.mimeType};base64,${Buffer.from(input.bytes).toString("base64")}`, detail: "auto" };
-  const response = await fetchFn("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model,
-      instructions: `Ты выполняешь изолированную проверку распознавания коммунальной квитанции в Homory. Ничего не сохраняй и не утверждай, что создал запись. Валюта объекта: ${input.currency || "RUB"}. Настройка добровольного страхования: ${input.insuranceIncluded === false ? "исключать" : "включать по умолчанию"}.\n\n${utilityDocumentClassificationRules}\n\nДля платёжного документа вызови prepare_utility_bill даже при плохом качестве, но при нечитаемом документе поставь quality.readable=false и верни null для неподтверждённых полей. Адрес и лицевой счёт допустимы только в предназначенных для них структурированных полях; имя плательщика, банковские реквизиты и QR-код не извлекай.`,
-      input: [{
-        role: "user",
-        content: [
-          { type: "input_text", text: input.instruction?.trim() || "Распознай эту коммунальную квитанцию и подготовь структурированный черновик." },
-          fileContent,
-        ],
-      }],
-      tools: [utilityBillTool],
-      tool_choice: "auto",
-      parallel_tool_calls: false,
-      safety_identifier: createHash("sha256").update("homory-utility-eval").digest("hex"),
-      max_output_tokens: 2200,
-    }),
-  });
-  if (!response.ok) throw new Error(`OpenAI Responses API failed with ${response.status}`);
-  const payload = await response.json() as OpenAIResponse;
+  const result = await runReceiptPipeline({
+    dataUrl: `data:${input.mimeType};base64,${Buffer.from(input.bytes).toString("base64")}`,
+    filename: input.filename,
+    mimeType: input.mimeType,
+  }, { fetchFn });
   return {
-    responseId: payload.id,
-    model,
-    draft: parseUtilityDraft(payload),
-    question: textFromResponse(payload) || null,
+    responseId: null,
+    models: [...new Set(result.attempts.map((item) => item.model))],
+    draft: result.billPayload,
+    question: result.ok ? null : `Требуется проверка: ${result.validation?.blockers.join(", ") || result.failureCode || "document_unrecognized"}`,
+    attempts: result.attempts,
   };
 }

@@ -286,7 +286,7 @@ export async function prepareReceiptRecognitionImages(
   }
 }
 
-function technicalQuality(attachment: ReceiptAttachmentQuality | undefined) {
+export function receiptTechnicalQuality(attachment: ReceiptAttachmentQuality | undefined) {
   const blockers: string[] = [];
   const warnings: string[] = [];
   if (!attachment) return { blockers, warnings };
@@ -321,7 +321,7 @@ export function validateReceiptReadability(
 ): { ok: true } | ReceiptValidationFailure {
   const quality = objectValue(args.quality);
   const issues: string[] = [];
-  const { blockers, warnings } = technicalQuality(attachment);
+  const { blockers, warnings } = receiptTechnicalQuality(attachment);
 
   const evidence = new Map(
     arrayObjects(quality?.criticalFields).map((entry) => [String(entry.field ?? ""), entry]),

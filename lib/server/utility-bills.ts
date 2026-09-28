@@ -82,7 +82,12 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
     paid: body.paidAmount,
   });
   const printedDue = moneyToMinor(body.printedDueAmount ?? body.mandatoryDueAmount);
-  const arithmeticDifference = calculatedDue === null || printedDue === null ? null : printedDue - calculatedDue;
+  const adjustedDue = calculatedDue === null ? null : calculatedDue +
+    (moneyToMinor(body.recalculationAmount) ?? BigInt(0)) -
+    (moneyToMinor(body.benefitAmount) ?? BigInt(0)) +
+    (moneyToMinor(body.penaltyAmount) ?? BigInt(0));
+  const arithmeticDifference = calculatedDue === null || printedDue === null ? null
+    : printedDue === calculatedDue || printedDue === adjustedDue ? BigInt(0) : printedDue - calculatedDue;
   const warnings = Array.isArray(body.warnings) ? body.warnings.map(String).filter(Boolean) : [];
   if (arithmeticDifference !== null && arithmeticDifference !== BigInt(0)) {
     warnings.push(`Арифметика не сходится на ${minorToDecimal(arithmeticDifference)}.`);
@@ -146,6 +151,10 @@ export function normalizeBillPayload(body: Record<string, unknown>) {
       source_update_id: Number.isSafeInteger(Number(body.sourceUpdateId)) ? Number(body.sourceUpdateId) : null,
       source_fingerprint: /^[a-f0-9]{64}$/u.test(String(body.sourceFingerprint ?? "")) ? String(body.sourceFingerprint) : null,
       extraction_warnings: warnings,
+      extraction_evidence: body.receiptEvidence && typeof body.receiptEvidence === "object" ? body.receiptEvidence : {},
+      review_fields: Array.isArray(body.reviewFields) ? body.reviewFields.map(String).filter(Boolean) : [],
+      last_payment_minor: minorValue(body.lastPaymentAmount),
+      last_payment_date: /^\d{4}-\d{2}-\d{2}$/u.test(String(body.lastPaymentDate ?? "")) ? String(body.lastPaymentDate) : null,
     },
     lineItems: normalizeLineItems(body.lineItems),
     meters: normalizeMeters(body.meters),
