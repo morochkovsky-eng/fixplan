@@ -5,16 +5,18 @@ import { buildApprovedReceiptSpikePlan } from "./approval-plan.mjs";
 
 const args = process.argv.slice(2);
 const execute = args.includes("--execute");
+const includeR2 = args.includes("--include-r2");
 const argument = (name) => {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 };
-const plan = buildApprovedReceiptSpikePlan();
+const plan = buildApprovedReceiptSpikePlan({ includeR2 });
 
 if (!execute) {
   process.stdout.write(`${JSON.stringify({
     schemaVersion: "receipt-spike-runner-dry-plan-v1",
     planSha256: plan.planSha256,
+    includeR2,
     approvalBinding: plan.approvalBinding,
     providerCallsPlanned: plan.totals.providerCalls,
     localPdfExtractionsPlanned: plan.totals.localPdfExtractions,
@@ -37,15 +39,12 @@ registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 await import("tsx/esm");
 const budget = await import("../../lib/server/receipt-spike/budget.ts");
-const approval = budget.readReceiptSpikeApproval(path.resolve(approvalFile), { planSha256: plan.planSha256 });
+const approval = budget.readReceiptSpikeApproval(path.resolve(approvalFile), { planSha256: plan.planSha256, series });
 
-const requiredEnvironment = [
-  "OPENAI_API_KEY",
-  "GOOGLE_DOCUMENT_AI_ACCESS_TOKEN",
-  "GOOGLE_CLOUD_PROJECT",
-  "GOOGLE_DOCUMENT_AI_LOCATION",
-  "GOOGLE_DOCUMENT_AI_PROCESSOR_ID",
-];
+const requiredEnvironment = ["OPENAI_API_KEY"];
+if (includeR2) requiredEnvironment.push(
+  "GOOGLE_DOCUMENT_AI_ACCESS_TOKEN", "GOOGLE_CLOUD_PROJECT", "GOOGLE_DOCUMENT_AI_LOCATION", "GOOGLE_DOCUMENT_AI_PROCESSOR_ID",
+);
 for (const name of requiredEnvironment) if (!process.env[name]) throw new Error(`missing_required_environment:${name}`);
 
 const providers = await import("../../lib/server/receipt-spike/providers.ts");
@@ -53,19 +52,20 @@ const matrix = await import("../../lib/server/receipt-spike/matrix-runner.ts");
 const fixtureRoot = path.resolve("tests/fixtures/receipt-synthetic-v1.1");
 const manifest = JSON.parse(fs.readFileSync(path.join(fixtureRoot, "spike-manifest.json"), "utf8"));
 const openai = new providers.OpenAiReceiptSpikeClient(process.env.OPENAI_API_KEY);
-const google = new providers.GoogleEnterpriseOcrClient({
+const google = includeR2 ? new providers.GoogleEnterpriseOcrClient({
   accessToken: process.env.GOOGLE_DOCUMENT_AI_ACCESS_TOKEN,
   projectId: process.env.GOOGLE_CLOUD_PROJECT,
   location: process.env.GOOGLE_DOCUMENT_AI_LOCATION,
   processorId: process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID,
   processorVersion: manifest.models.R2.requestedVersion,
-});
+}) : undefined;
 
 const result = await matrix.runReceiptSpikeMatrix({
   fixtureRoot,
   manifest,
   series,
   planSha256: plan.planSha256,
+  includeR2,
   integrity: plan.integrity,
   outputRoot: path.resolve(".receipt-spike/runs"),
   readerPrompt: fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8"),

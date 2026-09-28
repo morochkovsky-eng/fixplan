@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "receipt-spike-approval-series-safety-v1",
+  "status": "offline_gate_only",
+  "base": "main@cac545d48c7b85f9650ba66e6d71dd7d09f169cc",
+  "planSha256": "f11b49784b51ec394882a3ddbda26a6d488ffce7a3b713feb261c20e843d0fa3",
+  "previousPlanSha256": "0b892bbb27ed6862da713a87b8e85a89ce281c1c43c13e74b3de0ad1b2a66423",
+  "approvalSchema": "receipt-spike-approval-v2",
+  "approvalFields": ["approvalId", "series", "planSha256", "maximumAuthorizedSpendMicrousd", "expiresAt"],
+  "approvalRecorded": false,
+  "planningEstimateUsd": 10.7964,
+  "maximumAuthorizedSpendUsd": 12,
+  "plannedOpenAiCalls": 250,
+  "plannedGoogleCalls": 0,
+  "plannedLocalPdfExtractions": 10,
+  "providerCallsExecuted": 0,
+  "paidSpendUsd": 0,
+  "regression": "one approval cannot fund two --series or reset the ledger on resume",
+  "checks": {
+    "productionBuild": "passed",
+    "typescript": "passed",
+    "lint": "passed",
+    "tests": "197/197"
+  }
+}

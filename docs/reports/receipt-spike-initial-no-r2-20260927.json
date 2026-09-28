@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "receipt-spike-initial-no-r2-gate-v1",
+  "baseCommit": "cac545d48c7b85f9650ba66e6d71dd7d09f169cc",
+  "planSha256": "0b892bbb27ed6862da713a87b8e85a89ce281c1c43c13e74b3de0ad1b2a66423",
+  "supersededApprovalPlanSha256": "69fd24b98f5b301252912d43ea99e432f2fc92337af01113255da53905f90c46",
+  "includeR2": false,
+  "totals": {
+    "openAiCallsPlanned": 250,
+    "googleCallsPlanned": 0,
+    "localPdfExtractionsPlanned": 10,
+    "planningEstimateUsd": 10.7964,
+    "hardCapUsd": 12
+  },
+  "offlineVerification": {
+    "build": "pass",
+    "typescript": "pass",
+    "lint": "pass",
+    "tests": "196/196",
+    "runnerTests": "20/20",
+    "readerOracleChecks": "20/20",
+    "mockClassifierDecisions": "66/66",
+    "oldApprovalRejected": true,
+    "paidProviderCalls": 0,
+    "paidCostUsd": 0
+  },
+  "r2Policy": "Review only after oracle C1 passes and a frozen reader trigger fires; at most two R1 prompt revisions before the decision. Any later OCR run needs a separate plan and approval."
+}

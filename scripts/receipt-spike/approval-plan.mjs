@@ -31,6 +31,6 @@ export function bindReceiptSpikePlanner(plan, options = {}) {
   return { ...boundPlan, planSha256: sha256(canonicalJson(boundPlan)) };
 }
 
-export function buildApprovedReceiptSpikePlan() {
-  return bindReceiptSpikePlanner(buildReceiptSpikePlan());
+export function buildApprovedReceiptSpikePlan(options = {}) {
+  return bindReceiptSpikePlanner(buildReceiptSpikePlan(options));
 }
