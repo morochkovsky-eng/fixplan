@@ -72,7 +72,7 @@ See [`BRAND.md`](BRAND.md).
 - Unused legacy sidebar selectors remain in `app/globals.css`. Remove them only after checking for hidden dependencies and visual regression.
 - The GitHub repository and Vercel project are still named `fixplan`; renaming is a separate infrastructure change.
 - Utility receipt extraction has a Preview-only, token-protected no-write evaluation route. The first baseline intentionally exposes only the current `prepare_utility_bill` schema; line items, meter detail, evidence, penalties, adjustments, and uncertainty fields remain future extraction work after benchmark results.
-- Receipt vision spike is stopped after an HTTP 400 on its first synthetic classifier call. The paid ledger retains a $0.289683 uncertain reservation and no completed calls. A separate offline recovery change prepares S10 canary diagnostics and binds all prior ledgers into the $12 cap; see [`RECEIPT_VISION_SPIKE.md`](RECEIPT_VISION_SPIKE.md). Production receipt handling remains unchanged.
+- Receipt vision spike is stopped after two attempts: an HTTP 400 on S01 and a completed S10 response rejected by local classification validation (`tableSchemas[0].tableBlockId`). Their unchanged private ledgers retain conservative reservations of $0.289683 and $0.229708 respectively. No matrix runs completed. A new offline safety change proposes strict classifier output, accounting completed usage before output validation, and a new canary with both ledgers carried into the $12 cap; see [`RECEIPT_VISION_SPIKE.md`](RECEIPT_VISION_SPIKE.md). Production receipt handling remains unchanged.
 
 ## Agreed next stages
 

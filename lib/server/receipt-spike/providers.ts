@@ -2,8 +2,17 @@ import { adaptGoogleEnterpriseOcr, parseClassifierOutput, parseVisionReaderOutpu
 import type { RoleClassification, VisualDocumentInput } from "../receipt-core";
 import { DOCUMENT_KINDS, DUE_SCOPES, OPTIONAL_SCOPES, ROW_ROLES, SLOT_NAMES } from "../receipt-core/types";
 import { ROLE_SLOT_CONTRACT } from "../receipt-core/roles";
+import { classifierResponseSchema, classifierWireToCore } from "./classifier-schema";
 
 export type ProviderUsage = { inputTokens?: number; outputTokens?: number; pages?: number };
+export type OpenAiClassifierPayload = { text: string; issue: "openai_refusal" | "openai_response_incomplete" | "openai_output_text_missing" | null };
+
+export class OpenAiOutputIssue extends Error {
+  constructor(readonly code: NonNullable<OpenAiClassifierPayload["issue"]>) {
+    super(code);
+    this.name = "OpenAiOutputIssue";
+  }
+}
 
 export type ProviderJsonResult<T> = {
   parsed: T;
@@ -62,6 +71,20 @@ export class OpenAiHttpError extends Error {
   }
 }
 
+export class ProviderCompletedOutputError extends Error {
+  readonly diagnostic: { code: string; message: string; requestId: string | null; receivedAt: string };
+  constructor(readonly completed: ProviderJsonResult<null>, cause: unknown) {
+    super("provider_completed_output_invalid");
+    this.name = "ProviderCompletedOutputError";
+    this.diagnostic = {
+      code: cause instanceof Error && "code" in cause && typeof cause.code === "string" ? cause.code : "classifier_contract_validation_failed",
+      message: cause instanceof Error ? cause.message.slice(0, 2048) : "output validation failed",
+      requestId: completed.requestId ?? null,
+      receivedAt: new Date().toISOString(),
+    };
+  }
+}
+
 function requiredUsageInteger(value: unknown, name: string) {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new Error(`openai_usage_invalid:${name}`);
   return Number(value);
@@ -73,6 +96,12 @@ function outputText(response: Record<string, unknown>) {
   return response.output.flatMap((item) => record(item) && Array.isArray(item.content) ? item.content : []).flatMap((content) =>
     record(content) && content.type === "output_text" && typeof content.text === "string" ? [content.text] : []
   ).join("");
+}
+
+function containsRefusal(response: Record<string, unknown>) {
+  return Array.isArray(response.output) && response.output.some((item) =>
+    record(item) && Array.isArray(item.content) && item.content.some((content) => record(content) && content.type === "refusal")
+  );
 }
 
 function openAiCost(model: OpenAiModel, inputTokens: number, outputTokens: number) {
@@ -92,14 +121,16 @@ function openAiBudgetCharge(model: OpenAiModel, inputTokens: number, outputToken
   );
 }
 
-function requestBody(options: { model: OpenAiModel; instructions: string; input: unknown; reasoningEffort: "low" | "medium"; maxOutputTokens: number }) {
+function requestBody(options: { model: OpenAiModel; instructions: string; input: unknown; reasoningEffort: "low" | "medium"; maxOutputTokens: number; classifier?: boolean }) {
   return {
     model: options.model,
     instructions: options.instructions,
     input: options.input,
     reasoning: { effort: options.reasoningEffort },
     max_output_tokens: options.maxOutputTokens,
-    text: { format: { type: "json_object" } },
+    text: { format: options.classifier
+      ? { type: "json_schema", name: "receipt_role_classification", strict: true, schema: classifierResponseSchema }
+      : { type: "json_object" } },
     store: false,
   };
 }
@@ -137,7 +168,9 @@ export class OpenAiReceiptSpikeClient {
     input: unknown;
     reasoningEffort: "low" | "medium";
     maxOutputTokens: number;
-    parse: (value: unknown) => T;
+    parse?: (value: unknown) => T;
+    parseText?: (text: string, raw: Record<string, unknown>) => T;
+    classifier?: boolean;
     signal?: AbortSignal;
   }): Promise<ProviderJsonResult<T>> {
     const started = performance.now();
@@ -154,17 +187,18 @@ export class OpenAiReceiptSpikeClient {
     try { raw = JSON.parse(responseText); parseable = true; } catch { raw = null; }
     if (!response.ok) throw new OpenAiHttpError(response.status, response, raw, parseable);
     if (!record(raw)) throw new Error(`openai_response_invalid:${response.status}`);
-    if (raw.status !== "completed") throw new Error(`openai_response_${String(raw.status ?? "unknown")}`);
-    const text = outputText(raw);
-    if (!text) throw new Error("openai_output_text_missing");
     if (!record(raw.usage)) throw new Error("openai_usage_missing");
     const inputTokens = requiredUsageInteger(raw.usage.input_tokens, "input_tokens");
     const outputTokens = requiredUsageInteger(raw.usage.output_tokens, "output_tokens");
     if (inputTokens === 0 || outputTokens === 0) throw new Error("openai_usage_empty");
     if (typeof raw.model !== "string" || !raw.model) throw new Error("openai_returned_model_missing");
+    if (raw.status !== "completed" && !(options.classifier && options.parseText && raw.status === "incomplete")) {
+      throw new Error(`openai_response_${String(raw.status ?? "unknown")}`);
+    }
+    const text = outputText(raw);
     const returnedModelId = raw.model;
-    return {
-      parsed: options.parse(JSON.parse(text)),
+    const completed: ProviderJsonResult<null> = {
+      parsed: null,
       raw,
       requestedModelId: options.model,
       returnedModelId,
@@ -174,6 +208,12 @@ export class OpenAiReceiptSpikeClient {
       budgetChargeMicrousd: openAiBudgetCharge(options.model, inputTokens, outputTokens),
       requestId: response.headers.get("x-request-id")?.slice(0, 256),
     };
+    try {
+      if (!options.parseText && !text) throw new Error("openai_output_text_missing");
+      return { ...completed, parsed: options.parseText ? options.parseText(text, raw) : options.parse!(JSON.parse(text)) };
+    } catch (error) {
+      throw new ProviderCompletedOutputError(completed, error);
+    }
   }
 
   readImage(options: { model: "gpt-6-sol"; instructions: string; bytes: Uint8Array; mimeType: "image/png" | "image/jpeg"; signal?: AbortSignal }) {
@@ -209,7 +249,26 @@ export class OpenAiReceiptSpikeClient {
       input: classifierInput(options.classifierInputJson),
       reasoningEffort: options.reasoningEffort,
       maxOutputTokens: 16_000,
-      parse: parseClassifierOutput,
+      parse: (value) => parseClassifierOutput(classifierWireToCore(value)),
+      classifier: true,
+      signal: options.signal,
+    });
+  }
+
+  classifyRaw(options: { model: "gpt-6-sol" | "gpt-6-luna"; instructions: string; classifierInputJson: string; reasoningEffort: "low" | "medium"; signal?: AbortSignal }) {
+    return this.request<OpenAiClassifierPayload>({
+      model: options.model,
+      instructions: options.instructions,
+      input: classifierInput(options.classifierInputJson),
+      reasoningEffort: options.reasoningEffort,
+      maxOutputTokens: 16_000,
+      classifier: true,
+      parseText: (text, raw) => ({
+        text,
+        issue: raw.status === "incomplete" ? "openai_response_incomplete"
+          : containsRefusal(raw) ? "openai_refusal"
+            : !text ? "openai_output_text_missing" : null,
+      }),
       signal: options.signal,
     });
   }
@@ -221,6 +280,7 @@ export class OpenAiReceiptSpikeClient {
       input: classifierInput(options.classifierInputJson),
       reasoningEffort: options.reasoningEffort,
       maxOutputTokens: 16_000,
+      classifier: true,
     });
     return openAiRequestCostUpperBoundMicrousd({ model: options.model, body });
   }

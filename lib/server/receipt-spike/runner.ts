@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ReceiptSpikeBudgetLedger } from "./budget";
 import type { ReceiptSpikeCarryover } from "./budget";
-import { OpenAiHttpError } from "./providers";
+import { OpenAiHttpError, ProviderCompletedOutputError } from "./providers";
 
 export type BudgetedProviderResult<T> = {
   parsed: T;
@@ -75,14 +75,15 @@ export function bindSeriesToLedger(runRoot: string, metadata: {
   });
 }
 
-export async function executeBudgetedProviderCall<T>(options: {
+export async function executeBudgetedProviderCall<T, U = T>(options: {
   ledger: ReceiptSpikeBudgetLedger;
   callId: string;
   provider: string;
   reservedMaxMicrousd: number;
   artifactDirectory: string;
   requestMetadata: Record<string, unknown>;
-  dispatch: () => Promise<BudgetedProviderResult<T>>;
+  dispatch: () => Promise<BudgetedProviderResult<U>>;
+  parseCompleted?: (value: U) => T;
 }) {
   const resultFile = path.join(options.artifactDirectory, "provider-result.json");
   const rawFile = path.join(options.artifactDirectory, "response.raw.json");
@@ -97,10 +98,10 @@ export async function executeBudgetedProviderCall<T>(options: {
   }
 
   writePrivateJson(path.join(options.artifactDirectory, "request.meta.json"), options.requestMetadata);
+  let completedResponse = false;
   try {
     const result = await options.dispatch();
     writePrivateJson(rawFile, result.raw);
-    writePrivateJson(resultFile, result);
     options.ledger.complete({
       callId: options.callId,
       actualCostMicrousd: result.actualCostMicrousd,
@@ -108,15 +109,55 @@ export async function executeBudgetedProviderCall<T>(options: {
       requestedModelId: result.requestedModelId,
       returnedModelId: result.returnedModelId,
     });
-    return { status: "completed" as const, result };
+    completedResponse = true;
+    writePrivateJson(path.join(options.artifactDirectory, "response.usage.json"), {
+      usage: result.usage,
+      actualCostMicrousd: result.actualCostMicrousd,
+      budgetChargeMicrousd: result.budgetChargeMicrousd,
+      requestedModelId: result.requestedModelId,
+      returnedModelId: result.returnedModelId,
+      requestId: "requestId" in result ? result.requestId : undefined,
+    });
+    const parsed = options.parseCompleted ? options.parseCompleted(result.parsed) : result.parsed as unknown as T;
+    const validated = { ...result, parsed };
+    writePrivateJson(resultFile, validated);
+    return { status: "completed" as const, result: validated };
   } catch (error) {
+    if (completedResponse) {
+      writePrivateJson(path.join(options.artifactDirectory, "error.json"), {
+        code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "classifier_contract_validation_failed",
+        message: error instanceof Error ? error.message.slice(0, 2048) : "completed output validation failed",
+        receivedAt: new Date().toISOString(),
+      });
+      throw new Error("provider_completed_output_invalid");
+    }
     if (error instanceof OpenAiHttpError) {
+      writePrivateJson(path.join(options.artifactDirectory, "error.json"), error.diagnostic);
+    }
+    if (error instanceof ProviderCompletedOutputError) {
+      options.ledger.complete({
+        callId: options.callId,
+        actualCostMicrousd: error.completed.actualCostMicrousd,
+        budgetChargeMicrousd: error.completed.budgetChargeMicrousd,
+        requestedModelId: error.completed.requestedModelId,
+        returnedModelId: error.completed.returnedModelId,
+      });
+      writePrivateJson(rawFile, error.completed.raw);
+      writePrivateJson(path.join(options.artifactDirectory, "response.usage.json"), {
+        usage: error.completed.usage,
+        actualCostMicrousd: error.completed.actualCostMicrousd,
+        budgetChargeMicrousd: error.completed.budgetChargeMicrousd,
+        requestedModelId: error.completed.requestedModelId,
+        returnedModelId: error.completed.returnedModelId,
+        requestId: error.completed.requestId,
+      });
       writePrivateJson(path.join(options.artifactDirectory, "error.json"), error.diagnostic);
     }
     const state = options.ledger.snapshot();
     if (state.unresolvedCallIds.includes(options.callId) && !state.uncertainCallIds.includes(options.callId)) {
       options.ledger.markUncertain(options.callId, error instanceof OpenAiHttpError ? error.diagnostic.outcome : "provider_call_outcome_unknown");
     }
+    if (error instanceof ProviderCompletedOutputError) throw new Error("provider_completed_output_invalid");
     throw error;
   }
 }

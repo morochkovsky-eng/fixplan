@@ -9,12 +9,14 @@ The input contains server-owned page, block, row, cell, and numeric-token IDs. R
 - `documents[]`: `docId`, `documentKind` (`utility`, `other`, or `unknown`), and assigned `rowIds`;
 - `sharedRowIds[]` for metadata rows shared by multiple documents;
 - `tableSchemas[]` with block IDs and named column semantics;
-- `rows[]`: one entry for every source row, containing one or more ID-only role items.
+- `rows[]`: one entry for every source row, containing ID-only role items.
 
 Each item uses either:
 
-- `label_value` with named slots bound to `cellIds`, optional `tokenIds`, and optional validated `textRange`; or
-- `table_columns` with a `tableBlockId` and named column bindings.
+- `label_value` with `slots[]` entries `{slot, cellIds, tokenIds, textRange}`; use `null` for absent `textRange`; or
+- `table_columns` with a `tableBlockId` and `slots[]` entries `{slot, columnKey, tokenIds}`.
+
+All fields in the strict response schema are required. Use `null` for inapplicable item scopes and state, and empty arrays for absent tokens or slots. Each slot name may occur only once per item. In `tableSchemas[]`, the field is `blockId`, never `tableBlockId`.
 
 Use only roles, slots, scope enums, and state enums supplied in the separate input contract text. Use `unknown` when evidence is insufficient.
 

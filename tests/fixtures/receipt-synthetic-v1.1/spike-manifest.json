@@ -28,7 +28,7 @@
     },
     "classifier": {
       "path": "prompts/receipt-spike/classifier-v1.md",
-      "sha256": "63607e36822ef0dd9ec3df8e0d952e23d2389251ee5e53656c3ba6899c5aba87"
+      "sha256": "79c6d7f953b340d938ce054867b47e4a81564a591891d2c3297589d9936aa76d"
     }
   },
   "models": {
