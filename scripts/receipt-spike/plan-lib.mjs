@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { require as tsRequire } from "tsx/cjs/api";
 
 const root = path.resolve("tests/fixtures/receipt-synthetic-v1.1");
 const manifestPath = path.join(root, "spike-manifest.json");
@@ -8,6 +9,8 @@ const manifestBytes = fs.readFileSync(manifestPath);
 const manifest = JSON.parse(manifestBytes.toString("utf8"));
 const readerPrompt = fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8");
 const classifierPrompt = fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8");
+const { classifierInputInstruction } = tsRequire("../../lib/server/receipt-spike/providers.ts", import.meta.url);
+const classifierContract = classifierInputInstruction();
 const prices = {
   "gpt-6-sol": { input: 2 / 1_000_000, output: 10 / 1_000_000 },
   "gpt-6-luna": { input: 0.1 / 1_000_000, output: 0.5 / 1_000_000 },
@@ -15,7 +18,7 @@ const prices = {
 
 const tokenEstimate = (bytes) => Math.ceil(bytes / 4);
 const imageTokens = (width, height) => Math.ceil(Math.ceil(width / 32) * Math.ceil(height / 32) * 1.2);
-const promptTokens = { reader: tokenEstimate(Buffer.byteLength(readerPrompt)), classifier: tokenEstimate(Buffer.byteLength(classifierPrompt)) };
+const promptTokens = { reader: tokenEstimate(Buffer.byteLength(readerPrompt)), classifier: tokenEstimate(Buffer.byteLength(classifierPrompt) + Buffer.byteLength(classifierContract)) };
 const safetyMultiplier = 1.5;
 
 function modelCost(model, inputTokens, outputTokens) {
@@ -70,16 +73,32 @@ const r2MatrixEntry = {
 };
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+const { ReceiptSpikeBudgetLedger } = tsRequire("../../lib/server/receipt-spike/budget.ts", import.meta.url);
+
+export function loadReceiptSpikeCarryover(seriesNames, outputRoot = path.resolve(".receipt-spike/runs")) {
+  const names = [...seriesNames].sort();
+  if (new Set(names).size !== names.length || names.some((name) => !/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(name))) throw new Error("invalid_prior_series");
+  return names.map((series) => {
+    const directory = path.join(outputRoot, series);
+    const ledger = path.join(directory, "spend-ledger.jsonl");
+    if (!fs.statSync(path.join(directory, "run.meta.json")).isFile() || !fs.lstatSync(ledger).isFile()) throw new Error("prior_series_binding_missing");
+    return { series, ledgerSha256: sha256(fs.readFileSync(ledger)), committedMicrousd: new ReceiptSpikeBudgetLedger(ledger).snapshot().committedMicrousd };
+  });
+}
 const integrity = {
   manifestSha256: sha256(manifestBytes),
   readerPromptSha256: sha256(readerPrompt),
   classifierPromptSha256: sha256(classifierPrompt),
+  classifierContractSha256: sha256(classifierContract),
   sourceSha256: Object.fromEntries([
     "lib/server/receipt-spike/adapters.ts",
     "lib/server/receipt-spike/budget.ts",
+    "lib/server/receipt-spike/evaluator.ts",
     "lib/server/receipt-spike/matrix-runner.ts",
     "lib/server/receipt-spike/providers.ts",
     "lib/server/receipt-spike/runner.ts",
+    "lib/server/receipt-core/types.ts",
+    "lib/server/receipt-core/roles.ts",
     "scripts/receipt-spike/approval-plan.mjs",
     "scripts/receipt-spike/plan-lib.mjs",
     "scripts/receipt-spike/run-matrix.mjs",
@@ -92,14 +111,20 @@ export function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
-export function buildReceiptSpikePlan({ includeR2 = false } = {}) {
-  const matrix = (includeR2 ? [...initialMatrix.slice(0, 3), r2MatrixEntry, ...initialMatrix.slice(3)] : initialMatrix)
+export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, carryover = [] } = {}) {
+  if (canaryOnly && includeR2) throw new Error("canary_r2_not_supported");
+  const canaryFile = manifest.files.find((file) => file.fileId === "S10");
+  if (!canaryFile) throw new Error("canary_fixture_missing");
+  const canaryMatrix = [{ id: "canary-oracle-s10-c1", inputs: 1, documents: 1, repeats: 1, readerCalls: 0, classifierCalls: 1, estimateUsd: fileEstimate(canaryFile, "png_clean", "gpt-6-sol", false).classifierCost }];
+  const matrix = (canaryOnly ? canaryMatrix : includeR2 ? [...initialMatrix.slice(0, 3), r2MatrixEntry, ...initialMatrix.slice(3)] : initialMatrix)
     .map((entry) => ({ ...entry, estimateUsd: Number(entry.estimateUsd.toFixed(4)), status: "planned_not_run" }));
   const planningEstimateUsd = Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4));
   const report = {
   schemaVersion: "receipt-spike-gate-v1",
   baselineCommit: manifest.baselineCommit,
   includeR2,
+  canaryOnly,
+  carryover,
   r2FollowUpPolicy: {
     prerequisite: "oracle_c1_passes_and_failure_localized_to_reader",
     maxR1PromptRevisionsBeforeDecision: 2,
@@ -117,10 +142,10 @@ export function buildReceiptSpikePlan({ includeR2 = false } = {}) {
   integrity,
   matrix,
   totals: {
-    openAiCalls: includeR2 ? 270 : 250,
-    googleDocumentAiCalls: includeR2 ? 20 : 0,
-    localPdfExtractions: 10,
-    providerCalls: includeR2 ? 290 : 250,
+    openAiCalls: canaryOnly ? 1 : includeR2 ? 270 : 250,
+    googleDocumentAiCalls: canaryOnly ? 0 : includeR2 ? 20 : 0,
+    localPdfExtractions: canaryOnly ? 0 : 10,
+    providerCalls: canaryOnly ? 1 : includeR2 ? 290 : 250,
     planningEstimateUsd,
     safetyMultiplier,
   },

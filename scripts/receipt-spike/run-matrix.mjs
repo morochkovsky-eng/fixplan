@@ -2,22 +2,27 @@ import fs from "node:fs";
 import path from "node:path";
 import { require as tsRequire } from "tsx/cjs/api";
 import { buildApprovedReceiptSpikePlan } from "./approval-plan.mjs";
+import { loadReceiptSpikeCarryover } from "./plan-lib.mjs";
 
 const args = process.argv.slice(2);
 const execute = args.includes("--execute");
 const preflightOnly = args.includes("--preflight-only");
 const includeR2 = args.includes("--include-r2");
+const canaryOnly = args.includes("--canary-only");
+const outputRoot = path.resolve(".receipt-spike/runs");
+const priorSeries = args.flatMap((arg, index) => arg === "--prior-series" ? [args[index + 1]] : []);
 const argument = (name) => {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 };
-const plan = buildApprovedReceiptSpikePlan({ includeR2 });
+const plan = buildApprovedReceiptSpikePlan({ includeR2, canaryOnly, carryover: loadReceiptSpikeCarryover(priorSeries, outputRoot) });
 
 if (!execute) {
   process.stdout.write(`${JSON.stringify({
     schemaVersion: "receipt-spike-runner-dry-plan-v1",
     planSha256: plan.planSha256,
     includeR2,
+    canaryOnly,
     approvalBinding: plan.approvalBinding,
     providerCallsPlanned: plan.totals.providerCalls,
     localPdfExtractionsPlanned: plan.totals.localPdfExtractions,
@@ -35,7 +40,7 @@ const approvalFile = argument("--approval-file");
 if (!series || !approvalFile) throw new Error("--execute requires --series and --approval-file");
 
 const budget = tsRequire("../../lib/server/receipt-spike/budget.ts", import.meta.url);
-const approval = budget.readReceiptSpikeApproval(path.resolve(approvalFile), { planSha256: plan.planSha256, series });
+const approval = budget.readReceiptSpikeApproval(path.resolve(approvalFile), { planSha256: plan.planSha256, series, carryover: plan.carryover });
 
 const requiredEnvironment = ["OPENAI_API_KEY"];
 if (includeR2) requiredEnvironment.push(
@@ -51,11 +56,13 @@ const readerPrompt = fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8
 const classifierPrompt = fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8");
 if (preflightOnly) {
   matrix.verifyReceiptSpikeManifest(fixtureRoot, manifest, { ...plan.integrity, readerPrompt, classifierPrompt });
+  matrix.verifyReceiptSpikeCarryover(outputRoot, series, approval.carryover);
   process.stdout.write(`${JSON.stringify({
     schemaVersion: "receipt-spike-preflight-v1",
     planSha256: plan.planSha256,
     series: approval.series,
     includeR2,
+    canaryOnly,
     providerClientsConstructed: false,
     providerCallsExecuted: 0,
     seriesCreated: false,
@@ -77,8 +84,9 @@ const result = await matrix.runReceiptSpikeMatrix({
   series,
   planSha256: plan.planSha256,
   includeR2,
+  canaryOnly,
   integrity: plan.integrity,
-  outputRoot: path.resolve(".receipt-spike/runs"),
+  outputRoot,
   readerPrompt,
   classifierPrompt,
   approval,

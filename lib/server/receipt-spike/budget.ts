@@ -222,28 +222,45 @@ export class ReceiptSpikeBudgetLedger {
   }
 }
 
-export function validateReceiptSpikeApproval(value: unknown, options: { planSha256: string; series: string; now?: Date }) {
+export type ReceiptSpikeCarryover = { series: string; ledgerSha256: string; committedMicrousd: number };
+
+export function validateReceiptSpikeApproval(value: unknown, options: { planSha256: string; series: string; carryover?: ReceiptSpikeCarryover[]; now?: Date }) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ReceiptSpikeBudgetError("invalid_approval", "approval must be an object");
   const approval = value as Record<string, unknown>;
-  if (approval.schemaVersion !== "receipt-spike-approval-v2" || approval.approved !== true) throw new ReceiptSpikeBudgetError("approval_missing", "explicit receipt spike approval is required");
+  if (approval.schemaVersion !== "receipt-spike-approval-v3" || approval.approved !== true) throw new ReceiptSpikeBudgetError("approval_missing", "a carryover-bound approval-v3 is required");
   if (approval.planSha256 !== options.planSha256) throw new ReceiptSpikeBudgetError("approval_plan_mismatch", "approval does not match this exact plan");
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(options.series) || approval.series !== options.series) throw new ReceiptSpikeBudgetError("approval_series_mismatch", "approval is restricted to one series");
   if (typeof approval.approvalId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(approval.approvalId)) throw new ReceiptSpikeBudgetError("invalid_approval_id", "approvalId must be a unique UUID v4");
   if (approval.maximumAuthorizedSpendMicrousd !== RECEIPT_SPIKE_HARD_CAP_MICROUSD) throw new ReceiptSpikeBudgetError("approval_cap_mismatch", "approval must use the repository hard cap");
   if (typeof approval.expiresAt !== "string" || !Number.isFinite(Date.parse(approval.expiresAt))) throw new ReceiptSpikeBudgetError("invalid_approval", "approval expiry is invalid");
   if (Date.parse(approval.expiresAt) <= (options.now ?? new Date()).getTime()) throw new ReceiptSpikeBudgetError("approval_expired", "approval has expired");
+  if (!Array.isArray(approval.carryover)) throw new ReceiptSpikeBudgetError("invalid_approval", "carryover must list every prior series, even when empty");
+  const carryover: ReceiptSpikeCarryover[] = approval.carryover.map((entry: unknown) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new ReceiptSpikeBudgetError("invalid_approval", "invalid carryover entry");
+    const item = entry as Record<string, unknown>;
+    if (typeof item.series !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(item.series) || item.series === options.series ||
+      typeof item.ledgerSha256 !== "string" || !/^[0-9a-f]{64}$/u.test(item.ledgerSha256) || !Number.isSafeInteger(item.committedMicrousd) || Number(item.committedMicrousd) < 0) {
+      throw new ReceiptSpikeBudgetError("invalid_approval", "invalid carryover binding");
+    }
+    return { series: item.series, ledgerSha256: item.ledgerSha256, committedMicrousd: Number(item.committedMicrousd) };
+  });
+  if (new Set(carryover.map((entry) => entry.series)).size !== carryover.length || carryover.some((entry, i) => i && carryover[i - 1].series >= entry.series)) {
+    throw new ReceiptSpikeBudgetError("invalid_approval", "carryover entries must have distinct, sorted series names");
+  }
+  if (JSON.stringify(carryover) !== JSON.stringify(options.carryover ?? [])) throw new ReceiptSpikeBudgetError("approval_carryover_mismatch", "approval does not bind the current prior ledgers");
   return {
-    schemaVersion: "receipt-spike-approval-v2" as const,
+    schemaVersion: "receipt-spike-approval-v3" as const,
     approved: true as const,
     approvalId: approval.approvalId,
     series: options.series,
     planSha256: options.planSha256,
     maximumAuthorizedSpendMicrousd: RECEIPT_SPIKE_HARD_CAP_MICROUSD,
+    carryover,
     expiresAt: approval.expiresAt,
   };
 }
 
-export function readReceiptSpikeApproval(file: string, options: { planSha256: string; series: string; now?: Date }) {
+export function readReceiptSpikeApproval(file: string, options: { planSha256: string; series: string; carryover?: ReceiptSpikeCarryover[]; now?: Date }) {
   const stat = fs.statSync(file);
   if (!stat.isFile()) throw new ReceiptSpikeBudgetError("invalid_approval_file", "approval path must be a regular file");
   if ((stat.mode & 0o077) !== 0) throw new ReceiptSpikeBudgetError("unsafe_approval_permissions", "approval file must be readable only by its owner (mode 600)");

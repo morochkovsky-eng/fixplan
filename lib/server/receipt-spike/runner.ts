@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ReceiptSpikeBudgetLedger } from "./budget";
+import type { ReceiptSpikeCarryover } from "./budget";
+import { OpenAiHttpError } from "./providers";
 
 export type BudgetedProviderResult<T> = {
   parsed: T;
@@ -53,6 +55,7 @@ export function bindSeriesToLedger(runRoot: string, metadata: {
   approvalId: string;
   baselineCommit: string;
   integrity: Record<string, unknown>;
+  carryover?: ReceiptSpikeCarryover[];
 }) {
   fs.mkdirSync(runRoot, { recursive: true, mode: 0o700 });
   const metadataFile = path.join(runRoot, "run.meta.json");
@@ -107,9 +110,12 @@ export async function executeBudgetedProviderCall<T>(options: {
     });
     return { status: "completed" as const, result };
   } catch (error) {
+    if (error instanceof OpenAiHttpError) {
+      writePrivateJson(path.join(options.artifactDirectory, "error.json"), error.diagnostic);
+    }
     const state = options.ledger.snapshot();
     if (state.unresolvedCallIds.includes(options.callId) && !state.uncertainCallIds.includes(options.callId)) {
-      options.ledger.markUncertain(options.callId, "provider_call_outcome_unknown");
+      options.ledger.markUncertain(options.callId, error instanceof OpenAiHttpError ? error.diagnostic.outcome : "provider_call_outcome_unknown");
     }
     throw error;
   }

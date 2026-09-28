@@ -62,7 +62,7 @@ test("R2 is an explicit separately fingerprinted matrix choice", () => {
   assert.equal(withR2.totals.providerCalls, 290);
   assert.equal(matrix.buildReceiptSpikeSchedule(manifest, { includeR2: true }).filter((step) => step.provider === "google-document-ai").length, 20);
   const oldApproval = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "test", planSha256: "69fd24b98f5b301252912d43ea99e432f2fc92337af01113255da53905f90c46", maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
-  assert.throws(() => budget.validateReceiptSpikeApproval(oldApproval, { planSha256: initial.planSha256, series: "test" }), (error) => error.code === "approval_plan_mismatch");
+  assert.throws(() => budget.validateReceiptSpikeApproval(oldApproval, { planSha256: initial.planSha256, series: "test" }), (error) => error.code === "approval_missing");
 });
 
 test("planner source is independently bound and any planner change requires new approval", () => {
@@ -76,7 +76,7 @@ test("planner source is independently bound and any planner change requires new 
   rebuiltPlan.integrity.sourceSha256[plannerPath] = createHash("sha256").update(changedPlanner).digest("hex");
   const rebuiltApproval = approvalPlan.bindReceiptSpikePlanner(rebuiltPlan, { plannerBytes: changedPlanner });
   assert.notEqual(rebuiltApproval.planSha256, approvedPlan.planSha256);
-  const staleApproval = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "test", planSha256: approvedPlan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  const staleApproval = { schemaVersion: "receipt-spike-approval-v3", carryover: [], approved: true, approvalId, series: "test", planSha256: approvedPlan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
   assert.throws(() => budget.validateReceiptSpikeApproval(staleApproval, { planSha256: rebuiltApproval.planSha256, series: "test" }), (error) => error.code === "approval_plan_mismatch");
 });
 
@@ -112,7 +112,8 @@ test("approved execution loader and full preflight finish offline without creati
   const file = path.join(root, "approval.json");
   const plan = approvalPlan.buildApprovedReceiptSpikePlan();
   fs.writeFileSync(file, JSON.stringify({
-    schemaVersion: "receipt-spike-approval-v2",
+    schemaVersion: "receipt-spike-approval-v3",
+    carryover: [],
     approved: true,
     approvalId,
     series: "loader-check",
@@ -135,6 +136,7 @@ test("approved execution loader and full preflight finish offline without creati
     planSha256: plan.planSha256,
     series: "loader-check",
     includeR2: false,
+    canaryOnly: false,
     providerClientsConstructed: false,
     providerCallsExecuted: 0,
     seriesCreated: false,
@@ -146,7 +148,7 @@ test("approval requires exact plan, cap, expiry, and private permissions", () =>
   const dir = temporary("approval");
   const file = path.join(dir, "approval.json");
   const plan = approvalPlan.buildApprovedReceiptSpikePlan();
-  const value = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "series-a", planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  const value = { schemaVersion: "receipt-spike-approval-v3", carryover: [], approved: true, approvalId, series: "series-a", planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
   fs.writeFileSync(file, JSON.stringify(value), { mode: 0o644 });
   assert.throws(() => budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256, series: "series-a" }), (error) => error.code === "unsafe_approval_permissions");
   fs.chmodSync(file, 0o600);
@@ -160,7 +162,7 @@ test("one approval cannot fund two --series or reset the ledger on resume", () =
   const root = temporary("approval-series");
   const file = path.join(root, "approval.json");
   const plan = approvalPlan.buildApprovedReceiptSpikePlan();
-  const value = { schemaVersion: "receipt-spike-approval-v2", approved: true, approvalId, series: "series-a", planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  const value = { schemaVersion: "receipt-spike-approval-v3", carryover: [], approved: true, approvalId, series: "series-a", planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
   fs.writeFileSync(file, JSON.stringify(value), { mode: 0o600 });
   const a = budget.readReceiptSpikeApproval(file, { planSha256: plan.planSha256, series: "series-a" });
   const metadata = { approvalId: a.approvalId, series: a.series, planSha256: plan.planSha256, baselineCommit: "test", integrity: {} };
@@ -302,6 +304,91 @@ test("OpenAI adapter records returned model, usage, and list-price cost without 
   assert.ok(upperBound.maximumCostMicrousd >= result.budgetChargeMicrousd);
   assert.match(request.headers.authorization, /^Bearer /);
   assert.doesNotMatch(JSON.stringify(result), /test-api-key/);
+  const body = JSON.parse(request.body);
+  assert.match(body.input[0].content[0].text, /RoleClassification JSON object/);
+  assert.match(body.input[0].content[0].text, /billing_period/);
+  assert.equal(body.input[0].content[1].text, "{}", "the indexed literal remains a separate unchanged input part");
+});
+
+test("HTTP validation errors retain private diagnostics and freeze the budget without exposing the message", async () => {
+  const dir = temporary("http-diagnostic");
+  const ledger = new budget.ReceiptSpikeBudgetLedger(path.join(dir, "ledger.jsonl"));
+  const fakeFetch = async () => new Response(JSON.stringify({ error: { type: "invalid_request_error", code: "invalid_json_input", param: "text.format", message: "private document content" } }), {
+    status: 400, headers: { "x-request-id": "req-test", "openai-processing-ms": "3" },
+  });
+  const client = new providers.OpenAiReceiptSpikeClient("test-api-key", fakeFetch);
+  const directory = path.join(dir, "call");
+  await assert.rejects(() => runner.executeBudgetedProviderCall({ ledger, callId: "bad", provider: "openai", reservedMaxMicrousd: 1000,
+    artifactDirectory: directory, requestMetadata: {}, dispatch: () => client.classify({ model: "gpt-6-sol", instructions: "JSON", classifierInputJson: "{}", reasoningEffort: "low" }),
+  }), (error) => error.message === "openai_http_400");
+  const diagnostic = runner.readPrivateJson(path.join(directory, "error.json"));
+  assert.equal(diagnostic.message, "private document content");
+  assert.equal(diagnostic.requestId, "req-test");
+  assert.equal(diagnostic.outcome, "provider_rejected_definitive");
+  assert.equal(fs.statSync(path.join(directory, "error.json")).mode & 0o777, 0o600);
+  assert.deepEqual(ledger.snapshot().uncertainCallIds, ["bad"]);
+  assert.equal(ledger.snapshot().heldMicrousd, 1000);
+  const nonJson = new providers.OpenAiReceiptSpikeClient("test-api-key", async () => new Response("gateway error", { status: 502 }));
+  await assert.rejects(() => runner.executeBudgetedProviderCall({ ledger: new budget.ReceiptSpikeBudgetLedger(path.join(dir, "proxy-ledger.jsonl")), callId: "proxy", provider: "openai", reservedMaxMicrousd: 1000,
+    artifactDirectory: path.join(dir, "proxy"), requestMetadata: {}, dispatch: () => nonJson.classify({ model: "gpt-6-sol", instructions: "JSON", classifierInputJson: "{}", reasoningEffort: "low" }),
+  }), /openai_http_502/);
+  assert.equal(runner.readPrivateJson(path.join(dir, "proxy", "error.json")).outcome, "provider_outcome_unknown");
+});
+
+test("carryover binds prior ledgers into the plan and reserves their full uncertain amount", async () => {
+  const root = temporary("carryover");
+  const oldRoot = path.join(root, "previous");
+  runner.bindSeriesToLedger(oldRoot, { approvalId, series: "previous", planSha256: "a".repeat(64), baselineCommit: "main", integrity: {} });
+  const oldLedger = new budget.ReceiptSpikeBudgetLedger(path.join(oldRoot, "spend-ledger.jsonl"));
+  oldLedger.begin({ callId: "s01", provider: "openai", reservedMaxMicrousd: 289_683 });
+  oldLedger.markUncertain("s01", "provider_call_outcome_unknown");
+  const carryover = buildReceiptSpikePlan();
+  assert.equal(carryover.canaryOnly, false);
+  const previous = (await import("../scripts/receipt-spike/plan-lib.mjs")).loadReceiptSpikeCarryover(["previous"], root);
+  assert.equal(previous[0].committedMicrousd, 289_683);
+  assert.notEqual(approvalPlan.buildApprovedReceiptSpikePlan({ canaryOnly: true, carryover: previous }).planSha256,
+    approvalPlan.buildApprovedReceiptSpikePlan({ canaryOnly: true }).planSha256);
+  assert.equal(matrix.verifyReceiptSpikeCarryover(root, "canary", previous), 289_683);
+  const approval = { schemaVersion: "receipt-spike-approval-v3", approved: true, approvalId, series: "canary", carryover: previous,
+    planSha256: approvalPlan.buildApprovedReceiptSpikePlan({ canaryOnly: true, carryover: previous }).planSha256,
+    maximumAuthorizedSpendMicrousd: 12_000_000, expiresAt: "2099-01-01T00:00:00.000Z" };
+  assert.equal(budget.validateReceiptSpikeApproval(approval, { planSha256: approval.planSha256, series: "canary", carryover: previous }).carryover.length, 1);
+  assert.throws(() => budget.validateReceiptSpikeApproval(approval, { planSha256: approval.planSha256, series: "canary", carryover: [] }), (error) => error.code === "approval_carryover_mismatch");
+  const canaryRoot = path.join(root, "canary");
+  runner.bindSeriesToLedger(canaryRoot, { approvalId, series: "canary", planSha256: approval.planSha256, baselineCommit: "main", integrity: {}, carryover: previous });
+  const canaryLedger = new budget.ReceiptSpikeBudgetLedger(path.join(canaryRoot, "spend-ledger.jsonl"), 12_000_000 - 289_683);
+  assert.throws(() => canaryLedger.begin({ callId: "overspend", provider: "openai", reservedMaxMicrousd: 11_710_318 }), (error) => error.code === "budget_would_be_exceeded");
+  canaryLedger.begin({ callId: "canary", provider: "openai", reservedMaxMicrousd: 1_000 });
+  canaryLedger.complete({ callId: "canary", actualCostMicrousd: 200, budgetChargeMicrousd: 300, requestedModelId: "a", returnedModelId: "a" });
+  const both = (await import("../scripts/receipt-spike/plan-lib.mjs")).loadReceiptSpikeCarryover(["previous", "canary"], root);
+  assert.equal(matrix.verifyReceiptSpikeCarryover(root, "matrix", both), 289_983);
+  assert.throws(() => matrix.verifyReceiptSpikeCarryover(root, "matrix", previous), /prior_series_carryover_incomplete/);
+  fs.appendFileSync(path.join(oldRoot, "spend-ledger.jsonl"), "\n");
+  assert.throws(() => matrix.verifyReceiptSpikeCarryover(root, "matrix", both), /prior_series_ledger_changed/);
+});
+
+test("S10 canary checks the real oracle input once without adding a matrix evaluation", async () => {
+  const root = temporary("s10-canary");
+  const plan = approvalPlan.buildApprovedReceiptSpikePlan({ canaryOnly: true });
+  assert.equal(plan.totals.openAiCalls, 1);
+  assert.equal(plan.totals.localPdfExtractions, 0);
+  const file = manifest.files.find((entry) => entry.fileId === "S10");
+  const semantic = JSON.parse(fs.readFileSync(path.join(fixtureRoot, file.evaluator.semantic.path), "utf8"));
+  let calls = 0;
+  const summary = await matrix.runReceiptSpikeMatrix({
+    fixtureRoot, manifest, series: "canary", planSha256: plan.planSha256, includeR2: false, canaryOnly: true,
+    integrity: plan.integrity, outputRoot: root, readerPrompt: fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8"),
+    classifierPrompt: fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8"),
+    approval: { approved: true, planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, approvalId, series: "canary", carryover: [] },
+    openai: {
+      maximumClassifierCost: () => ({ maximumCostMicrousd: 10_000, inputTokenUpperBound: 20_000, outputTokenUpperBound: 16_000 }),
+      classify: async () => { calls += 1; return { ...completed(200, 300), parsed: semantic.roleClassification, requestedModelId: "gpt-6-sol", returnedModelId: "gpt-6-sol-snapshot" }; },
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(summary.canary, "passed");
+  assert.equal(summary.budget.budgetChargedMicrousd, 300);
+  assert.equal(fs.existsSync(path.join(root, "canary", "canary-oracle-s10-c1", "S10", "oracle_literal", "run-1", "classifier", "canary-validation.json")), true);
 });
 
 test("missing OpenAI usage leaves the paid call uncertain instead of recording zero cost", async () => {

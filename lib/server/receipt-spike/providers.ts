@@ -1,5 +1,7 @@
 import { adaptGoogleEnterpriseOcr, parseClassifierOutput, parseVisionReaderOutput } from "./adapters";
 import type { RoleClassification, VisualDocumentInput } from "../receipt-core";
+import { DOCUMENT_KINDS, DUE_SCOPES, OPTIONAL_SCOPES, ROW_ROLES, SLOT_NAMES } from "../receipt-core/types";
+import { ROLE_SLOT_CONTRACT } from "../receipt-core/roles";
 
 export type ProviderUsage = { inputTokens?: number; outputTokens?: number; pages?: number };
 
@@ -12,10 +14,22 @@ export type ProviderJsonResult<T> = {
   usage: ProviderUsage;
   actualCostMicrousd: number;
   budgetChargeMicrousd: number;
+  requestId?: string;
 };
 
 type Fetch = typeof fetch;
 type OpenAiModel = "gpt-6-sol" | "gpt-6-luna";
+
+export function classifierInputInstruction() {
+  return `Return one RoleClassification JSON object for the following indexed literal. Use only server IDs. Allowed document kinds: ${DOCUMENT_KINDS.join(", ")}. Allowed roles: ${ROW_ROLES.join(", ")}. Allowed slots: ${SLOT_NAMES.join(", ")}. Due scopes: ${DUE_SCOPES.join(", ")}. Optional scopes: ${OPTIONAL_SCOPES.join(", ")}. Declared state: not_applicable. Affects due: include, already_in_accrual, unknown. Modes: label_value, table_columns. Required and allowed slots per role: ${JSON.stringify(ROLE_SLOT_CONTRACT)}.`;
+}
+
+function classifierInput(classifierInputJson: string) {
+  return [{ role: "user", content: [
+    { type: "input_text", text: classifierInputInstruction() },
+    { type: "input_text", text: classifierInputJson },
+  ] }];
+}
 
 const OPENAI_PRICES_MICROUSD_PER_TOKEN: Record<string, { input: number; output: number }> = {
   "gpt-6-sol": { input: 2, output: 10 },
@@ -26,6 +40,26 @@ const REQUEST_PROTOCOL_TOKEN_ALLOWANCE = 8_192;
 
 function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+export class OpenAiHttpError extends Error {
+  readonly diagnostic: { status: number; requestId: string | null; processingMs: string | null; type: string | null; code: string | null; param: string | null; message: string | null; receivedAt: string; outcome: "provider_rejected_definitive" | "provider_outcome_unknown" };
+  constructor(status: number, response: Response, raw: unknown, parseable: boolean) {
+    const detail = parseable && record(raw) && record(raw.error) ? raw.error : null;
+    const field = (name: string) => typeof detail?.[name] === "string" ? String(detail[name]).slice(0, name === "message" ? 2048 : 256) : null;
+    const type = field("type");
+    const code = field("code");
+    const param = field("param");
+    const definitive = Boolean(detail) && ([400, 401, 403, 404, 422].includes(status) || (status === 429 && code === "insufficient_quota"));
+    super(`openai_http_${status}`);
+    this.name = "OpenAiHttpError";
+    this.diagnostic = {
+      status, requestId: response.headers.get("x-request-id")?.slice(0, 256) ?? null,
+      processingMs: response.headers.get("openai-processing-ms")?.slice(0, 32) ?? null,
+      type, code, param, message: field("message"), receivedAt: new Date().toISOString(),
+      outcome: definitive ? "provider_rejected_definitive" : "provider_outcome_unknown",
+    };
+  }
 }
 
 function requiredUsageInteger(value: unknown, name: string) {
@@ -114,8 +148,12 @@ export class OpenAiReceiptSpikeClient {
       body: JSON.stringify(body),
       signal: options.signal,
     });
-    const raw: unknown = await response.json();
-    if (!response.ok || !record(raw)) throw new Error(`openai_http_${response.status}`);
+    const responseText = await response.text();
+    let raw: unknown;
+    let parseable = false;
+    try { raw = JSON.parse(responseText); parseable = true; } catch { raw = null; }
+    if (!response.ok) throw new OpenAiHttpError(response.status, response, raw, parseable);
+    if (!record(raw)) throw new Error(`openai_response_invalid:${response.status}`);
     if (raw.status !== "completed") throw new Error(`openai_response_${String(raw.status ?? "unknown")}`);
     const text = outputText(raw);
     if (!text) throw new Error("openai_output_text_missing");
@@ -134,6 +172,7 @@ export class OpenAiReceiptSpikeClient {
       usage: { inputTokens, outputTokens },
       actualCostMicrousd: openAiCost(options.model, inputTokens, outputTokens),
       budgetChargeMicrousd: openAiBudgetCharge(options.model, inputTokens, outputTokens),
+      requestId: response.headers.get("x-request-id")?.slice(0, 256),
     };
   }
 
@@ -167,7 +206,7 @@ export class OpenAiReceiptSpikeClient {
     return this.request<RoleClassification>({
       model: options.model,
       instructions: options.instructions,
-      input: [{ role: "user", content: [{ type: "input_text", text: options.classifierInputJson }] }],
+      input: classifierInput(options.classifierInputJson),
       reasoningEffort: options.reasoningEffort,
       maxOutputTokens: 16_000,
       parse: parseClassifierOutput,
@@ -179,7 +218,7 @@ export class OpenAiReceiptSpikeClient {
     const body = requestBody({
       model: options.model,
       instructions: options.instructions,
-      input: [{ role: "user", content: [{ type: "input_text", text: options.classifierInputJson }] }],
+      input: classifierInput(options.classifierInputJson),
       reasoningEffort: options.reasoningEffort,
       maxOutputTokens: 16_000,
     });

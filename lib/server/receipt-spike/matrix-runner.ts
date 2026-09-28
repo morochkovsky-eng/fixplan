@@ -3,12 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import type { RoleClassification, VisualDocumentInput } from "../receipt-core";
 import { adaptPdfTextLayer } from "./adapters";
-import { acquireReceiptSpikeSeriesLock, ReceiptSpikeBudgetLedger } from "./budget";
+import { validateRoleClassification } from "../receipt-core/roles";
+import { acquireReceiptSpikeSeriesLock, ReceiptSpikeBudgetLedger, RECEIPT_SPIKE_HARD_CAP_MICROUSD } from "./budget";
+import type { ReceiptSpikeCarryover } from "./budget";
 import { adapterVersion } from "./adapters";
 import {
   assertNoEvaluatorLeak, evaluateEndToEnd, prepareClassifierInput, stringifyClassifierInput,
 } from "./evaluator";
 import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult } from "./providers";
+import { classifierInputInstruction } from "./providers";
 import { bindSeriesToLedger, enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
 
 type Descriptor = { path: string; sha256: string; bytes: number };
@@ -64,6 +67,27 @@ function sha256(bytes: Uint8Array | string) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+export function verifyReceiptSpikeCarryover(outputRoot: string, currentSeries: string, approved: ReceiptSpikeCarryover[]) {
+  fs.mkdirSync(outputRoot, { recursive: true, mode: 0o700 });
+  const existing = fs.readdirSync(outputRoot, { withFileTypes: true }).filter((item) => item.name !== currentSeries).map((item) => {
+    if (!item.isDirectory()) throw new Error("prior_series_invalid");
+    return item.name;
+  }).sort();
+  if (JSON.stringify(existing) !== JSON.stringify(approved.map((item) => item.series))) throw new Error("prior_series_carryover_incomplete");
+  let committed = 0;
+  for (const binding of approved) {
+    const runRoot = path.join(outputRoot, binding.series);
+    const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
+    if (!fs.statSync(path.join(runRoot, "run.meta.json")).isFile() || !fs.lstatSync(ledgerFile).isFile()) throw new Error("prior_series_binding_missing");
+    if (sha256(fs.readFileSync(ledgerFile)) !== binding.ledgerSha256) throw new Error("prior_series_ledger_changed");
+    const snapshot = new ReceiptSpikeBudgetLedger(ledgerFile).snapshot();
+    if (snapshot.committedMicrousd !== binding.committedMicrousd) throw new Error("prior_series_budget_mismatch");
+    committed += snapshot.committedMicrousd;
+  }
+  if (committed >= RECEIPT_SPIKE_HARD_CAP_MICROUSD) throw new Error("prior_series_budget_exhausted");
+  return committed;
+}
+
 function readJson<T>(file: string): T {
   return JSON.parse(fs.readFileSync(file, "utf8")) as T;
 }
@@ -78,6 +102,7 @@ export function verifyReceiptSpikeManifest(root: string, manifest: Manifest, int
   manifestSha256: string;
   readerPromptSha256: string;
   classifierPromptSha256: string;
+  classifierContractSha256: string;
   readerPrompt: string;
   classifierPrompt: string;
 }) {
@@ -93,6 +118,7 @@ export function verifyReceiptSpikeManifest(root: string, manifest: Manifest, int
     if (sha256(fs.readFileSync(path.join(root, "spike-manifest.json"))) !== integrity.manifestSha256) throw new Error("manifest_plan_hash_mismatch");
     if (sha256(integrity.readerPrompt) !== integrity.readerPromptSha256 || manifest.prompts.reader.sha256 !== integrity.readerPromptSha256) throw new Error("reader_prompt_plan_hash_mismatch");
     if (sha256(integrity.classifierPrompt) !== integrity.classifierPromptSha256 || manifest.prompts.classifier.sha256 !== integrity.classifierPromptSha256) throw new Error("classifier_prompt_plan_hash_mismatch");
+    if (sha256(classifierInputInstruction()) !== integrity.classifierContractSha256) throw new Error("classifier_contract_plan_hash_mismatch");
   }
   return manifest.files.length;
 }
@@ -119,11 +145,12 @@ export async function runReceiptSpikeMatrix(options: {
   series: string;
   planSha256: string;
   includeR2: boolean;
-  integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; sourceSha256: Record<string, string> };
+  canaryOnly?: boolean;
+  integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; classifierContractSha256: string; sourceSha256: Record<string, string> };
   outputRoot: string;
   readerPrompt: string;
   classifierPrompt: string;
-  approval: { approved: true; planSha256: string; maximumAuthorizedSpendMicrousd: number; approvalId: string; series: string };
+  approval: { approved: true; planSha256: string; maximumAuthorizedSpendMicrousd: number; approvalId: string; series: string; carryover: ReceiptSpikeCarryover[] };
   openai: OpenAiReceiptSpikeClient;
   google?: GoogleEnterpriseOcrClient;
 }) {
@@ -134,8 +161,12 @@ export async function runReceiptSpikeMatrix(options: {
   if (options.includeR2 && !options.google) throw new Error("r2_google_client_required");
   verifyReceiptSpikeManifest(options.fixtureRoot, options.manifest, { ...options.integrity, readerPrompt: options.readerPrompt, classifierPrompt: options.classifierPrompt });
   const runRoot = path.join(options.outputRoot, options.series);
-  const releaseSeriesLock = acquireReceiptSpikeSeriesLock(runRoot);
+  const releaseLocks: Array<() => void> = [];
   try {
+  const seriesNames = [...options.approval.carryover.map((item) => item.series), options.series].sort();
+  if (new Set(seriesNames).size !== seriesNames.length) throw new Error("duplicate_series_lock");
+  for (const name of seriesNames) releaseLocks.push(acquireReceiptSpikeSeriesLock(path.join(options.outputRoot, name)));
+  const priorCommittedMicrousd = verifyReceiptSpikeCarryover(options.outputRoot, options.series, options.approval.carryover);
   const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
   bindSeriesToLedger(runRoot, {
     planSha256: options.planSha256,
@@ -143,8 +174,9 @@ export async function runReceiptSpikeMatrix(options: {
     approvalId: options.approval.approvalId,
     baselineCommit: options.manifest.baselineCommit,
     integrity: options.integrity,
+    carryover: options.approval.carryover,
   });
-  const ledger = new ReceiptSpikeBudgetLedger(ledgerFile);
+  const ledger = new ReceiptSpikeBudgetLedger(ledgerFile, RECEIPT_SPIKE_HARD_CAP_MICROUSD - priorCommittedMicrousd);
   const providerRuns: Array<{ cell: string; latencyMs: number; actualCostMicrousd: number; budgetChargeMicrousd: number; requestedModelId: string; returnedModelId: string }> = [];
   const evaluations: Array<{ cell: string; evaluation: ReturnType<typeof evaluateEndToEnd> }> = [];
 
@@ -237,6 +269,13 @@ export async function runReceiptSpikeMatrix(options: {
     });
     providerRuns.push({ cell: params.cell, latencyMs: result.result.latencyMs, actualCostMicrousd: result.result.actualCostMicrousd, budgetChargeMicrousd: result.result.budgetChargeMicrousd, requestedModelId: result.result.requestedModelId, returnedModelId: result.result.returnedModelId });
     writePrivateJson(path.join(directory, "classification.json"), result.result.parsed);
+    if (options.canaryOnly) {
+      const validation = validateRoleClassification(input.literalDocument, result.result.parsed);
+      const formatErrors = validation.diagnostics.filter((item) => item.severity === "error");
+      writePrivateJson(path.join(directory, "canary-validation.json"), { formatErrors });
+      if (formatErrors.length) throw new Error(`canary_format_invalid:${[...new Set(formatErrors.map((item) => item.code))].join(",")}`);
+      return;
+    }
     const semantic = readJson<{ fileId: string; roleClassification: RoleClassification; documents: Array<{ docId: string; expected: { billingPeriod: string | null; mandatoryDue: { valueMinor: string | null }; decision: string } }> }>(path.join(options.fixtureRoot, params.file.evaluator.semantic.path));
     const oracleKey = params.variant === "photo_telegram" ? "geometry_photo" : "literal_source";
     const readerOracle = params.readerId === "oracle-reader" ? undefined : readJson<VisualDocumentInput>(path.join(options.fixtureRoot, params.file.evaluator[oracleKey].path));
@@ -254,6 +293,16 @@ export async function runReceiptSpikeMatrix(options: {
     writePrivateJson(path.join(directory, "evaluation.json"), evaluation);
     evaluations.push({ cell: params.cell, evaluation });
   };
+
+  if (options.canaryOnly) {
+    const file = options.manifest.files.find((item) => item.fileId === "S10");
+    if (!file) throw new Error("canary_fixture_missing");
+    const literal = readJson<VisualDocumentInput>(path.join(options.fixtureRoot, file.evaluator.literal_source.path));
+    await classify({ cell: "canary-oracle-s10-c1", file, variant: "oracle_literal", run: 1, readerId: "oracle-reader", classifierId: "C1-openai-strong", readerInput: literal });
+    const summary = { canary: "passed", fileId: "S10", providerCalls: 1, budget: ledger.snapshot(), latencyMs: providerRuns[0].latencyMs, returnedModelIds: providerRuns.map((item) => item.returnedModelId) };
+    writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
+    return summary;
+  }
 
   for (const classifierId of ["C1-openai-strong", "C2-openai-economy"] as const) for (let run = 1; run <= 3; run += 1) for (const file of options.manifest.files) {
     const literal = readJson<VisualDocumentInput>(path.join(options.fixtureRoot, file.evaluator.literal_source.path));
@@ -316,6 +365,6 @@ export async function runReceiptSpikeMatrix(options: {
   writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
   return summary;
   } finally {
-    releaseSeriesLock();
+    releaseLocks.reverse().forEach((release) => release());
   }
 }
