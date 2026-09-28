@@ -16,7 +16,7 @@ Each item uses either:
 - `label_value` with `slots[]` entries `{slot, cellIds, tokenIds, textRange}`; use `null` for absent `textRange`; or
 - `table_columns` with a `tableBlockId` and `slots[]` entries `{slot, columnKey, tokenIds}`.
 
-All fields in the strict response schema are required. Use `null` for inapplicable item scopes and state, and empty arrays for absent tokens or slots. Each slot name may occur only once per item. In `tableSchemas[]`, the field is `blockId`, never `tableBlockId`.
+All fields in the strict response schema are required. Use `null` for inapplicable item scopes and state, and empty arrays for absent tokens or slots. Each slot name may occur only once per item. If multiple table columns are marked `ignore`, omit redundant `ignore` bindings instead of repeating that slot; never combine different `columnKey` or `tokenIds` references into one binding. In `tableSchemas[]`, the field is `blockId`, never `tableBlockId`.
 
 Use only roles, slots, scope enums, and state enums supplied in the separate input contract text. Use `unknown` when evidence is insufficient.
 

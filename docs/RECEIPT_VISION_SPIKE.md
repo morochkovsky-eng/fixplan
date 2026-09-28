@@ -145,6 +145,8 @@ R1 results from the C1 cell are reused byte-for-byte for the C2 cell. R3 remains
 
 For a completed classifier refusal, or an incomplete classifier response with valid usage and model ID, the runner records the known charge before rejecting the output. It writes a private diagnostic code and no validated provider result. Without valid usage or model ID, the outcome remains reserved for manual audit.
 
+The first oracle-only series stopped after six completed C1 calls. The sixth structured response repeated the `ignore` slot with two different table-column and token references. Because the core table binding can represent only one column per named slot, those references cannot be merged without losing provenance. The wire adapter deduplicates only byte-equivalent normalized bindings; conflicting references remain a hard contract error, and the classifier prompt requires redundant ignored columns to be omitted rather than merged. The stopped series and its charge remain immutable carryover for any later plan.
+
 - One completed S10 response exists, but its classification failed local contract validation; quality, stability, and end-to-end accuracy remain unmeasured. Its actual cost was not stored by the old runner.
 - R2 credentials and processor access are intentionally not configured; the initial plan does not need them.
 - R2 cannot establish cell geometry, blank-cell behavior, or table/column quality from the current line-only contract and oracle. A future Layout Parser comparison requires a separate adapter validated against an actual `DocumentLayout` response and a revised estimate.
