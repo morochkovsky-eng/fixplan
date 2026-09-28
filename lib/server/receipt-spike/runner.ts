@@ -75,14 +75,15 @@ export function bindSeriesToLedger(runRoot: string, metadata: {
   });
 }
 
-export async function executeBudgetedProviderCall<T>(options: {
+export async function executeBudgetedProviderCall<T, U = T>(options: {
   ledger: ReceiptSpikeBudgetLedger;
   callId: string;
   provider: string;
   reservedMaxMicrousd: number;
   artifactDirectory: string;
   requestMetadata: Record<string, unknown>;
-  dispatch: () => Promise<BudgetedProviderResult<T>>;
+  dispatch: () => Promise<BudgetedProviderResult<U>>;
+  parseCompleted?: (value: U) => T;
 }) {
   const resultFile = path.join(options.artifactDirectory, "provider-result.json");
   const rawFile = path.join(options.artifactDirectory, "response.raw.json");
@@ -97,10 +98,10 @@ export async function executeBudgetedProviderCall<T>(options: {
   }
 
   writePrivateJson(path.join(options.artifactDirectory, "request.meta.json"), options.requestMetadata);
+  let completedResponse = false;
   try {
     const result = await options.dispatch();
     writePrivateJson(rawFile, result.raw);
-    writePrivateJson(resultFile, result);
     options.ledger.complete({
       callId: options.callId,
       actualCostMicrousd: result.actualCostMicrousd,
@@ -108,8 +109,28 @@ export async function executeBudgetedProviderCall<T>(options: {
       requestedModelId: result.requestedModelId,
       returnedModelId: result.returnedModelId,
     });
-    return { status: "completed" as const, result };
+    completedResponse = true;
+    writePrivateJson(path.join(options.artifactDirectory, "response.usage.json"), {
+      usage: result.usage,
+      actualCostMicrousd: result.actualCostMicrousd,
+      budgetChargeMicrousd: result.budgetChargeMicrousd,
+      requestedModelId: result.requestedModelId,
+      returnedModelId: result.returnedModelId,
+      requestId: "requestId" in result ? result.requestId : undefined,
+    });
+    const parsed = options.parseCompleted ? options.parseCompleted(result.parsed) : result.parsed as unknown as T;
+    const validated = { ...result, parsed };
+    writePrivateJson(resultFile, validated);
+    return { status: "completed" as const, result: validated };
   } catch (error) {
+    if (completedResponse) {
+      writePrivateJson(path.join(options.artifactDirectory, "error.json"), {
+        code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "classifier_contract_validation_failed",
+        message: error instanceof Error ? error.message.slice(0, 2048) : "completed output validation failed",
+        receivedAt: new Date().toISOString(),
+      });
+      throw new Error("provider_completed_output_invalid");
+    }
     if (error instanceof OpenAiHttpError) {
       writePrivateJson(path.join(options.artifactDirectory, "error.json"), error.diagnostic);
     }

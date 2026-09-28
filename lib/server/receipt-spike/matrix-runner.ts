@@ -13,6 +13,8 @@ import {
 import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult } from "./providers";
 import { classifierInputInstruction } from "./providers";
 import { classifierResponseSchema } from "./classifier-schema";
+import { classifierWireToCore } from "./classifier-schema";
+import { parseClassifierOutput } from "./adapters";
 import { bindSeriesToLedger, enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
 
 type Descriptor = { path: string; sha256: string; bytes: number };
@@ -240,7 +242,7 @@ export async function runReceiptSpikeMatrix(options: {
     const callId = `${params.cell}:${params.file.fileId}:${params.variant}:${params.run}:classifier`;
     const costBound = options.openai.maximumClassifierCost({ model, instructions: options.classifierPrompt, classifierInputJson: wire, reasoningEffort: classifierKey === "C1" ? "low" : "medium" });
     writePrivateJson(path.join(directory, "classifier.input.json"), input);
-    const result = await executeBudgetedProviderCall<RoleClassification>({
+    const result = await executeBudgetedProviderCall<RoleClassification, string>({
       ledger,
       callId,
       provider: "openai",
@@ -257,13 +259,14 @@ export async function runReceiptSpikeMatrix(options: {
         inputTokenUpperBound: costBound.inputTokenUpperBound,
         outputTokenUpperBound: costBound.outputTokenUpperBound,
       },
-      dispatch: async () => asBudgetResult(await options.openai.classify({
+      dispatch: async () => asBudgetResult(await options.openai.classifyRaw({
         model,
         instructions: options.classifierPrompt,
         classifierInputJson: wire,
         reasoningEffort: classifierKey === "C1" ? "low" : "medium",
         signal: timeoutSignal(),
       })),
+      parseCompleted: (text) => parseClassifierOutput(classifierWireToCore(JSON.parse(text))),
     });
     enforceReturnedModelSeries(path.join(runRoot, "model-series.json"), {
       provider: "openai",

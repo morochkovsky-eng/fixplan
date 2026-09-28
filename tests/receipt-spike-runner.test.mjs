@@ -15,6 +15,7 @@ await import("tsx/esm");
 const budget = await import("../lib/server/receipt-spike/budget.ts");
 const runner = await import("../lib/server/receipt-spike/runner.ts");
 const providers = await import("../lib/server/receipt-spike/providers.ts");
+const adapters = await import("../lib/server/receipt-spike/adapters.ts");
 const classifierSchema = await import("../lib/server/receipt-spike/classifier-schema.ts");
 const matrix = await import("../lib/server/receipt-spike/matrix-runner.ts");
 const { buildReceiptSpikePlan, canonicalJson } = await import("../scripts/receipt-spike/plan-lib.mjs");
@@ -359,7 +360,11 @@ test("completed malformed classifier output records usage and cost before contra
   await assert.rejects(() => runner.executeBudgetedProviderCall({
     ledger, callId: "malformed", provider: "openai", reservedMaxMicrousd: 1000,
     artifactDirectory: directory, requestMetadata: {},
-    dispatch: () => client.classify({ model: "gpt-6-sol", instructions: "synthetic", classifierInputJson: "{}", reasoningEffort: "low" }),
+    dispatch: () => client.classifyRaw({ model: "gpt-6-sol", instructions: "synthetic", classifierInputJson: "{}", reasoningEffort: "low" }),
+    parseCompleted: (text) => {
+      assert.deepEqual(ledger.snapshot().completedCallIds, ["malformed"], "accounting precedes JSON and semantic parsing");
+      return adapters.parseClassifierOutput(classifierSchema.classifierWireToCore(JSON.parse(text)));
+    },
   }), /provider_completed_output_invalid/);
   const state = ledger.snapshot();
   assert.deepEqual(state.completedCallIds, ["malformed"]);
@@ -444,7 +449,7 @@ test("S10 canary checks the real oracle input once without adding a matrix evalu
     approval: { approved: true, planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, approvalId, series: "canary", carryover: [] },
     openai: {
       maximumClassifierCost: () => ({ maximumCostMicrousd: 10_000, inputTokenUpperBound: 20_000, outputTokenUpperBound: 16_000 }),
-      classify: async () => { calls += 1; return { ...completed(200, 300), parsed: semantic.roleClassification, requestedModelId: "gpt-6-sol", returnedModelId: "gpt-6-sol-snapshot" }; },
+      classifyRaw: async () => { calls += 1; return { ...completed(200, 300), parsed: JSON.stringify(semantic.roleClassification), requestedModelId: "gpt-6-sol", returnedModelId: "gpt-6-sol-snapshot" }; },
     },
   });
   assert.equal(calls, 1);

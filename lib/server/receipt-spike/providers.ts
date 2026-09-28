@@ -154,7 +154,8 @@ export class OpenAiReceiptSpikeClient {
     input: unknown;
     reasoningEffort: "low" | "medium";
     maxOutputTokens: number;
-    parse: (value: unknown) => T;
+    parse?: (value: unknown) => T;
+    parseText?: (text: string) => T;
     classifier?: boolean;
     signal?: AbortSignal;
   }): Promise<ProviderJsonResult<T>> {
@@ -193,7 +194,7 @@ export class OpenAiReceiptSpikeClient {
       requestId: response.headers.get("x-request-id")?.slice(0, 256),
     };
     try {
-      return { ...completed, parsed: options.parse(JSON.parse(text)) };
+      return { ...completed, parsed: options.parseText ? options.parseText(text) : options.parse!(JSON.parse(text)) };
     } catch (error) {
       throw new ProviderCompletedOutputError(completed, error);
     }
@@ -234,6 +235,19 @@ export class OpenAiReceiptSpikeClient {
       maxOutputTokens: 16_000,
       parse: (value) => parseClassifierOutput(classifierWireToCore(value)),
       classifier: true,
+      signal: options.signal,
+    });
+  }
+
+  classifyRaw(options: { model: "gpt-6-sol" | "gpt-6-luna"; instructions: string; classifierInputJson: string; reasoningEffort: "low" | "medium"; signal?: AbortSignal }) {
+    return this.request<string>({
+      model: options.model,
+      instructions: options.instructions,
+      input: classifierInput(options.classifierInputJson),
+      reasoningEffort: options.reasoningEffort,
+      maxOutputTokens: 16_000,
+      classifier: true,
+      parseText: (text) => text,
       signal: options.signal,
     });
   }
