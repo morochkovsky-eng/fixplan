@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "receipt-spike-http400-recovery-v1",
+  "status": "offline_implementation_pending_review",
+  "base": "main@9e3fa9e78c33cf1f9b09f876f575b8e079cd6f89",
+  "reportedPriorSeries": {
+    "firstCall": "oracle-literal-c1:S01:oracle_literal:1:classifier",
+    "httpStatus": 400,
+    "completedProviderCalls": 0,
+    "ledgerActualCostMicrousd": 0,
+    "heldMicrousd": 289683,
+    "providerBilledAmount": "unverified",
+    "ledgerAvailableInThisWorkspace": false
+  },
+  "newExecution": {
+    "canary": "S10 oracle literal x C1, one call in its own series",
+    "canaryCountedInMatrix": false,
+    "matrixOpenAiCalls": 250,
+    "googleCalls": 0,
+    "hardCapMicrousdAcrossSeries": 12000000,
+    "approvalSchema": "receipt-spike-approval-v3",
+    "priorLedgerBoundBy": ["series", "sha256", "committedMicrousd"],
+    "planShaRequiresPriorLedgerOnTargetMac": true
+  },
+  "checks": {
+    "syntheticOracleBytesChanged": false,
+    "providerCallsThisChange": 0,
+    "productionChanged": false
+  }
+}

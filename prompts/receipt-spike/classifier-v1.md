@@ -16,7 +16,7 @@ Each item uses either:
 - `label_value` with named slots bound to `cellIds`, optional `tokenIds`, and optional validated `textRange`; or
 - `table_columns` with a `tableBlockId` and named column bindings.
 
-Use only roles, slots, scope enums, and state enums supplied in the JSON schema. Use `unknown` when evidence is insufficient.
+Use only roles, slots, scope enums, and state enums supplied in the separate input contract text. Use `unknown` when evidence is insufficient.
 
 ## Invariants
 
