@@ -67,6 +67,46 @@ test("R2 is an explicit separately fingerprinted matrix choice", () => {
   assert.throws(() => budget.validateReceiptSpikeApproval(oldApproval, { planSha256: initial.planSha256, series: "test" }), (error) => error.code === "approval_missing");
 });
 
+test("oracle-only stage has its own plan and performs no reader or PDF work", async () => {
+  const plan = approvalPlan.buildApprovedReceiptSpikePlan({ oracleOnly: true });
+  assert.equal(plan.totals.openAiCalls, 60);
+  assert.equal(plan.totals.googleDocumentAiCalls, 0);
+  assert.equal(plan.totals.localPdfExtractions, 0);
+  assert.equal(plan.matrix.length, 2);
+  assert.notEqual(plan.planSha256, approvalPlan.buildApprovedReceiptSpikePlan().planSha256);
+  assert.equal(matrix.buildReceiptSpikeSchedule(manifest, { oracleOnly: true }).length, 60);
+  assert.throws(() => approvalPlan.buildApprovedReceiptSpikePlan({ oracleOnly: true, includeR2: true }), /incompatible_spike_stage_options/);
+  assert.throws(() => approvalPlan.buildApprovedReceiptSpikePlan({ oracleOnly: true, canaryOnly: true }), /incompatible_spike_stage_options/);
+  const dry = JSON.parse(execFileSync(process.execPath, ["scripts/receipt-spike/run-matrix.mjs", "--oracle-only"], { encoding: "utf8" }));
+  assert.equal(dry.providerClientsConstructed, false);
+  assert.equal(dry.providerCallsPlanned, 60);
+
+  const root = temporary("oracle-stage");
+  const results = new Map(manifest.files.map((file) => [file.fileId, JSON.parse(fs.readFileSync(path.join(fixtureRoot, file.evaluator.semantic.path), "utf8")).roleClassification]));
+  let calls = 0;
+  const summary = await matrix.runReceiptSpikeMatrix({
+    fixtureRoot, manifest, series: "oracle-stage", planSha256: plan.planSha256, includeR2: false, oracleOnly: true,
+    integrity: plan.integrity, outputRoot: root,
+    readerPrompt: fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8"),
+    classifierPrompt: fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8"),
+    approval: { approved: true, planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, approvalId, series: "oracle-stage", carryover: [] },
+    openai: {
+      maximumClassifierCost: () => ({ maximumCostMicrousd: 1000, inputTokenUpperBound: 10000, outputTokenUpperBound: 16000 }),
+      classifyRaw: async ({ model, classifierInputJson }) => {
+        calls += 1;
+        const fileId = JSON.parse(classifierInputJson).fileId;
+        return { ...completed(100, 125), parsed: { text: JSON.stringify(results.get(fileId)), issue: null }, requestedModelId: model, returnedModelId: model };
+      },
+    },
+  });
+  assert.equal(calls, 60);
+  assert.equal(summary.stage, "oracle_only");
+  assert.equal(summary.providerCalls, 60);
+  assert.deepEqual(summary.cells.map((item) => item.cell), ["oracle-literal-c1", "oracle-literal-c2"]);
+  assert.equal(summary.budget.budgetChargedMicrousd, 7500);
+  assert.equal(fs.existsSync(path.join(root, "oracle-stage", "r1-c1-clean-photo")), false);
+});
+
 test("planner source is independently bound and any planner change requires new approval", () => {
   const unsignedPlan = buildReceiptSpikePlan();
   const approvedPlan = approvalPlan.bindReceiptSpikePlanner(unsignedPlan);
@@ -139,6 +179,7 @@ test("approved execution loader and full preflight finish offline without creati
     series: "loader-check",
     includeR2: false,
     canaryOnly: false,
+    oracleOnly: false,
     providerClientsConstructed: false,
     providerCallsExecuted: 0,
     seriesCreated: false,
