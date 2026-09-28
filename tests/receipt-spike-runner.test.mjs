@@ -107,6 +107,41 @@ test("paid mode refuses before credentials or provider construction when approva
   assert.doesNotMatch(result.stderr, /OPENAI_API_KEY/);
 });
 
+test("approved execution loader and full preflight finish offline without creating a series", () => {
+  const root = temporary("loader-preflight");
+  const file = path.join(root, "approval.json");
+  const plan = approvalPlan.buildApprovedReceiptSpikePlan();
+  fs.writeFileSync(file, JSON.stringify({
+    schemaVersion: "receipt-spike-approval-v2",
+    approved: true,
+    approvalId,
+    series: "loader-check",
+    planSha256: plan.planSha256,
+    maximumAuthorizedSpendMicrousd: 12_000_000,
+    expiresAt: "2099-01-01T00:00:00.000Z",
+  }), { mode: 0o600 });
+  const args = ["scripts/receipt-spike/run-matrix.mjs", "--execute", "--series", "loader-check", "--approval-file", file];
+  const options = { encoding: "utf8", env: {}, timeout: 10_000 };
+  const missingKey = spawnSync(process.execPath, args, options);
+  assert.equal(missingKey.error, undefined, "approved loader must not hang before credential validation");
+  assert.notEqual(missingKey.status, 0);
+  assert.match(missingKey.stderr, /missing_required_environment:OPENAI_API_KEY/);
+
+  const preflight = spawnSync(process.execPath, [...args, "--preflight-only"], options);
+  assert.equal(preflight.error, undefined, "full module and manifest preflight must not hang");
+  assert.equal(preflight.status, 0, preflight.stderr);
+  assert.deepEqual(JSON.parse(preflight.stdout), {
+    schemaVersion: "receipt-spike-preflight-v1",
+    planSha256: plan.planSha256,
+    series: "loader-check",
+    includeR2: false,
+    providerClientsConstructed: false,
+    providerCallsExecuted: 0,
+    seriesCreated: false,
+  });
+  assert.equal(fs.existsSync(".receipt-spike/runs/loader-check"), false);
+});
+
 test("approval requires exact plan, cap, expiry, and private permissions", () => {
   const dir = temporary("approval");
   const file = path.join(dir, "approval.json");
