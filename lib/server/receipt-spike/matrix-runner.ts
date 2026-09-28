@@ -10,8 +10,8 @@ import { adapterVersion } from "./adapters";
 import {
   assertNoEvaluatorLeak, evaluateEndToEnd, prepareClassifierInput, stringifyClassifierInput,
 } from "./evaluator";
-import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult } from "./providers";
-import { classifierInputInstruction } from "./providers";
+import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult, OpenAiClassifierPayload } from "./providers";
+import { classifierInputInstruction, OpenAiOutputIssue } from "./providers";
 import { classifierResponseSchema } from "./classifier-schema";
 import { classifierWireToCore } from "./classifier-schema";
 import { parseClassifierOutput } from "./adapters";
@@ -242,7 +242,7 @@ export async function runReceiptSpikeMatrix(options: {
     const callId = `${params.cell}:${params.file.fileId}:${params.variant}:${params.run}:classifier`;
     const costBound = options.openai.maximumClassifierCost({ model, instructions: options.classifierPrompt, classifierInputJson: wire, reasoningEffort: classifierKey === "C1" ? "low" : "medium" });
     writePrivateJson(path.join(directory, "classifier.input.json"), input);
-    const result = await executeBudgetedProviderCall<RoleClassification, string>({
+    const result = await executeBudgetedProviderCall<RoleClassification, OpenAiClassifierPayload>({
       ledger,
       callId,
       provider: "openai",
@@ -266,7 +266,10 @@ export async function runReceiptSpikeMatrix(options: {
         reasoningEffort: classifierKey === "C1" ? "low" : "medium",
         signal: timeoutSignal(),
       })),
-      parseCompleted: (text) => parseClassifierOutput(classifierWireToCore(JSON.parse(text))),
+      parseCompleted: (payload) => {
+        if (payload.issue) throw new OpenAiOutputIssue(payload.issue);
+        return parseClassifierOutput(classifierWireToCore(JSON.parse(payload.text)));
+      },
     });
     enforceReturnedModelSeries(path.join(runRoot, "model-series.json"), {
       provider: "openai",

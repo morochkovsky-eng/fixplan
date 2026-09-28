@@ -361,9 +361,10 @@ test("completed malformed classifier output records usage and cost before contra
     ledger, callId: "malformed", provider: "openai", reservedMaxMicrousd: 1000,
     artifactDirectory: directory, requestMetadata: {},
     dispatch: () => client.classifyRaw({ model: "gpt-6-sol", instructions: "synthetic", classifierInputJson: "{}", reasoningEffort: "low" }),
-    parseCompleted: (text) => {
+    parseCompleted: (payload) => {
       assert.deepEqual(ledger.snapshot().completedCallIds, ["malformed"], "accounting precedes JSON and semantic parsing");
-      return adapters.parseClassifierOutput(classifierSchema.classifierWireToCore(JSON.parse(text)));
+      assert.equal(payload.issue, null);
+      return adapters.parseClassifierOutput(classifierSchema.classifierWireToCore(JSON.parse(payload.text)));
     },
   }), /provider_completed_output_invalid/);
   const state = ledger.snapshot();
@@ -375,6 +376,38 @@ test("completed malformed classifier output records usage and cost before contra
   assert.match(runner.readPrivateJson(path.join(directory, "error.json")).message, /tableBlockId/);
   assert.equal(fs.statSync(path.join(directory, "error.json")).mode & 0o777, 0o600);
   assert.equal(fs.existsSync(path.join(directory, "provider-result.json")), false);
+});
+
+test("completed OpenAI refusal and incomplete output with valid usage are charged before validation stops the series", async () => {
+  for (const responseStatus of ["completed", "incomplete"]) {
+    const dir = temporary(`structured-${responseStatus}`);
+    const ledger = new budget.ReceiptSpikeBudgetLedger(path.join(dir, "ledger.jsonl"));
+    const directory = path.join(dir, "call");
+    const client = new providers.OpenAiReceiptSpikeClient("test-api-key", async () => new Response(JSON.stringify({
+      status: responseStatus, model: "gpt-6-sol-snapshot", usage: { input_tokens: 100, output_tokens: 20 },
+      output: [{ type: "message", content: [{ type: "refusal", refusal: "private refusal text" }] }],
+    }), { status: 200, headers: { "x-request-id": "req-structured" } }));
+    await assert.rejects(() => runner.executeBudgetedProviderCall({
+      ledger, callId: "structured", provider: "openai", reservedMaxMicrousd: 1000,
+      artifactDirectory: directory, requestMetadata: {},
+      dispatch: () => client.classifyRaw({ model: "gpt-6-sol", instructions: "synthetic", classifierInputJson: "{}", reasoningEffort: "low" }),
+      parseCompleted: (payload) => {
+        assert.deepEqual(ledger.snapshot().completedCallIds, ["structured"]);
+        if (payload.issue) throw new providers.OpenAiOutputIssue(payload.issue);
+        return adapters.parseClassifierOutput(classifierSchema.classifierWireToCore(JSON.parse(payload.text)));
+      },
+    }), /provider_completed_output_invalid/);
+    const state = ledger.snapshot();
+    assert.equal(state.actualCostMicrousd, 400);
+    assert.equal(state.budgetChargedMicrousd, 450);
+    assert.deepEqual(state.uncertainCallIds, []);
+    assert.equal(runner.readPrivateJson(path.join(directory, "error.json")).code,
+      responseStatus === "completed" ? "openai_refusal" : "openai_response_incomplete");
+    assert.equal(runner.readPrivateJson(path.join(directory, "response.usage.json")).requestId, "req-structured");
+    assert.doesNotMatch(fs.readFileSync(path.join(directory, "error.json"), "utf8"), /private refusal text/);
+    assert.equal(fs.statSync(path.join(directory, "error.json")).mode & 0o777, 0o600);
+    assert.equal(fs.existsSync(path.join(directory, "provider-result.json")), false);
+  }
 });
 
 test("HTTP validation errors retain private diagnostics and freeze the budget without exposing the message", async () => {
@@ -449,7 +482,7 @@ test("S10 canary checks the real oracle input once without adding a matrix evalu
     approval: { approved: true, planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, approvalId, series: "canary", carryover: [] },
     openai: {
       maximumClassifierCost: () => ({ maximumCostMicrousd: 10_000, inputTokenUpperBound: 20_000, outputTokenUpperBound: 16_000 }),
-      classifyRaw: async () => { calls += 1; return { ...completed(200, 300), parsed: JSON.stringify(semantic.roleClassification), requestedModelId: "gpt-6-sol", returnedModelId: "gpt-6-sol-snapshot" }; },
+      classifyRaw: async () => { calls += 1; return { ...completed(200, 300), parsed: { text: JSON.stringify(semantic.roleClassification), issue: null }, requestedModelId: "gpt-6-sol", returnedModelId: "gpt-6-sol-snapshot" }; },
     },
   });
   assert.equal(calls, 1);

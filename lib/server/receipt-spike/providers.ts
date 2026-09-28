@@ -5,6 +5,14 @@ import { ROLE_SLOT_CONTRACT } from "../receipt-core/roles";
 import { classifierResponseSchema, classifierWireToCore } from "./classifier-schema";
 
 export type ProviderUsage = { inputTokens?: number; outputTokens?: number; pages?: number };
+export type OpenAiClassifierPayload = { text: string; issue: "openai_refusal" | "openai_response_incomplete" | "openai_output_text_missing" | null };
+
+export class OpenAiOutputIssue extends Error {
+  constructor(readonly code: NonNullable<OpenAiClassifierPayload["issue"]>) {
+    super(code);
+    this.name = "OpenAiOutputIssue";
+  }
+}
 
 export type ProviderJsonResult<T> = {
   parsed: T;
@@ -90,6 +98,12 @@ function outputText(response: Record<string, unknown>) {
   ).join("");
 }
 
+function containsRefusal(response: Record<string, unknown>) {
+  return Array.isArray(response.output) && response.output.some((item) =>
+    record(item) && Array.isArray(item.content) && item.content.some((content) => record(content) && content.type === "refusal")
+  );
+}
+
 function openAiCost(model: OpenAiModel, inputTokens: number, outputTokens: number) {
   const prices = OPENAI_PRICES_MICROUSD_PER_TOKEN[model];
   if (!prices) throw new Error(`unsupported_openai_price:${model}`);
@@ -155,7 +169,7 @@ export class OpenAiReceiptSpikeClient {
     reasoningEffort: "low" | "medium";
     maxOutputTokens: number;
     parse?: (value: unknown) => T;
-    parseText?: (text: string) => T;
+    parseText?: (text: string, raw: Record<string, unknown>) => T;
     classifier?: boolean;
     signal?: AbortSignal;
   }): Promise<ProviderJsonResult<T>> {
@@ -173,14 +187,15 @@ export class OpenAiReceiptSpikeClient {
     try { raw = JSON.parse(responseText); parseable = true; } catch { raw = null; }
     if (!response.ok) throw new OpenAiHttpError(response.status, response, raw, parseable);
     if (!record(raw)) throw new Error(`openai_response_invalid:${response.status}`);
-    if (raw.status !== "completed") throw new Error(`openai_response_${String(raw.status ?? "unknown")}`);
-    const text = outputText(raw);
-    if (!text) throw new Error("openai_output_text_missing");
     if (!record(raw.usage)) throw new Error("openai_usage_missing");
     const inputTokens = requiredUsageInteger(raw.usage.input_tokens, "input_tokens");
     const outputTokens = requiredUsageInteger(raw.usage.output_tokens, "output_tokens");
     if (inputTokens === 0 || outputTokens === 0) throw new Error("openai_usage_empty");
     if (typeof raw.model !== "string" || !raw.model) throw new Error("openai_returned_model_missing");
+    if (raw.status !== "completed" && !(options.classifier && options.parseText && raw.status === "incomplete")) {
+      throw new Error(`openai_response_${String(raw.status ?? "unknown")}`);
+    }
+    const text = outputText(raw);
     const returnedModelId = raw.model;
     const completed: ProviderJsonResult<null> = {
       parsed: null,
@@ -194,7 +209,8 @@ export class OpenAiReceiptSpikeClient {
       requestId: response.headers.get("x-request-id")?.slice(0, 256),
     };
     try {
-      return { ...completed, parsed: options.parseText ? options.parseText(text) : options.parse!(JSON.parse(text)) };
+      if (!options.parseText && !text) throw new Error("openai_output_text_missing");
+      return { ...completed, parsed: options.parseText ? options.parseText(text, raw) : options.parse!(JSON.parse(text)) };
     } catch (error) {
       throw new ProviderCompletedOutputError(completed, error);
     }
@@ -240,14 +256,19 @@ export class OpenAiReceiptSpikeClient {
   }
 
   classifyRaw(options: { model: "gpt-6-sol" | "gpt-6-luna"; instructions: string; classifierInputJson: string; reasoningEffort: "low" | "medium"; signal?: AbortSignal }) {
-    return this.request<string>({
+    return this.request<OpenAiClassifierPayload>({
       model: options.model,
       instructions: options.instructions,
       input: classifierInput(options.classifierInputJson),
       reasoningEffort: options.reasoningEffort,
       maxOutputTokens: 16_000,
       classifier: true,
-      parseText: (text) => text,
+      parseText: (text, raw) => ({
+        text,
+        issue: raw.status === "incomplete" ? "openai_response_incomplete"
+          : containsRefusal(raw) ? "openai_refusal"
+            : !text ? "openai_output_text_missing" : null,
+      }),
       signal: options.signal,
     });
   }
