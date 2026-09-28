@@ -43,11 +43,12 @@ export type MatrixScheduleStep = {
 const IMAGE_VARIANTS = ["png_clean", "photo_telegram"] as const;
 const GOOGLE_OCR_RESERVATION_MICROUSD = 10_000;
 
-export function buildReceiptSpikeSchedule(manifest: Manifest, options: { includeR2?: boolean } = {}): MatrixScheduleStep[] {
+export function buildReceiptSpikeSchedule(manifest: Manifest, options: { includeR2?: boolean; oracleOnly?: boolean } = {}): MatrixScheduleStep[] {
   const steps: MatrixScheduleStep[] = [];
   for (const classifier of ["c1", "c2"] as const) for (let run = 1; run <= 3; run += 1) for (const file of manifest.files) {
     steps.push({ id: `oracle-${classifier}-${file.fileId}-${run}`, cell: `oracle-literal-${classifier}`, kind: "provider_classifier", fileId: file.fileId, variant: "oracle_literal", runNumber: run, provider: "openai" });
   }
+  if (options.oracleOnly) return steps;
   for (let run = 1; run <= 3; run += 1) for (const variant of IMAGE_VARIANTS) for (const file of manifest.files) {
     steps.push({ id: `r1-${file.fileId}-${variant}-${run}`, cell: "r1-c1-clean-photo", kind: "provider_reader", fileId: file.fileId, variant, runNumber: run, provider: "openai" });
     steps.push({ id: `r1-c1-${file.fileId}-${variant}-${run}`, cell: "r1-c1-clean-photo", kind: "provider_classifier", fileId: file.fileId, variant, runNumber: run, provider: "openai" });
@@ -151,6 +152,7 @@ export async function runReceiptSpikeMatrix(options: {
   planSha256: string;
   includeR2: boolean;
   canaryOnly?: boolean;
+  oracleOnly?: boolean;
   integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; classifierContractSha256: string; classifierResponseSchemaSha256: string; sourceSha256: Record<string, string> };
   outputRoot: string;
   readerPrompt: string;
@@ -160,6 +162,7 @@ export async function runReceiptSpikeMatrix(options: {
   google?: GoogleEnterpriseOcrClient;
 }) {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(options.series)) throw new Error("invalid_series_name");
+  if ((options.oracleOnly && options.canaryOnly) || (options.oracleOnly && options.includeR2)) throw new Error("incompatible_spike_stage_options");
   if (!options.approval.approved || options.approval.planSha256 !== options.planSha256 || options.approval.maximumAuthorizedSpendMicrousd !== 12_000_000 || options.approval.series !== options.series || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(options.approval.approvalId)) {
     throw new Error("paid_execution_approval_mismatch");
   }
@@ -316,6 +319,23 @@ export async function runReceiptSpikeMatrix(options: {
   for (const classifierId of ["C1-openai-strong", "C2-openai-economy"] as const) for (let run = 1; run <= 3; run += 1) for (const file of options.manifest.files) {
     const literal = readJson<VisualDocumentInput>(path.join(options.fixtureRoot, file.evaluator.literal_source.path));
     await classify({ cell: classifierId === "C1-openai-strong" ? "oracle-literal-c1" : "oracle-literal-c2", file, variant: "oracle_literal", run, readerId: "oracle-reader", classifierId, readerInput: literal });
+  }
+  if (options.oracleOnly) {
+    const cells = ["oracle-literal-c1", "oracle-literal-c2"].map((cell) => {
+      const results = evaluations.filter((item) => item.cell === cell).map((item) => item.evaluation);
+      const calls = providerRuns.filter((item) => item.cell === cell);
+      return {
+        cell,
+        evaluations: results.length,
+        providerCalls: calls.length,
+        silentCriticalErrors: results.reduce((sum, item) => sum + item.silentCriticalErrors, 0),
+        falseRejects: results.reduce((sum, item) => sum + item.falseRejects, 0),
+        meanMonetaryRoleAccuracy: results.reduce((sum, item) => sum + item.classifierMetrics.monetaryRoleAccuracy, 0) / results.length,
+      };
+    });
+    const summary = { stage: "oracle_only", finishedAt: new Date().toISOString(), providerCalls: providerRuns.length, budget: ledger.snapshot(), cells };
+    writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
+    return summary;
   }
 
   for (let run = 1; run <= 3; run += 1) for (const variant of IMAGE_VARIANTS) for (const file of options.manifest.files) {

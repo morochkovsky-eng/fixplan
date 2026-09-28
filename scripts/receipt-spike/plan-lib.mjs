@@ -114,12 +114,12 @@ export function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
-export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, carryover = [] } = {}) {
-  if (canaryOnly && includeR2) throw new Error("canary_r2_not_supported");
+export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, oracleOnly = false, carryover = [] } = {}) {
+  if ((canaryOnly && oracleOnly) || (includeR2 && (canaryOnly || oracleOnly))) throw new Error("incompatible_spike_stage_options");
   const canaryFile = manifest.files.find((file) => file.fileId === "S10");
   if (!canaryFile) throw new Error("canary_fixture_missing");
   const canaryMatrix = [{ id: "canary-oracle-s10-c1", inputs: 1, documents: 1, repeats: 1, readerCalls: 0, classifierCalls: 1, estimateUsd: fileEstimate(canaryFile, "png_clean", "gpt-6-sol", false).classifierCost }];
-  const matrix = (canaryOnly ? canaryMatrix : includeR2 ? [...initialMatrix.slice(0, 3), r2MatrixEntry, ...initialMatrix.slice(3)] : initialMatrix)
+  const matrix = (canaryOnly ? canaryMatrix : oracleOnly ? initialMatrix.slice(0, 2) : includeR2 ? [...initialMatrix.slice(0, 3), r2MatrixEntry, ...initialMatrix.slice(3)] : initialMatrix)
     .map((entry) => ({ ...entry, estimateUsd: Number(entry.estimateUsd.toFixed(4)), status: "planned_not_run" }));
   const planningEstimateUsd = Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4));
   const report = {
@@ -127,6 +127,7 @@ export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, c
   baselineCommit: manifest.baselineCommit,
   includeR2,
   canaryOnly,
+  oracleOnly,
   carryover,
   r2FollowUpPolicy: {
     prerequisite: "oracle_c1_passes_and_failure_localized_to_reader",
@@ -145,10 +146,10 @@ export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, c
   integrity,
   matrix,
   totals: {
-    openAiCalls: canaryOnly ? 1 : includeR2 ? 270 : 250,
-    googleDocumentAiCalls: canaryOnly ? 0 : includeR2 ? 20 : 0,
-    localPdfExtractions: canaryOnly ? 0 : 10,
-    providerCalls: canaryOnly ? 1 : includeR2 ? 290 : 250,
+    openAiCalls: canaryOnly ? 1 : oracleOnly ? 60 : includeR2 ? 270 : 250,
+    googleDocumentAiCalls: canaryOnly || oracleOnly ? 0 : includeR2 ? 20 : 0,
+    localPdfExtractions: canaryOnly || oracleOnly ? 0 : 10,
+    providerCalls: canaryOnly ? 1 : oracleOnly ? 60 : includeR2 ? 290 : 250,
     planningEstimateUsd,
     safetyMultiplier,
   },
