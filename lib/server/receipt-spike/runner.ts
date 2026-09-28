@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ReceiptSpikeBudgetLedger } from "./budget";
 import type { ReceiptSpikeCarryover } from "./budget";
-import { OpenAiHttpError } from "./providers";
+import { OpenAiHttpError, ProviderCompletedOutputError } from "./providers";
 
 export type BudgetedProviderResult<T> = {
   parsed: T;
@@ -113,10 +113,30 @@ export async function executeBudgetedProviderCall<T>(options: {
     if (error instanceof OpenAiHttpError) {
       writePrivateJson(path.join(options.artifactDirectory, "error.json"), error.diagnostic);
     }
+    if (error instanceof ProviderCompletedOutputError) {
+      options.ledger.complete({
+        callId: options.callId,
+        actualCostMicrousd: error.completed.actualCostMicrousd,
+        budgetChargeMicrousd: error.completed.budgetChargeMicrousd,
+        requestedModelId: error.completed.requestedModelId,
+        returnedModelId: error.completed.returnedModelId,
+      });
+      writePrivateJson(rawFile, error.completed.raw);
+      writePrivateJson(path.join(options.artifactDirectory, "response.usage.json"), {
+        usage: error.completed.usage,
+        actualCostMicrousd: error.completed.actualCostMicrousd,
+        budgetChargeMicrousd: error.completed.budgetChargeMicrousd,
+        requestedModelId: error.completed.requestedModelId,
+        returnedModelId: error.completed.returnedModelId,
+        requestId: error.completed.requestId,
+      });
+      writePrivateJson(path.join(options.artifactDirectory, "error.json"), error.diagnostic);
+    }
     const state = options.ledger.snapshot();
     if (state.unresolvedCallIds.includes(options.callId) && !state.uncertainCallIds.includes(options.callId)) {
       options.ledger.markUncertain(options.callId, error instanceof OpenAiHttpError ? error.diagnostic.outcome : "provider_call_outcome_unknown");
     }
+    if (error instanceof ProviderCompletedOutputError) throw new Error("provider_completed_output_invalid");
     throw error;
   }
 }

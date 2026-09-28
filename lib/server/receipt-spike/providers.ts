@@ -2,6 +2,7 @@ import { adaptGoogleEnterpriseOcr, parseClassifierOutput, parseVisionReaderOutpu
 import type { RoleClassification, VisualDocumentInput } from "../receipt-core";
 import { DOCUMENT_KINDS, DUE_SCOPES, OPTIONAL_SCOPES, ROW_ROLES, SLOT_NAMES } from "../receipt-core/types";
 import { ROLE_SLOT_CONTRACT } from "../receipt-core/roles";
+import { classifierResponseSchema, classifierWireToCore } from "./classifier-schema";
 
 export type ProviderUsage = { inputTokens?: number; outputTokens?: number; pages?: number };
 
@@ -62,6 +63,20 @@ export class OpenAiHttpError extends Error {
   }
 }
 
+export class ProviderCompletedOutputError extends Error {
+  readonly diagnostic: { code: string; message: string; requestId: string | null; receivedAt: string };
+  constructor(readonly completed: ProviderJsonResult<null>, cause: unknown) {
+    super("provider_completed_output_invalid");
+    this.name = "ProviderCompletedOutputError";
+    this.diagnostic = {
+      code: cause instanceof Error && "code" in cause && typeof cause.code === "string" ? cause.code : "classifier_contract_validation_failed",
+      message: cause instanceof Error ? cause.message.slice(0, 2048) : "output validation failed",
+      requestId: completed.requestId ?? null,
+      receivedAt: new Date().toISOString(),
+    };
+  }
+}
+
 function requiredUsageInteger(value: unknown, name: string) {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new Error(`openai_usage_invalid:${name}`);
   return Number(value);
@@ -92,14 +107,16 @@ function openAiBudgetCharge(model: OpenAiModel, inputTokens: number, outputToken
   );
 }
 
-function requestBody(options: { model: OpenAiModel; instructions: string; input: unknown; reasoningEffort: "low" | "medium"; maxOutputTokens: number }) {
+function requestBody(options: { model: OpenAiModel; instructions: string; input: unknown; reasoningEffort: "low" | "medium"; maxOutputTokens: number; classifier?: boolean }) {
   return {
     model: options.model,
     instructions: options.instructions,
     input: options.input,
     reasoning: { effort: options.reasoningEffort },
     max_output_tokens: options.maxOutputTokens,
-    text: { format: { type: "json_object" } },
+    text: { format: options.classifier
+      ? { type: "json_schema", name: "receipt_role_classification", strict: true, schema: classifierResponseSchema }
+      : { type: "json_object" } },
     store: false,
   };
 }
@@ -138,6 +155,7 @@ export class OpenAiReceiptSpikeClient {
     reasoningEffort: "low" | "medium";
     maxOutputTokens: number;
     parse: (value: unknown) => T;
+    classifier?: boolean;
     signal?: AbortSignal;
   }): Promise<ProviderJsonResult<T>> {
     const started = performance.now();
@@ -163,8 +181,8 @@ export class OpenAiReceiptSpikeClient {
     if (inputTokens === 0 || outputTokens === 0) throw new Error("openai_usage_empty");
     if (typeof raw.model !== "string" || !raw.model) throw new Error("openai_returned_model_missing");
     const returnedModelId = raw.model;
-    return {
-      parsed: options.parse(JSON.parse(text)),
+    const completed: ProviderJsonResult<null> = {
+      parsed: null,
       raw,
       requestedModelId: options.model,
       returnedModelId,
@@ -174,6 +192,11 @@ export class OpenAiReceiptSpikeClient {
       budgetChargeMicrousd: openAiBudgetCharge(options.model, inputTokens, outputTokens),
       requestId: response.headers.get("x-request-id")?.slice(0, 256),
     };
+    try {
+      return { ...completed, parsed: options.parse(JSON.parse(text)) };
+    } catch (error) {
+      throw new ProviderCompletedOutputError(completed, error);
+    }
   }
 
   readImage(options: { model: "gpt-6-sol"; instructions: string; bytes: Uint8Array; mimeType: "image/png" | "image/jpeg"; signal?: AbortSignal }) {
@@ -209,7 +232,8 @@ export class OpenAiReceiptSpikeClient {
       input: classifierInput(options.classifierInputJson),
       reasoningEffort: options.reasoningEffort,
       maxOutputTokens: 16_000,
-      parse: parseClassifierOutput,
+      parse: (value) => parseClassifierOutput(classifierWireToCore(value)),
+      classifier: true,
       signal: options.signal,
     });
   }
@@ -221,6 +245,7 @@ export class OpenAiReceiptSpikeClient {
       input: classifierInput(options.classifierInputJson),
       reasoningEffort: options.reasoningEffort,
       maxOutputTokens: 16_000,
+      classifier: true,
     });
     return openAiRequestCostUpperBoundMicrousd({ model: options.model, body });
   }

@@ -15,6 +15,7 @@ await import("tsx/esm");
 const budget = await import("../lib/server/receipt-spike/budget.ts");
 const runner = await import("../lib/server/receipt-spike/runner.ts");
 const providers = await import("../lib/server/receipt-spike/providers.ts");
+const classifierSchema = await import("../lib/server/receipt-spike/classifier-schema.ts");
 const matrix = await import("../lib/server/receipt-spike/matrix-runner.ts");
 const { buildReceiptSpikePlan, canonicalJson } = await import("../scripts/receipt-spike/plan-lib.mjs");
 const approvalPlan = await import("../scripts/receipt-spike/approval-plan.mjs");
@@ -308,6 +309,67 @@ test("OpenAI adapter records returned model, usage, and list-price cost without 
   assert.match(body.input[0].content[0].text, /RoleClassification JSON object/);
   assert.match(body.input[0].content[0].text, /billing_period/);
   assert.equal(body.input[0].content[1].text, "{}", "the indexed literal remains a separate unchanged input part");
+  assert.equal(body.text.format.type, "json_schema");
+  assert.equal(body.text.format.strict, true);
+  assert.equal(body.text.format.schema.additionalProperties, false);
+  assert.deepEqual(body.text.format.schema.properties.tableSchemas.items.required, ["blockId", "columns"]);
+  assert.equal(body.text.format.schema.properties.tableSchemas.items.properties.tableBlockId, undefined);
+});
+
+test("strict classifier wire uses generated enums and preserves the core's sparse slots", () => {
+  const checkStrict = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "object") {
+      assert.equal(node.additionalProperties, false);
+      assert.deepEqual(node.required, Object.keys(node.properties));
+    }
+    for (const child of Object.values(node)) checkStrict(child);
+  };
+  checkStrict(classifierSchema.classifierResponseSchema);
+  const semantic = JSON.parse(fs.readFileSync(path.join(fixtureRoot, manifest.files[0].evaluator.semantic.path), "utf8"));
+  const source = semantic.roleClassification;
+  const wire = { ...source, rows: source.rows.map((row) => ({ ...row, items: row.items.map((item) => ({
+    ...item,
+    dueScope: item.dueScope ?? null,
+    optionalScope: item.optionalScope ?? null,
+    declaredState: item.declaredState ?? null,
+    affectsDue: item.affectsDue ?? null,
+    slots: Object.entries(item.slots).map(([slot, binding]) => item.mode === "label_value"
+      ? { slot, cellIds: binding.cellIds, tokenIds: binding.tokenIds ?? [], textRange: binding.textRange ?? null }
+      : { slot, columnKey: binding.columnKey, tokenIds: binding.tokenIds ?? [] }),
+  })) })) };
+  const converted = classifierSchema.classifierWireToCore(wire);
+  assert.deepEqual(converted.documents, source.documents);
+  assert.deepEqual(converted.tableSchemas, source.tableSchemas);
+  assert.deepEqual(converted.rows.map((row) => row.items.map((item) => item.role)), source.rows.map((row) => row.items.map((item) => item.role)));
+  assert.deepEqual(converted.rows[2].items[0].slots.billing_period.cellIds, source.rows[2].items[0].slots.billing_period.cellIds);
+  assert.ok(classifierSchema.classifierResponseSchema.properties.rows.items.properties.items.items.anyOf[0].properties.role.enum.includes("billing_period"));
+  assert.ok(classifierSchema.classifierResponseSchema.properties.rows.items.properties.items.items.anyOf[0].properties.slots.items.properties.slot.enum.includes("billing_period"));
+  assert.throws(() => classifierSchema.classifierWireToCore({ ...wire, rows: [{ rowId: "r", items: [{ ...wire.rows[0].items[0], slots: [wire.rows[0].items[0].slots[0], wire.rows[0].items[0].slots[0]] }] }] }), /classifier_slot_wire_invalid/);
+});
+
+test("completed malformed classifier output records usage and cost before contract validation", async () => {
+  const dir = temporary("completed-malformed");
+  const ledger = new budget.ReceiptSpikeBudgetLedger(path.join(dir, "ledger.jsonl"));
+  const output = { documents: [], sharedRowIds: [], tableSchemas: [{ blockId: "b", tableBlockId: "bad", columns: [] }], rows: [] };
+  const client = new providers.OpenAiReceiptSpikeClient("test-api-key", async () => new Response(JSON.stringify({
+    status: "completed", model: "gpt-6-sol-snapshot", output_text: JSON.stringify(output), usage: { input_tokens: 100, output_tokens: 20 },
+  }), { status: 200, headers: { "x-request-id": "req-malformed" } }));
+  const directory = path.join(dir, "call");
+  await assert.rejects(() => runner.executeBudgetedProviderCall({
+    ledger, callId: "malformed", provider: "openai", reservedMaxMicrousd: 1000,
+    artifactDirectory: directory, requestMetadata: {},
+    dispatch: () => client.classify({ model: "gpt-6-sol", instructions: "synthetic", classifierInputJson: "{}", reasoningEffort: "low" }),
+  }), /provider_completed_output_invalid/);
+  const state = ledger.snapshot();
+  assert.deepEqual(state.completedCallIds, ["malformed"]);
+  assert.deepEqual(state.uncertainCallIds, []);
+  assert.equal(state.actualCostMicrousd, 400);
+  assert.equal(state.budgetChargedMicrousd, 450);
+  assert.equal(runner.readPrivateJson(path.join(directory, "response.usage.json")).requestId, "req-malformed");
+  assert.match(runner.readPrivateJson(path.join(directory, "error.json")).message, /tableBlockId/);
+  assert.equal(fs.statSync(path.join(directory, "error.json")).mode & 0o777, 0o600);
+  assert.equal(fs.existsSync(path.join(directory, "provider-result.json")), false);
 });
 
 test("HTTP validation errors retain private diagnostics and freeze the budget without exposing the message", async () => {
