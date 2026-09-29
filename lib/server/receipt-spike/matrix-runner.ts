@@ -288,7 +288,7 @@ export async function runReceiptSpikeMatrix(options: {
       if (formatErrors.length) throw new Error(`canary_format_invalid:${[...new Set(formatErrors.map((item) => item.code))].join(",")}`);
       return;
     }
-    const semantic = readJson<{ fileId: string; roleClassification: RoleClassification; documents: Array<{ docId: string; expected: { billingPeriod: string | null; mandatoryDue: { valueMinor: string | null }; decision: string } }> }>(path.join(options.fixtureRoot, params.file.evaluator.semantic.path));
+    const semantic = readJson<{ fileId: string; roleClassification: RoleClassification; documents: Array<{ docId: string; documentKind: string; rowIds: string[]; expected: { billingPeriod: string | null; mandatoryDue: { valueMinor: string | null }; decision: string } }> }>(path.join(options.fixtureRoot, params.file.evaluator.semantic.path));
     const oracleKey = params.variant === "photo_telegram" ? "geometry_photo" : "literal_source";
     const readerOracle = params.readerId === "oracle-reader" ? undefined : readJson<VisualDocumentInput>(path.join(options.fixtureRoot, params.file.evaluator[oracleKey].path));
     const evaluation = evaluateEndToEnd({
@@ -329,6 +329,8 @@ export async function runReceiptSpikeMatrix(options: {
         evaluations: results.length,
         providerCalls: calls.length,
         silentCriticalErrors: results.reduce((sum, item) => sum + item.silentCriticalErrors, 0),
+        unassessableConfirmedDocuments: results.reduce((sum, item) => sum + item.unassessableConfirmedDocuments, 0),
+        documentAlignmentFailures: results.reduce((sum, item) => sum + item.documentAlignmentFailures, 0),
         falseRejects: results.reduce((sum, item) => sum + item.falseRejects, 0),
         meanMonetaryRoleAccuracy: results.reduce((sum, item) => sum + item.classifierMetrics.monetaryRoleAccuracy, 0) / results.length,
       };
@@ -379,6 +381,8 @@ export async function runReceiptSpikeMatrix(options: {
       latencyP95Ms: percentile(runs.map((item) => item.latencyMs), 0.95),
       returnedModelIds: [...new Set(runs.map((item) => item.returnedModelId))].sort(),
       silentCriticalErrors: cellEvaluations.reduce((sum, item) => sum + item.silentCriticalErrors, 0),
+      unassessableConfirmedDocuments: cellEvaluations.reduce((sum, item) => sum + item.unassessableConfirmedDocuments, 0),
+      documentAlignmentFailures: cellEvaluations.reduce((sum, item) => sum + item.documentAlignmentFailures, 0),
       falseRejects: cellEvaluations.reduce((sum, item) => sum + item.falseRejects, 0),
       meanMonetaryRoleAccuracy: cellEvaluations.reduce((sum, item) => sum + item.classifierMetrics.monetaryRoleAccuracy, 0) / cellEvaluations.length,
     };

@@ -85,10 +85,15 @@ export type SpikeEvaluation = {
   producedDocumentIds: string[];
   decisions: Array<{
     docId: string;
+    producedDocId: string | null;
     expected: string;
     actual: string | null;
     criticalFieldsMatch: boolean;
+    rowCoverageMatch: boolean;
   }>;
+  unmatchedProducedDocumentIds: string[];
+  unassessableConfirmedDocuments: number;
+  documentAlignmentFailures: number;
   silentCriticalErrors: number;
   falseRejects: number;
   decisionFingerprint: string;
