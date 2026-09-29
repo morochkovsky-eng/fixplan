@@ -254,7 +254,8 @@ export function evaluateEndToEnd(options: {
   });
   const unassessableConfirmedDocuments = alignment.unmatchedProducedIndexes.filter((index) =>
     actualById.get(produced[index].docId)?.draft.decision === "confirmed_draft").length;
-  const silentCriticalErrors = decisions.filter((decision) => decision.actual === "confirmed_draft" && !decision.criticalFieldsMatch).length;
+  const silentCriticalErrors = decisions.filter((decision) => decision.actual === "confirmed_draft" &&
+    (!decision.criticalFieldsMatch || decision.expected !== "confirmed_draft")).length;
   const falseRejects = decisions.filter((decision) => decision.expected !== "reject" && decision.actual === "reject").length;
   return {
     fileId: options.fileId,

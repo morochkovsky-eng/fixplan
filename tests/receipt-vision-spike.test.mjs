@@ -73,6 +73,21 @@ test("classifier-owned document ID is aligned by rows for decision safety", () =
   assert.equal(result.unassessableConfirmedDocuments, 0);
 });
 
+test("confirmation when oracle expects review counts as a critical error", () => {
+  const file = manifest.files.find((item) => item.fileId === "S06");
+  const semantic = readJson(file.evaluator.semantic.path);
+  semantic.documents[0].expected.decision = "partial_draft";
+  const result = evaluator.evaluateEndToEnd({
+    fileId: "S06", variant: "oracle_literal", runNumber: 1,
+    readerId: "oracle-reader", classifierId: "C1-openai-strong",
+    readerInput: readJson(file.evaluator.literal_source.path),
+    classifierOutput: semantic.roleClassification, semanticOracle: semantic,
+  });
+  assert.equal(result.decisions[0].criticalFieldsMatch, true);
+  assert.equal(result.decisions[0].actual, "confirmed_draft");
+  assert.equal(result.silentCriticalErrors, 1);
+});
+
 test("split, merge and unpaired documents cannot be assessed as safe", () => {
   const gold = [
     { docId: "D1", documentKind: "utility", rowIds: ["r1", "r2"] },
