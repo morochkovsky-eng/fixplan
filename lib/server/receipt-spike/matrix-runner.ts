@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { indexLiteralDocument } from "../receipt-core";
 import type { RoleClassification, VisualDocumentInput } from "../receipt-core";
 import { adaptPdfTextLayer } from "./adapters";
 import { validateRoleClassification } from "../receipt-core/roles";
@@ -8,7 +9,7 @@ import { acquireReceiptSpikeSeriesLock, ReceiptSpikeBudgetLedger, RECEIPT_SPIKE_
 import type { ReceiptSpikeCarryover } from "./budget";
 import { adapterVersion } from "./adapters";
 import {
-  assertNoEvaluatorLeak, evaluateEndToEnd, prepareClassifierInput, stringifyClassifierInput,
+  assertNoEvaluatorLeak, evaluateEndToEnd, evaluateReader, prepareClassifierInput, readerEvaluationProfile, stringifyClassifierInput,
 } from "./evaluator";
 import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult, OpenAiClassifierPayload } from "./providers";
 import { classifierInputInstruction, OpenAiOutputIssue } from "./providers";
@@ -43,8 +44,14 @@ export type MatrixScheduleStep = {
 const IMAGE_VARIANTS = ["png_clean", "photo_telegram"] as const;
 const GOOGLE_OCR_RESERVATION_MICROUSD = 10_000;
 
-export function buildReceiptSpikeSchedule(manifest: Manifest, options: { includeR2?: boolean; oracleOnly?: boolean } = {}): MatrixScheduleStep[] {
+export function buildReceiptSpikeSchedule(manifest: Manifest, options: { includeR2?: boolean; oracleOnly?: boolean; readerOnly?: boolean } = {}): MatrixScheduleStep[] {
   const steps: MatrixScheduleStep[] = [];
+  if (options.readerOnly) {
+    for (let run = 1; run <= 3; run += 1) for (const variant of IMAGE_VARIANTS) for (const file of manifest.files) {
+      steps.push({ id: `r1-reader-${file.fileId}-${variant}-${run}`, cell: "r1-reader-clean-photo", kind: "provider_reader", fileId: file.fileId, variant, runNumber: run, provider: "openai" });
+    }
+    return steps;
+  }
   for (const classifier of ["c1", "c2"] as const) for (let run = 1; run <= 3; run += 1) for (const file of manifest.files) {
     steps.push({ id: `oracle-${classifier}-${file.fileId}-${run}`, cell: `oracle-literal-${classifier}`, kind: "provider_classifier", fileId: file.fileId, variant: "oracle_literal", runNumber: run, provider: "openai" });
   }
@@ -153,6 +160,7 @@ export async function runReceiptSpikeMatrix(options: {
   includeR2: boolean;
   canaryOnly?: boolean;
   oracleOnly?: boolean;
+  readerOnly?: boolean;
   integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; classifierContractSha256: string; classifierResponseSchemaSha256: string; sourceSha256: Record<string, string> };
   outputRoot: string;
   readerPrompt: string;
@@ -162,7 +170,7 @@ export async function runReceiptSpikeMatrix(options: {
   google?: GoogleEnterpriseOcrClient;
 }) {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(options.series)) throw new Error("invalid_series_name");
-  if ((options.oracleOnly && options.canaryOnly) || (options.oracleOnly && options.includeR2)) throw new Error("incompatible_spike_stage_options");
+  if ([options.oracleOnly, options.canaryOnly, options.readerOnly].filter(Boolean).length > 1 || (options.includeR2 && (options.oracleOnly || options.canaryOnly || options.readerOnly))) throw new Error("incompatible_spike_stage_options");
   if (!options.approval.approved || options.approval.planSha256 !== options.planSha256 || options.approval.maximumAuthorizedSpendMicrousd !== 12_000_000 || options.approval.series !== options.series || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(options.approval.approvalId)) {
     throw new Error("paid_execution_approval_mismatch");
   }
@@ -289,7 +297,7 @@ export async function runReceiptSpikeMatrix(options: {
       return;
     }
     const semantic = readJson<{ fileId: string; roleClassification: RoleClassification; documents: Array<{ docId: string; documentKind: string; rowIds: string[]; expected: { billingPeriod: string | null; mandatoryDue: { valueMinor: string | null }; decision: string } }> }>(path.join(options.fixtureRoot, params.file.evaluator.semantic.path));
-    const oracleKey = params.variant === "photo_telegram" ? "geometry_photo" : "literal_source";
+    const oracleKey = params.variant === "photo_telegram" ? "literal_photo" : "literal_source";
     const readerOracle = params.readerId === "oracle-reader" ? undefined : readJson<VisualDocumentInput>(path.join(options.fixtureRoot, params.file.evaluator[oracleKey].path));
     const evaluation = evaluateEndToEnd({
       fileId: params.file.fileId,
@@ -312,6 +320,53 @@ export async function runReceiptSpikeMatrix(options: {
     const literal = readJson<VisualDocumentInput>(path.join(options.fixtureRoot, file.evaluator.literal_source.path));
     await classify({ cell: "canary-oracle-s10-c1", file, variant: "oracle_literal", run: 1, readerId: "oracle-reader", classifierId: "C1-openai-strong", readerInput: literal });
     const summary = { canary: "passed", fileId: "S10", providerCalls: 1, budget: ledger.snapshot(), latencyMs: providerRuns[0].latencyMs, returnedModelIds: providerRuns.map((item) => item.returnedModelId) };
+    writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
+    return summary;
+  }
+
+  if (options.readerOnly) {
+    const readerRuns: Array<{ fileId: string; variant: typeof IMAGE_VARIANTS[number]; runNumber: number; numericFingerprint: string; metrics: ReturnType<typeof evaluateReader> }> = [];
+    for (let run = 1; run <= 3; run += 1) for (const variant of IMAGE_VARIANTS) for (const file of options.manifest.files) {
+      const visual = await reader("r1-reader-clean-photo", file, variant, run, "R1");
+      const oracleKey = variant === "photo_telegram" ? "literal_photo" : "literal_source";
+      const oracle = readJson<VisualDocumentInput>(path.join(options.fixtureRoot, file.evaluator[oracleKey].path));
+      const metrics = evaluateReader(oracle, visual, readerEvaluationProfile("R1-openai-vision"));
+      const numericFingerprint = sha256(indexLiteralDocument(visual).document.pages.flatMap((page) => page.blocks.flatMap((block) =>
+        block.rows.flatMap((row) => row.cells.flatMap((cell) => cell.numericTokens.map((token) => `${token.raw}\u0000${token.printedSign}`))))).sort().join("\u0001"));
+      writePrivateJson(path.join(artifactRoot(runRoot, "r1-reader-clean-photo", file.fileId, variant, run), "reader", "reader.evaluation.json"), metrics);
+      readerRuns.push({ fileId: file.fileId, variant, runNumber: run, metrics, numericFingerprint });
+    }
+    const cells = IMAGE_VARIANTS.map((variant) => {
+      const runs = readerRuns.filter((item) => item.variant === variant);
+      const threshold = variant === "png_clean" ? 0.99 : 0.97;
+      const average = (field: "numericRecall" | "numericPrecision" | "rowColumnAccuracy") =>
+        runs.reduce((sum, item) => sum + (item.metrics[field] ?? 0), 0) / runs.length;
+      return {
+        variant, evaluations: runs.length,
+        meanNumericRecall: average("numericRecall"),
+        minimumNumericRecall: Math.min(...runs.map((item) => item.metrics.numericRecall)),
+        runsBelowNumericRecallThreshold: runs.filter((item) => item.metrics.numericRecall < threshold).length,
+        meanNumericPrecision: average("numericPrecision"),
+        runsWithInventedNumericTokens: runs.filter((item) => item.metrics.numericPrecision < 1).length,
+        meanRowColumnAccuracy: average("rowColumnAccuracy"),
+        minimumRowColumnAccuracy: Math.min(...runs.map((item) => item.metrics.rowColumnAccuracy ?? 0)),
+        runsBelowRowColumnThreshold: runs.filter((item) => (item.metrics.rowColumnAccuracy ?? 0) < 0.98).length,
+        blankCellsFilled: runs.reduce((sum, item) => sum + (item.metrics.blankCellsFilled ?? 0), 0),
+        unstableNumericInputs: [...new Set(runs.map((item) => item.fileId))].filter((fileId) =>
+          new Set(runs.filter((item) => item.fileId === fileId).map((item) => item.numericFingerprint)).size > 1).length,
+        illegibleMetricStatuses: [...new Set(runs.map((item) => item.metrics.illegibleMetricStatus))],
+      };
+    });
+    const sortedLatencies = providerRuns.map((item) => item.latencyMs).sort((left, right) => left - right);
+    const percentile = (fraction: number) => sortedLatencies[Math.min(sortedLatencies.length - 1, Math.ceil(sortedLatencies.length * fraction) - 1)];
+    const documentRuns = options.manifest.files.reduce((sum, file) => sum + readJson<{ documents: unknown[] }>(path.join(options.fixtureRoot, file.evaluator.semantic.path)).documents.length, 0) * IMAGE_VARIANTS.length * 3;
+    const summary = {
+      stage: "r1_reader_only", finishedAt: new Date().toISOString(), providerCalls: providerRuns.length,
+      budget: ledger.snapshot(),
+      latencyP50Ms: percentile(0.5), latencyP95Ms: percentile(0.95),
+      actualCostPerDocumentRunUsd: providerRuns.reduce((sum, item) => sum + item.actualCostMicrousd, 0) / documentRuns / 1_000_000,
+      cells,
+    };
     writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
     return summary;
   }
