@@ -39,6 +39,25 @@ test("reader boundary rejects IDs and semantic output", () => {
   assert.throws(() => adapters.parseVisionReaderOutput(withId), /forbidden keys/);
 });
 
+test("vision reader accepts positional bbox only when the same normalized box is valid", () => {
+  const literal = readJson(manifest.files[0].evaluator.literal_source.path);
+  const input = structuredClone(literal);
+  const block = input.pages[0].blocks[0];
+  const cell = block.rows[0].cells[0];
+  block.bbox = [block.bbox.x, block.bbox.y, block.bbox.width, block.bbox.height];
+  cell.bbox = [0.048, 0.052, 0.356, 0.077];
+  const parsed = adapters.parseVisionReaderOutput(input);
+  assert.deepEqual(parsed.pages[0].blocks[0].bbox, literal.pages[0].blocks[0].bbox);
+  assert.deepEqual(parsed.pages[0].blocks[0].rows[0].cells[0].bbox, { x: 0.048, y: 0.052, width: 0.356, height: 0.077 });
+  assert.deepEqual(cell.bbox, [0.048, 0.052, 0.356, 0.077]);
+
+  for (const bad of [[0.048, 0.052, 0.356], [0.048, 0.052, "0.356", 0.077], [0.8, 0.052, 0.356, 0.077], [-0.01, 0.052, 0.356, 0.077], [0.048, 0.052, 0.356, 0.077, 0]]) {
+    const invalid = structuredClone(input);
+    invalid.pages[0].blocks[0].rows[0].cells[0].bbox = bad;
+    assert.throws(() => adapters.parseVisionReaderOutput(invalid), (error) => error.code === "invalid_bbox");
+  }
+});
+
 test("classifier boundary accepts only RoleClassification", () => {
   const semantic = readJson(manifest.files[0].evaluator.semantic.path);
   assert.doesNotThrow(() => adapters.parseClassifierOutput(semantic.roleClassification));

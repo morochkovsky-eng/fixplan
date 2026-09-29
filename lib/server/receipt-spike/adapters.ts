@@ -13,26 +13,36 @@ function assertOnlyKeys(value: JsonRecord, allowed: string[], path: string) {
   if (extras.length) throw new ReceiptContractError("reader_semantic_output_forbidden", `${path} contains forbidden keys: ${extras.join(",")}`);
 }
 
+function normalizeVisionBox(value: unknown): unknown {
+  if (!Array.isArray(value) || value.length !== 4) return value;
+  const [x, y, width, height] = value;
+  return { x, y, width, height };
+}
+
 export function parseVisionReaderOutput(value: unknown): VisualDocumentInput {
   if (!isRecord(value)) throw new ReceiptContractError("invalid_document", "reader output must be an object");
   assertOnlyKeys(value, ["readable", "pages"], "document");
-  if (Array.isArray(value.pages)) value.pages.forEach((page, pageIndex) => {
-    if (!isRecord(page)) return;
+  const pages = Array.isArray(value.pages) ? value.pages.map((page, pageIndex) => {
+    if (!isRecord(page)) return page;
     assertOnlyKeys(page, ["width", "height", "blocks"], `pages[${pageIndex}]`);
-    if (Array.isArray(page.blocks)) page.blocks.forEach((block, blockIndex) => {
-      if (!isRecord(block)) return;
+    const blocks = Array.isArray(page.blocks) ? page.blocks.map((block, blockIndex) => {
+      if (!isRecord(block)) return block;
       assertOnlyKeys(block, ["layout", "bbox", "rows"], `pages[${pageIndex}].blocks[${blockIndex}]`);
-      if (Array.isArray(block.rows)) block.rows.forEach((row, rowIndex) => {
-        if (!isRecord(row)) return;
+      const rows = Array.isArray(block.rows) ? block.rows.map((row, rowIndex) => {
+        if (!isRecord(row)) return row;
         assertOnlyKeys(row, ["cells"], `pages[${pageIndex}].blocks[${blockIndex}].rows[${rowIndex}]`);
-        if (Array.isArray(row.cells)) row.cells.forEach((cell, cellIndex) => {
-          if (!isRecord(cell)) return;
+        const cells = Array.isArray(row.cells) ? row.cells.map((cell, cellIndex) => {
+          if (!isRecord(cell)) return cell;
           assertOnlyKeys(cell, ["text", "state", "bbox", "colSpan", "rowSpan", "isHeader"], `cell[${cellIndex}]`);
-        });
-      });
-    });
-  });
-  return parseVisualDocument(value);
+          return { ...cell, bbox: normalizeVisionBox(cell.bbox) };
+        }) : row.cells;
+        return { ...row, cells };
+      }) : block.rows;
+      return { ...block, bbox: normalizeVisionBox(block.bbox), rows };
+    }) : page.blocks;
+    return { ...page, blocks };
+  }) : value.pages;
+  return parseVisualDocument({ ...value, pages });
 }
 
 export function parseClassifierOutput(value: unknown): RoleClassification {
