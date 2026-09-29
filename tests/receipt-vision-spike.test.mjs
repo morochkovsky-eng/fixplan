@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import { registerHooks } from "node:module";
 import path from "node:path";
 import test from "node:test";
@@ -51,6 +52,101 @@ test("indexed classifier input has a deterministic JSON wire representation", ()
   assert.doesNotThrow(() => JSON.parse(wire));
   assert.doesNotMatch(wire, /roleClassification|mandatoryDue|expected/);
   assert.match(wire, /"coefficient":"-?\d+"/);
+});
+
+test("classifier-owned document ID is aligned by rows for decision safety", () => {
+  const file = manifest.files.find((item) => item.fileId === "S06");
+  const semantic = readJson(file.evaluator.semantic.path);
+  const literal = readJson(file.evaluator.literal_source.path);
+  const classification = structuredClone(semantic.roleClassification);
+  classification.documents[0].docId = "model-chosen-id";
+  const result = evaluator.evaluateEndToEnd({
+    fileId: "S06", variant: "oracle_literal", runNumber: 1,
+    readerId: "oracle-reader", classifierId: "C1-openai-strong",
+    readerInput: literal, classifierOutput: classification, semanticOracle: semantic,
+  });
+  assert.equal(result.decisions[0].docId, "S06-D1");
+  assert.equal(result.decisions[0].producedDocId, "model-chosen-id");
+  assert.equal(result.decisions[0].actual, "confirmed_draft");
+  assert.equal(result.decisions[0].criticalFieldsMatch, true);
+  assert.equal(result.documentAlignmentFailures, 0);
+  assert.equal(result.unassessableConfirmedDocuments, 0);
+});
+
+test("confirmation when oracle expects review counts as a critical error", () => {
+  const file = manifest.files.find((item) => item.fileId === "S06");
+  const semantic = readJson(file.evaluator.semantic.path);
+  semantic.documents[0].expected.decision = "partial_draft";
+  const result = evaluator.evaluateEndToEnd({
+    fileId: "S06", variant: "oracle_literal", runNumber: 1,
+    readerId: "oracle-reader", classifierId: "C1-openai-strong",
+    readerInput: readJson(file.evaluator.literal_source.path),
+    classifierOutput: semantic.roleClassification, semanticOracle: semantic,
+  });
+  assert.equal(result.decisions[0].criticalFieldsMatch, true);
+  assert.equal(result.decisions[0].actual, "confirmed_draft");
+  assert.equal(result.silentCriticalErrors, 1);
+});
+
+test("split, merge and unpaired documents cannot be assessed as safe", () => {
+  const gold = [
+    { docId: "D1", documentKind: "utility", rowIds: ["r1", "r2"] },
+    { docId: "D2", documentKind: "utility", rowIds: ["r3", "r4"] },
+  ];
+  const merged = evaluator.alignSpikeDocuments(gold, [{ docId: "merged", documentKind: "utility", rowIds: ["r1", "r2", "r3", "r4"] }]);
+  assert.deepEqual(merged.matches, [null, null]);
+  assert.deepEqual(merged.unmatchedProducedIndexes, [0]);
+  const split = evaluator.alignSpikeDocuments(gold.slice(0, 1), [
+    { docId: "a", documentKind: "utility", rowIds: ["r1"] },
+    { docId: "b", documentKind: "utility", rowIds: ["r2"] },
+  ]);
+  assert.deepEqual(split.matches, [null]);
+  assert.deepEqual(split.unmatchedProducedIndexes, [0, 1]);
+  const partial = evaluator.alignSpikeDocuments(gold.slice(0, 1), [{ docId: "renamed", documentKind: "utility", rowIds: ["r1"] }]);
+  assert.equal(partial.matches[0].rowCoverageMatch, false);
+});
+
+test("a merged S07 document is visible as an alignment failure", () => {
+  const file = manifest.files.find((item) => item.fileId === "S07");
+  const semantic = readJson(file.evaluator.semantic.path);
+  const literal = readJson(file.evaluator.literal_source.path);
+  const classification = structuredClone(semantic.roleClassification);
+  classification.documents = [{
+    docId: "merged", documentKind: "utility",
+    rowIds: classification.documents.flatMap((document) => document.rowIds),
+  }];
+  const result = evaluator.evaluateEndToEnd({
+    fileId: "S07", variant: "oracle_literal", runNumber: 1,
+    readerId: "oracle-reader", classifierId: "C1-openai-strong",
+    readerInput: literal, classifierOutput: classification, semanticOracle: semantic,
+  });
+  assert.deepEqual(result.decisions.map((decision) => decision.actual), [null, null]);
+  assert.deepEqual(result.unmatchedProducedDocumentIds, ["merged"]);
+  assert.ok(result.documentAlignmentFailures > 0);
+});
+
+test("offline oracle reevaluation uses saved classification and leaves ledger unchanged", () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "receipt-reeval-"));
+  const series = "offline-check";
+  const runRoot = path.join(rootDir, series);
+  fs.mkdirSync(runRoot, { recursive: true });
+  const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
+  fs.writeFileSync(ledgerFile, "ledger-placeholder\n");
+  const manifestBytes = fs.readFileSync(path.join(root, "spike-manifest.json"));
+  fs.writeFileSync(path.join(runRoot, "run.meta.json"), JSON.stringify({ integrity: { manifestSha256: createHash("sha256").update(manifestBytes).digest("hex") } }));
+  const file = manifest.files.find((item) => item.fileId === "S06");
+  const semantic = readJson(file.evaluator.semantic.path);
+  const classification = structuredClone(semantic.roleClassification);
+  classification.documents[0].docId = "model-chosen-id";
+  const classificationFile = path.join(runRoot, "oracle-literal-c1", "S06", "oracle_literal", "run-1", "classifier", "classification.json");
+  fs.mkdirSync(path.dirname(classificationFile), { recursive: true });
+  fs.writeFileSync(classificationFile, JSON.stringify(classification));
+  const before = fs.readFileSync(ledgerFile);
+  const summary = JSON.parse(execFileSync(process.execPath, ["scripts/receipt-spike/reevaluate-oracle.mjs", "--series", series, "--output-root", rootDir], { encoding: "utf8" }));
+  assert.equal(summary.cells[0].evaluations, 1);
+  assert.equal(summary.cells[0].documentAlignmentFailures, 0);
+  assert.equal(summary.cells[0].alignmentCases[0].decisions[0].producedDocId, "model-chosen-id");
+  assert.deepEqual(fs.readFileSync(ledgerFile), before);
 });
 
 test("reader text and numeric completeness do not depend on positional IDs", () => {

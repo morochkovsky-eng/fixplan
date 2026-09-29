@@ -9,8 +9,33 @@ import { parseClassifierOutput } from "./adapters";
 type SemanticOracle = {
   fileId: string;
   roleClassification: RoleClassification;
-  documents: Array<{ docId: string; expected: { billingPeriod: string | null; mandatoryDue: { valueMinor: string | null }; decision: string } }>;
+  documents: Array<AlignmentDocument & { expected: { billingPeriod: string | null; mandatoryDue: { valueMinor: string | null }; decision: string } }>;
 };
+
+type AlignmentDocument = { docId: string; rowIds: string[]; documentKind: string };
+
+// IDs are labels chosen by the classifier. Align only when row overlap gives a
+// unique one-to-one relationship; splits and merges must remain unassessable.
+export function alignSpikeDocuments(expected: AlignmentDocument[], produced: AlignmentDocument[]) {
+  const overlaps = (left: AlignmentDocument, right: AlignmentDocument) =>
+    left.rowIds.some((rowId) => right.rowIds.includes(rowId));
+  const expectedCandidates = expected.map((document) => produced.map((candidate, index) => overlaps(document, candidate) ? index : -1).filter((index) => index >= 0));
+  const producedCandidates = produced.map((document) => expected.map((candidate, index) => overlaps(document, candidate) ? index : -1).filter((index) => index >= 0));
+  const matches = expected.map((document, index) => {
+    const candidates = expectedCandidates[index];
+    if (candidates.length !== 1 || producedCandidates[candidates[0]].length !== 1) return null;
+    const candidate = produced[candidates[0]];
+    const expectedRows = new Set(document.rowIds);
+    const actualRows = new Set(candidate.rowIds);
+    return {
+      index: candidates[0],
+      rowCoverageMatch: expectedRows.size === actualRows.size && [...expectedRows].every((rowId) => actualRows.has(rowId)),
+      documentKindMatch: document.documentKind === candidate.documentKind,
+    };
+  });
+  const matchedProduced = new Set(matches.flatMap((match) => match ? [match.index] : []));
+  return { matches, unmatchedProducedIndexes: produced.map((_, index) => index).filter((index) => !matchedProduced.has(index)) };
+}
 
 function ratio(numerator: number, denominator: number) {
   return denominator === 0 ? 1 : numerator / denominator;
@@ -212,13 +237,25 @@ export function evaluateEndToEnd(options: {
   const indexed = indexLiteralDocument(options.readerInput);
   const bundle = processReceiptBundle(indexed, classification);
   const actualById = new Map(bundle.documents.map((document) => [document.docId, document.result]));
-  const decisions = options.semanticOracle.documents.map(({ docId, expected }) => {
-    const actual = actualById.get(docId);
-    const criticalFieldsMatch = actual ? actual.receipt.period.value === expected.billingPeriod &&
-      (actual.mandatoryDue.valueMinor?.toString() ?? null) === expected.mandatoryDue.valueMinor : false;
-    return { docId, expected: expected.decision, actual: actual?.draft.decision ?? null, criticalFieldsMatch };
+  const produced = bundle.documents.map((document) => ({
+    docId: document.docId,
+    rowIds: classification.documents.filter((candidate) => candidate.docId === document.docId).flatMap((candidate) => candidate.rowIds),
+    documentKind: classification.documents.find((candidate) => candidate.docId === document.docId)?.documentKind ?? "unknown",
+  }));
+  const alignment = alignSpikeDocuments(options.semanticOracle.documents, produced);
+  const decisions = options.semanticOracle.documents.map(({ docId, expected }, index) => {
+    const match = alignment.matches[index];
+    const producedDocId = match ? produced[match.index].docId : null;
+    const actual = producedDocId === null ? undefined : actualById.get(producedDocId);
+    const rowCoverageMatch = Boolean(match?.rowCoverageMatch && match.documentKindMatch);
+    const criticalFieldsMatch = Boolean(actual && rowCoverageMatch && actual.receipt.period.value === expected.billingPeriod &&
+      (actual.mandatoryDue.valueMinor?.toString() ?? null) === expected.mandatoryDue.valueMinor);
+    return { docId, producedDocId, expected: expected.decision, actual: actual?.draft.decision ?? null, criticalFieldsMatch, rowCoverageMatch };
   });
-  const silentCriticalErrors = decisions.filter((decision) => decision.actual === "confirmed_draft" && !decision.criticalFieldsMatch).length;
+  const unassessableConfirmedDocuments = alignment.unmatchedProducedIndexes.filter((index) =>
+    actualById.get(produced[index].docId)?.draft.decision === "confirmed_draft").length;
+  const silentCriticalErrors = decisions.filter((decision) => decision.actual === "confirmed_draft" &&
+    (!decision.criticalFieldsMatch || decision.expected !== "confirmed_draft")).length;
   const falseRejects = decisions.filter((decision) => decision.expected !== "reject" && decision.actual === "reject").length;
   return {
     fileId: options.fileId,
@@ -233,6 +270,9 @@ export function evaluateEndToEnd(options: {
     expectedDocumentIds: options.semanticOracle.documents.map((entry) => entry.docId).sort(),
     producedDocumentIds: bundle.documents.map((entry) => entry.docId).sort(),
     decisions,
+    unmatchedProducedDocumentIds: alignment.unmatchedProducedIndexes.map((index) => produced[index].docId).sort(),
+    unassessableConfirmedDocuments,
+    documentAlignmentFailures: decisions.filter((decision) => !decision.rowCoverageMatch).length + alignment.unmatchedProducedIndexes.length,
     silentCriticalErrors,
     falseRejects,
     decisionFingerprint: deterministicDecisionFingerprint(bundle.documents.map((entry) => ({ docId: entry.docId, result: entry.result }))),
