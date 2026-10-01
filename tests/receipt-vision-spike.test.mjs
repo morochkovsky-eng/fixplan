@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import { registerHooks } from "node:module";
@@ -56,6 +56,38 @@ test("vision reader accepts positional bbox only when the same normalized box is
     invalid.pages[0].blocks[0].rows[0].cells[0].bbox = bad;
     assert.throws(() => adapters.parseVisionReaderOutput(invalid), (error) => error.code === "invalid_bbox");
   }
+});
+
+test("offline R1 replay validates saved raw and never changes the ledger", () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "receipt-r1-replay-"));
+  const series = "r1-offline-replay";
+  const runRoot = path.join(rootDir, series);
+  const readerDir = path.join(runRoot, "r1-reader-clean-photo", "S01", "png_clean", "run-1", "reader");
+  fs.mkdirSync(readerDir, { recursive: true });
+  const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
+  const ledger = `${JSON.stringify({ type: "completed", callId: "r1-reader-clean-photo:S01:png_clean:1:reader" })}\n`;
+  fs.writeFileSync(ledgerFile, ledger);
+  fs.writeFileSync(path.join(runRoot, "run.meta.json"), JSON.stringify({ series, integrity: { manifestSha256: sha256(path.join(root, "spike-manifest.json")) } }));
+  const literal = readJson(manifest.files[0].evaluator.literal_source.path);
+  const cell = literal.pages[0].blocks[0].rows[0].cells[0];
+  cell.bbox = [cell.bbox.x, cell.bbox.y, cell.bbox.width, cell.bbox.height];
+  const rawFile = path.join(readerDir, "response.raw.json");
+  fs.writeFileSync(rawFile, JSON.stringify({ output: [{ content: [{ type: "output_text", text: JSON.stringify(literal) }] }] }));
+  const command = ["scripts/receipt-spike/replay-r1-s01.mjs", "--series", series, "--output-root", rootDir];
+  const result = JSON.parse(execFileSync(process.execPath, command, { encoding: "utf8" }));
+  assert.equal(result.contract, "valid");
+  assert.equal(result.metrics.numericRecall, 1);
+  assert.equal(result.metrics.blankCellsFilled, 0);
+  assert.equal(fs.readFileSync(ledgerFile, "utf8"), ledger);
+
+  cell.bbox = [0.9, 0.1, 0.2, 0.1];
+  fs.writeFileSync(rawFile, JSON.stringify({ output_text: JSON.stringify(literal) }));
+  const rejected = spawnSync(process.execPath, command, { encoding: "utf8" });
+  assert.equal(rejected.status, 1);
+  const invalid = JSON.parse(rejected.stdout);
+  assert.equal(invalid.contract, "invalid");
+  assert.equal(invalid.code, "invalid_bbox");
+  assert.equal(fs.readFileSync(ledgerFile, "utf8"), ledger);
 });
 
 test("classifier boundary accepts only RoleClassification", () => {
