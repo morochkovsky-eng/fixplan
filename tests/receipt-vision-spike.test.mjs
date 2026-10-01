@@ -39,17 +39,28 @@ test("reader boundary rejects IDs and semantic output", () => {
   assert.throws(() => adapters.parseVisionReaderOutput(withId), /forbidden keys/);
 });
 
-test("vision reader accepts positional bbox only when the same normalized box is valid", () => {
+test("vision reader infers one positional bbox format for the whole document or fails closed", () => {
   const literal = readJson(manifest.files[0].evaluator.literal_source.path);
   const input = structuredClone(literal);
   const block = input.pages[0].blocks[0];
   const cell = block.rows[0].cells[0];
-  block.bbox = [block.bbox.x, block.bbox.y, block.bbox.width, block.bbox.height];
+  block.bbox = [0.783, 0.059, 0.947, 0.26];
   cell.bbox = [0.048, 0.052, 0.356, 0.077];
   const parsed = adapters.parseVisionReaderOutput(input);
-  assert.deepEqual(parsed.pages[0].blocks[0].bbox, literal.pages[0].blocks[0].bbox);
-  assert.deepEqual(parsed.pages[0].blocks[0].rows[0].cells[0].bbox, { x: 0.048, y: 0.052, width: 0.356, height: 0.077 });
+  assert.deepEqual(parsed.pages[0].blocks[0].bbox, { x: 0.783, y: 0.059, width: 0.947 - 0.783, height: 0.26 - 0.059 });
+  assert.deepEqual(parsed.pages[0].blocks[0].rows[0].cells[0].bbox, { x: 0.048, y: 0.052, width: 0.356 - 0.048, height: 0.077 - 0.052 });
   assert.deepEqual(cell.bbox, [0.048, 0.052, 0.356, 0.077]);
+
+  const widths = structuredClone(input);
+  widths.pages[0].blocks[0].bbox = [0.8, 0.1, 0.15, 0.2];
+  assert.deepEqual(adapters.parseVisionReaderOutput(widths).pages[0].blocks[0].bbox, { x: 0.8, y: 0.1, width: 0.15, height: 0.2 });
+
+  const ambiguous = structuredClone(literal);
+  ambiguous.pages[0].blocks[0].rows[0].cells[0].bbox = [0.048, 0.052, 0.356, 0.077];
+  assert.throws(() => adapters.parseVisionReaderOutput(ambiguous), (error) => error.code === "invalid_bbox" && /ambiguous/.test(error.message));
+  const mixed = structuredClone(input);
+  mixed.pages[0].blocks[0].rows[0].cells[0].bbox = [0.8, 0.1, 0.15, 0.2];
+  assert.throws(() => adapters.parseVisionReaderOutput(mixed), (error) => error.code === "invalid_bbox");
 
   for (const bad of [[0.048, 0.052, 0.356], [0.048, 0.052, "0.356", 0.077], [0.8, 0.052, 0.356, 0.077], [-0.01, 0.052, 0.356, 0.077], [0.048, 0.052, 0.356, 0.077, 0]]) {
     const invalid = structuredClone(input);
@@ -70,7 +81,8 @@ test("offline R1 replay validates saved raw and never changes the ledger", () =>
   fs.writeFileSync(path.join(runRoot, "run.meta.json"), JSON.stringify({ series, integrity: { manifestSha256: sha256(path.join(root, "spike-manifest.json")) } }));
   const literal = readJson(manifest.files[0].evaluator.literal_source.path);
   const cell = literal.pages[0].blocks[0].rows[0].cells[0];
-  cell.bbox = [cell.bbox.x, cell.bbox.y, cell.bbox.width, cell.bbox.height];
+  literal.pages[0].blocks[0].bbox = [0.783, 0.059, 0.947, 0.26];
+  cell.bbox = [cell.bbox.x, cell.bbox.y, cell.bbox.x + cell.bbox.width, cell.bbox.y + cell.bbox.height];
   const rawFile = path.join(readerDir, "response.raw.json");
   fs.writeFileSync(rawFile, JSON.stringify({ output: [{ content: [{ type: "output_text", text: JSON.stringify(literal) }] }] }));
   const command = ["scripts/receipt-spike/replay-r1-s01.mjs", "--series", series, "--output-root", rootDir];
