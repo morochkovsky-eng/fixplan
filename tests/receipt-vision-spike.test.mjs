@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import { registerHooks } from "node:module";
@@ -37,6 +37,69 @@ test("reader boundary rejects IDs and semantic output", () => {
   const withId = structuredClone(literal);
   withId.pages[0].blocks[0].rows[0].cells[0].id = "model-owned";
   assert.throws(() => adapters.parseVisionReaderOutput(withId), /forbidden keys/);
+});
+
+test("vision reader infers one positional bbox format for the whole document or fails closed", () => {
+  const literal = readJson(manifest.files[0].evaluator.literal_source.path);
+  const input = structuredClone(literal);
+  const block = input.pages[0].blocks[0];
+  const cell = block.rows[0].cells[0];
+  block.bbox = [0.783, 0.059, 0.947, 0.26];
+  cell.bbox = [0.048, 0.052, 0.356, 0.077];
+  const parsed = adapters.parseVisionReaderOutput(input);
+  assert.deepEqual(parsed.pages[0].blocks[0].bbox, { x: 0.783, y: 0.059, width: 0.947 - 0.783, height: 0.26 - 0.059 });
+  assert.deepEqual(parsed.pages[0].blocks[0].rows[0].cells[0].bbox, { x: 0.048, y: 0.052, width: 0.356 - 0.048, height: 0.077 - 0.052 });
+  assert.deepEqual(cell.bbox, [0.048, 0.052, 0.356, 0.077]);
+
+  const widths = structuredClone(input);
+  widths.pages[0].blocks[0].bbox = [0.8, 0.1, 0.15, 0.2];
+  assert.deepEqual(adapters.parseVisionReaderOutput(widths).pages[0].blocks[0].bbox, { x: 0.8, y: 0.1, width: 0.15, height: 0.2 });
+
+  const ambiguous = structuredClone(literal);
+  ambiguous.pages[0].blocks[0].rows[0].cells[0].bbox = [0.048, 0.052, 0.356, 0.077];
+  assert.throws(() => adapters.parseVisionReaderOutput(ambiguous), (error) => error.code === "invalid_bbox" && /ambiguous/.test(error.message));
+  const mixed = structuredClone(input);
+  mixed.pages[0].blocks[0].rows[0].cells[0].bbox = [0.8, 0.1, 0.15, 0.2];
+  assert.throws(() => adapters.parseVisionReaderOutput(mixed), (error) => error.code === "invalid_bbox");
+
+  for (const bad of [[0.048, 0.052, 0.356], [0.048, 0.052, "0.356", 0.077], [0.8, 0.052, 0.356, 0.077], [-0.01, 0.052, 0.356, 0.077], [0.048, 0.052, 0.356, 0.077, 0]]) {
+    const invalid = structuredClone(input);
+    invalid.pages[0].blocks[0].rows[0].cells[0].bbox = bad;
+    assert.throws(() => adapters.parseVisionReaderOutput(invalid), (error) => error.code === "invalid_bbox");
+  }
+});
+
+test("offline R1 replay validates saved raw and never changes the ledger", () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "receipt-r1-replay-"));
+  const series = "r1-offline-replay";
+  const runRoot = path.join(rootDir, series);
+  const readerDir = path.join(runRoot, "r1-reader-clean-photo", "S01", "png_clean", "run-1", "reader");
+  fs.mkdirSync(readerDir, { recursive: true });
+  const ledgerFile = path.join(runRoot, "spend-ledger.jsonl");
+  const ledger = `${JSON.stringify({ type: "completed", callId: "r1-reader-clean-photo:S01:png_clean:1:reader" })}\n`;
+  fs.writeFileSync(ledgerFile, ledger);
+  fs.writeFileSync(path.join(runRoot, "run.meta.json"), JSON.stringify({ series, integrity: { manifestSha256: sha256(path.join(root, "spike-manifest.json")) } }));
+  const literal = readJson(manifest.files[0].evaluator.literal_source.path);
+  const cell = literal.pages[0].blocks[0].rows[0].cells[0];
+  literal.pages[0].blocks[0].bbox = [0.783, 0.059, 0.947, 0.26];
+  cell.bbox = [cell.bbox.x, cell.bbox.y, cell.bbox.x + cell.bbox.width, cell.bbox.y + cell.bbox.height];
+  const rawFile = path.join(readerDir, "response.raw.json");
+  fs.writeFileSync(rawFile, JSON.stringify({ output: [{ content: [{ type: "output_text", text: JSON.stringify(literal) }] }] }));
+  const command = ["scripts/receipt-spike/replay-r1-s01.mjs", "--series", series, "--output-root", rootDir];
+  const result = JSON.parse(execFileSync(process.execPath, command, { encoding: "utf8" }));
+  assert.equal(result.contract, "valid");
+  assert.equal(result.metrics.numericRecall, 1);
+  assert.equal(result.metrics.blankCellsFilled, 0);
+  assert.equal(fs.readFileSync(ledgerFile, "utf8"), ledger);
+
+  cell.bbox = [0.9, 0.1, 0.2, 0.1];
+  fs.writeFileSync(rawFile, JSON.stringify({ output_text: JSON.stringify(literal) }));
+  const rejected = spawnSync(process.execPath, command, { encoding: "utf8" });
+  assert.equal(rejected.status, 1);
+  const invalid = JSON.parse(rejected.stdout);
+  assert.equal(invalid.contract, "invalid");
+  assert.equal(invalid.code, "invalid_bbox");
+  assert.equal(fs.readFileSync(ledgerFile, "utf8"), ledger);
 });
 
 test("classifier boundary accepts only RoleClassification", () => {

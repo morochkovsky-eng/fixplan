@@ -13,26 +13,62 @@ function assertOnlyKeys(value: JsonRecord, allowed: string[], path: string) {
   if (extras.length) throw new ReceiptContractError("reader_semantic_output_forbidden", `${path} contains forbidden keys: ${extras.join(",")}`);
 }
 
+type PositionalBox = { value: unknown[]; path: string };
+
+function positionalBoxFormat(boxes: PositionalBox[]): "xywh" | "xyxy" | null {
+  if (!boxes.length) return null;
+  for (const { value, path } of boxes) {
+    if (value.length !== 4 || value.some((part) => typeof part !== "number" || !Number.isFinite(part) || part < 0 || part > 1)) {
+      throw new ReceiptContractError("invalid_bbox", `${path} must contain exactly four normalized numbers`);
+    }
+  }
+  const xywh = boxes.every(({ value: [x, y, width, height] }) => Number(x) + Number(width) <= 1.000001 && Number(y) + Number(height) <= 1.000001);
+  const xyxy = boxes.every(({ value: [x1, y1, x2, y2] }) => Number(x2) >= Number(x1) && Number(y2) >= Number(y1));
+  if (xywh === xyxy) throw new ReceiptContractError("invalid_bbox", "positional bbox format is ambiguous or inconsistent across the document");
+  return xyxy ? "xyxy" : "xywh";
+}
+
+function normalizeVisionBox(value: unknown, format: "xywh" | "xyxy" | null): unknown {
+  if (!Array.isArray(value) || !format) return value;
+  const [x, y, third, fourth] = value as number[];
+  return { x, y, width: format === "xyxy" ? third - x : third, height: format === "xyxy" ? fourth - y : fourth };
+}
+
 export function parseVisionReaderOutput(value: unknown): VisualDocumentInput {
   if (!isRecord(value)) throw new ReceiptContractError("invalid_document", "reader output must be an object");
   assertOnlyKeys(value, ["readable", "pages"], "document");
-  if (Array.isArray(value.pages)) value.pages.forEach((page, pageIndex) => {
-    if (!isRecord(page)) return;
+  const positionalBoxes: PositionalBox[] = [];
+  const pages = Array.isArray(value.pages) ? value.pages.map((page, pageIndex) => {
+    if (!isRecord(page)) return page;
     assertOnlyKeys(page, ["width", "height", "blocks"], `pages[${pageIndex}]`);
-    if (Array.isArray(page.blocks)) page.blocks.forEach((block, blockIndex) => {
-      if (!isRecord(block)) return;
+    const blocks = Array.isArray(page.blocks) ? page.blocks.map((block, blockIndex) => {
+      if (!isRecord(block)) return block;
       assertOnlyKeys(block, ["layout", "bbox", "rows"], `pages[${pageIndex}].blocks[${blockIndex}]`);
-      if (Array.isArray(block.rows)) block.rows.forEach((row, rowIndex) => {
-        if (!isRecord(row)) return;
+      if (Array.isArray(block.bbox)) positionalBoxes.push({ value: block.bbox, path: `pages[${pageIndex}].blocks[${blockIndex}].bbox` });
+      const rows = Array.isArray(block.rows) ? block.rows.map((row, rowIndex) => {
+        if (!isRecord(row)) return row;
         assertOnlyKeys(row, ["cells"], `pages[${pageIndex}].blocks[${blockIndex}].rows[${rowIndex}]`);
-        if (Array.isArray(row.cells)) row.cells.forEach((cell, cellIndex) => {
-          if (!isRecord(cell)) return;
+        const cells = Array.isArray(row.cells) ? row.cells.map((cell, cellIndex) => {
+          if (!isRecord(cell)) return cell;
           assertOnlyKeys(cell, ["text", "state", "bbox", "colSpan", "rowSpan", "isHeader"], `cell[${cellIndex}]`);
-        });
-      });
-    });
-  });
-  return parseVisualDocument(value);
+          if (Array.isArray(cell.bbox)) positionalBoxes.push({ value: cell.bbox, path: `pages[${pageIndex}].blocks[${blockIndex}].rows[${rowIndex}].cells[${cellIndex}].bbox` });
+          return cell;
+        }) : row.cells;
+        return { ...row, cells };
+      }) : block.rows;
+      return { ...block, rows };
+    }) : page.blocks;
+    return { ...page, blocks };
+  }) : value.pages;
+  const format = positionalBoxFormat(positionalBoxes);
+  const normalizedPages = Array.isArray(pages) ? pages.map((page) => isRecord(page) && Array.isArray(page.blocks) ? {
+    ...page, blocks: page.blocks.map((block) => isRecord(block) && Array.isArray(block.rows) ? {
+      ...block, bbox: normalizeVisionBox(block.bbox, format), rows: block.rows.map((row) => isRecord(row) && Array.isArray(row.cells) ? {
+        ...row, cells: row.cells.map((cell) => isRecord(cell) ? { ...cell, bbox: normalizeVisionBox(cell.bbox, format) } : cell),
+      } : row),
+    } : block),
+  } : page) : pages;
+  return parseVisualDocument({ ...value, pages: normalizedPages });
 }
 
 export function parseClassifierOutput(value: unknown): RoleClassification {
