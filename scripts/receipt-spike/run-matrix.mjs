@@ -11,13 +11,14 @@ const includeR2 = args.includes("--include-r2");
 const canaryOnly = args.includes("--canary-only");
 const oracleOnly = args.includes("--oracle-only");
 const readerOnly = args.includes("--reader-only");
+const readerCanaryOnly = args.includes("--reader-canary-only");
 const outputRoot = path.resolve(".receipt-spike/runs");
 const priorSeries = args.flatMap((arg, index) => arg === "--prior-series" ? [args[index + 1]] : []);
 const argument = (name) => {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : undefined;
 };
-const plan = buildApprovedReceiptSpikePlan({ includeR2, canaryOnly, oracleOnly, readerOnly, carryover: loadReceiptSpikeCarryover(priorSeries, outputRoot) });
+const plan = buildApprovedReceiptSpikePlan({ includeR2, canaryOnly, oracleOnly, readerOnly, readerCanaryOnly, carryover: loadReceiptSpikeCarryover(priorSeries, outputRoot) });
 
 if (!execute) {
   process.stdout.write(`${JSON.stringify({
@@ -27,6 +28,7 @@ if (!execute) {
     canaryOnly,
     oracleOnly,
     readerOnly,
+    readerCanaryOnly,
     approvalBinding: plan.approvalBinding,
     providerCallsPlanned: plan.totals.providerCalls,
     localPdfExtractionsPlanned: plan.totals.localPdfExtractions,
@@ -69,6 +71,7 @@ if (preflightOnly) {
     canaryOnly,
     oracleOnly,
     readerOnly,
+    readerCanaryOnly,
     providerClientsConstructed: false,
     providerCallsExecuted: 0,
     seriesCreated: false,
@@ -93,6 +96,7 @@ const result = await matrix.runReceiptSpikeMatrix({
   canaryOnly,
   oracleOnly,
   readerOnly,
+  readerCanaryOnly,
   integrity: plan.integrity,
   outputRoot,
   readerPrompt,

@@ -112,6 +112,46 @@ test("oracle-only stage has its own plan and performs no reader or PDF work", as
   assert.equal(fs.existsSync(path.join(root, "oracle-stage", "r1-c1-clean-photo")), false);
 });
 
+test("R1 S01 canary has a distinct one-call approval plan and measures saved literal", async () => {
+  const plan = approvalPlan.buildApprovedReceiptSpikePlan({ readerCanaryOnly: true });
+  assert.equal(plan.totals.openAiCalls, 1);
+  assert.equal(plan.totals.googleDocumentAiCalls, 0);
+  assert.equal(plan.totals.localPdfExtractions, 0);
+  assert.equal(plan.matrix[0].classifierCalls, 0);
+  assert.equal(matrix.buildReceiptSpikeSchedule(manifest, { readerCanaryOnly: true }).length, 1);
+  assert.notEqual(plan.planSha256, approvalPlan.buildApprovedReceiptSpikePlan({ readerOnly: true }).planSha256);
+  assert.throws(() => approvalPlan.buildApprovedReceiptSpikePlan({ readerCanaryOnly: true, readerOnly: true }), /incompatible_spike_stage_options/);
+  assert.throws(() => approvalPlan.buildApprovedReceiptSpikePlan({ readerCanaryOnly: true, includeR2: true }), /incompatible_spike_stage_options/);
+  const dry = JSON.parse(execFileSync(process.execPath, ["scripts/receipt-spike/run-matrix.mjs", "--reader-canary-only"], { encoding: "utf8" }));
+  assert.equal(dry.providerCallsPlanned, 1);
+  assert.equal(dry.readerCanaryOnly, true);
+  assert.equal(dry.providerClientsConstructed, false);
+
+  const file = manifest.files.find((item) => item.fileId === "S01");
+  const literal = JSON.parse(fs.readFileSync(path.join(fixtureRoot, file.evaluator.literal_source.path), "utf8"));
+  const outputRoot = temporary("r1-reader-canary");
+  let calls = 0;
+  const summary = await matrix.runReceiptSpikeMatrix({
+    fixtureRoot, manifest, series: "r1-reader-canary", planSha256: plan.planSha256,
+    includeR2: false, readerCanaryOnly: true, integrity: plan.integrity, outputRoot,
+    readerPrompt: fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8"),
+    classifierPrompt: fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8"),
+    approval: { approved: true, planSha256: plan.planSha256, maximumAuthorizedSpendMicrousd: 12_000_000, approvalId, series: "r1-reader-canary", carryover: [] },
+    openai: {
+      maximumImageCost: () => ({ maximumCostMicrousd: 1000, inputTokenUpperBound: 10000, outputTokenUpperBound: 12000 }),
+      readImage: async ({ model }) => {
+        calls += 1;
+        return { ...completed(100, 125), parsed: literal, requestedModelId: model, returnedModelId: model };
+      },
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(summary.stage, "r1_reader_canary");
+  assert.equal(summary.metrics.numericRecall, 1);
+  assert.equal(summary.budget.budgetChargedMicrousd, 125);
+  assert.equal(fs.existsSync(path.join(outputRoot, "r1-reader-canary", "r1-reader-clean-photo")), false);
+});
+
 test("R1 reader stage evaluates all clean and Telegram images without classifier calls", async () => {
   const plan = approvalPlan.buildApprovedReceiptSpikePlan({ readerOnly: true });
   assert.equal(plan.totals.openAiCalls, 60);
@@ -234,6 +274,7 @@ test("approved execution loader and full preflight finish offline without creati
     canaryOnly: false,
     oracleOnly: false,
     readerOnly: false,
+    readerCanaryOnly: false,
     providerClientsConstructed: false,
     providerCallsExecuted: 0,
     seriesCreated: false,

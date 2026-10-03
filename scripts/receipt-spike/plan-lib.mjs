@@ -118,13 +118,16 @@ export function canonicalJson(value) {
   return JSON.stringify(value);
 }
 
-export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, oracleOnly = false, readerOnly = false, carryover = [] } = {}) {
-  if ([canaryOnly, oracleOnly, readerOnly].filter(Boolean).length > 1 || (includeR2 && (canaryOnly || oracleOnly || readerOnly))) throw new Error("incompatible_spike_stage_options");
+export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, oracleOnly = false, readerOnly = false, readerCanaryOnly = false, carryover = [] } = {}) {
+  if ([canaryOnly, oracleOnly, readerOnly, readerCanaryOnly].filter(Boolean).length > 1 || (includeR2 && (canaryOnly || oracleOnly || readerOnly || readerCanaryOnly))) throw new Error("incompatible_spike_stage_options");
   const canaryFile = manifest.files.find((file) => file.fileId === "S10");
   if (!canaryFile) throw new Error("canary_fixture_missing");
+  const readerCanaryFile = manifest.files.find((file) => file.fileId === "S01");
+  if (!readerCanaryFile) throw new Error("reader_canary_fixture_missing");
   const canaryMatrix = [{ id: "canary-oracle-s10-c1", inputs: 1, documents: 1, repeats: 1, readerCalls: 0, classifierCalls: 1, estimateUsd: fileEstimate(canaryFile, "png_clean", "gpt-6-sol", false).classifierCost }];
+  const readerCanaryMatrix = [{ id: "r1-reader-canary-s01", inputs: 1, documents: 1, repeats: 1, readerCalls: 1, classifierCalls: 0, estimateUsd: fileEstimate(readerCanaryFile, "png_clean", "gpt-6-sol", true).readerCost }];
   const readerMatrix = [{ id: "r1-reader-clean-photo", inputs: 20, documents: 22, repeats: 3, readerCalls: 60, classifierCalls: 0, estimateUsd: r1ReaderPerRun * 3 }];
-  const matrix = (canaryOnly ? canaryMatrix : oracleOnly ? initialMatrix.slice(0, 2) : readerOnly ? readerMatrix : includeR2 ? [...initialMatrix.slice(0, 3), r2MatrixEntry, ...initialMatrix.slice(3)] : initialMatrix)
+  const matrix = (canaryOnly ? canaryMatrix : readerCanaryOnly ? readerCanaryMatrix : oracleOnly ? initialMatrix.slice(0, 2) : readerOnly ? readerMatrix : includeR2 ? [...initialMatrix.slice(0, 3), r2MatrixEntry, ...initialMatrix.slice(3)] : initialMatrix)
     .map((entry) => ({ ...entry, estimateUsd: Number(entry.estimateUsd.toFixed(4)), status: "planned_not_run" }));
   const planningEstimateUsd = Number(sum(matrix.map((entry) => entry.estimateUsd)).toFixed(4));
   const report = {
@@ -134,6 +137,7 @@ export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, o
   canaryOnly,
   oracleOnly,
   readerOnly,
+  readerCanaryOnly,
   carryover,
   r2FollowUpPolicy: {
     prerequisite: "oracle_c1_passes_and_failure_localized_to_reader",
@@ -152,10 +156,10 @@ export function buildReceiptSpikePlan({ includeR2 = false, canaryOnly = false, o
   integrity,
   matrix,
   totals: {
-    openAiCalls: canaryOnly ? 1 : oracleOnly || readerOnly ? 60 : includeR2 ? 270 : 250,
-    googleDocumentAiCalls: canaryOnly || oracleOnly || readerOnly ? 0 : includeR2 ? 20 : 0,
-    localPdfExtractions: canaryOnly || oracleOnly || readerOnly ? 0 : 10,
-    providerCalls: canaryOnly ? 1 : oracleOnly || readerOnly ? 60 : includeR2 ? 290 : 250,
+    openAiCalls: canaryOnly || readerCanaryOnly ? 1 : oracleOnly || readerOnly ? 60 : includeR2 ? 270 : 250,
+    googleDocumentAiCalls: canaryOnly || readerCanaryOnly || oracleOnly || readerOnly ? 0 : includeR2 ? 20 : 0,
+    localPdfExtractions: canaryOnly || readerCanaryOnly || oracleOnly || readerOnly ? 0 : 10,
+    providerCalls: canaryOnly || readerCanaryOnly ? 1 : oracleOnly || readerOnly ? 60 : includeR2 ? 290 : 250,
     planningEstimateUsd,
     safetyMultiplier,
   },
