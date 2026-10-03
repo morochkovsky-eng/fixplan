@@ -14,6 +14,7 @@ import {
 import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult, OpenAiClassifierPayload } from "./providers";
 import { classifierInputInstruction, OpenAiOutputIssue } from "./providers";
 import { classifierResponseSchema } from "./classifier-schema";
+import { readerResponseSchema } from "./reader-schema";
 import { classifierWireToCore } from "./classifier-schema";
 import { parseClassifierOutput } from "./adapters";
 import { bindSeriesToLedger, enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
@@ -44,8 +45,12 @@ export type MatrixScheduleStep = {
 const IMAGE_VARIANTS = ["png_clean", "photo_telegram"] as const;
 const GOOGLE_OCR_RESERVATION_MICROUSD = 10_000;
 
-export function buildReceiptSpikeSchedule(manifest: Manifest, options: { includeR2?: boolean; oracleOnly?: boolean; readerOnly?: boolean } = {}): MatrixScheduleStep[] {
+export function buildReceiptSpikeSchedule(manifest: Manifest, options: { includeR2?: boolean; oracleOnly?: boolean; readerOnly?: boolean; readerCanaryOnly?: boolean } = {}): MatrixScheduleStep[] {
   const steps: MatrixScheduleStep[] = [];
+  if (options.readerCanaryOnly) {
+    steps.push({ id: "r1-reader-canary-S01-png_clean-1", cell: "r1-reader-canary-s01", kind: "provider_reader", fileId: "S01", variant: "png_clean", runNumber: 1, provider: "openai" });
+    return steps;
+  }
   if (options.readerOnly) {
     for (let run = 1; run <= 3; run += 1) for (const variant of IMAGE_VARIANTS) for (const file of manifest.files) {
       steps.push({ id: `r1-reader-${file.fileId}-${variant}-${run}`, cell: "r1-reader-clean-photo", kind: "provider_reader", fileId: file.fileId, variant, runNumber: run, provider: "openai" });
@@ -112,6 +117,7 @@ function verifyDescriptor(root: string, descriptor: Descriptor) {
 export function verifyReceiptSpikeManifest(root: string, manifest: Manifest, integrity?: {
   manifestSha256: string;
   readerPromptSha256: string;
+  readerResponseSchemaSha256: string;
   classifierPromptSha256: string;
   classifierContractSha256: string;
   classifierResponseSchemaSha256: string;
@@ -129,6 +135,7 @@ export function verifyReceiptSpikeManifest(root: string, manifest: Manifest, int
   if (integrity) {
     if (sha256(fs.readFileSync(path.join(root, "spike-manifest.json"))) !== integrity.manifestSha256) throw new Error("manifest_plan_hash_mismatch");
     if (sha256(integrity.readerPrompt) !== integrity.readerPromptSha256 || manifest.prompts.reader.sha256 !== integrity.readerPromptSha256) throw new Error("reader_prompt_plan_hash_mismatch");
+    if (sha256(JSON.stringify(readerResponseSchema)) !== integrity.readerResponseSchemaSha256) throw new Error("reader_schema_plan_hash_mismatch");
     if (sha256(integrity.classifierPrompt) !== integrity.classifierPromptSha256 || manifest.prompts.classifier.sha256 !== integrity.classifierPromptSha256) throw new Error("classifier_prompt_plan_hash_mismatch");
     if (sha256(classifierInputInstruction()) !== integrity.classifierContractSha256) throw new Error("classifier_contract_plan_hash_mismatch");
     if (sha256(JSON.stringify(classifierResponseSchema)) !== integrity.classifierResponseSchemaSha256) throw new Error("classifier_schema_plan_hash_mismatch");
@@ -161,7 +168,8 @@ export async function runReceiptSpikeMatrix(options: {
   canaryOnly?: boolean;
   oracleOnly?: boolean;
   readerOnly?: boolean;
-  integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; classifierContractSha256: string; classifierResponseSchemaSha256: string; sourceSha256: Record<string, string> };
+  readerCanaryOnly?: boolean;
+  integrity: { manifestSha256: string; readerPromptSha256: string; readerResponseSchemaSha256: string; classifierPromptSha256: string; classifierContractSha256: string; classifierResponseSchemaSha256: string; sourceSha256: Record<string, string> };
   outputRoot: string;
   readerPrompt: string;
   classifierPrompt: string;
@@ -170,7 +178,7 @@ export async function runReceiptSpikeMatrix(options: {
   google?: GoogleEnterpriseOcrClient;
 }) {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/u.test(options.series)) throw new Error("invalid_series_name");
-  if ([options.oracleOnly, options.canaryOnly, options.readerOnly].filter(Boolean).length > 1 || (options.includeR2 && (options.oracleOnly || options.canaryOnly || options.readerOnly))) throw new Error("incompatible_spike_stage_options");
+  if ([options.oracleOnly, options.canaryOnly, options.readerOnly, options.readerCanaryOnly].filter(Boolean).length > 1 || (options.includeR2 && (options.oracleOnly || options.canaryOnly || options.readerOnly || options.readerCanaryOnly))) throw new Error("incompatible_spike_stage_options");
   if (!options.approval.approved || options.approval.planSha256 !== options.planSha256 || options.approval.maximumAuthorizedSpendMicrousd !== 12_000_000 || options.approval.series !== options.series || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(options.approval.approvalId)) {
     throw new Error("paid_execution_approval_mismatch");
   }
@@ -320,6 +328,18 @@ export async function runReceiptSpikeMatrix(options: {
     const literal = readJson<VisualDocumentInput>(path.join(options.fixtureRoot, file.evaluator.literal_source.path));
     await classify({ cell: "canary-oracle-s10-c1", file, variant: "oracle_literal", run: 1, readerId: "oracle-reader", classifierId: "C1-openai-strong", readerInput: literal });
     const summary = { canary: "passed", fileId: "S10", providerCalls: 1, budget: ledger.snapshot(), latencyMs: providerRuns[0].latencyMs, returnedModelIds: providerRuns.map((item) => item.returnedModelId) };
+    writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
+    return summary;
+  }
+
+  if (options.readerCanaryOnly) {
+    const file = options.manifest.files.find((item) => item.fileId === "S01");
+    if (!file) throw new Error("reader_canary_fixture_missing");
+    const visual = await reader("r1-reader-canary-s01", file, "png_clean", 1, "R1");
+    const oracle = readJson<VisualDocumentInput>(path.join(options.fixtureRoot, file.evaluator.literal_source.path));
+    const metrics = evaluateReader(oracle, visual, readerEvaluationProfile("R1-openai-vision"));
+    writePrivateJson(path.join(artifactRoot(runRoot, "r1-reader-canary-s01", "S01", "png_clean", 1), "reader", "reader.evaluation.json"), metrics);
+    const summary = { stage: "r1_reader_canary", fileId: "S01", variant: "png_clean", providerCalls: 1, metrics, budget: ledger.snapshot(), latencyMs: providerRuns[0].latencyMs, returnedModelIds: providerRuns.map((item) => item.returnedModelId) };
     writePrivateJson(path.join(runRoot, "run.summary.json"), summary);
     return summary;
   }

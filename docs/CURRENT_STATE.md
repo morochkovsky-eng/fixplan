@@ -1,6 +1,6 @@
 # Homory: current state
 
-**Verified:** 2026-09-21 against GitHub, production deployment metadata, and commit `dd848eb330b68dc2169fe717b2b21ce753ef9a23`.
+**Production verified:** 2026-09-21 against GitHub, production deployment metadata, and commit `dd848eb330b68dc2169fe717b2b21ce753ef9a23`. The receipt spike note below incorporates offline evidence through 2026-10-03.
 
 This is the single replace-in-place operational snapshot. Do not append a release diary here.
 
@@ -72,7 +72,7 @@ See [`BRAND.md`](BRAND.md).
 - Unused legacy sidebar selectors remain in `app/globals.css`. Remove them only after checking for hidden dependencies and visual regression.
 - The GitHub repository and Vercel project are still named `fixplan`; renaming is a separate infrastructure change.
 - Utility receipt extraction has a Preview-only, token-protected no-write evaluation route. The first baseline intentionally exposes only the current `prepare_utility_bill` schema; line items, meter detail, evidence, penalties, adjustments, and uncertainty fields remain future extraction work after benchmark results.
-- Receipt vision spike is stopped after two attempts: an HTTP 400 on S01 and a completed S10 response rejected by local classification validation (`tableSchemas[0].tableBlockId`). Their unchanged private ledgers retain conservative reservations of $0.289683 and $0.229708 respectively. No matrix runs completed. A new offline safety change proposes strict classifier output, accounting completed usage before output validation, and a new canary with both ledgers carried into the $12 cap; see [`RECEIPT_VISION_SPIKE.md`](RECEIPT_VISION_SPIKE.md). Production receipt handling remains unchanged.
+- Receipt vision spike has completed the oracle classifier stage (30 C1 and 19 C2 evaluations) but the R1 reader stage is stopped after its first paid S01 call in each of two series. The first saved S01 response replays validly with normalized corner arrays; the next response contains 116 integer corner arrays valid under both pixel and 0–1000 coordinate interpretations. Neither scale can be selected safely from this output. Seven private ledgers account for a conservative $2.973992 of the $12 cap, leaving $9.026008. A reader Structured Outputs change is under offline review; see [`RECEIPT_VISION_SPIKE.md`](RECEIPT_VISION_SPIKE.md). Production receipt handling remains unchanged.
 
 ## Agreed next stages
 

@@ -9,7 +9,9 @@ Return only:
 - `readable`;
 - `pages[]` with pixel `width` and `height`;
 - `blocks[]` with `layout`, normalized `bbox`, and `rows`;
-- `cells[]` with literal `text`, `state`, normalized `bbox`, and optional `colSpan`, `rowSpan`, `isHeader`.
+- `cells[]` with literal `text`, `state`, normalized `bbox`, and `colSpan`, `rowSpan`, `isHeader`.
+
+Every `bbox` is an object `{ "x": number, "y": number, "width": number, "height": number }` in relative page coordinates from 0 to 1. `x` and `y` are the top-left corner; `width` and `height` are extents, so `x + width <= 1` and `y + height <= 1`. Do not use arrays, image pixels, a 0–1000 scale, or bottom-right coordinates. If a span or header flag is not visible, return `null` for that field.
 
 Allowed block layouts are `table`, `kv`, `text`, and `code`. Allowed cell states are `ok`, `blank`, and `illegible`.
 

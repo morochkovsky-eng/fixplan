@@ -18,13 +18,13 @@
     "version": "visual-adapters-v1",
     "source": {
       "path": "lib/server/receipt-spike/adapters.ts",
-      "sha256": "1cbdc1037d1cf64150a11c9e21d70217e43f7c0b5d97635f23a31d015997ec0f"
+      "sha256": "6344fbc40983a7ea02b8f66ff1a00784374e09f9431512b08625b163d56f9905"
     }
   },
   "prompts": {
     "reader": {
       "path": "prompts/receipt-spike/reader-v1.md",
-      "sha256": "070f398545bbec2eaaff44e02ddadb234ee28ac416822d0be49783e425681389"
+      "sha256": "44d09ede4544b480a1aee611731c9ea45712f567a63dd451365119a5bbfa1c73"
     },
     "classifier": {
       "path": "prompts/receipt-spike/classifier-v1.md",
