@@ -3,6 +3,7 @@ import type { RoleClassification, VisualDocumentInput } from "../receipt-core";
 import { DOCUMENT_KINDS, DUE_SCOPES, OPTIONAL_SCOPES, ROW_ROLES, SLOT_NAMES } from "../receipt-core/types";
 import { ROLE_SLOT_CONTRACT } from "../receipt-core/roles";
 import { classifierResponseSchema, classifierWireToCore } from "./classifier-schema";
+import { readerResponseSchema } from "./reader-schema";
 
 export type ProviderUsage = { inputTokens?: number; outputTokens?: number; pages?: number };
 export type OpenAiClassifierPayload = { text: string; issue: "openai_refusal" | "openai_response_incomplete" | "openai_output_text_missing" | null };
@@ -121,7 +122,7 @@ function openAiBudgetCharge(model: OpenAiModel, inputTokens: number, outputToken
   );
 }
 
-function requestBody(options: { model: OpenAiModel; instructions: string; input: unknown; reasoningEffort: "low" | "medium"; maxOutputTokens: number; classifier?: boolean }) {
+function requestBody(options: { model: OpenAiModel; instructions: string; input: unknown; reasoningEffort: "low" | "medium"; maxOutputTokens: number; classifier?: boolean; reader?: boolean }) {
   return {
     model: options.model,
     instructions: options.instructions,
@@ -130,7 +131,9 @@ function requestBody(options: { model: OpenAiModel; instructions: string; input:
     max_output_tokens: options.maxOutputTokens,
     text: { format: options.classifier
       ? { type: "json_schema", name: "receipt_role_classification", strict: true, schema: classifierResponseSchema }
-      : { type: "json_object" } },
+      : options.reader
+        ? { type: "json_schema", name: "receipt_literal_reader", strict: true, schema: readerResponseSchema }
+        : { type: "json_object" } },
     store: false,
   };
 }
@@ -171,6 +174,7 @@ export class OpenAiReceiptSpikeClient {
     parse?: (value: unknown) => T;
     parseText?: (text: string, raw: Record<string, unknown>) => T;
     classifier?: boolean;
+    reader?: boolean;
     signal?: AbortSignal;
   }): Promise<ProviderJsonResult<T>> {
     const started = performance.now();
@@ -225,6 +229,7 @@ export class OpenAiReceiptSpikeClient {
       reasoningEffort: "low",
       maxOutputTokens: 12_000,
       parse: parseVisionReaderOutput,
+      reader: true,
       signal: options.signal,
     });
   }
@@ -237,6 +242,7 @@ export class OpenAiReceiptSpikeClient {
       input: [{ role: "user", content: [{ type: "input_text", text: "Return the literal document as JSON." }, { type: "input_image", image_url: imageUrl, detail: "original" }] }],
       reasoningEffort: "low",
       maxOutputTokens: 12_000,
+      reader: true,
     });
     const imageTokenUpperBound = Math.ceil(options.width / 32) * Math.ceil(options.height / 32) * 2;
     return openAiRequestCostUpperBoundMicrousd({ model: options.model, body, imageTokenUpperBound });

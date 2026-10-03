@@ -14,6 +14,7 @@ import {
 import type { GoogleEnterpriseOcrClient, OpenAiReceiptSpikeClient, ProviderJsonResult, OpenAiClassifierPayload } from "./providers";
 import { classifierInputInstruction, OpenAiOutputIssue } from "./providers";
 import { classifierResponseSchema } from "./classifier-schema";
+import { readerResponseSchema } from "./reader-schema";
 import { classifierWireToCore } from "./classifier-schema";
 import { parseClassifierOutput } from "./adapters";
 import { bindSeriesToLedger, enforceReturnedModelSeries, executeBudgetedProviderCall, readPrivateJson, writePrivateJson } from "./runner";
@@ -112,6 +113,7 @@ function verifyDescriptor(root: string, descriptor: Descriptor) {
 export function verifyReceiptSpikeManifest(root: string, manifest: Manifest, integrity?: {
   manifestSha256: string;
   readerPromptSha256: string;
+  readerResponseSchemaSha256: string;
   classifierPromptSha256: string;
   classifierContractSha256: string;
   classifierResponseSchemaSha256: string;
@@ -129,6 +131,7 @@ export function verifyReceiptSpikeManifest(root: string, manifest: Manifest, int
   if (integrity) {
     if (sha256(fs.readFileSync(path.join(root, "spike-manifest.json"))) !== integrity.manifestSha256) throw new Error("manifest_plan_hash_mismatch");
     if (sha256(integrity.readerPrompt) !== integrity.readerPromptSha256 || manifest.prompts.reader.sha256 !== integrity.readerPromptSha256) throw new Error("reader_prompt_plan_hash_mismatch");
+    if (sha256(JSON.stringify(readerResponseSchema)) !== integrity.readerResponseSchemaSha256) throw new Error("reader_schema_plan_hash_mismatch");
     if (sha256(integrity.classifierPrompt) !== integrity.classifierPromptSha256 || manifest.prompts.classifier.sha256 !== integrity.classifierPromptSha256) throw new Error("classifier_prompt_plan_hash_mismatch");
     if (sha256(classifierInputInstruction()) !== integrity.classifierContractSha256) throw new Error("classifier_contract_plan_hash_mismatch");
     if (sha256(JSON.stringify(classifierResponseSchema)) !== integrity.classifierResponseSchemaSha256) throw new Error("classifier_schema_plan_hash_mismatch");
@@ -161,7 +164,7 @@ export async function runReceiptSpikeMatrix(options: {
   canaryOnly?: boolean;
   oracleOnly?: boolean;
   readerOnly?: boolean;
-  integrity: { manifestSha256: string; readerPromptSha256: string; classifierPromptSha256: string; classifierContractSha256: string; classifierResponseSchemaSha256: string; sourceSha256: Record<string, string> };
+  integrity: { manifestSha256: string; readerPromptSha256: string; readerResponseSchemaSha256: string; classifierPromptSha256: string; classifierContractSha256: string; classifierResponseSchemaSha256: string; sourceSha256: Record<string, string> };
   outputRoot: string;
   readerPrompt: string;
   classifierPrompt: string;

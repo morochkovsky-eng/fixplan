@@ -11,6 +11,7 @@ const readerPrompt = fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8
 const classifierPrompt = fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8");
 const { classifierInputInstruction } = tsRequire("../../lib/server/receipt-spike/providers.ts", import.meta.url);
 const { classifierResponseSchema } = tsRequire("../../lib/server/receipt-spike/classifier-schema.ts", import.meta.url);
+const { readerResponseSchema } = tsRequire("../../lib/server/receipt-spike/reader-schema.ts", import.meta.url);
 const classifierContract = classifierInputInstruction();
 const prices = {
   "gpt-6-sol": { input: 2 / 1_000_000, output: 10 / 1_000_000 },
@@ -19,7 +20,7 @@ const prices = {
 
 const tokenEstimate = (bytes) => Math.ceil(bytes / 4);
 const imageTokens = (width, height) => Math.ceil(Math.ceil(width / 32) * Math.ceil(height / 32) * 1.2);
-const promptTokens = { reader: tokenEstimate(Buffer.byteLength(readerPrompt)), classifier: tokenEstimate(Buffer.byteLength(classifierPrompt) + Buffer.byteLength(classifierContract) + Buffer.byteLength(JSON.stringify(classifierResponseSchema))) };
+const promptTokens = { reader: tokenEstimate(Buffer.byteLength(readerPrompt) + Buffer.byteLength(JSON.stringify(readerResponseSchema))), classifier: tokenEstimate(Buffer.byteLength(classifierPrompt) + Buffer.byteLength(classifierContract) + Buffer.byteLength(JSON.stringify(classifierResponseSchema))) };
 const safetyMultiplier = 1.5;
 
 function modelCost(model, inputTokens, outputTokens) {
@@ -90,6 +91,7 @@ export function loadReceiptSpikeCarryover(seriesNames, outputRoot = path.resolve
 const integrity = {
   manifestSha256: sha256(manifestBytes),
   readerPromptSha256: sha256(readerPrompt),
+  readerResponseSchemaSha256: sha256(JSON.stringify(readerResponseSchema)),
   classifierPromptSha256: sha256(classifierPrompt),
   classifierContractSha256: sha256(classifierContract),
   classifierResponseSchemaSha256: sha256(JSON.stringify(classifierResponseSchema)),
@@ -100,6 +102,7 @@ const integrity = {
     "lib/server/receipt-spike/evaluator.ts",
     "lib/server/receipt-spike/matrix-runner.ts",
     "lib/server/receipt-spike/providers.ts",
+    "lib/server/receipt-spike/reader-schema.ts",
     "lib/server/receipt-spike/runner.ts",
     "lib/server/receipt-core/types.ts",
     "lib/server/receipt-core/roles.ts",

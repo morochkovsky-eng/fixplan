@@ -17,6 +17,7 @@ const runner = await import("../lib/server/receipt-spike/runner.ts");
 const providers = await import("../lib/server/receipt-spike/providers.ts");
 const adapters = await import("../lib/server/receipt-spike/adapters.ts");
 const classifierSchema = await import("../lib/server/receipt-spike/classifier-schema.ts");
+const readerSchema = await import("../lib/server/receipt-spike/reader-schema.ts");
 const matrix = await import("../lib/server/receipt-spike/matrix-runner.ts");
 const { buildReceiptSpikePlan, canonicalJson } = await import("../scripts/receipt-spike/plan-lib.mjs");
 const approvalPlan = await import("../scripts/receipt-spike/approval-plan.mjs");
@@ -42,10 +43,14 @@ test("receipt spike plan fingerprint and matrix schedule are stable and complete
   assert.equal(first.planSha256, second.planSha256);
   assert.match(first.integrity.manifestSha256, /^[a-f0-9]{64}$/);
   assert.match(first.integrity.readerPromptSha256, /^[a-f0-9]{64}$/);
+  assert.equal(first.integrity.readerResponseSchemaSha256, createHash("sha256").update(JSON.stringify(readerSchema.readerResponseSchema)).digest("hex"));
   const unsignedPlan = buildReceiptSpikePlan();
   const changedPrompt = structuredClone(unsignedPlan);
   changedPrompt.integrity.readerPromptSha256 = "0".repeat(64);
   assert.notEqual(approvalPlan.bindReceiptSpikePlanner(changedPrompt).planSha256, first.planSha256);
+  const changedSchema = structuredClone(unsignedPlan);
+  changedSchema.integrity.readerResponseSchemaSha256 = "0".repeat(64);
+  assert.notEqual(approvalPlan.bindReceiptSpikePlanner(changedSchema).planSha256, first.planSha256);
   assert.equal(canonicalJson({ b: 2, a: 1 }), canonicalJson({ a: 1, b: 2 }));
   const schedule = matrix.buildReceiptSpikeSchedule(manifest);
   assert.equal(schedule.filter((step) => step.kind !== "local_reader").length, 250);
@@ -175,6 +180,7 @@ test("manifest and prompt bytes must match the approved plan before execution", 
   const classifierPrompt = fs.readFileSync("prompts/receipt-spike/classifier-v1.md", "utf8");
   assert.equal(matrix.verifyReceiptSpikeManifest(fixtureRoot, manifest, { ...plan.integrity, readerPrompt, classifierPrompt }), 10);
   assert.throws(() => matrix.verifyReceiptSpikeManifest(fixtureRoot, manifest, { ...plan.integrity, readerPrompt: `${readerPrompt} `, classifierPrompt }), /reader_prompt_plan_hash_mismatch/);
+  assert.throws(() => matrix.verifyReceiptSpikeManifest(fixtureRoot, manifest, { ...plan.integrity, readerResponseSchemaSha256: "0".repeat(64), readerPrompt, classifierPrompt }), /reader_schema_plan_hash_mismatch/);
 });
 
 test("runner defaults to a no-call dry plan", () => {
@@ -641,11 +647,30 @@ test("request-specific reservation is an upper bound at the maximum admitted usa
   const literal = JSON.parse(fs.readFileSync(path.join(fixtureRoot, file.evaluator.literal_source.path), "utf8"));
   const instructions = fs.readFileSync("prompts/receipt-spike/reader-v1.md", "utf8");
   let usage;
-  const fakeFetch = async () => new Response(JSON.stringify({ status: "completed", model: "gpt-6-sol", output_text: JSON.stringify(literal), usage }), { status: 200, headers: { "content-type": "application/json" } });
+  let requestBody;
+  const fakeFetch = async (_url, init) => {
+    requestBody = JSON.parse(String(init.body));
+    return new Response(JSON.stringify({ status: "completed", model: "gpt-6-sol", output_text: JSON.stringify(literal), usage }), { status: 200, headers: { "content-type": "application/json" } });
+  };
   const client = new providers.OpenAiReceiptSpikeClient("test-api-key", fakeFetch);
   const bound = client.maximumImageCost({ model: "gpt-6-sol", instructions, bytes, mimeType: "image/png", width: descriptor.width, height: descriptor.height });
   usage = { input_tokens: bound.inputTokenUpperBound, output_tokens: bound.outputTokenUpperBound };
   const result = await client.readImage({ model: "gpt-6-sol", instructions, bytes, mimeType: "image/png" });
+  assert.equal(requestBody.text.format.type, "json_schema");
+  assert.equal(requestBody.text.format.strict, true);
+  assert.deepEqual(requestBody.text.format.schema, readerSchema.readerResponseSchema);
+  const checkStrict = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (node.type === "object") {
+      assert.equal(node.additionalProperties, false);
+      assert.deepEqual(node.required, Object.keys(node.properties));
+    }
+    for (const child of Object.values(node)) checkStrict(child);
+  };
+  checkStrict(requestBody.text.format.schema);
+  const bbox = requestBody.text.format.schema.properties.pages.items.properties.blocks.items.properties.bbox;
+  assert.deepEqual(bbox.required, ["x", "y", "width", "height"]);
+  for (const coordinate of Object.values(bbox.properties)) assert.deepEqual([coordinate.minimum, coordinate.maximum], [0, 1]);
   assert.ok(bound.inputTokenUpperBound > 272_000, "the test must exercise long-context pricing");
   assert.ok(bound.maximumCostMicrousd >= result.budgetChargeMicrousd);
   assert.ok(bound.maximumCostMicrousd < budget.RECEIPT_SPIKE_HARD_CAP_MICROUSD);
